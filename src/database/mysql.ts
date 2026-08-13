@@ -13,6 +13,7 @@ import {
   requireDatabaseDeadlineRemaining,
 } from "./deadline.js"
 import { DatabaseDeadlineExceeded } from "../errors.js"
+import { databaseTransactionActive, withDatabaseTransaction } from "./transaction-context.js"
 
 export interface MySQLDatabaseOptions {
   connectionString: string
@@ -151,42 +152,48 @@ export class MySQLDatabase implements Database {
   async transaction<Result>(
     callback: (connection: DatabaseConnection) => Promise<Result>,
   ): Promise<Result> {
-    const deadlineActive = databaseDeadlineRemainingMilliseconds() !== undefined
-    const connection = await acquireBeforeDatabaseDeadline(
-      this.pool.getConnection(),
-      (lateConnection) => lateConnection.release(),
-    )
-    try {
-      await connection.beginTransaction()
-      const remaining = requireDatabaseDeadlineRemaining()
-      if (remaining !== undefined) {
-        await connection.query("SET SESSION innodb_lock_wait_timeout = ?", [
-          Math.max(Math.ceil(remaining / 1_000), 1),
-        ])
-        await connection.query("SET SESSION max_execution_time = ?", [Math.max(remaining, 1)])
+    return withDatabaseTransaction(this, async () => {
+      const deadlineActive = databaseDeadlineRemainingMilliseconds() !== undefined
+      const connection = await acquireBeforeDatabaseDeadline(
+        this.pool.getConnection(),
+        (lateConnection) => lateConnection.release(),
+      )
+      try {
+        await connection.beginTransaction()
+        const remaining = requireDatabaseDeadlineRemaining()
+        if (remaining !== undefined) {
+          await connection.query("SET SESSION innodb_lock_wait_timeout = ?", [
+            Math.max(Math.ceil(remaining / 1_000), 1),
+          ])
+          await connection.query("SET SESSION max_execution_time = ?", [Math.max(remaining, 1)])
+        }
+        const result = await callback(new MySQLConnection(connection))
+        requireDatabaseDeadlineRemaining()
+        await connection.commit()
+        return result
+      } catch (error) {
+        await connection.rollback().catch(() => undefined)
+        if (
+          error instanceof DatabaseDeadlineExceeded ||
+          (deadlineActive && mysqlDeadlineError(error))
+        ) {
+          throw databaseDeadlineError(error)
+        }
+        throw error
+      } finally {
+        if (deadlineActive) {
+          await connection
+            .query("SET SESSION innodb_lock_wait_timeout = DEFAULT")
+            .catch(() => undefined)
+          await connection.query("SET SESSION max_execution_time = DEFAULT").catch(() => undefined)
+        }
+        connection.release()
       }
-      const result = await callback(new MySQLConnection(connection))
-      requireDatabaseDeadlineRemaining()
-      await connection.commit()
-      return result
-    } catch (error) {
-      await connection.rollback().catch(() => undefined)
-      if (
-        error instanceof DatabaseDeadlineExceeded ||
-        (deadlineActive && mysqlDeadlineError(error))
-      ) {
-        throw databaseDeadlineError(error)
-      }
-      throw error
-    } finally {
-      if (deadlineActive) {
-        await connection
-          .query("SET SESSION innodb_lock_wait_timeout = DEFAULT")
-          .catch(() => undefined)
-        await connection.query("SET SESSION max_execution_time = DEFAULT").catch(() => undefined)
-      }
-      connection.release()
-    }
+    })
+  }
+
+  transactionActive(): boolean {
+    return databaseTransactionActive(this)
   }
 
   async close(): Promise<void> {

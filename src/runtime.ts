@@ -36,6 +36,7 @@ import {
   Rejected,
   SyncTimeout,
   SyncEnqueueTimeout,
+  SyncInsideTransaction,
   Unauthorized,
   UnknownCommitAction,
   UnknownDeadLetter,
@@ -330,6 +331,13 @@ export class SolidObjectsRuntime {
       argumentsValue: argumentsObject,
       authorizationContext: invocationOptions.authorizationContext,
     })
+    if (this.settings.database.transactionActive?.()) {
+      throw new SyncInsideTransaction({
+        actorType: reference.actorType,
+        actorId: reference.actorId,
+        operation,
+      })
+    }
     const timeout = invocationTimeout(invocationOptions)
     const deadline = performance.now() + timeout
     let messageReference: MessageReference<Result>
@@ -367,8 +375,9 @@ export class SolidObjectsRuntime {
   ): Promise<DeepReadonly<Result>> {
     const timeout = invocationTimeout(options)
     const deadline = performance.now() + timeout
+    let message: MessageRow
     try {
-      await withDatabaseDeadline({ timeoutMilliseconds: timeout }, () =>
+      message = await withDatabaseDeadline({ timeoutMilliseconds: timeout }, () =>
         this.authorizeMessageReference(messageReference, options.authorizationContext),
       )
     } catch (error) {
@@ -377,6 +386,13 @@ export class SolidObjectsRuntime {
         messageReference,
         timeout,
         operation: "unknown",
+      })
+    }
+    if (this.settings.database.transactionActive?.()) {
+      throw new SyncInsideTransaction({
+        actorType: messageReference.actorType,
+        actorId: messageReference.actorId,
+        operation: message.operation,
       })
     }
     return this.waitForResult(messageReference, { timeout, deadline })
@@ -1352,6 +1368,8 @@ export class SolidObjectsRuntime {
       actorType: message.actor_type,
       actorId: message.actor_id,
       sequence: BigInt(message.sequence),
+      operation: message.operation,
+      databaseTransactionActive: () => this.settings.database.transactionActive?.() ?? false,
     })
   }
 

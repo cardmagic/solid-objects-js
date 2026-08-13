@@ -15,6 +15,10 @@ class GuardedApplicationDatabase implements Database {
     this.schemaIdentity = database.schemaIdentity
   }
 
+  transactionActive(): boolean {
+    return this.database.transactionActive?.() ?? false
+  }
+
   connection<Result>(
     callback: (connection: DatabaseConnection) => Promise<Result>,
   ): Promise<Result> {

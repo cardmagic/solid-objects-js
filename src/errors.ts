@@ -25,6 +25,21 @@ export class SyncEnqueueTimeout extends SolidObjectsError {
     )
   }
 }
+export class SyncInsideTransaction extends SolidObjectsError {
+  constructor(
+    readonly details: {
+      actorType: string
+      actorId: string
+      operation: string
+    },
+  ) {
+    super(
+      `cannot synchronously invoke ` +
+        `${details.actorType}(${JSON.stringify(details.actorId)}).${details.operation} ` +
+        `inside a Solid Objects database transaction`,
+    )
+  }
+}
 export class InvalidActor extends SolidObjectsError {}
 export class UnknownActorType extends NonRetryableError {}
 export class UnknownOperation extends NonRetryableError {}

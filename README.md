@@ -252,6 +252,13 @@ await counter
 Invocation options stay separate from actor arguments, so an actor may safely
 use argument names such as `timeoutMilliseconds` or `authorizationContext`.
 
+Do not make a committed actor call or wait on a message from inside
+`database.transaction(...)` on the Solid Objects database. The runtime raises
+`SyncInsideTransaction` before enqueue or waiting, avoiding a self-deadlock on
+the transaction's checked-out connection. Send background work outside the
+transaction, or let the actor coordinate same-database changes through a commit
+action.
+
 ## Send background work without a queue service
 
 Use the typed `send` dispatcher when the caller should not wait for execution:

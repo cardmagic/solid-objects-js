@@ -1,7 +1,12 @@
 import { afterEach, describe, expect, it } from "vitest"
 import { Actor } from "../src/actor.js"
 import type { SolidObjectsConfiguration } from "../src/configuration.js"
-import { IdempotencyConflict, Rejected, Unauthorized } from "../src/errors.js"
+import {
+  IdempotencyConflict,
+  Rejected,
+  SyncInsideTransaction,
+  Unauthorized,
+} from "../src/errors.js"
 import { configureSolidObjects, type SolidObjectsRuntime } from "../src/runtime.js"
 import { sqlite } from "../src/database/sqlite.js"
 
@@ -294,6 +299,72 @@ describe("durable invocation correctness", () => {
       message: expect.stringContaining("sendTo"),
     })
     expect(await Target.ref("target").received).toBe(0)
+  })
+
+  it("rejects synchronous invocation inside its database transaction before enqueue", async () => {
+    runtime = configuredRuntime()
+    await runtime.install()
+    const counter = ReliableCounter.ref("ambient-transaction")
+
+    const error = await runtime.settings.database.transaction(async () => {
+      try {
+        await counter.increment()
+      } catch (raised) {
+        return raised
+      }
+      throw new Error("expected invocation to fail")
+    })
+
+    expect(error).toBeInstanceOf(SyncInsideTransaction)
+    expect(error).toMatchObject({
+      details: {
+        actorType: ReliableCounter.actorType,
+        actorId: "ambient-transaction",
+        operation: "increment",
+      },
+    })
+    const messages = await runtime.settings.database.connection((connection) =>
+      connection.all(`SELECT id FROM ${runtime?.repository.table("messages")}`),
+    )
+    expect(messages).toEqual([])
+  })
+
+  it("rejects waiting for a message inside its database transaction", async () => {
+    runtime = configuredRuntime()
+    await runtime.install()
+    const message = await ReliableCounter.ref("ambient-wait").send.increment()
+
+    const error = await runtime.settings.database.transaction(async () => {
+      try {
+        await message.wait()
+      } catch (raised) {
+        return raised
+      }
+      throw new Error("expected wait to fail")
+    })
+
+    expect(error).toBeInstanceOf(SyncInsideTransaction)
+    expect(error).toMatchObject({
+      details: {
+        actorType: ReliableCounter.actorType,
+        actorId: "ambient-wait",
+        operation: "increment",
+      },
+    })
+    expect(await message.status()).toBe("ready")
+  })
+
+  it("does not retain transaction state in detached asynchronous work", async () => {
+    runtime = configuredRuntime()
+    await runtime.install()
+    const counter = ReliableCounter.ref("detached")
+    let invokeAfterCommit: (() => Promise<number>) | undefined
+
+    await runtime.settings.database.transaction(async () => {
+      invokeAfterCommit = () => counter.increment()
+    })
+
+    await expect(invokeAfterCommit?.()).resolves.toBe(1)
   })
 })
 

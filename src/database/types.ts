@@ -15,6 +15,7 @@ export interface DatabaseConnection {
 export interface Database {
   readonly family: DatabaseFamily
   readonly schemaIdentity: string
+  transactionActive?(): boolean
   connection<Result>(callback: (connection: DatabaseConnection) => Promise<Result>): Promise<Result>
   transaction<Result>(
     callback: (connection: DatabaseConnection) => Promise<Result>,

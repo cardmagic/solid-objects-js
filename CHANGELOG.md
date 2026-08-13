@@ -54,6 +54,8 @@
   PostgreSQL, and MySQL; distinguish an uncommitted enqueue timeout from a
   recoverable durable wait timeout; and report structured database, activation,
   and mailbox blockers.
+- Reject committed calls and message waits inside an ambient Solid Objects
+  database transaction before they can self-deadlock.
 
 ## 0.1.0 - 2026-08-13
 

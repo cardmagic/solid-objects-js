@@ -1,5 +1,5 @@
 import type { Actor, ActorClass } from "./actor.js"
-import { UnknownOperation } from "./errors.js"
+import { SyncInsideTransaction, UnknownOperation } from "./errors.js"
 import type { SolidObjectsRuntime } from "./runtime.js"
 import type {
   AsyncInvocationOptions,
@@ -107,11 +107,13 @@ export type ActorInvoker<ActorType extends Actor> = DirectMessages<ActorType> &
 
 export class MessageReference<Result = unknown> {
   private readonly runtime: SolidObjectsRuntime
+  private readonly databaseTransactionActive: () => boolean
   readonly id: string
   readonly requestId: string
   readonly actorType: string
   readonly actorId: string
   readonly sequence: bigint
+  private readonly operation: string
 
   constructor(options: {
     runtime: SolidObjectsRuntime
@@ -120,6 +122,8 @@ export class MessageReference<Result = unknown> {
     actorType: string
     actorId: string
     sequence: bigint
+    operation?: string
+    databaseTransactionActive?: () => boolean
   }) {
     this.runtime = options.runtime
     this.id = options.id
@@ -127,6 +131,8 @@ export class MessageReference<Result = unknown> {
     this.actorType = options.actorType
     this.actorId = options.actorId
     this.sequence = options.sequence
+    this.operation = options.operation ?? "unknown"
+    this.databaseTransactionActive = options.databaseTransactionActive ?? (() => false)
     Object.freeze(this)
   }
 
@@ -139,6 +145,13 @@ export class MessageReference<Result = unknown> {
   }
 
   wait(options: InvocationOptions = {}): Promise<DeepReadonly<Result>> {
+    if (this.databaseTransactionActive()) {
+      throw new SyncInsideTransaction({
+        actorType: this.actorType,
+        actorId: this.actorId,
+        operation: this.operation,
+      })
+    }
     return this.runtime.wait(this, options)
   }
 }

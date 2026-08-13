@@ -9,6 +9,7 @@ import {
   requireDatabaseDeadlineRemaining,
 } from "./deadline.js"
 import { DatabaseDeadlineExceeded } from "../errors.js"
+import { databaseTransactionActive, withDatabaseTransaction } from "./transaction-context.js"
 
 export {
   PostgreSQLWakeUpAdapter,
@@ -152,32 +153,38 @@ export class PostgreSQLDatabase implements Database {
   async transaction<Result>(
     callback: (connection: DatabaseConnection) => Promise<Result>,
   ): Promise<Result> {
-    const deadlineActive = databaseDeadlineRemainingMilliseconds() !== undefined
-    const client = await acquireBeforeDatabaseDeadline(this.pool.connect(), (lateClient) =>
-      lateClient.release(),
-    )
-    try {
-      await client.query("BEGIN")
-      const remaining = requireDatabaseDeadlineRemaining()
-      if (remaining !== undefined) {
-        await applyPostgreSQLDeadline({ client, milliseconds: remaining, scope: "transaction" })
+    return withDatabaseTransaction(this, async () => {
+      const deadlineActive = databaseDeadlineRemainingMilliseconds() !== undefined
+      const client = await acquireBeforeDatabaseDeadline(this.pool.connect(), (lateClient) =>
+        lateClient.release(),
+      )
+      try {
+        await client.query("BEGIN")
+        const remaining = requireDatabaseDeadlineRemaining()
+        if (remaining !== undefined) {
+          await applyPostgreSQLDeadline({ client, milliseconds: remaining, scope: "transaction" })
+        }
+        const result = await callback(new PostgreSQLConnection(client))
+        requireDatabaseDeadlineRemaining()
+        await client.query("COMMIT")
+        return result
+      } catch (error) {
+        await client.query("ROLLBACK").catch(() => undefined)
+        if (
+          error instanceof DatabaseDeadlineExceeded ||
+          (deadlineActive && postgresqlDeadlineError(error))
+        ) {
+          throw databaseDeadlineError(error)
+        }
+        throw error
+      } finally {
+        client.release()
       }
-      const result = await callback(new PostgreSQLConnection(client))
-      requireDatabaseDeadlineRemaining()
-      await client.query("COMMIT")
-      return result
-    } catch (error) {
-      await client.query("ROLLBACK").catch(() => undefined)
-      if (
-        error instanceof DatabaseDeadlineExceeded ||
-        (deadlineActive && postgresqlDeadlineError(error))
-      ) {
-        throw databaseDeadlineError(error)
-      }
-      throw error
-    } finally {
-      client.release()
-    }
+    })
+  }
+
+  transactionActive(): boolean {
+    return databaseTransactionActive(this)
   }
 
   async close(): Promise<void> {

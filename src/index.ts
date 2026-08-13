@@ -132,6 +132,7 @@ export {
   StateMigrationError,
   SyncTimeout,
   SyncEnqueueTimeout,
+  SyncInsideTransaction,
   type SyncTimeoutDetails,
   type SyncTimeoutWaitingOn,
   Unauthorized,

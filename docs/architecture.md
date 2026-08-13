@@ -47,6 +47,11 @@ Already-running JavaScript actor code is cooperative rather than forcefully
 preempted; leases and fenced commits remain authoritative if it outlives the
 caller's wait.
 
+Each database adapter also tracks its active transaction through Node's async
+context. A committed call or message wait fails before enqueue or polling when
+the same logical call stack already owns a Solid Objects transaction, rather
+than waiting for a connection or serialized SQLite slot it cannot release.
+
 PostgreSQL notifications are an opt-in latency layer. One event-driven client
 per runtime listens on role-specific channels before the worker checks durable
 state, which closes the listener-startup race without Ruby's connection per

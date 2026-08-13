@@ -61,6 +61,12 @@ forcefully terminated. An actor operation that has started may therefore
 finish after the caller's timeout; durable leases and fenced commits remain the
 correctness boundary.
 
+Committed calls and `message.wait()` fail with `SyncInsideTransaction` when
+invoked inside `database.transaction(...)` on the configured Solid Objects
+adapter. The check happens before enqueue for direct calls. This prevents the
+caller from waiting on a pool connection or SQLite access slot that its own
+ambient transaction still holds.
+
 Authorized operators can inspect terminal actor failures with
 `runtime.deadLetters.all()` and retry one with `runtime.deadLetters.retry()`.
 Retry is idempotent per dead letter: the record retains the replacement message

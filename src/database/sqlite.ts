@@ -2,6 +2,7 @@ import { DatabaseSync } from "node:sqlite"
 import type { Database, DatabaseConnection, RunResult } from "./types.js"
 import { databaseDeadlineError, requireDatabaseDeadlineRemaining } from "./deadline.js"
 import { DatabaseDeadlineExceeded } from "../errors.js"
+import { databaseTransactionActive, withDatabaseTransaction } from "./transaction-context.js"
 
 export interface SQLiteDatabaseOptions {
   path: string
@@ -69,17 +70,23 @@ export class SQLiteDatabase implements Database {
   async transaction<Result>(
     callback: (connection: DatabaseConnection) => Promise<Result>,
   ): Promise<Result> {
-    return this.withAccess(async () => {
-      this.database.exec("BEGIN IMMEDIATE")
-      try {
-        const result = await callback(this.databaseConnection)
-        this.database.exec("COMMIT")
-        return result
-      } catch (error) {
-        this.database.exec("ROLLBACK")
-        throw error
-      }
-    })
+    return withDatabaseTransaction(this, () =>
+      this.withAccess(async () => {
+        this.database.exec("BEGIN IMMEDIATE")
+        try {
+          const result = await callback(this.databaseConnection)
+          this.database.exec("COMMIT")
+          return result
+        } catch (error) {
+          this.database.exec("ROLLBACK")
+          throw error
+        }
+      }),
+    )
+  }
+
+  transactionActive(): boolean {
+    return databaseTransactionActive(this)
   }
 
   async close(): Promise<void> {
