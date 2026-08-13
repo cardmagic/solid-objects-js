@@ -275,6 +275,35 @@ describe("SolidObjectsComponentRegistry", () => {
 
     expect(apply).not.toHaveBeenCalled()
   })
+
+  it("validates a complete batch before applying any result", async () => {
+    const apply = vi.fn()
+    const onError = vi.fn()
+    const registry = new SolidObjectsComponentRegistry<string>({
+      refresh: async () => [
+        { target: "player", rendered: "valid" },
+        { target: "unexpected", rendered: "invalid" },
+      ],
+      apply,
+      onError,
+    })
+    registry.register({
+      actorType: "GameRoom",
+      actorId: "table-1",
+      target: "player",
+      name: "player",
+      observes: ["playerOne"],
+      batch: "playmat",
+    })
+
+    registry.invalidate(invalidation({ observables: { playerOne: 1 } }))
+    await settle()
+
+    expect(apply).not.toHaveBeenCalled()
+    expect(onError).toHaveBeenCalledWith(
+      expect.objectContaining({ error: expect.objectContaining({ name: "TypeError" }) }),
+    )
+  })
 })
 
 function invalidation(options: {

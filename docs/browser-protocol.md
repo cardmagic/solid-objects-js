@@ -81,6 +81,11 @@ target as authorization. The application-owned refresh endpoint authenticates
 the browser and reauthorizes every requested component before returning render
 results.
 
+`pnpm run test:browser` builds the browser entry and runs its Playwright suite
+in Chromium. It covers native WebSocket subscription replay, stale revision and
+incarnation handling, personalized payloads, component batching, and
+superseded-request cancellation.
+
 `runtime.realtime` delivers directly to sessions in its own Node process. For
 several WebSocket processes, the configured `broadcast` callback publishes the
 committed envelope through a shared transport and each process passes received

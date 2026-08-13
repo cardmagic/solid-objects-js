@@ -74,7 +74,7 @@ Reference: Ruby `solid_objects` 0.12.0 at commit `a01b6f5`.
 | Turbo scalar replacement                                     | Not applicable | The browser client exposes invalidations to application rendering code. Framework adapters can be separate packages.                                                                                           |
 | Keyed component refresh, morph/replace, and batch coalescing | Native         | A typed framework-neutral registry selects explicit dependencies, coalesces batch requests, aborts superseded work, fences each target, and delegates synchronous application strategy to the host.            |
 | Personalized payload broadcasts                              | Native         | Static typed projections run against committed state under each fresh subscriber context, reauthorize as queries, isolate failures, and carry independent revision fences.                                     |
-| Real-browser compatibility suite                             | Planned        | Exercise reconnection, incarnation changes, stale revisions, cancellation, batching, and payload delivery in Chromium.                                                                                         |
+| Real-browser compatibility suite                             | Native         | Playwright exercises subscription replay over native WebSocket, incarnation/revision fences, payload delivery, component batching, and cancellation in Chromium.                                               |
 
 ## Rails-specific surfaces
 

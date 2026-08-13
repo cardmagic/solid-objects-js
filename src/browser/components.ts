@@ -249,14 +249,25 @@ export class SolidObjectsComponentRegistry<Rendered> {
     pending: PendingRefresh
     results: readonly ComponentRefreshResult<Rendered>[]
   }): void {
+    if (!Array.isArray(options.results)) throw new TypeError("component results must be an array")
     const requested = options.pending.components
     const seen = new Set<string>()
+    const validated: Array<{
+      component: RegisteredComponent
+      result: ComponentRefreshResult<Rendered>
+    }> = []
     for (const result of options.results) {
+      if (!isComponentRefreshResult<Rendered>(result)) {
+        throw new TypeError("component results must contain a target and rendered value")
+      }
       if (seen.has(result.target))
         throw new TypeError(`duplicate component result ${result.target}`)
       seen.add(result.target)
       const component = requested.get(result.target)
       if (!component) throw new TypeError(`unexpected component result ${result.target}`)
+      validated.push({ component, result })
+    }
+    for (const { component, result } of validated) {
       if (this.#components.get(componentIdentity(component)) !== component) continue
       const current = this.#applied.get(result.target)
       if (
@@ -365,4 +376,13 @@ function supersedes(current: ActiveRefresh, previous: ActiveRefresh): boolean {
 
 function isAbortError(error: unknown): boolean {
   return error instanceof Error && error.name === "AbortError"
+}
+
+function isComponentRefreshResult<Rendered>(
+  value: unknown,
+): value is ComponentRefreshResult<Rendered> {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) return false
+  return (
+    typeof (value as { target?: unknown }).target === "string" && Object.hasOwn(value, "rendered")
+  )
 }

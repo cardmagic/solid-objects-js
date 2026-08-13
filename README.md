@@ -649,6 +649,9 @@ application's synchronous `apply` callback; the library does not assume a DOM
 framework. The refresh endpoint must authenticate the request and reauthorize
 every requested component and dependency.
 
+Run `pnpm run test:browser` after installing Playwright's Chromium build to
+exercise the browser entry through native WebSocket and browser APIs.
+
 For subscriber-specific views, declare a static payload map with a TypeScript
 `satisfies` check:
 
