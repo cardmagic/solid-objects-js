@@ -321,7 +321,9 @@ administrative tooling, and Ruby schema interoperability are not part of the
 
 See [`docs/architecture.md`](docs/architecture.md),
 [`docs/correctness.md`](docs/correctness.md), and
-[`docs/authorization.md`](docs/authorization.md) for the runtime contract.
+[`docs/authorization.md`](docs/authorization.md) for the runtime contract. The
+[`Ruby parity ledger`](docs/parity.md) tracks native equivalents and remaining
+gaps against the current gem.
 
 ## License
 
