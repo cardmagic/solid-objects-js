@@ -36,3 +36,14 @@ unfinished effects and broadcasts, scheduled reminders, leased or paused
 instances, and processes that still own a claim or activation. Instance
 expiration removes the entire actor incarnation and all of its retained
 history, so use it only for actor types whose state is safely disposable.
+
+`runtime.doctor.run()` returns structured configuration, schema, database,
+authorization-posture, live-role, and durable-round-trip checks. A warning does
+not make the report unhealthy; a failed check does. The round trip targets only
+its probe actor, uses the ordinary lease and fenced commit path, and removes its
+instance and process records afterward. Use `{ roundTrip: "skip" }` when the
+diagnostic must not write.
+
+The doctor reports whether each authorization callback was explicitly
+configured without calling it. Do not expose the report through an HTTP or CLI
+surface without applying the host application's own administration policy.

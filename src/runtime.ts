@@ -8,6 +8,7 @@ import {
 } from "./configuration.js"
 import { currentActor, withActorContext } from "./context.js"
 import { DeadLetterManager, type DeadLetter } from "./dead-letters.js"
+import { Doctor } from "./doctor.js"
 import { clearDefaultRuntime, setDefaultRuntime } from "./default-runtime.js"
 import {
   actorState,
@@ -102,6 +103,7 @@ export class SolidObjectsRuntime {
   readonly deadLetters
   readonly reconciliation
   readonly retention
+  readonly doctor
   private readonly registry = new Map<string, RegisteredActor>()
   private readonly effects = new Map<string, EffectHandler>()
   private readonly commitActions = new Map<string, CommitActionHandler>()
@@ -115,6 +117,7 @@ export class SolidObjectsRuntime {
     this.deadLetters = new DeadLetterManager(this)
     this.reconciliation = new ReconciliationManager(this)
     this.retention = new RetentionManager(this)
+    this.doctor = new Doctor(this)
   }
 
   async install(): Promise<void> {

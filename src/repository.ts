@@ -182,15 +182,23 @@ export class Repository {
     return message
   }
 
-  async claim(processId: string): Promise<ClaimedTurn | undefined> {
+  async claim(
+    processId: string,
+    options: { instanceId?: string } = {},
+  ): Promise<ClaimedTurn | undefined> {
     return this.settings.database.transaction(async (connection) => {
       const now = await connection.nowMilliseconds()
       await this.recoverExpiredClaims(connection, now)
+      const instanceCondition = options.instanceId === undefined ? "" : "AND ready.instance_id = ?"
+      const parameters: unknown[] = [now]
+      if (options.instanceId !== undefined) parameters.push(options.instanceId)
+      parameters.push(now)
       const candidate = await connection.get<{ message_id: string; instance_id: string }>(
         `SELECT ready.message_id, ready.instance_id
          FROM ${this.table("ready_messages")} ready
          JOIN ${this.table("instances")} instances ON instances.id = ready.instance_id
          WHERE ready.available_at_ms <= ? AND instances.paused = 0
+           ${instanceCondition}
            AND NOT EXISTS (
              SELECT 1 FROM ${this.table("claimed_messages")} claimed
              WHERE claimed.instance_id = ready.instance_id AND claimed.sequence < ready.sequence
@@ -202,7 +210,7 @@ export class Repository {
            AND (instances.activation_owner_id IS NULL OR instances.activation_expires_at_ms <= ?)
          ORDER BY ready.available_at_ms, ready.sequence
          LIMIT 1`,
-        [now, now],
+        parameters,
       )
       if (!candidate) return undefined
 

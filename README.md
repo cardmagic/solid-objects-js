@@ -355,6 +355,27 @@ Pruning rechecks every candidate in bounded transactions. Live mailbox work,
 unfinished outboxes, scheduled reminders, dead letters, retry links, active
 leases, and running processes are retained.
 
+## Verify an installation
+
+The doctor returns a structured report for startup checks, deployment probes,
+or an application-owned CLI:
+
+```typescript
+const report = await runtime.doctor.run()
+
+for (const check of report.checks) {
+  console.log(check.status, check.name, check.message)
+}
+
+if (!report.healthy) process.exitCode = 1
+```
+
+It checks configuration, schema migrations and required columns, SQLite's
+server version, authorization-policy configuration, live runtime roles, and a
+targeted durable actor round trip. The authorization check records which
+policies were explicitly supplied; it never invokes application policies with
+a fabricated subject. Pass `{ roundTrip: "skip" }` for a read-only report.
+
 ## Add realtime updates without exposing all state
 
 Configure `broadcast` to forward explicit observable changes to the transport

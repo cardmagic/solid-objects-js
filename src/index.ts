@@ -16,6 +16,13 @@ export { ReminderScheduler } from "./reminder-scheduler.js"
 export { BroadcastWorker } from "./broadcast-worker.js"
 export { DeadLetterManager, type DeadLetter } from "./dead-letters.js"
 export {
+  Doctor,
+  type DoctorCheck,
+  type DoctorOptions,
+  type DoctorReport,
+  type DoctorStatus,
+} from "./doctor.js"
+export {
   ReconciliationManager,
   type OrphanedReconciliationOptions,
   type QuietReconciliationOptions,

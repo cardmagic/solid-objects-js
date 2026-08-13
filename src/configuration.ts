@@ -68,6 +68,7 @@ export interface RuntimeSettings extends Required<
 > {
   logger: Logger
   broadcast?: (event: BroadcastEvent) => Promise<void>
+  authorizationPoliciesConfigured: Readonly<Record<string, boolean>>
 }
 
 const consoleLogger: Logger = {
@@ -114,6 +115,12 @@ export function buildSettings(configuration: SolidObjectsConfiguration): Runtime
     authorizeQuery: configuration.authorizeQuery ?? (() => false),
     authorizeDestroy: configuration.authorizeDestroy ?? (() => false),
     authorizeAdministration: configuration.authorizeAdministration ?? (() => false),
+    authorizationPoliciesConfigured: Object.freeze({
+      authorizeMessage: configuration.authorizeMessage !== undefined,
+      authorizeQuery: configuration.authorizeQuery !== undefined,
+      authorizeDestroy: configuration.authorizeDestroy !== undefined,
+      authorizeAdministration: configuration.authorizeAdministration !== undefined,
+    }),
   }
 
   if (configuration.broadcast !== undefined) settings.broadcast = configuration.broadcast
