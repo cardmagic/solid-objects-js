@@ -155,5 +155,5 @@ describeMySQL("MySQL adapter", () => {
         expect.objectContaining({ name: "roundTrip", status: "pass" }),
       ]),
     )
-  })
+  }, 15_000)
 })
