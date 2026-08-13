@@ -35,6 +35,10 @@
       "types": "./dist/database/postgresql.d.ts",
       "import": "./dist/database/postgresql.js"
     },
+    "./database/mysql": {
+      "types": "./dist/database/mysql.d.ts",
+      "import": "./dist/database/mysql.js"
+    },
     "./wake-up/redis": {
       "types": "./dist/wake-up/redis.d.ts",
       "import": "./dist/wake-up/redis.js"
@@ -55,6 +59,7 @@
     "test:browser": "pnpm run build && playwright test",
     "test:coverage": "vitest run --coverage",
     "test:postgresql": "vitest run test/postgresql.test.ts",
+    "test:mysql": "vitest run test/mysql.test.ts",
     "test:redis": "vitest run test/redis-wake-up.test.ts",
     "test:watch": "vitest",
     "pack:check": "pnpm pack --dry-run",
@@ -66,6 +71,7 @@
     "@types/pg": "^8.21.0",
     "@types/ws": "^8.18.1",
     "@vitest/coverage-v8": "^4.1.10",
+    "mysql2": "^3.23.3",
     "pg": "^8.23.0",
     "prettier": "^3.9.6",
     "redis": "^6.2.1",
@@ -74,10 +80,14 @@
     "ws": "^8.21.3"
   },
   "peerDependencies": {
+    "mysql2": "^3.23.3",
     "pg": "^8.23.0",
     "redis": "^6.2.1"
   },
   "peerDependenciesMeta": {
+    "mysql2": {
+      "optional": true
+    },
     "pg": {
       "optional": true
     },

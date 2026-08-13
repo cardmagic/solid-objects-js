@@ -54,15 +54,15 @@ Reference: Ruby `solid_objects` 0.12.0 at commit `a01b6f5`.
 
 ## Databases and wake-up
 
-| Capability               | Status  | TypeScript shape or remaining work                                                                                                                                     |
-| ------------------------ | ------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| SQLite                   | Native  | Uses built-in `node:sqlite`, serialized process-local access, foreign keys, strict tables, and database time.                                                          |
-| PostgreSQL               | Native  | Optional `pg` 8.23 peer, bounded pooling, 64-bit schema, row-locked sequence allocation, portable set queries, server checks, and a real PostgreSQL integration suite. |
-| MySQL                    | Planned | Add a driver-neutral pool interface, MySQL schema, locking behavior, integration suite, engine/version checks, and client compatibility tests.                         |
-| Durable polling fallback | Native  | Every role progresses without a notification service.                                                                                                                  |
-| In-process wake-up       | Native  | A generation-based default adapter prevents claim-to-wait signal loss; commits wake role-specific waiters and polling remains the fallback.                            |
-| PostgreSQL wake-up       | Native  | `database.wakeUp()` uses one dedicated event-driven client, role-specific `LISTEN/NOTIFY`, generation fencing, reconnectable listeners, and durable polling fallback.  |
-| Redis wake-up            | Native  | An optional `redis` peer provides role-specific Pub/Sub over separate lazy publisher/subscriber connections, with bounded failures and durable polling fallback.       |
+| Capability               | Status | TypeScript shape or remaining work                                                                                                                                     |
+| ------------------------ | ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| SQLite                   | Native | Uses built-in `node:sqlite`, serialized process-local access, foreign keys, strict tables, and database time.                                                          |
+| PostgreSQL               | Native | Optional `pg` 8.23 peer, bounded pooling, 64-bit schema, row-locked sequence allocation, portable set queries, server checks, and a real PostgreSQL integration suite. |
+| MySQL                    | Native | Optional `mysql2` 3.23 peer, bounded pooling, InnoDB schema, row-locked sequence allocation, scoped deadlock retry, diagnostics, and MySQL 8.0/8.4 integration suites. |
+| Durable polling fallback | Native | Every role progresses without a notification service.                                                                                                                  |
+| In-process wake-up       | Native | A generation-based default adapter prevents claim-to-wait signal loss; commits wake role-specific waiters and polling remains the fallback.                            |
+| PostgreSQL wake-up       | Native | `database.wakeUp()` uses one dedicated event-driven client, role-specific `LISTEN/NOTIFY`, generation fencing, reconnectable listeners, and durable polling fallback.  |
+| Redis wake-up            | Native | An optional `redis` peer provides role-specific Pub/Sub over separate lazy publisher/subscriber connections, with bounded failures and durable polling fallback.       |
 
 ## Realtime and browser behavior
 

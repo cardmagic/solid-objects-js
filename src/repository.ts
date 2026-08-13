@@ -10,7 +10,7 @@ import {
 } from "./errors.js"
 import type { ActorIntents } from "./actor.js"
 import type { RuntimeSettings } from "./configuration.js"
-import type { DatabaseConnection } from "./database/types.js"
+import type { Database, DatabaseConnection } from "./database/types.js"
 import type {
   BroadcastRow,
   ClaimedTurn,
@@ -152,9 +152,19 @@ export class Repository {
   }
 
   async enqueue(input: EnqueueInput): Promise<MessageRow> {
-    return this.settings.database.transaction(async (connection) =>
-      this.enqueueInTransaction(connection, input),
-    )
+    for (let attempt = 1; attempt <= 8; attempt += 1) {
+      try {
+        return await this.settings.database.transaction(async (connection) =>
+          this.enqueueInTransaction(connection, input),
+        )
+      } catch (error) {
+        if (!retryableMySQLDeadlock({ database: this.settings.database, error, attempt })) {
+          throw error
+        }
+        await transactionRetryBackoff(attempt)
+      }
+    }
+    throw new Error("enqueue retries exhausted")
   }
 
   async enqueueInTransaction(
@@ -185,11 +195,13 @@ export class Repository {
           now,
         ],
       )
+    }
+    if (this.settings.database.family === "mysql" || !instance) {
       instance = await this.findInstance({
         connection,
         actorType: input.actorType,
         actorId: input.actorId,
-        ...(this.settings.database.family === "postgresql" ? { lock: "update" } : {}),
+        ...(this.settings.database.family === "sqlite" ? {} : { lock: "update" }),
       })
     }
     if (!instance) throw new ActorDestroyed("actor disappeared during enqueue")
@@ -1501,4 +1513,19 @@ function retentionPolicy(options: {
 
 function parameterList(length: number): string {
   return Array.from({ length }, () => "?").join(", ")
+}
+
+function retryableMySQLDeadlock(options: {
+  database: Database
+  error: unknown
+  attempt: number
+}): boolean {
+  if (options.database.family !== "mysql" || options.attempt >= 8) return false
+  if (typeof options.error !== "object" || options.error === null) return false
+  return (options.error as { code?: unknown }).code === "ER_LOCK_DEADLOCK"
+}
+
+async function transactionRetryBackoff(attempt: number): Promise<void> {
+  const delay = 2 ** attempt + Math.floor(Math.random() * 5)
+  await new Promise<void>((resolve) => setTimeout(resolve, delay))
 }

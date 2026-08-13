@@ -39,6 +39,9 @@
   personalized payloads, component batching, and request cancellation.
 - Add optional Redis Pub/Sub wake-ups with role-specific channels, separate
   lazy connections, bounded failure handling, and real-server integration QA.
+- Add MySQL 8.0+ through the optional `mysql2` driver with pooled transactions,
+  an InnoDB schema, scoped enqueue deadlock recovery, diagnostics, and
+  real-server coverage across MySQL 8.0 and 8.4.
 
 ## 0.1.0 - 2026-08-13
 

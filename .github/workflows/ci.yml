@@ -56,6 +56,38 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm run test:postgresql
 
+  mysql:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        mysql-version: ["8.0", "8.4"]
+    services:
+      mysql:
+        image: mysql:${{ matrix.mysql-version }}
+        env:
+          MYSQL_ROOT_PASSWORD: solid_objects
+          MYSQL_DATABASE: solid_objects_test
+          MYSQL_USER: solid_objects
+          MYSQL_PASSWORD: solid_objects
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd "mysqladmin ping -usolid_objects -psolid_objects --silent"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    env:
+      SOLID_OBJECTS_DATABASE_URL: mysql://solid_objects:solid_objects@127.0.0.1:3306/solid_objects_test
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: "24.15.0"
+      - run: corepack enable
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm run test:mysql
+
   browser:
     runs-on: ubuntu-latest
     steps:

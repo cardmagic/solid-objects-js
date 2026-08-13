@@ -11,9 +11,9 @@ export async function installSchema(options: {
   schemaIdentity: string
 }): Promise<void> {
   const { connection, family, prefix, schemaIdentity } = options
-  if (family !== "sqlite" && family !== "postgresql") {
+  if (family !== "sqlite" && family !== "postgresql" && family !== "mysql") {
     throw new UnsupportedDatabase(
-      "schema installation is currently implemented for SQLite and PostgreSQL only",
+      "schema installation is currently implemented for SQLite, PostgreSQL, and MySQL",
     )
   }
 
@@ -97,9 +97,13 @@ export async function installSchema(options: {
     FOREIGN KEY (message_id) REFERENCES ${table("messages")}(id) ON DELETE CASCADE,
     FOREIGN KEY (instance_id) REFERENCES ${table("instances")}(id) ON DELETE CASCADE
   ) STRICT`)
-  await connection.run(
-    `CREATE INDEX IF NOT EXISTS ${prefix}ready_poll ON ${table("ready_messages")}(available_at_ms, instance_id, sequence)`,
-  )
+  await createIndex({
+    connection,
+    family,
+    table: table("ready_messages"),
+    name: `${prefix}ready_poll`,
+    columns: "available_at_ms, instance_id, sequence",
+  })
 
   await createTable(`CREATE TABLE IF NOT EXISTS ${table("claimed_messages")} (
     message_id TEXT PRIMARY KEY,
@@ -191,12 +195,16 @@ export async function installSchema(options: {
   if (retryLinkMigration) return
 
   await connection.run(
-    `ALTER TABLE ${table("dead_letters")} ADD COLUMN ${family === "postgresql" ? "IF NOT EXISTS " : ""}retried_message_id TEXT
+    `ALTER TABLE ${table("dead_letters")} ADD COLUMN ${family === "postgresql" ? "IF NOT EXISTS " : ""}retried_message_id ${family === "mysql" ? "VARCHAR(255)" : "TEXT"}
      REFERENCES ${table("messages")}(id) ON DELETE SET NULL`,
   )
-  await connection.run(
-    `CREATE INDEX ${family === "postgresql" ? "IF NOT EXISTS " : ""}${prefix}dead_letters_retried_message ON ${table("dead_letters")}(retried_message_id)`,
-  )
+  await createIndex({
+    connection,
+    family,
+    table: table("dead_letters"),
+    name: `${prefix}dead_letters_retried_message`,
+    columns: "retried_message_id",
+  })
   const migratedAt = await connection.nowMilliseconds()
   await connection.run(
     `INSERT INTO ${table("schema_migrations")}(version, schema_identity, installed_at_ms)
@@ -207,5 +215,38 @@ export async function installSchema(options: {
 
 function tableDefinition(sql: string, family: DatabaseFamily): string {
   if (family === "sqlite") return sql
-  return sql.replace(/\bINTEGER\b/g, "BIGINT").replace(/\s+STRICT\s*$/, "")
+  const definition = sql.replace(/\bINTEGER\b/g, "BIGINT").replace(/\s+STRICT\s*$/, "")
+  if (family === "postgresql") return definition
+  const documents = new Set(["state", "arguments", "result", "rejection", "error", "observables"])
+  return `${definition.replace(
+    /^(\s*)([A-Za-z_][A-Za-z0-9_]*) TEXT\b/gm,
+    (_match, ...captures: string[]) => {
+      const [space = "", column = ""] = captures
+      return `${space}${column} ${documents.has(column) ? "LONGTEXT" : "VARCHAR(255)"}`
+    },
+  )} ENGINE=InnoDB`
+}
+
+async function createIndex(options: {
+  connection: DatabaseConnection
+  family: DatabaseFamily
+  table: string
+  name: string
+  columns: string
+}): Promise<void> {
+  if (options.family !== "mysql") {
+    await options.connection.run(
+      `CREATE INDEX IF NOT EXISTS ${options.name} ON ${options.table}(${options.columns})`,
+    )
+    return
+  }
+  const existing = await options.connection.get<{ present: number | string }>(
+    `SELECT COUNT(*) AS present FROM information_schema.statistics
+     WHERE table_schema = DATABASE() AND table_name = ? AND index_name = ?`,
+    [options.table, options.name],
+  )
+  if (Number(existing?.present ?? 0) > 0) return
+  await options.connection.run(
+    `CREATE INDEX ${options.name} ON ${options.table}(${options.columns})`,
+  )
 }

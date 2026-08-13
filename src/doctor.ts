@@ -134,10 +134,10 @@ export class Doctor {
       const missingTables: string[] = []
       const missingColumns: string[] = []
       await this.runtime.settings.database.connection(async (connection) => {
-        const schema =
-          this.runtime.settings.database.family === "postgresql"
-            ? await postgresqlSchema(connection)
-            : await sqliteSchema(connection)
+        const schema = await databaseSchema({
+          connection,
+          family: this.runtime.settings.database.family,
+        })
         for (const [name, expectedColumns] of Object.entries(EXPECTED_COLUMNS)) {
           const table = this.runtime.repository.table(name)
           const columns = schema.get(table)
@@ -226,6 +226,7 @@ export class Doctor {
       if (this.runtime.settings.database.family === "postgresql") {
         return await this.checkPostgreSQL()
       }
+      if (this.runtime.settings.database.family === "mysql") return await this.checkMySQL()
       const row = await this.runtime.settings.database.connection((connection) =>
         connection.get<{ version: string }>("SELECT sqlite_version() AS version"),
       )
@@ -267,6 +268,40 @@ export class Doctor {
       status: "pass",
       message: `PostgreSQL ${version} meets the tested minimum`,
       details: { version },
+    })
+  }
+
+  private async checkMySQL(): Promise<DoctorCheck> {
+    const result = await this.runtime.settings.database.connection(async (connection) => {
+      const version = await connection.get<{ version: string }>("SELECT VERSION() AS version")
+      const invalidEngines = await connection.all<{ table_name: string; engine: string }>(
+        `SELECT table_name AS table_name, engine AS engine FROM information_schema.tables
+         WHERE table_schema = DATABASE() AND table_name LIKE ? AND engine <> 'InnoDB'`,
+        [`${this.runtime.settings.tableNamePrefix}%`],
+      )
+      return { version: version?.version ?? "unknown", invalidEngines }
+    })
+    if (result.invalidEngines.length > 0) {
+      return check({
+        name: "database",
+        status: "fail",
+        message: "MySQL Solid Objects tables must use InnoDB",
+        details: { tables: result.invalidEngines.map(({ table_name }) => table_name) },
+      })
+    }
+    if (result.version !== "unknown" && compareVersions(result.version, "8.0") < 0) {
+      return check({
+        name: "database",
+        status: "warn",
+        message: `MySQL ${result.version} is older than tested minimum 8.0`,
+        details: { version: result.version },
+      })
+    }
+    return check({
+      name: "database",
+      status: "pass",
+      message: `MySQL ${result.version} meets the tested minimum and uses InnoDB`,
+      details: { version: result.version },
     })
   }
 
@@ -383,9 +418,38 @@ async function sqliteSchema(connection: DatabaseConnection): Promise<Map<string,
 
 async function postgresqlSchema(connection: DatabaseConnection): Promise<Map<string, Set<string>>> {
   const rows = await connection.all<{ table_name: string; column_name: string }>(
-    `SELECT table_name, column_name FROM information_schema.columns
+    `SELECT table_name AS table_name, column_name AS column_name FROM information_schema.columns
      WHERE table_schema = current_schema()`,
   )
+  const schema = new Map<string, Set<string>>()
+  for (const row of rows) {
+    const columns = schema.get(row.table_name) ?? new Set()
+    columns.add(row.column_name)
+    schema.set(row.table_name, columns)
+  }
+  return schema
+}
+
+async function mysqlSchema(connection: DatabaseConnection): Promise<Map<string, Set<string>>> {
+  const rows = await connection.all<{ table_name: string; column_name: string }>(
+    `SELECT table_name AS table_name, column_name AS column_name FROM information_schema.columns
+     WHERE table_schema = DATABASE()`,
+  )
+  return schemaFromRows(rows)
+}
+
+async function databaseSchema(options: {
+  connection: DatabaseConnection
+  family: "sqlite" | "postgresql" | "mysql"
+}): Promise<Map<string, Set<string>>> {
+  if (options.family === "sqlite") return sqliteSchema(options.connection)
+  if (options.family === "postgresql") return postgresqlSchema(options.connection)
+  return mysqlSchema(options.connection)
+}
+
+function schemaFromRows(
+  rows: Array<{ table_name: string; column_name: string }>,
+): Map<string, Set<string>> {
   const schema = new Map<string, Set<string>>()
   for (const row of rows) {
     const columns = schema.get(row.table_name) ?? new Set()

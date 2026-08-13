@@ -11,8 +11,8 @@ No Redis locks. No separate message broker for actor mailboxes. No proprietary
 state service. The database you already understand provides the transaction,
 lease, fencing, retry, timer, and outbox primitives.
 
-> SQLite uses Node's built-in `node:sqlite` module. PostgreSQL 14 or newer uses
-> the optional `pg` peer dependency. MySQL is not yet supported.
+> SQLite uses Node's built-in `node:sqlite` module. PostgreSQL 14 or newer and
+> MySQL 8.0 or newer use optional driver peer dependencies.
 
 ## The boring stack, with an actor model
 
@@ -56,7 +56,7 @@ TypeScript. The runtimes do not share a database schema or wire protocol.
 
 - Node.js 24.15 or newer
 - TypeScript 5.9 or newer for TypeScript applications
-- SQLite or PostgreSQL 14 or newer
+- SQLite, PostgreSQL 14 or newer, or MySQL 8.0 or newer with InnoDB
 
 ## Installation
 
@@ -96,7 +96,7 @@ operation arguments, results, and observable values must be JSON-compatible.
 `observables()` is deliberately explicit. State fields and getters do not
 become realtime data automatically.
 
-## Point it at SQLite or PostgreSQL
+## Point it at SQLite, PostgreSQL, or MySQL
 
 SQLite needs no database driver package:
 
@@ -159,6 +159,30 @@ waiter. Create it in every process that should send or receive notifications.
 Polling remains the fallback if a notification is missed or the listener
 reconnects. Because `LISTEN` is session-scoped, use a direct connection or
 session pooling rather than transaction pooling for this client.
+
+For MySQL, install `mysql2` and configure its bounded promise pool:
+
+```bash
+pnpm add mysql2
+```
+
+```typescript
+import { mysql } from "solid-objects/database/mysql"
+
+const connectionString = process.env.DATABASE_URL
+if (!connectionString) throw new Error("DATABASE_URL is required")
+
+const database = mysql({
+  connectionString,
+  maximumConnections: 10,
+})
+```
+
+MySQL uses InnoDB tables, 64-bit database timestamps and sequences, row-locked
+sequence allocation, and bounded retries around the side-effect-free enqueue
+transaction when InnoDB selects it as a deadlock victim. Use the Redis wake-up
+adapter when a MySQL deployment wants cross-process notification latency;
+durable polling remains sufficient for correctness.
 
 Authorization is deny-by-default. Actor IDs identify actors; they are not
 capabilities.
@@ -480,11 +504,12 @@ for (const check of report.checks) {
 if (!report.healthy) process.exitCode = 1
 ```
 
-It checks configuration, schema migrations and required columns, the SQLite or
-PostgreSQL server version, authorization-policy configuration, live runtime
-roles, and a targeted durable actor round trip. The authorization check records
-which policies were explicitly supplied; it never invokes application policies
-with a fabricated subject. Pass `{ roundTrip: "skip" }` for a read-only report.
+It checks configuration, schema migrations and required columns, the database
+server version and MySQL table engines, authorization-policy configuration,
+live runtime roles, and a targeted durable actor round trip. The authorization
+check records which policies were explicitly supplied; it never invokes
+application policies with a fabricated subject. Pass `{ roundTrip: "skip" }`
+for a read-only report.
 
 Inspect role liveness with `runtime.processes.all()`. A process remains recorded
 as `running` until graceful shutdown or cleanup, so each record also exposes a
@@ -740,9 +765,9 @@ IDs and observable values are not authorization.
 ## Current scope
 
 The current runtime supports Node.js 24, SQLite through built-in `node:sqlite`,
-and PostgreSQL 14 or newer through `pg` 8.23. MySQL, HTTP/WebSocket server
-adapters, and Ruby schema interoperability are not part of the compatibility
-contract.
+PostgreSQL 14 or newer through `pg` 8.23, and MySQL 8.0 or newer through
+`mysql2` 3.23 with InnoDB. HTTP/WebSocket server adapters and Ruby schema
+interoperability are not part of the compatibility contract.
 
 See [`docs/architecture.md`](docs/architecture.md),
 [`docs/correctness.md`](docs/correctness.md), and

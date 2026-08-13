@@ -30,10 +30,12 @@ at the shutdown boundary; database leases and fencing remain the correctness
 mechanism if a failed role was still executing actor code.
 
 SQLite serializes access through one process-local connection and begins write
-transactions immediately. PostgreSQL uses a bounded `pg` pool, keeps each
-transaction on one checked-out client, stores timestamps and sequences as
-64-bit integers, and locks an actor's instance row while allocating mailbox
-sequences. Both adapters use database time and the same fencing predicates.
+transactions immediately. PostgreSQL and MySQL use bounded pools, keep each
+transaction on one checked-out client, store timestamps and sequences as
+64-bit integers, and lock an actor's instance row while allocating mailbox
+sequences. MySQL creates InnoDB tables and retries only the side-effect-free
+enqueue transaction when InnoDB chooses it as a deadlock victim. Every adapter
+uses database time and the same fencing predicates.
 
 PostgreSQL notifications are an opt-in latency layer. One event-driven client
 per runtime listens on role-specific channels before the worker checks durable
