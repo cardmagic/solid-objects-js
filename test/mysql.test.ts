@@ -3,6 +3,8 @@ import { Actor } from "../src/actor.js"
 import { mysql, mysqlSql, type MySQLDatabase } from "../src/database/mysql.js"
 import { configureSolidObjects, type SolidObjectsRuntime } from "../src/runtime.js"
 import { SyncTimeout } from "../src/errors.js"
+import { DatabaseDeadlineExceeded } from "../src/errors.js"
+import { withDatabaseDeadline } from "../src/database/deadline.js"
 
 const connectionString = process.env.SOLID_OBJECTS_DATABASE_URL
 const describeMySQL = connectionString?.startsWith("mysql:") ? describe : describe.skip
@@ -88,6 +90,28 @@ describe("MySQL SQL compatibility", () => {
 })
 
 describeMySQL("MySQL adapter", () => {
+  it("enforces deadlines without leaking session settings", async () => {
+    if (!connectionString) throw new Error("MySQL connection string is required")
+    database = mysql({ connectionString, maximumConnections: 1 })
+    const initial = await mysqlTimeoutSettings(database)
+
+    await withDatabaseDeadline({ timeoutMilliseconds: 2_000 }, () =>
+      database!.transaction((connection) => connection.get("SELECT 1")),
+    )
+    await expect(mysqlTimeoutSettings(database)).resolves.toEqual(initial)
+
+    const startedAt = performance.now()
+    await expect(
+      withDatabaseDeadline({ timeoutMilliseconds: 50 }, () =>
+        database!.connection((connection) => connection.get("SELECT SLEEP(1)")),
+      ),
+    ).rejects.toBeInstanceOf(DatabaseDeadlineExceeded)
+    expect(performance.now() - startedAt).toBeLessThan(500)
+    await expect(
+      database.connection((connection) => connection.get("SELECT 1 AS value")),
+    ).resolves.toEqual({ value: "1" })
+  })
+
   it("runs mailbox, outbox, reconciliation, retention, and doctor workflows", async () => {
     if (!connectionString) throw new Error("MySQL connection string is required")
     database = mysql({ connectionString, maximumConnections: 10 })
@@ -111,7 +135,7 @@ describeMySQL("MySQL adapter", () => {
     const scheduled = await MySQLWorkflow.ref("scheduled-timeout")
       .send.with({ availableAt: new Date(Date.now() + 60_000) })
       .increment()
-    const timeout = await captureSyncTimeout(() => scheduled.wait({ timeoutMilliseconds: 1 }))
+    const timeout = await captureSyncTimeout(() => scheduled.wait({ timeoutMilliseconds: 100 }))
     expect(timeout.details).toMatchObject({ status: "ready", waitingOn: "notYetAvailable" })
 
     await Promise.all(
@@ -164,6 +188,14 @@ describeMySQL("MySQL adapter", () => {
     )
   }, 15_000)
 })
+
+function mysqlTimeoutSettings(database: MySQLDatabase) {
+  return database.connection((connection) =>
+    connection.get<{ lockTimeout: string; executionTimeout: string }>(
+      "SELECT @@SESSION.innodb_lock_wait_timeout AS lockTimeout, @@SESSION.max_execution_time AS executionTimeout",
+    ),
+  )
+}
 
 async function captureSyncTimeout(operation: () => Promise<unknown>): Promise<SyncTimeout> {
   try {

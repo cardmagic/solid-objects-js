@@ -44,12 +44,22 @@ the affected runtime roles. The cleanup count is instrumented; process IDs and
 application payloads are not.
 
 Committed calls and `message.wait()` apply `timeoutMilliseconds` to the entire
-durable wait, beginning before enqueue or message lookup. A `SyncTimeout`
-includes `waitingOn`, activation and process metadata, an earlier blocking
-message when present, and the original `messageReference`. The durable message
-continues after an ordinary wait timeout, so callers can store that reference
-or await `error.messageReference.wait()` later. Timeout instrumentation excludes
-actor arguments, results, and error messages.
+durable wait, beginning before enqueue or message lookup. Adapter deadlines
+bound serialized SQLite access and lock waits, PostgreSQL pool acquisition,
+statements, and locks, and MySQL pool acquisition, queries, and transaction
+lock waits. A `SyncEnqueueTimeout` means the enqueue transaction did not commit
+and there is no durable message to recover. Once enqueue commits, a
+`SyncTimeout` includes `waitingOn`, activation and process metadata, an earlier
+blocking message when present, and the original `messageReference`. Database
+contention that prevents inspection is reported as `databaseContention`. The
+durable message continues after an ordinary wait timeout, so callers can store
+that reference or await `error.messageReference.wait()` later. Timeout
+instrumentation excludes actor arguments, results, and error messages.
+
+JavaScript promises already running in the process are cooperative and are not
+forcefully terminated. An actor operation that has started may therefore
+finish after the caller's timeout; durable leases and fenced commits remain the
+correctness boundary.
 
 Authorized operators can inspect terminal actor failures with
 `runtime.deadLetters.all()` and retry one with `runtime.deadLetters.retry()`.

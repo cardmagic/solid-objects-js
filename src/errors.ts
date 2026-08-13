@@ -8,6 +8,23 @@ export class SolidObjectsError extends Error {
 }
 export class NonRetryableError extends SolidObjectsError {}
 export class UnsupportedDatabase extends SolidObjectsError {}
+export class DatabaseDeadlineExceeded extends SolidObjectsError {}
+export class SyncEnqueueTimeout extends SolidObjectsError {
+  constructor(
+    readonly details: {
+      timeoutMilliseconds: number
+      actorType: string
+      actorId: string
+      operation: string
+    },
+  ) {
+    super(
+      `actor invocation could not be durably enqueued within ` +
+        `${details.timeoutMilliseconds}ms for ` +
+        `${details.actorType}(${JSON.stringify(details.actorId)}).${details.operation}`,
+    )
+  }
+}
 export class InvalidActor extends SolidObjectsError {}
 export class UnknownActorType extends NonRetryableError {}
 export class UnknownOperation extends NonRetryableError {}
@@ -70,6 +87,7 @@ export type SyncTimeoutWaitingOn =
   | "messageClaimed"
   | "notYetAvailable"
   | "readyUnclaimed"
+  | "databaseContention"
   | "unknown"
 
 export interface SyncTimeoutDetails {

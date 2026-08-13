@@ -37,6 +37,16 @@ sequences. MySQL creates InnoDB tables and retries only the side-effect-free
 enqueue transaction when InnoDB chooses it as a deadlock victim. Every adapter
 uses database time and the same fencing predicates.
 
+Synchronous invocation carries a monotonic deadline into adapter operations.
+SQLite bounds its process-local access queue and busy timeout. PostgreSQL bounds
+pool checkout and installs statement and lock timeouts. MySQL bounds pool
+checkout and client queries and installs transaction execution and lock-wait
+limits. A deadline before enqueue commit produces no durable message. After
+commit, timeout diagnostics retain the message reference for later recovery.
+Already-running JavaScript actor code is cooperative rather than forcefully
+preempted; leases and fenced commits remain authoritative if it outlives the
+caller's wait.
+
 PostgreSQL notifications are an opt-in latency layer. One event-driven client
 per runtime listens on role-specific channels before the worker checks durable
 state, which closes the listener-startup race without Ruby's connection per

@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest"
 import { Actor } from "../src/actor.js"
 import type { InstrumentationEvent } from "../src/configuration.js"
 import { sqlite } from "../src/database/sqlite.js"
-import { SyncTimeout } from "../src/errors.js"
+import { SyncEnqueueTimeout, SyncTimeout } from "../src/errors.js"
 import { configureSolidObjects, type SolidObjectsRuntime } from "../src/runtime.js"
 
 class TimeoutActor extends Actor {
@@ -34,7 +34,7 @@ describe("synchronous timeout diagnostics", () => {
     const claimed = await runtime.repository.claim("blocking-worker")
     expect(claimed?.message.id).toBe(blocker.id)
 
-    const error = await captureTimeout(() => actor.with({ timeoutMilliseconds: 1 }).increment())
+    const error = await captureTimeout(() => actor.with({ timeoutMilliseconds: 20 }).increment())
 
     expect(error.details).toMatchObject({
       actorType: TimeoutActor.actorType,
@@ -84,7 +84,7 @@ describe("synchronous timeout diagnostics", () => {
     expect(await error.messageReference.wait({ timeoutMilliseconds: 1_000 })).toBe(2)
   })
 
-  it("starts the deadline before durable enqueue", async () => {
+  it("distinguishes a deadline before durable enqueue", async () => {
     runtime = configuredRuntime()
     await runtime.install()
     const enqueue = runtime.repository.enqueue.bind(runtime.repository)
@@ -93,12 +93,18 @@ describe("synchronous timeout diagnostics", () => {
       return enqueue(input)
     })
 
-    const error = await captureTimeout(() =>
-      TimeoutActor.ref("delayed-enqueue").with({ timeoutMilliseconds: 1 }).increment(),
-    )
+    let error: unknown
+    try {
+      await TimeoutActor.ref("delayed-enqueue").with({ timeoutMilliseconds: 1 }).increment()
+    } catch (raised) {
+      error = raised
+    }
 
-    expect(error.details.waitingOn).toBe("readyUnclaimed")
-    expect(await error.messageReference.wait({ timeoutMilliseconds: 1_000 })).toBe(1)
+    expect(error).toBeInstanceOf(SyncEnqueueTimeout)
+    const messages = await runtime.settings.database.connection((connection) =>
+      connection.all(`SELECT id FROM ${runtime?.repository.table("messages")}`),
+    )
+    expect(messages).toEqual([])
   })
 
   it("identifies a scheduled message that is not yet available", async () => {
@@ -108,7 +114,7 @@ describe("synchronous timeout diagnostics", () => {
       .send.with({ availableAt: new Date(Date.now() + 60_000) })
       .increment()
 
-    const error = await captureTimeout(() => message.wait({ timeoutMilliseconds: 1 }))
+    const error = await captureTimeout(() => message.wait({ timeoutMilliseconds: 20 }))
 
     expect(error.details.status).toBe("ready")
     expect(error.details.waitingOn).toBe("notYetAvailable")
@@ -124,17 +130,22 @@ describe("synchronous timeout diagnostics", () => {
     ).rejects.toThrow("timeoutMilliseconds must be a non-negative number")
   })
 
-  it("does not assist execution when the timeout is zero", async () => {
+  it("does not enqueue a committed call when the timeout is zero", async () => {
     runtime = configuredRuntime()
     await runtime.install()
 
-    const error = await captureTimeout(() =>
-      TimeoutActor.ref("immediate").with({ timeoutMilliseconds: 0 }).increment(),
-    )
+    let error: unknown
+    try {
+      await TimeoutActor.ref("immediate").with({ timeoutMilliseconds: 0 }).increment()
+    } catch (raised) {
+      error = raised
+    }
 
-    expect(error.details.waitingOn).toBe("readyUnclaimed")
-    expect(await error.messageReference.status()).toBe("ready")
-    expect(await error.messageReference.wait({ timeoutMilliseconds: 1_000 })).toBe(1)
+    expect(error).toBeInstanceOf(SyncEnqueueTimeout)
+    const messages = await runtime.settings.database.connection((connection) =>
+      connection.all(`SELECT id FROM ${runtime?.repository.table("messages")}`),
+    )
+    expect(messages).toEqual([])
   })
 })
 

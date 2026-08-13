@@ -27,6 +27,7 @@ import {
 } from "./definition.js"
 import {
   ActorCallCycle,
+  DatabaseDeadlineExceeded,
   InvalidPayloadBroadcast,
   InvalidActor,
   LostActivation,
@@ -34,6 +35,7 @@ import {
   QueryMutatedState,
   Rejected,
   SyncTimeout,
+  SyncEnqueueTimeout,
   Unauthorized,
   UnknownCommitAction,
   UnknownDeadLetter,
@@ -106,6 +108,7 @@ import { SolidObjectsTestHelper } from "./test-helper.js"
 import { waitFor, Worker } from "./worker.js"
 import { EffectWorker } from "./effect-worker.js"
 import type { WakeUpRole } from "./wake-up.js"
+import { withDatabaseDeadline } from "./database/deadline.js"
 
 interface RegisteredActor {
   actorClass: ActorClass
@@ -329,13 +332,32 @@ export class SolidObjectsRuntime {
     })
     const timeout = invocationTimeout(invocationOptions)
     const deadline = performance.now() + timeout
-    const messageReference = await this.enqueue<Result>({
-      reference,
-      operation,
-      deliveryMode: "sync",
-      argumentsValue: argumentsObject,
-      options: invocationOptions,
-    })
+    let messageReference: MessageReference<Result>
+    try {
+      messageReference = await withDatabaseDeadline({ timeoutMilliseconds: timeout }, () =>
+        this.enqueue<Result>({
+          reference,
+          operation,
+          deliveryMode: "sync",
+          argumentsValue: argumentsObject,
+          options: invocationOptions,
+        }),
+      )
+    } catch (error) {
+      if (!(error instanceof DatabaseDeadlineExceeded)) throw error
+      this.emitInstrumentation("sync.enqueue_timeout", {
+        actorType: reference.actorType,
+        actorId: reference.actorId,
+        operation,
+        timeoutMilliseconds: timeout,
+      })
+      throw new SyncEnqueueTimeout({
+        timeoutMilliseconds: timeout,
+        actorType: reference.actorType,
+        actorId: reference.actorId,
+        operation,
+      })
+    }
     return this.waitForResult(messageReference, { timeout, deadline })
   }
 
@@ -345,7 +367,18 @@ export class SolidObjectsRuntime {
   ): Promise<DeepReadonly<Result>> {
     const timeout = invocationTimeout(options)
     const deadline = performance.now() + timeout
-    await this.authorizeMessageReference(messageReference, options.authorizationContext)
+    try {
+      await withDatabaseDeadline({ timeoutMilliseconds: timeout }, () =>
+        this.authorizeMessageReference(messageReference, options.authorizationContext),
+      )
+    } catch (error) {
+      if (!(error instanceof DatabaseDeadlineExceeded)) throw error
+      throw this.databaseContentionTimeout({
+        messageReference,
+        timeout,
+        operation: "unknown",
+      })
+    }
     return this.waitForResult(messageReference, { timeout, deadline })
   }
 
@@ -355,12 +388,18 @@ export class SolidObjectsRuntime {
   ): Promise<DeepReadonly<Result>> {
     this.callerWorker ??= new Worker(this)
     while (performance.now() < options.deadline) {
-      const message = await this.repository.findMessage(messageReference.id)
+      let snapshot: { message: MessageRow | undefined; status: MessageStatus }
+      try {
+        snapshot = await this.messageSnapshotBeforeDeadline(messageReference, options.deadline)
+      } catch (error) {
+        if (!(error instanceof DatabaseDeadlineExceeded)) throw error
+        break
+      }
+      const { message, status } = snapshot
       if (!message || message.request_id !== messageReference.requestId) {
         throw new Error("message reference no longer identifies this invocation")
       }
       if (message.rejection !== null) throw rejectionFromMessage(message)
-      const status = await this.repository.messageStatus(message.id)
       if (status === "completed")
         return readonlyCopy(parseResult(message.result)) as DeepReadonly<Result>
       if (status === "dead")
@@ -373,12 +412,31 @@ export class SolidObjectsRuntime {
         )
     }
 
-    const finalMessage = await this.repository.findMessage(messageReference.id)
+    let finalSnapshot: { message: MessageRow | undefined; status: MessageStatus }
+    try {
+      finalSnapshot = await withDatabaseDeadline(
+        { timeoutMilliseconds: Math.max(this.settings.syncPollingIntervalMilliseconds, 100) },
+        async () => {
+          const message = await this.repository.findMessage(messageReference.id)
+          return {
+            message,
+            status: message ? await this.repository.messageStatus(message.id) : "unknown",
+          }
+        },
+      )
+    } catch (error) {
+      if (!(error instanceof DatabaseDeadlineExceeded)) throw error
+      throw this.databaseContentionTimeout({
+        messageReference,
+        timeout: options.timeout,
+        operation: "unknown",
+      })
+    }
+    const { message: finalMessage, status: finalStatus } = finalSnapshot
     if (!finalMessage || finalMessage.request_id !== messageReference.requestId) {
       throw new Error("message reference no longer identifies this invocation")
     }
     if (finalMessage.rejection !== null) throw rejectionFromMessage(finalMessage)
-    const finalStatus = await this.repository.messageStatus(finalMessage.id)
     if (finalStatus === "completed") {
       return readonlyCopy(parseResult(finalMessage.result)) as DeepReadonly<Result>
     }
@@ -388,11 +446,38 @@ export class SolidObjectsRuntime {
     throw await this.syncTimeout(messageReference, options.timeout)
   }
 
+  private messageSnapshotBeforeDeadline(
+    messageReference: MessageReference,
+    deadline: number,
+  ): Promise<{ message: MessageRow | undefined; status: MessageStatus }> {
+    const remaining = Math.max(Math.floor(deadline - performance.now()), 0)
+    return withDatabaseDeadline({ timeoutMilliseconds: remaining }, async () => {
+      const message = await this.repository.findMessage(messageReference.id)
+      return {
+        message,
+        status: message ? await this.repository.messageStatus(message.id) : "unknown",
+      }
+    })
+  }
+
   private async syncTimeout(
     messageReference: MessageReference,
     timeoutMilliseconds: number,
   ): Promise<SyncTimeout> {
-    const diagnostics = await this.repository.syncDiagnostics(messageReference.id)
+    let diagnostics
+    try {
+      diagnostics = await withDatabaseDeadline(
+        { timeoutMilliseconds: Math.max(this.settings.syncPollingIntervalMilliseconds, 100) },
+        () => this.repository.syncDiagnostics(messageReference.id),
+      )
+    } catch (error) {
+      if (!(error instanceof DatabaseDeadlineExceeded)) throw error
+      return this.databaseContentionTimeout({
+        messageReference,
+        timeout: timeoutMilliseconds,
+        operation: "unknown",
+      })
+    }
     if (!diagnostics || diagnostics.message.request_id !== messageReference.requestId) {
       throw new Error("message reference no longer identifies this invocation")
     }
@@ -463,6 +548,47 @@ export class SolidObjectsRuntime {
       waitingOn,
       activationOwnerId: instance.activation_owner_id,
       activationGeneration: String(instance.activation_generation),
+    })
+    return error
+  }
+
+  private databaseContentionTimeout(options: {
+    messageReference: MessageReference
+    timeout: number
+    operation: string
+  }): SyncTimeout {
+    const { messageReference, timeout, operation } = options
+    const error = new SyncTimeout({
+      details: {
+        timeoutMilliseconds: timeout,
+        actorType: messageReference.actorType,
+        actorId: messageReference.actorId,
+        operation,
+        messageId: messageReference.id,
+        requestId: messageReference.requestId,
+        sequence: messageReference.sequence,
+        status: "unknown",
+        waitingOn: "databaseContention",
+        activation: Object.freeze({
+          ownerId: null,
+          generation: 0n,
+          expiresAt: null,
+          process: null,
+        }),
+        blocker: null,
+      },
+      messageReference,
+    })
+    this.emitInstrumentation("sync.timeout", {
+      messageId: messageReference.id,
+      requestId: messageReference.requestId,
+      actorType: messageReference.actorType,
+      actorId: messageReference.actorId,
+      sequence: String(messageReference.sequence),
+      status: "unknown",
+      waitingOn: "databaseContention",
+      activationOwnerId: null,
+      activationGeneration: null,
     })
     return error
   }

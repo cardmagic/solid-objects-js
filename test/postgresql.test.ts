@@ -10,6 +10,8 @@ import {
 import { configureSolidObjects, type SolidObjectsRuntime } from "../src/runtime.js"
 import type { RealtimeEnvelope } from "../src/browser/index.js"
 import { SyncTimeout } from "../src/errors.js"
+import { DatabaseDeadlineExceeded } from "../src/errors.js"
+import { withDatabaseDeadline } from "../src/database/deadline.js"
 
 const connectionString = process.env.SOLID_OBJECTS_DATABASE_URL
 const describePostgreSQL = connectionString?.startsWith("postgresql:") ? describe : describe.skip
@@ -122,6 +124,27 @@ describe("PostgreSQL SQL parameters", () => {
 })
 
 describePostgreSQL("PostgreSQL adapter", () => {
+  it("enforces and clears database deadlines", async () => {
+    if (!connectionString) throw new Error("PostgreSQL connection string is required")
+    database = postgresql({ connectionString, maximumConnections: 1 })
+
+    const startedAt = performance.now()
+    await expect(
+      withDatabaseDeadline({ timeoutMilliseconds: 50 }, () =>
+        database!.connection((connection) => connection.get("SELECT pg_sleep(1)")),
+      ),
+    ).rejects.toBeInstanceOf(DatabaseDeadlineExceeded)
+    expect(performance.now() - startedAt).toBeLessThan(500)
+
+    await expect(
+      database.connection((connection) =>
+        connection.get<{ statement_timeout: string; lock_timeout: string }>(
+          "SELECT current_setting('statement_timeout') AS statement_timeout, current_setting('lock_timeout') AS lock_timeout",
+        ),
+      ),
+    ).resolves.toEqual({ statement_timeout: "0", lock_timeout: "0" })
+  })
+
   it("wakes every role waiter through another PostgreSQL client", async () => {
     if (!connectionString) throw new Error("PostgreSQL connection string is required")
     const listener = postgresqlWakeUp({
@@ -215,7 +238,7 @@ describePostgreSQL("PostgreSQL adapter", () => {
     const scheduled = await PostgreSQLCounter.ref("scheduled-timeout")
       .send.with({ availableAt: new Date(Date.now() + 60_000) })
       .increment()
-    const timeout = await captureSyncTimeout(() => scheduled.wait({ timeoutMilliseconds: 1 }))
+    const timeout = await captureSyncTimeout(() => scheduled.wait({ timeoutMilliseconds: 100 }))
     expect(timeout.details).toMatchObject({ status: "ready", waitingOn: "notYetAvailable" })
 
     const integer = await database.connection((connection) =>

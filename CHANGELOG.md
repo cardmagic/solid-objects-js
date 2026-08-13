@@ -50,8 +50,10 @@
 - Add independent supervised schedulers for expired message and process
   retention and stale process recovery, with disable switches and bounded
   failure backoff.
-- Apply synchronous deadlines before durable enqueue and add structured wait,
-  activation, blocker, and recoverable message-reference diagnostics.
+- Bound synchronous database pool, query, and lock waits across SQLite,
+  PostgreSQL, and MySQL; distinguish an uncommitted enqueue timeout from a
+  recoverable durable wait timeout; and report structured database, activation,
+  and mailbox blockers.
 
 ## 0.1.0 - 2026-08-13
 

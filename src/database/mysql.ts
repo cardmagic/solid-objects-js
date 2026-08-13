@@ -6,6 +6,13 @@ import mysqlDriver, {
 } from "mysql2/promise"
 import type { ExecuteValues } from "mysql2"
 import type { Database, DatabaseConnection, RunResult } from "./types.js"
+import {
+  acquireBeforeDatabaseDeadline,
+  databaseDeadlineRemainingMilliseconds,
+  databaseDeadlineError,
+  requireDatabaseDeadlineRemaining,
+} from "./deadline.js"
+import { DatabaseDeadlineExceeded } from "../errors.js"
 
 export interface MySQLDatabaseOptions {
   connectionString: string
@@ -18,10 +25,16 @@ class MySQLConnection implements DatabaseConnection {
   constructor(private readonly connection: PoolConnection) {}
 
   async run(sql: string, parameters: readonly unknown[] = []): Promise<RunResult> {
-    const [result] = await this.connection.query<ResultSetHeader>(
-      mysqlSql(sql),
-      mysqlParameters(parameters),
-    )
+    const remaining = requireDatabaseDeadlineRemaining()
+    const query = mysqlSql(sql)
+    const values = mysqlParameters(parameters)
+    const [result] =
+      remaining === undefined
+        ? await this.connection.query<ResultSetHeader>(query, values)
+        : await this.connection.query<ResultSetHeader>(
+            { sql: query, timeout: Math.max(remaining, 1) },
+            values,
+          )
     return {
       changes: result.affectedRows,
       ...(result.insertId === 0 ? {} : { lastInsertId: String(result.insertId) }),
@@ -32,25 +45,43 @@ class MySQLConnection implements DatabaseConnection {
     sql: string,
     parameters: readonly unknown[] = [],
   ): Promise<Row | undefined> {
-    const [rows] = await this.connection.query<RowDataPacket[]>(
-      mysqlSql(sql),
-      mysqlParameters(parameters),
-    )
+    const remaining = requireDatabaseDeadlineRemaining()
+    const query = mysqlSql(sql)
+    const values = mysqlParameters(parameters)
+    const [rows] =
+      remaining === undefined
+        ? await this.connection.query<RowDataPacket[]>(query, values)
+        : await this.connection.query<RowDataPacket[]>(
+            { sql: query, timeout: Math.max(remaining, 1) },
+            values,
+          )
     return rows[0] as Row | undefined
   }
 
   async all<Row extends object>(sql: string, parameters: readonly unknown[] = []): Promise<Row[]> {
-    const [rows] = await this.connection.query<RowDataPacket[]>(
-      mysqlSql(sql),
-      mysqlParameters(parameters),
-    )
+    const remaining = requireDatabaseDeadlineRemaining()
+    const query = mysqlSql(sql)
+    const values = mysqlParameters(parameters)
+    const [rows] =
+      remaining === undefined
+        ? await this.connection.query<RowDataPacket[]>(query, values)
+        : await this.connection.query<RowDataPacket[]>(
+            { sql: query, timeout: Math.max(remaining, 1) },
+            values,
+          )
     return rows as Row[]
   }
 
   async nowMilliseconds(): Promise<number> {
-    const [rows] = await this.connection.query<RowDataPacket[]>(
-      "SELECT FLOOR(UNIX_TIMESTAMP(CURRENT_TIMESTAMP(3)) * 1000) AS now_ms",
-    )
+    const remaining = requireDatabaseDeadlineRemaining()
+    const query = "SELECT FLOOR(UNIX_TIMESTAMP(CURRENT_TIMESTAMP(3)) * 1000) AS now_ms"
+    const [rows] =
+      remaining === undefined
+        ? await this.connection.query<RowDataPacket[]>(query)
+        : await this.connection.query<RowDataPacket[]>({
+            sql: query,
+            timeout: Math.max(remaining, 1),
+          })
     const row = rows[0] as { now_ms?: number | string } | undefined
     if (row?.now_ms === undefined) throw new Error("MySQL did not return database time")
     return Number(row.now_ms)
@@ -95,27 +126,65 @@ export class MySQLDatabase implements Database {
   async connection<Result>(
     callback: (connection: DatabaseConnection) => Promise<Result>,
   ): Promise<Result> {
-    const connection = await this.pool.getConnection()
+    const deadlineActive = databaseDeadlineRemainingMilliseconds() !== undefined
+    const connection = await acquireBeforeDatabaseDeadline(
+      this.pool.getConnection(),
+      (lateConnection) => lateConnection.release(),
+    )
+    let discardConnection = false
     try {
-      return await callback(new MySQLConnection(connection))
+      const result = await callback(new MySQLConnection(connection))
+      requireDatabaseDeadlineRemaining()
+      return result
+    } catch (error) {
+      if (deadlineActive && mysqlDeadlineError(error)) {
+        discardConnection = true
+        throw databaseDeadlineError(error)
+      }
+      throw error
     } finally {
-      connection.release()
+      if (discardConnection) connection.destroy()
+      else connection.release()
     }
   }
 
   async transaction<Result>(
     callback: (connection: DatabaseConnection) => Promise<Result>,
   ): Promise<Result> {
-    const connection = await this.pool.getConnection()
+    const deadlineActive = databaseDeadlineRemainingMilliseconds() !== undefined
+    const connection = await acquireBeforeDatabaseDeadline(
+      this.pool.getConnection(),
+      (lateConnection) => lateConnection.release(),
+    )
     try {
       await connection.beginTransaction()
+      const remaining = requireDatabaseDeadlineRemaining()
+      if (remaining !== undefined) {
+        await connection.query("SET SESSION innodb_lock_wait_timeout = ?", [
+          Math.max(Math.ceil(remaining / 1_000), 1),
+        ])
+        await connection.query("SET SESSION max_execution_time = ?", [Math.max(remaining, 1)])
+      }
       const result = await callback(new MySQLConnection(connection))
+      requireDatabaseDeadlineRemaining()
       await connection.commit()
       return result
     } catch (error) {
-      await connection.rollback()
+      await connection.rollback().catch(() => undefined)
+      if (
+        error instanceof DatabaseDeadlineExceeded ||
+        (deadlineActive && mysqlDeadlineError(error))
+      ) {
+        throw databaseDeadlineError(error)
+      }
       throw error
     } finally {
+      if (deadlineActive) {
+        await connection
+          .query("SET SESSION innodb_lock_wait_timeout = DEFAULT")
+          .catch(() => undefined)
+        await connection.query("SET SESSION max_execution_time = DEFAULT").catch(() => undefined)
+      }
       connection.release()
     }
   }
@@ -125,6 +194,20 @@ export class MySQLDatabase implements Database {
     this.closed = true
     await this.pool.end()
   }
+}
+
+function mysqlDeadlineError(error: unknown): boolean {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    (("code" in error &&
+      (error.code === "PROTOCOL_SEQUENCE_TIMEOUT" ||
+        error.code === "ER_LOCK_WAIT_TIMEOUT" ||
+        error.code === "ER_QUERY_TIMEOUT")) ||
+      ("message" in error &&
+        typeof error.message === "string" &&
+        error.message.includes("operation timeout")))
+  )
 }
 
 export function mysql(options: MySQLDatabaseOptions): MySQLDatabase {

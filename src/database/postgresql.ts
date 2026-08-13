@@ -2,6 +2,13 @@ import { Pool, TypeOverrides, types, type PoolClient, type PoolConfig } from "pg
 import { postgresqlSql } from "./postgresql-sql.js"
 import type { Database, DatabaseConnection, RunResult } from "./types.js"
 import { PostgreSQLWakeUpAdapter, type PostgreSQLWakeUpFailure } from "../wake-up/postgresql.js"
+import {
+  acquireBeforeDatabaseDeadline,
+  databaseDeadlineRemainingMilliseconds,
+  databaseDeadlineError,
+  requireDatabaseDeadlineRemaining,
+} from "./deadline.js"
+import { DatabaseDeadlineExceeded } from "../errors.js"
 
 export {
   PostgreSQLWakeUpAdapter,
@@ -29,6 +36,7 @@ class PostgreSQLConnection implements DatabaseConnection {
   constructor(private readonly client: PoolClient) {}
 
   async run(sql: string, parameters: readonly unknown[] = []): Promise<RunResult> {
+    requireDatabaseDeadlineRemaining()
     const result = await this.client.query(postgresqlSql(sql), [...parameters])
     return { changes: result.rowCount ?? 0 }
   }
@@ -37,16 +45,19 @@ class PostgreSQLConnection implements DatabaseConnection {
     sql: string,
     parameters: readonly unknown[] = [],
   ): Promise<Row | undefined> {
+    requireDatabaseDeadlineRemaining()
     const result = await this.client.query<Row>(postgresqlSql(sql), [...parameters])
     return result.rows[0]
   }
 
   async all<Row extends object>(sql: string, parameters: readonly unknown[] = []): Promise<Row[]> {
+    requireDatabaseDeadlineRemaining()
     const result = await this.client.query<Row>(postgresqlSql(sql), [...parameters])
     return result.rows
   }
 
   async nowMilliseconds(): Promise<number> {
+    requireDatabaseDeadlineRemaining()
     const result = await this.client.query<{ now_ms: string }>(
       "SELECT FLOOR(EXTRACT(EPOCH FROM clock_timestamp()) * 1000)::bigint::text AS now_ms",
     )
@@ -111,25 +122,58 @@ export class PostgreSQLDatabase implements Database {
   async connection<Result>(
     callback: (connection: DatabaseConnection) => Promise<Result>,
   ): Promise<Result> {
-    const client = await this.pool.connect()
+    const deadlineActive = databaseDeadlineRemainingMilliseconds() !== undefined
+    const client = await acquireBeforeDatabaseDeadline(this.pool.connect(), (lateClient) =>
+      lateClient.release(),
+    )
+    let discardConnection = false
     try {
-      return await callback(new PostgreSQLConnection(client))
+      const remaining = requireDatabaseDeadlineRemaining()
+      if (remaining !== undefined) {
+        await applyPostgreSQLDeadline({ client, milliseconds: remaining })
+      }
+      const result = await callback(new PostgreSQLConnection(client))
+      requireDatabaseDeadlineRemaining()
+      return result
+    } catch (error) {
+      if (deadlineActive && postgresqlDeadlineError(error)) {
+        discardConnection = true
+        throw databaseDeadlineError(error)
+      }
+      throw error
     } finally {
-      client.release()
+      if (deadlineActive && !discardConnection) {
+        await client.query("RESET statement_timeout; RESET lock_timeout").catch(() => undefined)
+      }
+      client.release(discardConnection)
     }
   }
 
   async transaction<Result>(
     callback: (connection: DatabaseConnection) => Promise<Result>,
   ): Promise<Result> {
-    const client = await this.pool.connect()
+    const deadlineActive = databaseDeadlineRemainingMilliseconds() !== undefined
+    const client = await acquireBeforeDatabaseDeadline(this.pool.connect(), (lateClient) =>
+      lateClient.release(),
+    )
     try {
       await client.query("BEGIN")
+      const remaining = requireDatabaseDeadlineRemaining()
+      if (remaining !== undefined) {
+        await applyPostgreSQLDeadline({ client, milliseconds: remaining, scope: "transaction" })
+      }
       const result = await callback(new PostgreSQLConnection(client))
+      requireDatabaseDeadlineRemaining()
       await client.query("COMMIT")
       return result
     } catch (error) {
-      await client.query("ROLLBACK")
+      await client.query("ROLLBACK").catch(() => undefined)
+      if (
+        error instanceof DatabaseDeadlineExceeded ||
+        (deadlineActive && postgresqlDeadlineError(error))
+      ) {
+        throw databaseDeadlineError(error)
+      }
       throw error
     } finally {
       client.release()
@@ -148,6 +192,26 @@ export class PostgreSQLDatabase implements Database {
       ...options,
     })
   }
+}
+
+async function applyPostgreSQLDeadline(options: {
+  client: PoolClient
+  milliseconds: number
+  scope?: "session" | "transaction"
+}): Promise<void> {
+  const scope = options.scope === "transaction" ? "LOCAL " : ""
+  const timeout = Math.max(options.milliseconds, 1)
+  await options.client.query(`SET ${scope}statement_timeout = ${timeout}`)
+  await options.client.query(`SET ${scope}lock_timeout = ${timeout}`)
+}
+
+function postgresqlDeadlineError(error: unknown): boolean {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    "code" in error &&
+    (error.code === "57014" || error.code === "55P03")
+  )
 }
 
 function postgresqlTypes(): TypeOverrides {

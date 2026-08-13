@@ -233,7 +233,9 @@ const doubled = await counter.doubled
 
 The method call is still a durable database operation: it enters the actor's
 mailbox, waits its turn, and resolves with the committed, deeply frozen result.
-A timeout never cancels the durable message.
+If the enqueue transaction commits, a later wait timeout does not cancel the
+durable message. If enqueue itself cannot commit within the timeout,
+`SyncEnqueueTimeout` is raised and no message exists to recover.
 
 Use `with()` when invocation behavior needs configuration:
 
