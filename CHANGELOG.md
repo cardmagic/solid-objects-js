@@ -47,6 +47,9 @@
   timeout, fairness yield, lease loss, and shutdown.
 - Bound activation passes by configurable elapsed time as well as message
   count so slow hot actors yield workers fairly.
+- Add independent supervised schedulers for expired message and process
+  retention and stale process recovery, with disable switches and bounded
+  failure backoff.
 
 ## 0.1.0 - 2026-08-13
 

@@ -60,6 +60,8 @@ export interface SolidObjectsConfiguration {
   effectWorkerCount?: number
   broadcastWorkerCount?: number
   reminderSchedulerCount?: number
+  retentionIntervalMilliseconds?: number
+  deadProcessCleanupIntervalMilliseconds?: number
   messageRetentionMilliseconds?: number
   messageRetentionByActorType?: Readonly<Record<string, number>>
   instanceRetentionByActorType?: Readonly<Record<string, number>>
@@ -131,6 +133,9 @@ export function buildSettings(configuration: SolidObjectsConfiguration): Runtime
     effectWorkerCount: configuration.effectWorkerCount ?? 1,
     broadcastWorkerCount: configuration.broadcastWorkerCount ?? 1,
     reminderSchedulerCount: configuration.reminderSchedulerCount ?? 1,
+    retentionIntervalMilliseconds: configuration.retentionIntervalMilliseconds ?? 3_600_000,
+    deadProcessCleanupIntervalMilliseconds:
+      configuration.deadProcessCleanupIntervalMilliseconds ?? 60_000,
     messageRetentionMilliseconds: configuration.messageRetentionMilliseconds ?? 30 * 86_400_000,
     messageRetentionByActorType: Object.freeze({
       ...(configuration.messageRetentionByActorType ?? {}),
@@ -224,6 +229,12 @@ function validateSettings(settings: RuntimeSettings): void {
   ) {
     throw new TypeError("idleDeactivationTimeoutMilliseconds must be non-negative")
   }
+  for (const [name, value] of Object.entries({
+    retentionIntervalMilliseconds: settings.retentionIntervalMilliseconds,
+    deadProcessCleanupIntervalMilliseconds: settings.deadProcessCleanupIntervalMilliseconds,
+  })) {
+    if (!Number.isFinite(value) || value < 0) throw new TypeError(`${name} must be non-negative`)
+  }
   if (
     settings.supervisorMaximumRestartDelayMilliseconds < settings.supervisorRestartDelayMilliseconds
   ) {
@@ -253,7 +264,9 @@ function validateSettings(settings: RuntimeSettings): void {
     settings.workerCount +
     settings.effectWorkerCount +
     settings.reminderSchedulerCount +
-    (broadcastsEnabled(settings) ? settings.broadcastWorkerCount : 0)
+    (broadcastsEnabled(settings) ? settings.broadcastWorkerCount : 0) +
+    (settings.retentionIntervalMilliseconds > 0 ? 1 : 0) +
+    (settings.deadProcessCleanupIntervalMilliseconds > 0 ? 1 : 0)
   if (roleCount === 0) throw new TypeError("at least one runtime role must be configured")
 }
 

@@ -66,6 +66,7 @@ import {
 } from "./process-administration.js"
 import { RealtimeManager } from "./realtime.js"
 import type { PayloadEnvelope } from "./browser/index.js"
+import { MaintenanceScheduler } from "./maintenance-scheduler.js"
 import type {
   BroadcastRow,
   ClaimedTurn,
@@ -253,6 +254,8 @@ export class SolidObjectsRuntime {
       broadcastWorkerCount: broadcastsEnabled(this.settings)
         ? this.settings.broadcastWorkerCount
         : 0,
+      retentionEnabled: this.settings.retentionIntervalMilliseconds > 0,
+      deadProcessCleanupEnabled: this.settings.deadProcessCleanupIntervalMilliseconds > 0,
     })
     const controller = new AbortController()
     const abort = () => controller.abort(signal.reason)
@@ -607,6 +610,11 @@ export class SolidObjectsRuntime {
       resource: "processes",
       authorizationContext: options.authorizationContext,
     })
+    const cleaned = await this.cleanupStaleProcesses()
+    return Object.freeze({ cleaned })
+  }
+
+  private async cleanupStaleProcesses(): Promise<number> {
     const cleaned = await this.repository.cleanupStaleProcesses()
     if (cleaned > 0) {
       this.wakeUp("actors")
@@ -615,7 +623,7 @@ export class SolidObjectsRuntime {
       this.wakeUp("broadcasts")
       this.emitInstrumentation("processes.cleaned", { count: cleaned })
     }
-    return Object.freeze({ cleaned })
+    return cleaned
   }
 
   async instancesWithoutPendingWork(
@@ -1158,6 +1166,28 @@ export class SolidObjectsRuntime {
             () => () => this.broadcastWorker(),
           )
         : []),
+      ...(this.settings.retentionIntervalMilliseconds > 0
+        ? [
+            () =>
+              new MaintenanceScheduler({
+                runtime: this,
+                intervalMilliseconds: this.settings.retentionIntervalMilliseconds,
+                failureEvent: "supervisor.retention_failed",
+                operation: () => this.pruneExpiredRecords(),
+              }),
+          ]
+        : []),
+      ...(this.settings.deadProcessCleanupIntervalMilliseconds > 0
+        ? [
+            () =>
+              new MaintenanceScheduler({
+                runtime: this,
+                intervalMilliseconds: this.settings.deadProcessCleanupIntervalMilliseconds,
+                failureEvent: "supervisor.process_cleanup_failed",
+                operation: () => this.cleanupStaleProcesses().then(() => undefined),
+              }),
+          ]
+        : []),
     ]
 
     for (const { count, factory } of this.additionalComponents) {
@@ -1176,6 +1206,13 @@ export class SolidObjectsRuntime {
     } catch (error) {
       await Promise.allSettled(slots.map(({ component }) => this.stopComponent(component)))
       throw error
+    }
+  }
+
+  private async pruneExpiredRecords(): Promise<void> {
+    for (const target of ["messages", "processes"] as const) {
+      const count = await this.repository.pruneRetention(target)
+      this.emitInstrumentation(`${target}.pruned`, { count })
     }
   }
 

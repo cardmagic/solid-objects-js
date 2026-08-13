@@ -219,8 +219,16 @@ describe("runtime configuration", () => {
         workerCount: 0,
         effectWorkerCount: 0,
         reminderSchedulerCount: 0,
+        retentionIntervalMilliseconds: 0,
+        deadProcessCleanupIntervalMilliseconds: 0,
       }),
     ).toThrow("at least one runtime role")
+    expect(() => buildSettings({ database, retentionIntervalMilliseconds: -1 })).toThrow(
+      "retentionIntervalMilliseconds must be non-negative",
+    )
+    expect(() => buildSettings({ database, deadProcessCleanupIntervalMilliseconds: -1 })).toThrow(
+      "deadProcessCleanupIntervalMilliseconds must be non-negative",
+    )
     expect(() => validateComponent({} as never)).toThrow("must implement run")
 
     await database.close()

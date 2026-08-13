@@ -61,12 +61,21 @@ every repair through the actor's typed `send` dispatcher, optionally with a
 future `availableAt` to spread large repairs. Never update persisted actor
 state from reconciliation code.
 
-Retention is explicit through `runtime.retention.preview()` and
+The runtime automatically prunes expired message and stopped-process history
+once at startup and every `retentionIntervalMilliseconds`, which defaults to
+one hour. Stale process ownership is recovered independently every
+`deadProcessCleanupIntervalMilliseconds`, which defaults to one minute. Set an
+interval to zero to disable its scheduler. Failed passes emit metadata-only
+events and retry with bounded exponential backoff without stopping other
+runtime roles.
+
+Operators can also use `runtime.retention.preview()` and
 `runtime.retention.prune()`. Both calls require administration authorization;
 use preview first and alert on an unexpected count before executing deletion.
 Message history defaults to 30 days with optional per-actor overrides. Stopped
 process history defaults to 7 days. Instance expiration is disabled unless an
-actor type appears in `instanceRetentionByActorType`.
+actor type appears in `instanceRetentionByActorType`, and remains an explicit
+operator action because it deletes the entire actor incarnation.
 
 Pruning selects and rechecks at most `pruneBatchSize` rows per transaction. It
 preserves ready and claimed messages, dead-letter originals and replacements,
