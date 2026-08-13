@@ -323,7 +323,7 @@ class Reservation extends Actor {
 
   reserve({ quantity }: { quantity: number }): void {
     if (quantity > this.available) {
-      this.reject("insufficient_inventory", {
+      this.reject("insufficientInventory", {
         message: "Not enough inventory is available",
         details: { available: this.available },
       })
@@ -335,7 +335,8 @@ class Reservation extends Actor {
 
 Callers receive `Rejected` with `code`, frozen `details`, and the durable
 `messageId`. Unexpected exceptions are retried and eventually surface as
-`MessageFailed`.
+`MessageFailed`. Rejection codes follow the same identifier rule as actor
+members: a letter or underscore followed by letters, digits, or underscores.
 
 Do not make a committed actor call or wait on a message from inside
 `database.transaction(...)` on the Solid Objects database. The runtime raises
@@ -393,6 +394,12 @@ await message.status()
 await message.result()
 await message.wait({ timeoutMilliseconds: 2_000 })
 ```
+
+`MessageReference` stores durable identity, not authorization context. Pass
+`authorizationContext` again to `status()`, `result()`, or `wait()`; every read
+reauthorizes the stored operation. Operations that return `undefined`,
+including ordinary `void` methods, are normalized to JSON `null` when their
+durable result is read or awaited.
 
 Actor code must not call another reference directly or through `send`. Use
 `sendTo()` so outbound delivery commits atomically with the source actor turn—no
@@ -484,11 +491,14 @@ class Checkout extends Actor {
     })
   }
 
-  paymentSucceeded(): void {
+  paymentSucceeded(options: {
+    arguments: { paymentId: string }
+    result: { receiptId: string }
+  }): void {
     this.status = "paid"
   }
 
-  paymentFailed(): void {
+  paymentFailed(options: { arguments: { paymentId: string }; error: JsonObject }): void {
     this.status = "failed"
   }
 }
@@ -502,8 +512,10 @@ Effect context also exposes `attempt`, `sourceMessageId`, `actorType`, and
 `actorId`. The effect `id` is stable across retries and remains the external
 idempotency key.
 
-Success callbacks receive `{ effectId, result }`. Failure callbacks receive
-`{ effectId, error }`.
+Success callbacks receive `{ effectId, arguments, result }`. Failure callbacks
+receive `{ effectId, arguments, error }`. The JSON `arguments` are the
+values originally staged by `emit()`, so actors can correlate concurrent
+effects without coupling the external handler to actor state.
 
 ## Commit actions
 
@@ -515,6 +527,10 @@ runtime.registerCommitAction("completeAttempt", async ({ attemptId }, context) =
   await context.connection.run("UPDATE attempts SET completed = 1 WHERE id = ?", [attemptId])
 })
 ```
+
+Database row generics are assertions, not runtime conversions. In particular,
+SQLite integer columns are returned as `bigint`; type rows accordingly or
+convert deliberately. See the [adapter value mapping](docs/configuration.md#database-value-mapping).
 
 Commit-action context includes the source message and request IDs, actor
 identity, mailbox sequence, activation generation, and the active transaction
@@ -612,16 +628,19 @@ const runtime = configure({
 Preview each resource before pruning it:
 
 ```typescript
-await runtime.retention.preview({
+const preview = await runtime.retention.preview({
   target: "messages",
   authorizationContext: currentUser,
 })
 
-await runtime.retention.prune({
+const pruned = await runtime.retention.prune({
   target: "messages",
   authorizationContext: currentUser,
 })
 ```
+
+`preview.count` is the number of rows currently eligible; `pruned.count` is the
+number actually deleted after candidates are rechecked.
 
 Pruning rechecks every candidate in bounded transactions. Live mailbox work,
 unfinished outboxes, scheduled reminders, dead letters, retry links, active
@@ -647,10 +666,10 @@ server version and MySQL table engines, authorization-policy configuration and
 neutral-context posture, live runtime roles, and a targeted durable actor round
 trip. Pass `{ roundTrip: "skip" }` for a read-only report.
 
-Inspect role liveness with `runtime.processes.all()`. A process remains recorded
-as `running` until graceful shutdown or cleanup, so each record also exposes a
-current `stale` calculation based on the configured heartbeat threshold plus
-its hostname, host process ID, Node version, and Solid Objects version.
+Inspect role liveness with `runtime.processes.all()`. Each record exposes
+`shutdownState` (`"running"`, `"draining"`, or `"stopped"`) plus a current
+`stale` calculation based on the configured heartbeat threshold, hostname,
+host process ID, Node version, and Solid Objects version.
 `runtime.processes.cleanup()` atomically marks stale owners stopped, releases
 their actor activations, returns claimed messages to ready membership, and
 releases their effect, reminder, and broadcast claims.
@@ -709,7 +728,10 @@ summary.
 ## Test durable workflows without sleeps
 
 `runtime.testing.drain()` runs configured roles in deterministic passes until
-they are idle. Select roles when a test needs a narrower boundary:
+they are idle. It does not advance reminder schedules or effect retry backoff;
+retryable effects rescheduled into the future remain pending. Throw
+`NonRetryableError` in a test handler when the scenario is terminal failure.
+Select roles when a test needs a narrower boundary:
 
 ```typescript
 const message = await Counter.ref("test").send.increment()
@@ -717,6 +739,14 @@ const message = await Counter.ref("test").send.increment()
 await runtime.testing.drain({ roles: ["actors"] })
 
 expect(await message.status()).toBe("completed")
+```
+
+Run reminders against an explicit future instant without changing their stored
+schedules or sleeping:
+
+```typescript
+await runtime.testing.runDueReminders({ now: fiveMinutesFromNow })
+await runtime.testing.drain({ roles: ["actors"] })
 ```
 
 `runtime.testing.reset()` stops and discards the cached caller worker, then
@@ -775,6 +805,11 @@ projection with its actor incarnation and revision, without adding a mailbox
 message. Later invalidations come from the durable outbox in actor revision
 order. Duplicate and stale revisions are fenced, and one broken connection
 cannot interrupt delivery to another.
+
+Invalidation envelopes contain the actual `observables()` values and deliver
+the same projection to every authorized subscriber. Never put credentials,
+session identifiers, private cards, or other subscriber-specific data there;
+use a typed payload projection or a reauthorized component endpoint instead.
 
 Direct session delivery is process-local. When WebSocket connections and
 workers run in several Node processes, configure `broadcast` to publish each
@@ -854,7 +889,7 @@ For subscriber-specific views, declare a static payload map with a TypeScript
 ```typescript
 import { Actor, type PayloadBroadcasts } from "solid-objects"
 
-interface Viewer {
+type Viewer = {
   accountId: string
 }
 
@@ -871,6 +906,10 @@ class GameRoom extends Actor {
   hands: Record<string, string[]> = {}
 }
 ```
+
+Declare named payload return shapes with `type`, not `interface`.
+`PayloadBroadcastValue` is a JSON object or array, and TypeScript interfaces do
+not implicitly provide the JSON object's string index signature.
 
 Request payloads by name and render them separately from observable
 invalidations:

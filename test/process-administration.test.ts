@@ -42,7 +42,7 @@ describe("process administration", () => {
       hostProcessId: process.pid,
       metadata: {
         nodeVersion: process.version,
-        solidObjectsVersion: "0.12.0",
+        solidObjectsVersion: "0.12.1",
       },
       shutdownState: "running",
       shutdownRequestedAt: null,

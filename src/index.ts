@@ -73,6 +73,7 @@ export {
 } from "./retention.js"
 export {
   SolidObjectsTestHelper,
+  type RunDueRemindersOptions,
   type TestDrainOptions,
   type TestHelperRole,
 } from "./test-helper.js"
@@ -121,6 +122,7 @@ export {
   DatabaseDeadlineExceeded,
   IdempotencyConflict,
   InvalidActor,
+  InvalidRejectionCode,
   InvalidPayload,
   InvalidPayloadBroadcast,
   LostActivation,

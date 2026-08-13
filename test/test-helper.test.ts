@@ -18,6 +18,10 @@ class HelperActor extends Actor {
     this.emit("recordHelperEffect")
   }
 
+  startFutureWork({ runAt }: { runAt: string }): void {
+    this.schedule({ at: new Date(runAt) }).finishWork!()
+  }
+
   finishWork(): void {
     this.count += 1
   }
@@ -62,6 +66,22 @@ describe("public test helper", () => {
     expect(await HelperActor.ref("workflow").count).toBe(2)
     expect(effects).toEqual([message.id])
     expect(broadcasts.length).toBeGreaterThanOrEqual(2)
+  })
+
+  it("runs reminders due by an explicit test time", async () => {
+    runtime = configuredRuntime()
+    await runtime.install()
+    const runAt = new Date(Date.now() + 5 * 60_000)
+    const actor = HelperActor.ref("future-work")
+    await actor.startFutureWork({ runAt: runAt.toISOString() })
+
+    expect(await runtime.testing.drain()).toBe(0)
+    expect(await actor.count).toBe(0)
+    expect(await runtime.testing.runDueReminders({ now: new Date(runAt.getTime() - 1) })).toBe(0)
+
+    expect(await runtime.testing.runDueReminders({ now: runAt })).toBe(1)
+    expect(await runtime.testing.drain({ roles: ["actors"] })).toBe(1)
+    expect(await actor.count).toBe(1)
   })
 
   it("resets every runtime table and replaces the caller worker", async () => {

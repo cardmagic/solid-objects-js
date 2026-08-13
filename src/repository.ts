@@ -1374,7 +1374,11 @@ export class Repository {
         actorId: effect.actor_id,
         operation: effect.success_operation,
         deliveryMode: "internal",
-        arguments: jsonObject({ effectId: effect.id, result }),
+        arguments: jsonObject({
+          effectId: effect.id,
+          arguments: jsonObject(JSON.parse(effect.arguments)),
+          result,
+        }),
         idempotencyKey: `effect:${effect.id}:success`,
       })
       void now
@@ -1416,16 +1420,24 @@ export class Repository {
         actorId: effect.actor_id,
         operation: effect.failure_operation,
         deliveryMode: "internal",
-        arguments: jsonObject({ effectId: effect.id, error: errorRecord }),
+        arguments: jsonObject({
+          effectId: effect.id,
+          arguments: jsonObject(JSON.parse(effect.arguments)),
+          error: errorRecord,
+        }),
         idempotencyKey: `effect:${effect.id}:failure`,
       })
     })
   }
 
-  async claimReminder(processId: string): Promise<ReminderRow | undefined> {
+  async claimReminder(
+    processId: string,
+    options: { nowMilliseconds?: number } = {},
+  ): Promise<ReminderRow | undefined> {
     return this.settings.database.transaction(async (connection) => {
-      const now = await connection.nowMilliseconds()
-      const staleAt = now - this.settings.processAliveThresholdMilliseconds
+      const databaseNow = await connection.nowMilliseconds()
+      const dueAt = options.nowMilliseconds ?? databaseNow
+      const staleAt = databaseNow - this.settings.processAliveThresholdMilliseconds
       await connection.run(
         `UPDATE ${this.table("reminders")} SET claimed_by = NULL, claimed_at_ms = NULL
          WHERE claimed_by IS NOT NULL AND (
@@ -1445,24 +1457,27 @@ export class Repository {
            AND reminders.claimed_by IS NULL
          ORDER BY reminders.run_at_ms, reminders.id
          LIMIT 1`,
-        [now],
+        [dueAt],
       )
       if (!reminder) return undefined
       const claimed = await connection.run(
         `UPDATE ${this.table("reminders")} SET claimed_by = ?, claimed_at_ms = ?
          WHERE id = ? AND status = 'scheduled' AND claimed_by IS NULL`,
-        [processId, now, reminder.id],
+        [processId, databaseNow, reminder.id],
       )
       if (claimed.changes !== 1) return undefined
       reminder.claimed_by = processId
-      reminder.claimed_at_ms = now
+      reminder.claimed_at_ms = databaseNow
       return reminder
     })
   }
 
-  async enqueueReminder(reminder: ReminderRow): Promise<void> {
+  async enqueueReminder(
+    reminder: ReminderRow,
+    options: { nowMilliseconds?: number } = {},
+  ): Promise<void> {
     await this.settings.database.transaction(async (connection) => {
-      const now = await connection.nowMilliseconds()
+      const now = options.nowMilliseconds ?? (await connection.nowMilliseconds())
       const claimed = await connection.get<ReminderRow>(
         `SELECT reminders.*, instances.actor_type, instances.actor_id
          FROM ${this.table("reminders")} reminders

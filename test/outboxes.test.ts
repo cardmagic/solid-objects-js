@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it } from "vitest"
 import { Actor } from "../src/actor.js"
 import type { BroadcastEvent, SolidObjectsConfiguration } from "../src/configuration.js"
+import { NonRetryableError } from "../src/errors.js"
 import { configure, type SolidObjectsRuntime } from "../src/runtime.js"
 import { sqlite } from "../src/database/sqlite.js"
 
@@ -9,6 +10,7 @@ class Checkout extends Actor {
 
   status = "open"
   effectResult: string | null = null
+  failedPaymentId: string | null = null
 
   checkout({ paymentId }: { paymentId: string }): void {
     this.status = "pending"
@@ -19,13 +21,21 @@ class Checkout extends Actor {
     })
   }
 
-  paymentSucceeded({ result }: { effectId: string; result: { receipt: string } }): void {
+  paymentSucceeded({
+    arguments: effectArguments,
+    result,
+  }: {
+    effectId: string
+    arguments: { paymentId: string }
+    result: { receipt: string }
+  }): void {
     this.status = "paid"
-    this.effectResult = result.receipt
+    this.effectResult = `${effectArguments.paymentId}:${result.receipt}`
   }
 
-  paymentFailed(): void {
+  paymentFailed({ arguments: effectArguments }: { arguments: { paymentId: string } }): void {
     this.status = "failed"
+    this.failedPaymentId = effectArguments.paymentId
   }
 }
 
@@ -37,6 +47,31 @@ class DatabaseWriter extends Actor {
   finish({ recordId }: { recordId: string }): void {
     this.status = "finished"
     this.commitAction("write_record", { recordId })
+  }
+}
+
+class CorrelatedEffects extends Actor {
+  static override readonly actorType = "CorrelatedEffects"
+
+  succeeded: string[] = []
+  failed: string[] = []
+
+  start(): void {
+    for (const correlationId of ["first", "second"]) {
+      this.emit("correlatedEffect", {
+        arguments: { correlationId },
+        onSuccess: "effectSucceeded",
+        onFailure: "effectFailed",
+      })
+    }
+  }
+
+  effectSucceeded(options: { arguments: { correlationId: string } }): void {
+    this.succeeded = [...this.succeeded, options.arguments.correlationId]
+  }
+
+  effectFailed(options: { arguments: { correlationId: string } }): void {
+    this.failed = [...this.failed, options.arguments.correlationId]
   }
 }
 
@@ -78,6 +113,23 @@ afterEach(async () => {
 })
 
 describe("durable effects", () => {
+  it("correlates concurrent effect callbacks with their staged arguments", async () => {
+    runtime = configuredRuntime()
+    runtime.registerEffect("correlatedEffect", ({ correlationId }) => {
+      if (correlationId === "first") throw new NonRetryableError("expected failure")
+      return null
+    })
+    await runtime.install()
+    const actor = CorrelatedEffects.ref("correlated")
+
+    await actor.start()
+    expect(await runtime.effectWorker().runUntilIdle()).toBe(2)
+    expect(await runtime.worker().runUntilIdle()).toBe(2)
+
+    expect(await actor.succeeded).toEqual(["second"])
+    expect(await actor.failed).toEqual(["first"])
+  })
+
   it("runs an effect and delivers its success message", async () => {
     runtime = configuredRuntime()
     let effectContext:
@@ -101,7 +153,7 @@ describe("durable effects", () => {
     expect(await runtime.worker().runUntilIdle()).toBe(1)
 
     expect(await checkout.status).toBe("paid")
-    expect(await checkout.effectResult).toMatch(/^payment-1:/)
+    expect(await checkout.effectResult).toMatch(/^payment-1:payment-1:/)
     expect(effectContext).toMatchObject({
       attempt: 1,
       sourceMessageId: expect.any(String),
@@ -120,6 +172,7 @@ describe("durable effects", () => {
     expect(await runtime.worker().runUntilIdle()).toBe(1)
 
     expect(await checkout.status).toBe("failed")
+    expect(await checkout.failedPaymentId).toBe("payment-2")
     const effect = await runtime.settings.database.connection((connection) =>
       connection.get<{
         status: string

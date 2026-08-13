@@ -4,7 +4,9 @@ import type { SolidObjectsConfiguration } from "../src/configuration.js"
 import {
   ActorDestroyed,
   IdempotencyConflict,
+  InvalidRejectionCode,
   MessageFailed,
+  NonRetryableError,
   QueryMutatedState,
   Rejected,
   SyncInsideTransaction,
@@ -34,6 +36,14 @@ class ReliableCounter extends Actor {
       message: "Increment is not allowed",
       details: { count: this.count },
     })
+  }
+
+  rejectCamelCase(): void {
+    this.reject("roomNotFound", { message: "No such room" })
+  }
+
+  rejectInvalidCode({ code }: { code: string }): void {
+    this.reject(code, { message: "Invalid rejection code" })
   }
 
   resultObject(): { nested: { count: number } } {
@@ -229,6 +239,41 @@ describe("durable invocation correctness", () => {
     expect((rejection as Rejected).messageId).toBeTypeOf("string")
     expect(await counter.count).toBe(0)
   })
+
+  it("accepts camelCase rejection codes", async () => {
+    runtime = configuredRuntime()
+    await runtime.install()
+
+    const rejection = await ReliableCounter.ref("camel-case")
+      .rejectCamelCase()
+      .catch((error: unknown) => error)
+
+    expect(rejection).toBeInstanceOf(Rejected)
+    expect(rejection).toMatchObject({ code: "roomNotFound", message: "No such room" })
+  })
+
+  it.each(["room not found", "1roomNotFound"])(
+    "fails invalid rejection code %j without retrying",
+    async (code) => {
+      runtime = configuredRuntime({ maxAttempts: 3 })
+      await runtime.install()
+
+      const failure = await ReliableCounter.ref("invalid-rejection")
+        .rejectInvalidCode({ code })
+        .catch((error: unknown) => error)
+
+      expect(failure).toBeInstanceOf(MessageFailed)
+      expect(failure).toMatchObject({
+        details: {
+          name: "InvalidRejectionCode",
+          message: expect.stringContaining(code),
+        },
+      })
+      const message = await runtime.repository.findMessage((failure as MessageFailed).messageId)
+      expect(Number(message?.attempt_count)).toBe(1)
+      expect(InvalidRejectionCode.prototype).toBeInstanceOf(NonRetryableError)
+    },
+  )
 
   it("recovers terminal failures through message results", async () => {
     runtime = configuredRuntime({ maxAttempts: 1 })

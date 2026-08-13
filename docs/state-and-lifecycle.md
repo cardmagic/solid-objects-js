@@ -116,10 +116,10 @@ crash, so it cannot establish correctness.
 ## Domain rejection and failure
 
 Call `this.reject(code, { message, details })` when an operation is valid but
-the domain refuses it. Codes contain lowercase letters, digits, and
-underscores. The turn rolls back, staged work is discarded, the message becomes
-`rejected`, and later mailbox work remains eligible. The caller receives
-`Rejected` with the code, frozen JSON details, and durable message ID.
+the domain refuses it. Codes use the same identifier rule as actor members:
+`[A-Za-z_][A-Za-z0-9_]*`. The turn rolls back, staged work is discarded, the
+message becomes `rejected`, and later mailbox work remains eligible. The caller
+receives `Rejected` with the code, frozen JSON details, and durable message ID.
 
 Throwing another error rolls the turn back and schedules a retry according to
 `maxAttempts` and `retryDelayMilliseconds`. Throw a custom subclass of

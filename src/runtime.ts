@@ -1362,12 +1362,15 @@ export class SolidObjectsRuntime {
     }
   }
 
-  async executeReminder(reminder: ReminderRow): Promise<void> {
+  async executeReminder(
+    reminder: ReminderRow,
+    options: { nowMilliseconds?: number } = {},
+  ): Promise<void> {
     const actor = this.fetchActor(reminder.actor_type)
     if (!actor.operations.has(reminder.operation)) {
       throw new UnknownOperation(`unknown reminder operation ${JSON.stringify(reminder.operation)}`)
     }
-    await this.repository.enqueueReminder(reminder)
+    await this.repository.enqueueReminder(reminder, options)
     this.wakeUp("actors")
     this.emitInstrumentation("reminder.enqueued", {
       reminderId: reminder.id,

@@ -2,6 +2,19 @@
 
 ## Unreleased
 
+## 0.12.1 - 2026-08-13
+
+- Accept camelCase rejection codes and fail malformed codes immediately with
+  non-retryable `InvalidRejectionCode` diagnostics.
+- **Breaking:** include the originally staged `arguments` in effect success and
+  failure callback payloads so actors can correlate concurrent effects.
+- Add `runtime.testing.runDueReminders({ now })` for deterministic reminder
+  tests without database writes or sleeps.
+- Document adapter value mapping, readonly snapshot helpers, payload type-alias
+  requirements, realtime observable exposure, message-reference authorization,
+  durable `void` results, retry backoff in tests, and administration result
+  fields.
+
 ## 0.12.0 - 2026-08-13
 
 - Document the complete public API, runtime and adapter configuration,

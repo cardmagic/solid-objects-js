@@ -1,6 +1,6 @@
 {
   "name": "solid-objects",
-  "version": "0.12.0",
+  "version": "0.12.1",
   "description": "Durable, addressable objects for Node.js",
   "type": "module",
   "license": "MIT",

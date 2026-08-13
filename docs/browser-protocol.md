@@ -5,6 +5,13 @@ subscription requests and receives JSON invalidation envelopes over WebSocket.
 The application supplies the rendering callback and authenticated WebSocket
 server; `runtime.realtime` supplies the server-side session protocol.
 
+The `observables` object contains values, not only invalidation names, and every
+subscriber authorized for that actor receives the same projection. This differs
+from Ruby morph components, which re-fetch a signed endpoint without putting
+observable values on the wire. Keep secrets and subscriber-specific state out
+of `observables()`; use personalized payloads or an application endpoint that
+reauthorizes the component request.
+
 The 0.1 subscription request is:
 
 ```json

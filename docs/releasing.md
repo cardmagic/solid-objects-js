@@ -26,8 +26,9 @@ npm trust github solid-objects \
 
 ## Release procedure
 
-1. Update the version in `package.json` and `pnpm-lock.yaml` and move the
-   release notes out of the Unreleased section in `CHANGELOG.md`.
+1. Update the version in `package.json` and `src/version.ts`, refresh the
+   lockfile when needed, and move the release notes out of the Unreleased
+   section in `CHANGELOG.md`.
 2. Run `pnpm run format:check`, `pnpm run check`, `pnpm run test:coverage`,
    `pnpm run build`, `pnpm run pack:check`, and
    `pnpm audit --audit-level=high`.
@@ -35,8 +36,8 @@ npm trust github solid-objects \
 4. Create and push an annotated tag matching the package version:
 
    ```shell
-   git tag -a v0.13.0 -m "Version 0.13.0"
-   git push origin v0.13.0
+   git tag -a v0.12.1 -m "Version 0.12.1"
+   git push origin v0.12.1
    ```
 
 The tag runs the complete CI matrix. The publish job starts only after every

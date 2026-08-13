@@ -1,7 +1,7 @@
 import { currentMessage, currentRuntime } from "./context.js"
 import { getDefaultRuntime } from "./default-runtime.js"
 import type { StateMigration } from "./definition.js"
-import { Rejected, UnknownOperation } from "./errors.js"
+import { InvalidRejectionCode, Rejected, UnknownOperation } from "./errors.js"
 import {
   createStagedOperationMap,
   createStagedOperations,
@@ -130,8 +130,10 @@ export abstract class Actor {
   protected onDeactivate(): void | Promise<void> {}
 
   reject(code: string, options: { message: string; details?: Record<string, unknown> }): never {
-    if (!/^[a-z][a-z0-9_]*$/.test(code)) {
-      throw new TypeError("rejection code must contain lowercase letters, digits, and underscores")
+    if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(code)) {
+      throw new InvalidRejectionCode(
+        `invalid rejection code ${JSON.stringify(code)}; expected a letter or underscore followed by letters, digits, or underscores`,
+      )
     }
     throw new Rejected({
       code,

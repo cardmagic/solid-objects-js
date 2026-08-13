@@ -9,14 +9,22 @@ export class ReminderScheduler {
 
   constructor(private readonly runtime: SolidObjectsRuntime) {}
 
-  async runOnce(): Promise<number> {
+  async runOnce(options: { now?: Date } = {}): Promise<number> {
     if (this.stopping) return 0
+    const nowMilliseconds = options.now?.getTime()
+    if (nowMilliseconds !== undefined && !Number.isFinite(nowMilliseconds)) {
+      throw new TypeError("reminder test time must be a valid date")
+    }
     await this.ensureRegistered()
     await this.runtime.repository.heartbeatProcess(this.processId)
-    const reminder = await this.runtime.repository.claimReminder(this.processId)
+    const reminder = await this.runtime.repository.claimReminder(this.processId, {
+      ...(nowMilliseconds === undefined ? {} : { nowMilliseconds }),
+    })
     if (!reminder) return 0
     try {
-      await this.runtime.executeReminder(reminder)
+      await this.runtime.executeReminder(reminder, {
+        ...(nowMilliseconds === undefined ? {} : { nowMilliseconds }),
+      })
     } catch (error) {
       if (error instanceof UnknownOperation) {
         await this.runtime.repository.failReminder(reminder, error)

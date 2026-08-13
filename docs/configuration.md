@@ -96,6 +96,25 @@ server.
 
 ## Database adapters
 
+### Database value mapping
+
+`DatabaseConnection.get<Row>()` and `all<Row>()` trust the caller-supplied row
+type; they do not validate or convert driver results. Type rows to the adapter's
+runtime representation or normalize them at the application boundary.
+
+| SQL value                           | SQLite (`node:sqlite`)      | PostgreSQL (`pg`)                               | MySQL (`mysql2`)                    |
+| ----------------------------------- | --------------------------- | ----------------------------------------------- | ----------------------------------- |
+| ordinary integer                    | `bigint`                    | `number` for `int2`/`int4`; `bigint` for `int8` | `number` for ordinary integer types |
+| arbitrary precision integer/decimal | `bigint` for SQLite INTEGER | `numeric` remains the driver's decimal string   | `BIGINT` and `DECIMAL` are strings  |
+| floating point                      | `number`                    | `number`                                        | `number`                            |
+| text                                | `string`                    | `string`                                        | `string`                            |
+| binary                              | `Uint8Array`                | `Buffer`                                        | `Buffer`                            |
+| null                                | `null`                      | `null`                                          | `null`                              |
+
+`RunResult.changes` is always a `number`. `lastInsertId`, when an adapter
+provides it, is a decimal `string`; SQLite and MySQL set it for nonzero generated
+IDs, while PostgreSQL callers should use `RETURNING` with `get()`.
+
 ### SQLite
 
 `sqlite({ path, timeoutMilliseconds = 5_000, lockRetryAttempts = 10 })` uses

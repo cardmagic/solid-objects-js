@@ -41,6 +41,7 @@ export class SyncInsideTransaction extends SolidObjectsError {
   }
 }
 export class InvalidActor extends SolidObjectsError {}
+export class InvalidRejectionCode extends NonRetryableError {}
 export class UnknownActorType extends NonRetryableError {}
 export class UnknownOperation extends NonRetryableError {}
 export class InvalidPayload extends SolidObjectsError {}

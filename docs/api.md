@@ -31,6 +31,30 @@ generic signatures; this index explains the supported role of every export.
 `PayloadBroadcasts`, and `PayloadBroadcastValue` describe actor-declared
 transactional work and typed personalized projections.
 
+`MessageReference` does not retain an invocation's authorization context.
+Supply `authorizationContext` to each `status()`, `result()`, and `wait()` call;
+the runtime reauthorizes the persisted operation every time. Durable results
+are JSON, so an operation that returns `undefined` or is declared `void`
+resolves as `null`.
+
+Declare named payload return shapes with a `type` alias rather than an
+`interface`. `PayloadBroadcastValue` requires the implicit string index
+signature of a JSON object, which TypeScript gives object type aliases but not
+interfaces.
+
+Snapshots return `DeepReadonly`, so application helpers should accept readonly
+structure rather than cast it away. A helper that only needs a session ID can
+preserve its useful result type with a generic boundary:
+
+```typescript
+function playerForSession<PlayerType extends { sessionId: string }>(options: {
+  room: { readonly players: readonly PlayerType[] }
+  sessionId: string | null
+}): PlayerType | undefined {
+  return options.room.players.find((player) => player.sessionId === options.sessionId)
+}
+```
+
 ### Runtime managers
 
 Every manager below is available as a property on `SolidObjectsRuntime`; the
@@ -48,7 +72,7 @@ class and result types are also exported for integration typing.
 - `runtime.doctor` / `Doctor`: `run({ roundTrip })` structured installation
   report.
 - `runtime.testing` / `SolidObjectsTestHelper`: deterministic `drain()` and
-  dependency-ordered `reset()`.
+  explicit-time `runDueReminders()`, plus dependency-ordered `reset()`.
 - `runtime.realtime` / `RealtimeManager`: `connect()`, process-local
   `publish()`, and `close()`.
 
@@ -60,10 +84,15 @@ The manager types are `DeadLetter`; `ReminderPage`, `ReminderPageOptions`,
 `QuietReconciliationOptions`, `ReconciliationInstance`, `ReconciliationPage`,
 `ReconciliationPageOptions`, and `ReconciliationStatesOptions`;
 `RetentionOptions`, `RetentionResult`, and `RetentionTarget`; and
-`TestDrainOptions` and `TestHelperRole`. `RealtimeConnectionOptions`,
+`RunDueRemindersOptions`, `TestDrainOptions`, and `TestHelperRole`.
+`RealtimeConnectionOptions`,
 `RealtimeSession`, and `SubscriptionRequest` define the server session API.
 `AdministrationOptions` carries the application-owned authorization context
 for administration calls.
+
+`ProcessRecord.shutdownState` is `"running"`, `"draining"`, or `"stopped"`;
+there is no separate `running` field. `RetentionResult.count` means eligible
+rows for `preview()` and rows actually deleted for `prune()`.
 
 ### Registration and integration
 
@@ -72,7 +101,9 @@ for administration calls.
   isolated runtime.
 - `runtime.registerEffect(name, handler)`: register an at-least-once external
   effect handler. `EffectContext` carries the stable effect ID and source
-  identity.
+  identity. Success operations receive `{ effectId, arguments, result }` and
+  failure operations receive `{ effectId, arguments, error }`; `arguments` is
+  the JSON object originally staged by `emit()`.
 - `runtime.registerCommitAction(name, handler)`: register a same-database
   fenced transaction handler. `CommitActionContext` includes the active
   `DatabaseConnection`.
@@ -134,7 +165,8 @@ The root exports `SolidObjectsError` and its supported subclasses:
 - admission and payload failures: `MailboxFull`, `InvalidPayload`,
   `PayloadTooLarge`, `IdempotencyConflict`, `InvalidPayloadBroadcast`, and
   `UnknownPayloadBroadcast`;
-- definition and execution failures: `InvalidActor`, `UnknownActorType`,
+- definition and execution failures: `InvalidActor`, `InvalidRejectionCode`,
+  `UnknownActorType`,
   `UnknownOperation`, `ActorCallCycle`, `QueryMutatedState`,
   `StateMigrationError`, `ApplicationWriteForbidden`, `UnknownEffect`, and
   `UnknownCommitAction`;

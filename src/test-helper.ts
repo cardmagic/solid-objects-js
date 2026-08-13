@@ -9,6 +9,11 @@ export interface TestDrainOptions {
   maxPasses?: number
 }
 
+export interface RunDueRemindersOptions {
+  now: Date
+  maxReminders?: number
+}
+
 interface TestRunner extends LongRunningComponent {
   runOnce(): Promise<number>
 }
@@ -47,6 +52,29 @@ export class SolidObjectsTestHelper {
 
   reset(): Promise<void> {
     return this.runtime.resetForTesting()
+  }
+
+  async runDueReminders(options: RunDueRemindersOptions): Promise<number> {
+    const nowMilliseconds = options.now.getTime()
+    if (!Number.isFinite(nowMilliseconds)) {
+      throw new TypeError("reminder test time must be a valid date")
+    }
+    const maxReminders = options.maxReminders ?? 10_000
+    if (!Number.isSafeInteger(maxReminders) || maxReminders < 1) {
+      throw new TypeError("maxReminders must be a positive safe integer")
+    }
+    const scheduler = this.runtime.reminderScheduler()
+    let processed = 0
+    try {
+      while (processed < maxReminders) {
+        const count = await scheduler.runOnce({ now: options.now })
+        if (count === 0) return processed
+        processed += count
+      }
+      return processed
+    } finally {
+      await scheduler.stop()
+    }
   }
 
   private defaultRoles(): readonly TestHelperRole[] {
