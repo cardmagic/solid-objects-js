@@ -38,6 +38,12 @@ export {
 } from "./realtime.js"
 export { DeadLetterManager, type DeadLetter } from "./dead-letters.js"
 export {
+  ProcessManager,
+  type ProcessCleanupResult,
+  type ProcessRecord,
+  type ProcessShutdownState,
+} from "./process-administration.js"
+export {
   Doctor,
   type DoctorCheck,
   type DoctorOptions,

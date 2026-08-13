@@ -16,6 +16,12 @@ capped by `supervisorMaximumRestartDelayMilliseconds` at 10 seconds. Replacement
 and replacement-failure events contain the role class, failure count, and error
 class only. Repeated failure messages are excluded from instrumentation.
 
+`runtime.processes.all()` returns administration-authorized immutable process
+metadata with a current `stale` flag. `cleanup()` reauthorizes separately and
+atomically fences stale processes out of every owned role claim before waking
+the affected runtime roles. The cleanup count is instrumented; process IDs and
+application payloads are not.
+
 Authorized operators can inspect terminal actor failures with
 `runtime.deadLetters.all()` and retry one with `runtime.deadLetters.retry()`.
 Retry is idempotent per dead letter: the record retains the replacement message

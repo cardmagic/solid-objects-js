@@ -1,5 +1,14 @@
 import type { JsonObject } from "./types.js"
 
+export interface ProcessRow {
+  id: string
+  kind: string
+  started_at_ms: number | bigint
+  heartbeat_at_ms: number | bigint
+  stopped_at_ms: number | bigint | null
+  shutdown_state: "running" | "draining" | "stopped"
+}
+
 export interface InstanceRow {
   id: string
   actor_type: string

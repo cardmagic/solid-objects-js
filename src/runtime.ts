@@ -52,6 +52,11 @@ import {
   type ReconciliationStatesOptions,
 } from "./reconciliation.js"
 import { Repository } from "./repository.js"
+import {
+  ProcessManager,
+  type ProcessCleanupResult,
+  type ProcessRecord,
+} from "./process-administration.js"
 import { RealtimeManager } from "./realtime.js"
 import type {
   BroadcastRow,
@@ -124,6 +129,7 @@ export class SolidObjectsRuntime {
   readonly testing
   readonly reminders
   readonly realtime
+  readonly processes
   private readonly registry = new Map<string, RegisteredActor>()
   private readonly effects = new Map<string, EffectHandler>()
   private readonly commitActions = new Map<string, CommitActionHandler>()
@@ -141,6 +147,7 @@ export class SolidObjectsRuntime {
     this.testing = new SolidObjectsTestHelper(this)
     this.reminders = new ReminderManager(this)
     this.realtime = new RealtimeManager(this)
+    this.processes = new ProcessManager(this)
   }
 
   async install(): Promise<void> {
@@ -525,6 +532,47 @@ export class SolidObjectsRuntime {
       ...(options.cursor === undefined ? {} : { cursor: options.cursor }),
     })
     return reconciliationPage(rows, limit)
+  }
+
+  async inspectProcesses(options: AdministrationOptions = {}): Promise<readonly ProcessRecord[]> {
+    await this.authorizeAdministration({
+      action: "inspect",
+      resource: "processes",
+      authorizationContext: options.authorizationContext,
+    })
+    const result = await this.repository.listProcesses()
+    return Object.freeze(
+      result.rows.map((row) =>
+        Object.freeze({
+          id: row.id,
+          kind: row.kind,
+          shutdownState: row.shutdown_state,
+          stale:
+            row.shutdown_state === "running" &&
+            Number(row.heartbeat_at_ms) <= result.staleAtMilliseconds,
+          startedAt: new Date(Number(row.started_at_ms)),
+          heartbeatAt: new Date(Number(row.heartbeat_at_ms)),
+          stoppedAt: row.stopped_at_ms === null ? null : new Date(Number(row.stopped_at_ms)),
+        }),
+      ),
+    )
+  }
+
+  async cleanupProcesses(options: AdministrationOptions = {}): Promise<ProcessCleanupResult> {
+    await this.authorizeAdministration({
+      action: "cleanup",
+      resource: "processes",
+      authorizationContext: options.authorizationContext,
+    })
+    const cleaned = await this.repository.cleanupStaleProcesses()
+    if (cleaned > 0) {
+      this.wakeUp("actors")
+      this.wakeUp("effects")
+      this.wakeUp("reminders")
+      this.wakeUp("broadcasts")
+      this.emitInstrumentation("processes.cleaned", { count: cleaned })
+    }
+    return Object.freeze({ cleaned })
   }
 
   async instancesWithoutPendingWork(

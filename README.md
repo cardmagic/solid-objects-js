@@ -410,6 +410,13 @@ targeted durable actor round trip. The authorization check records which
 policies were explicitly supplied; it never invokes application policies with
 a fabricated subject. Pass `{ roundTrip: "skip" }` for a read-only report.
 
+Inspect role liveness with `runtime.processes.all()`. A process remains recorded
+as `running` until graceful shutdown or cleanup, so each record also exposes a
+current `stale` calculation based on the configured heartbeat threshold.
+`runtime.processes.cleanup()` atomically marks stale owners stopped, releases
+their actor activations, returns claimed messages to ready membership, and
+releases their effect, reminder, and broadcast claims.
+
 ## Test durable workflows without sleeps
 
 `runtime.testing.drain()` runs configured roles in deterministic passes until
