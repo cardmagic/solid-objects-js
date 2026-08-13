@@ -320,7 +320,7 @@ export class Repository {
         if (options.instanceId !== undefined) parameters.push(options.instanceId)
         parameters.push(now)
       }
-      const candidate = await connection.get<{ message_id: string; instance_id: string }>(
+      const candidates = await connection.all<{ message_id: string; instance_id: string }>(
         `SELECT ready.message_id, ready.instance_id
          FROM ${this.table("ready_messages")} ready
          JOIN ${this.table("instances")} instances ON instances.id = ready.instance_id
@@ -335,14 +335,18 @@ export class Repository {
              WHERE earlier.instance_id = ready.instance_id AND earlier.sequence < ready.sequence
            )
            ${leaseCondition}
-         ORDER BY ready.available_at_ms, ready.sequence
-         LIMIT 1`,
-        parameters,
+         ORDER BY ready.available_at_ms, ready.sequence, ready.message_id
+         LIMIT ?`,
+        [
+          ...parameters,
+          options.activation || options.instanceId ? 1 : this.settings.claimScanLimit,
+        ],
       )
-      if (!candidate) return undefined
-
-      const token = options.activation?.activationToken ?? randomUUID()
-      if (!options.activation) {
+      for (const candidate of candidates) {
+        const token = options.activation?.activationToken ?? randomUUID()
+        if (options.activation) {
+          return this.claimCandidate({ connection, candidate, processId, token, now })
+        }
         const lease = await connection.run(
           `UPDATE ${this.table("instances")}
            SET activation_owner_id = ?, activation_token = ?, activation_generation = activation_generation + 1,
@@ -357,52 +361,63 @@ export class Repository {
             now,
           ],
         )
-        if (lease.changes !== 1) return undefined
+        if (lease.changes !== 1) continue
+        return this.claimCandidate({ connection, candidate, processId, token, now })
       }
+      return undefined
+    })
+  }
 
-      const instance = await connection.get<InstanceRow>(
-        `SELECT * FROM ${this.table("instances")} WHERE id = ?`,
-        [candidate.instance_id],
-      )
-      const message = await connection.get<MessageRow>(
-        `SELECT * FROM ${this.table("messages")} WHERE id = ?`,
-        [candidate.message_id],
-      )
-      if (!instance || !message) return undefined
+  private async claimCandidate(options: {
+    connection: DatabaseConnection
+    candidate: { message_id: string; instance_id: string }
+    processId: string
+    token: string
+    now: number
+  }): Promise<ClaimedTurn | undefined> {
+    const { connection, candidate, processId, token, now } = options
+    const instance = await connection.get<InstanceRow>(
+      `SELECT * FROM ${this.table("instances")} WHERE id = ?`,
+      [candidate.instance_id],
+    )
+    const message = await connection.get<MessageRow>(
+      `SELECT * FROM ${this.table("messages")} WHERE id = ?`,
+      [candidate.message_id],
+    )
+    if (!instance || !message) return undefined
 
-      const removed = await connection.run(
-        `DELETE FROM ${this.table("ready_messages")} WHERE message_id = ?`,
-        [message.id],
-      )
-      if (removed.changes !== 1) return undefined
-      await connection.run(
-        `INSERT INTO ${this.table("claimed_messages")}
+    const removed = await connection.run(
+      `DELETE FROM ${this.table("ready_messages")} WHERE message_id = ?`,
+      [message.id],
+    )
+    if (removed.changes !== 1) return undefined
+    await connection.run(
+      `INSERT INTO ${this.table("claimed_messages")}
          (message_id, instance_id, sequence, process_id, activation_token, activation_generation, claimed_at_ms)
          VALUES (?, ?, ?, ?, ?, ?, ?)`,
-        [
-          message.id,
-          instance.id,
-          message.sequence,
-          processId,
-          token,
-          instance.activation_generation,
-          now,
-        ],
-      )
-      await connection.run(
-        `UPDATE ${this.table("messages")} SET attempt_count = attempt_count + 1, updated_at_ms = ? WHERE id = ?`,
-        [now, message.id],
-      )
-      message.attempt_count = Number(message.attempt_count) + 1
-      return {
-        instance,
-        message,
+      [
+        message.id,
+        instance.id,
+        message.sequence,
         processId,
-        activationToken: token,
-        activationGeneration: BigInt(instance.activation_generation),
-        nowMilliseconds: now,
-      }
-    })
+        token,
+        instance.activation_generation,
+        now,
+      ],
+    )
+    await connection.run(
+      `UPDATE ${this.table("messages")} SET attempt_count = attempt_count + 1, updated_at_ms = ? WHERE id = ?`,
+      [now, message.id],
+    )
+    message.attempt_count = Number(message.attempt_count) + 1
+    return {
+      instance,
+      message,
+      processId,
+      activationToken: token,
+      activationGeneration: BigInt(instance.activation_generation),
+      nowMilliseconds: now,
+    }
   }
 
   async renewTurn(turn: ClaimedTurn): Promise<void> {

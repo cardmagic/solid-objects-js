@@ -23,6 +23,10 @@ identities stay continuously busy; higher values reduce claim overhead for
 isolated backlogs. `solid_objects.activation.yielded` reports the actor
 identity, turns processed, and remaining due membership count.
 
+`claimScanLimit` defaults to 100. Global claims inspect a bounded ordered set of
+actor identities and continue after a lost lease race, preserving worker
+parallelism without an unbounded scan.
+
 Workers retain a hydrated actor and its fenced lease for
 `idleDeactivationTimeoutMilliseconds`, which defaults to 30 seconds. Idle
 leases renew at `leaseRenewalIntervalMilliseconds`; the worker polling cadence

@@ -70,6 +70,11 @@ moves only that actor's already-due ready memberships to current database time.
 Actors with older ready work therefore win the next global claim; delayed work
 keeps its original future availability.
 
+The global claim reads at most `claimScanLimit` ordered candidates. If another
+worker acquires the first candidate's lease, the transaction continues through
+that bounded set instead of returning idle and sacrificing parallelism across
+independent actor identities.
+
 When a pass becomes idle, a long-running worker keeps the hydrated actor and
 continues renewing the same fenced lease until its idle timeout. A later turn
 on that actor reuses both its persisted public fields and process-local private

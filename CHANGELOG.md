@@ -56,6 +56,8 @@
   and mailbox blockers.
 - Reject committed calls and message waits inside an ambient Solid Objects
   database transaction before they can self-deadlock.
+- Scan a bounded set of ready actor candidates so a lost lease race does not
+  make a worker report idle while other actors are ready.
 
 ## 0.1.0 - 2026-08-13
 

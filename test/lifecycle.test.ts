@@ -304,6 +304,51 @@ describe("runtime lifecycle", () => {
     expect(CachedActor.deactivations).toBe(1)
   })
 
+  it("claims another actor when an earlier candidate loses its lease race", async () => {
+    runtime = configuredRuntime({ claimScanLimit: 2 })
+    await runtime.install()
+    const first = await LifecycleCounter.ref("first-candidate").send.increment()
+    const second = await LifecycleCounter.ref("second-candidate").send.increment()
+    await runtime.settings.database.connection(async (connection) => {
+      await connection.run(
+        `UPDATE ${runtime?.repository.table("ready_messages")} SET available_at_ms = 0 WHERE message_id = ?`,
+        [first.id],
+      )
+      await connection.run(
+        `UPDATE ${runtime?.repository.table("ready_messages")} SET available_at_ms = 1 WHERE message_id = ?`,
+        [second.id],
+      )
+    })
+    await runtime.repository.registerProcess("race-winner", "worker")
+    const originalRun = runtime.settings.database.transaction.bind(runtime.settings.database)
+    let leaseUpdates = 0
+    const transaction = vi
+      .spyOn(runtime.settings.database, "transaction")
+      .mockImplementation((callback) =>
+        originalRun((connection) =>
+          callback({
+            get: connection.get.bind(connection),
+            all: connection.all.bind(connection),
+            nowMilliseconds: connection.nowMilliseconds.bind(connection),
+            run: async (sql, parameters) => {
+              if (sql.includes("SET activation_owner_id")) {
+                leaseUpdates += 1
+                if (leaseUpdates === 1) return { changes: 0 }
+              }
+              return connection.run(sql, parameters)
+            },
+          }),
+        ),
+      )
+
+    const turn = await runtime.repository.claim("race-winner")
+
+    expect(turn?.message.id).toBe(second.id)
+    expect(await first.status()).toBe("ready")
+    expect(await second.status()).toBe("claimed")
+    transaction.mockRestore()
+  })
+
   it("restores cached state after a failed turn", async () => {
     runtime = configuredRuntime({ maxAttempts: 1 })
     runtime.register(CachedActor)

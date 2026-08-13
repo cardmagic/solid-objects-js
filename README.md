@@ -763,6 +763,8 @@ IDs and observable values are not authorization.
 - Different actor identities may execute concurrently.
 - A worker drains at most `maxMessagesPerActivationPass` turns from one actor,
   then yields its still-due work behind actors that were already waiting.
+- A global claim scans at most `claimScanLimit` ordered candidates, continuing
+  to another ready actor after a lost lease race.
 - Long-running workers reuse hydrated actors for
   `idleDeactivationTimeoutMilliseconds` while renewing the same fenced lease.
 - State, completion, staged messages, effects, reminders, commit actions, and
