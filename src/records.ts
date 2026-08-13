@@ -3,6 +3,9 @@ import type { JsonObject } from "./types.js"
 export interface ProcessRow {
   id: string
   kind: string
+  hostname: string
+  host_process_id: number | bigint
+  metadata: string
   started_at_ms: number | bigint
   heartbeat_at_ms: number | bigint
   stopped_at_ms: number | bigint | null

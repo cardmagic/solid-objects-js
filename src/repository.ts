@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto"
+import { hostname } from "node:os"
 import {
   ActorDestroyed,
   IdempotencyConflict,
@@ -26,6 +27,7 @@ import type {
 import { jsonObject, normalizeJson } from "./serialization.js"
 import type { RetentionTarget } from "./retention.js"
 import type { JsonObject, JsonValue } from "./types.js"
+import { VERSION } from "./version.js"
 
 export interface SyncDiagnosticsRecord {
   message: MessageRow
@@ -53,11 +55,21 @@ export class Repository {
       const now = await connection.nowMilliseconds()
       await connection.run(
         `INSERT INTO ${this.table("processes")}
-         (id, kind, started_at_ms, heartbeat_at_ms, shutdown_state)
-         VALUES (?, ?, ?, ?, 'running')
+         (id, kind, hostname, host_process_id, metadata, started_at_ms, heartbeat_at_ms,
+          shutdown_state)
+         VALUES (?, ?, ?, ?, ?, ?, ?, 'running')
          ON CONFLICT(id) DO UPDATE SET heartbeat_at_ms = excluded.heartbeat_at_ms,
-           stopped_at_ms = NULL, shutdown_state = 'running'`,
-        [processId, kind, now, now],
+           hostname = excluded.hostname, host_process_id = excluded.host_process_id,
+           metadata = excluded.metadata, stopped_at_ms = NULL, shutdown_state = 'running'`,
+        [
+          processId,
+          kind,
+          hostname(),
+          process.pid,
+          JSON.stringify({ solidObjectsVersion: VERSION, nodeVersion: process.version }),
+          now,
+          now,
+        ],
       )
     })
   }

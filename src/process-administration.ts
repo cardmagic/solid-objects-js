@@ -3,9 +3,17 @@ import type { AdministrationOptions } from "./types.js"
 
 export type ProcessShutdownState = "running" | "draining" | "stopped"
 
+export interface ProcessMetadata {
+  readonly solidObjectsVersion: string
+  readonly nodeVersion: string
+}
+
 export interface ProcessRecord {
   readonly id: string
   readonly kind: string
+  readonly hostname: string
+  readonly hostProcessId: number
+  readonly metadata: ProcessMetadata
   readonly shutdownState: ProcessShutdownState
   readonly stale: boolean
   readonly startedAt: Date

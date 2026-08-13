@@ -550,15 +550,14 @@ if (!report.healthy) process.exitCode = 1
 ```
 
 It checks configuration, schema migrations and required columns, the database
-server version and MySQL table engines, authorization-policy configuration,
-live runtime roles, and a targeted durable actor round trip. The authorization
-check records which policies were explicitly supplied; it never invokes
-application policies with a fabricated subject. Pass `{ roundTrip: "skip" }`
-for a read-only report.
+server version and MySQL table engines, authorization-policy configuration and
+neutral-context posture, live runtime roles, and a targeted durable actor round
+trip. Pass `{ roundTrip: "skip" }` for a read-only report.
 
 Inspect role liveness with `runtime.processes.all()`. A process remains recorded
 as `running` until graceful shutdown or cleanup, so each record also exposes a
-current `stale` calculation based on the configured heartbeat threshold.
+current `stale` calculation based on the configured heartbeat threshold plus
+its hostname, host process ID, Node version, and Solid Objects version.
 `runtime.processes.cleanup()` atomically marks stale owners stopped, releases
 their actor activations, returns claimed messages to ready membership, and
 releases their effect, reminder, and broadcast claims.

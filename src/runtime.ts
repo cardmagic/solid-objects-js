@@ -62,6 +62,7 @@ import { Repository } from "./repository.js"
 import {
   ProcessManager,
   type ProcessCleanupResult,
+  type ProcessMetadata,
   type ProcessRecord,
 } from "./process-administration.js"
 import { RealtimeManager } from "./realtime.js"
@@ -866,6 +867,9 @@ export class SolidObjectsRuntime {
         Object.freeze({
           id: row.id,
           kind: row.kind,
+          hostname: row.hostname,
+          hostProcessId: Number(row.host_process_id),
+          metadata: processMetadata(row.metadata),
           shutdownState: row.shutdown_state,
           stale:
             row.shutdown_state === "running" &&
@@ -2022,6 +2026,20 @@ function reconciliationInstanceFromRow(row: InstanceRow): ReconciliationInstance
     status: Number(row.paused) === 0 ? "active" : "paused",
     createdAt: new Date(Number(row.created_at_ms)),
     updatedAt: new Date(Number(row.updated_at_ms)),
+  })
+}
+
+function processMetadata(value: string): ProcessMetadata {
+  const metadata = jsonObject(JSON.parse(value))
+  if (
+    typeof metadata.solidObjectsVersion !== "string" ||
+    typeof metadata.nodeVersion !== "string"
+  ) {
+    throw new TypeError("invalid process metadata")
+  }
+  return Object.freeze({
+    solidObjectsVersion: metadata.solidObjectsVersion,
+    nodeVersion: metadata.nodeVersion,
   })
 }
 

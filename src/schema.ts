@@ -4,7 +4,8 @@ import type { DatabaseConnection, DatabaseFamily } from "./database/types.js"
 const BASE_VERSION = 1
 const RETRY_LINK_VERSION = 2
 const MESSAGE_IDENTITY_VERSION = 3
-const LATEST_VERSION = MESSAGE_IDENTITY_VERSION
+const PROCESS_IDENTITY_VERSION = 4
+const LATEST_VERSION = PROCESS_IDENTITY_VERSION
 
 export async function installSchema(options: {
   connection: DatabaseConnection
@@ -212,25 +213,49 @@ export async function installSchema(options: {
     })
   }
 
-  if (installedVersions.has(MESSAGE_IDENTITY_VERSION)) return
+  if (!installedVersions.has(MESSAGE_IDENTITY_VERSION)) {
+    await connection.run(
+      `ALTER TABLE ${table("messages")} ADD COLUMN ${family === "postgresql" ? "IF NOT EXISTS " : ""}idempotency_key ${family === "mysql" ? "VARCHAR(255)" : "TEXT"}`,
+    )
+    await connection.run(
+      `UPDATE ${table("messages")} SET idempotency_key = request_id WHERE idempotency_key IS NULL`,
+    )
+    await createIndex({
+      connection,
+      family,
+      table: table("messages"),
+      name: `${prefix}messages_idempotency`,
+      columns: "actor_type, actor_id, idempotency_key",
+      kind: "unique",
+    })
+    await recordMigration({
+      connection,
+      table: table("schema_migrations"),
+      version: MESSAGE_IDENTITY_VERSION,
+      schemaIdentity,
+    })
+  }
+
+  if (installedVersions.has(PROCESS_IDENTITY_VERSION)) return
+  const processColumns = [
+    ["hostname", family === "mysql" ? "VARCHAR(255)" : "TEXT"],
+    ["host_process_id", family === "sqlite" ? "INTEGER" : "BIGINT"],
+    ["metadata", family === "mysql" ? "LONGTEXT" : "TEXT"],
+  ] as const
+  for (const [name, type] of processColumns) {
+    await connection.run(
+      `ALTER TABLE ${table("processes")} ADD COLUMN ${family === "postgresql" ? "IF NOT EXISTS " : ""}${name} ${type}`,
+    )
+  }
   await connection.run(
-    `ALTER TABLE ${table("messages")} ADD COLUMN ${family === "postgresql" ? "IF NOT EXISTS " : ""}idempotency_key ${family === "mysql" ? "VARCHAR(255)" : "TEXT"}`,
+    `UPDATE ${table("processes")} SET hostname = ?, host_process_id = ?, metadata = ?
+     WHERE hostname IS NULL OR host_process_id IS NULL OR metadata IS NULL`,
+    ["unknown", 0, JSON.stringify({ solidObjectsVersion: "unknown", nodeVersion: "unknown" })],
   )
-  await connection.run(
-    `UPDATE ${table("messages")} SET idempotency_key = request_id WHERE idempotency_key IS NULL`,
-  )
-  await createIndex({
-    connection,
-    family,
-    table: table("messages"),
-    name: `${prefix}messages_idempotency`,
-    columns: "actor_type, actor_id, idempotency_key",
-    kind: "unique",
-  })
   await recordMigration({
     connection,
     table: table("schema_migrations"),
-    version: MESSAGE_IDENTITY_VERSION,
+    version: PROCESS_IDENTITY_VERSION,
     schemaIdentity,
   })
 }

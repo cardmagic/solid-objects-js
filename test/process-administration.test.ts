@@ -38,6 +38,12 @@ describe("process administration", () => {
     expect(processes).toHaveLength(2)
     expect(processes.find(({ id }) => id === "live")).toMatchObject({
       kind: "worker",
+      hostname: expect.any(String),
+      hostProcessId: process.pid,
+      metadata: {
+        nodeVersion: process.version,
+        solidObjectsVersion: "0.1.0",
+      },
       shutdownState: "running",
       stale: false,
     })
@@ -48,6 +54,7 @@ describe("process administration", () => {
     })
     expect(Object.isFrozen(processes)).toBe(true)
     expect(processes.every(Object.isFrozen)).toBe(true)
+    expect(processes.every(({ metadata }) => Object.isFrozen(metadata))).toBe(true)
   })
 
   it("atomically releases every claim owned by a stale process", async () => {

@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Persist hostname, host PID, Node version, and Solid Objects version for every
+  runtime role and expose them through immutable process administration reads.
 - Make typed snapshots return persisted fields and getter values from one
   committed state image, rejecting getters that mutate state or stage work.
 - Probe configured authorization policies with a neutral context in the doctor

@@ -12,6 +12,7 @@ export {
   type ReminderOptions,
 } from "./actor.js"
 export { configure, createRuntime, SolidObjectsRuntime } from "./runtime.js"
+export { VERSION } from "./version.js"
 export { guardApplicationDatabase } from "./application-database.js"
 export { runCli, type CliRunOptions } from "./cli.js"
 export { Worker } from "./worker.js"
@@ -44,6 +45,7 @@ export { DeadLetterManager, type DeadLetter } from "./dead-letters.js"
 export {
   ProcessManager,
   type ProcessCleanupResult,
+  type ProcessMetadata,
   type ProcessRecord,
   type ProcessShutdownState,
 } from "./process-administration.js"

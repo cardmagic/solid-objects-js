@@ -45,10 +45,10 @@ it may not run after a crash, cannot establish a correctness guarantee, and a
 failure is logged without preventing lease release.
 
 `runtime.processes.all()` returns administration-authorized immutable process
-metadata with a current `stale` flag. `cleanup()` reauthorizes separately and
-atomically fences stale processes out of every owned role claim before waking
-the affected runtime roles. The cleanup count is instrumented; process IDs and
-application payloads are not.
+metadata with hostname, host process ID, Node and Solid Objects versions, and a
+current `stale` flag. `cleanup()` reauthorizes separately and atomically fences
+stale processes out of every owned role claim before waking the affected
+runtime roles. The cleanup count is instrumented; application payloads are not.
 
 Committed calls and `message.wait()` apply `timeoutMilliseconds` to the entire
 durable wait, beginning before enqueue or message lookup. Adapter deadlines

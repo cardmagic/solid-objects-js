@@ -26,7 +26,16 @@ export interface DoctorOptions {
 
 const EXPECTED_COLUMNS: Readonly<Record<string, readonly string[]>> = {
   schema_migrations: ["version", "schema_identity", "installed_at_ms"],
-  processes: ["id", "kind", "heartbeat_at_ms", "shutdown_state", "stopped_at_ms"],
+  processes: [
+    "id",
+    "kind",
+    "hostname",
+    "host_process_id",
+    "metadata",
+    "heartbeat_at_ms",
+    "shutdown_state",
+    "stopped_at_ms",
+  ],
   instances: [
     "id",
     "actor_type",
@@ -183,11 +192,11 @@ export class Doctor {
           message: `incompatible schema identity ${wrongIdentity.schema_identity}`,
         })
       }
-      if (versions.join(",") !== "1,2,3") {
+      if (versions.join(",") !== "1,2,3,4") {
         return check({
           name: "schema",
           status: "fail",
-          message: `expected schema migrations 1, 2, 3; found ${versions.join(", ")}`,
+          message: `expected schema migrations 1, 2, 3, 4; found ${versions.join(", ")}`,
         })
       }
       return check({
