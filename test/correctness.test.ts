@@ -1,0 +1,313 @@
+import { afterEach, describe, expect, it } from "vitest"
+import { Actor } from "../src/actor.js"
+import type { SolidObjectsConfiguration } from "../src/configuration.js"
+import { IdempotencyConflict, Rejected, Unauthorized } from "../src/errors.js"
+import { configureSolidObjects, type SolidObjectsRuntime } from "../src/runtime.js"
+import { sqlite } from "../src/database/sqlite.js"
+
+class ReliableCounter extends Actor {
+  static override readonly actorType = "ReliableCounter"
+
+  count = 0
+
+  increment({ amount = 1 }: { amount?: number } = {}): number {
+    this.count += amount
+    return this.count
+  }
+
+  incrementThenFail(): void {
+    this.count += 1
+    throw new Error("turn failed")
+  }
+
+  rejectIncrement(): void {
+    this.count += 1
+    this.reject("not_allowed", {
+      message: "Increment is not allowed",
+      details: { count: this.count },
+    })
+  }
+
+  resultObject(): { nested: { count: number } } {
+    return { nested: { count: this.count } }
+  }
+}
+
+class MutatingQuery extends Actor {
+  static override readonly actorType = "MutatingQuery"
+
+  count = 0
+
+  get invalid(): number {
+    this.count += 1
+    return this.count
+  }
+}
+
+class SideEffectingQuery extends Actor {
+  static override readonly actorType = "SideEffectingQuery"
+
+  get invalid(): number {
+    this.emit("unexpected")
+    return 1
+  }
+}
+
+class SideEffectingObservable extends Actor {
+  static override readonly actorType = "SideEffectingObservable"
+
+  increment(): void {}
+
+  override observables(): Record<string, unknown> {
+    this.emit("unexpected")
+    return {}
+  }
+}
+
+class Target extends Actor {
+  static override readonly actorType = "CorrectnessTarget"
+
+  received = 0
+
+  receive(): void {
+    this.received += 1
+  }
+}
+
+class InvalidSource extends Actor {
+  static override readonly actorType = "InvalidSource"
+
+  async sendWithoutStaging(): Promise<void> {
+    await Target.ref("target").send.receive()
+  }
+}
+
+let runtime: SolidObjectsRuntime | undefined
+
+afterEach(async () => {
+  await runtime?.close()
+  runtime = undefined
+})
+
+describe("durable invocation correctness", () => {
+  it("denies messages and queries when no authorization policy is configured", async () => {
+    runtime = configureSolidObjects({ database: sqlite({ path: ":memory:" }) })
+    await runtime.install()
+    const counter = ReliableCounter.ref("denied")
+
+    await expect(counter.increment()).rejects.toBeInstanceOf(Unauthorized)
+    await expect(counter.count).rejects.toBeInstanceOf(Unauthorized)
+  })
+
+  it("reauthorizes durable message status, results, and waits", async () => {
+    runtime = configuredRuntime({
+      authorizeMessage: ({ authorizationContext }) => authorizationContext === "allowed",
+    })
+    await runtime.install()
+    const message = await ReliableCounter.ref("protected")
+      .send.with({
+        authorizationContext: "allowed",
+      })
+      .increment()
+
+    await expect(message.status()).rejects.toBeInstanceOf(Unauthorized)
+    expect(await message.status({ authorizationContext: "allowed" })).toBe("ready")
+    await runtime.worker().runUntilIdle()
+    await expect(message.result()).rejects.toBeInstanceOf(Unauthorized)
+    expect(await message.result({ authorizationContext: "allowed" })).toBe(1)
+    expect(await message.wait({ authorizationContext: "allowed" })).toBe(1)
+  })
+
+  it("deduplicates matching idempotency keys and rejects conflicting reuse", async () => {
+    runtime = configuredRuntime()
+    await runtime.install()
+    const counter = ReliableCounter.ref("idempotent")
+
+    const first = await counter.send.with({ idempotencyKey: "request-1" }).increment({ amount: 2 })
+    const duplicate = await counter.send
+      .with({ idempotencyKey: "request-1" })
+      .increment({ amount: 2 })
+
+    expect(duplicate.id).toBe(first.id)
+    await expect(
+      counter.send.with({ idempotencyKey: "request-1" }).increment({ amount: 3 }),
+    ).rejects.toBeInstanceOf(IdempotencyConflict)
+  })
+
+  it("deduplicates an idempotent request even when the mailbox is full", async () => {
+    runtime = configuredRuntime({ maxMailboxLength: 1 })
+    await runtime.install()
+    const counter = ReliableCounter.ref("full-idempotent")
+
+    const first = await counter.send.with({ idempotencyKey: "request-1" }).increment()
+    const duplicate = await counter.send.with({ idempotencyKey: "request-1" }).increment()
+
+    expect(duplicate.id).toBe(first.id)
+  })
+
+  it("scopes idempotency keys to an actor identity", async () => {
+    runtime = configuredRuntime()
+    await runtime.install()
+
+    const first = await ReliableCounter.ref("first")
+      .send.with({
+        idempotencyKey: "shared-request",
+      })
+      .increment()
+    const second = await ReliableCounter.ref("second")
+      .send.with({
+        idempotencyKey: "shared-request",
+      })
+      .increment()
+
+    expect(second.id).not.toBe(first.id)
+  })
+
+  it("rolls state back when a turn fails", async () => {
+    runtime = configuredRuntime({ maxAttempts: 1 })
+    await runtime.install()
+    const counter = ReliableCounter.ref("rollback")
+    const failed = await counter.send.incrementThenFail()
+
+    await runtime.worker().runUntilIdle()
+
+    expect(await failed.status()).toBe("dead")
+    expect(await counter.count).toBe(0)
+  })
+
+  it("rolls state back and returns structured domain rejections", async () => {
+    runtime = configuredRuntime()
+    await runtime.install()
+    const counter = ReliableCounter.ref("rejected")
+
+    const rejection = await counter.rejectIncrement().catch((error: unknown) => error)
+
+    expect(rejection).toBeInstanceOf(Rejected)
+    expect(rejection).toMatchObject({
+      code: "not_allowed",
+      details: { count: 1 },
+    })
+    expect((rejection as Rejected).messageId).toBeTypeOf("string")
+    expect(await counter.count).toBe(0)
+  })
+
+  it("recovers terminal failures through message results", async () => {
+    runtime = configuredRuntime({ maxAttempts: 1 })
+    await runtime.install()
+    const counter = ReliableCounter.ref("result-failures")
+    const rejected = await counter.send.rejectIncrement()
+    const failed = await counter.send.incrementThenFail()
+
+    await runtime.worker().runUntilIdle()
+
+    await expect(rejected.result()).rejects.toBeInstanceOf(Rejected)
+    await expect(failed.result()).rejects.toThrow("turn failed")
+  })
+
+  it("rejects getters that mutate persisted state", async () => {
+    runtime = configuredRuntime({ maxAttempts: 3 })
+    await runtime.install()
+
+    const query = MutatingQuery.ref("bad")
+    await expect(query.invalid).rejects.toThrow("query invalid mutated actor state")
+    const message = await runtime.settings.database.connection((connection) =>
+      connection.get<{
+        attempt_count: number | bigint
+      }>(`SELECT attempt_count FROM ${runtime?.repository.table("messages")}`),
+    )
+    expect(Number(message?.attempt_count)).toBe(1)
+  })
+
+  it("rejects queries that stage durable work", async () => {
+    runtime = configuredRuntime({ maxAttempts: 1 })
+    await runtime.install()
+
+    await expect(SideEffectingQuery.ref("bad").invalid).rejects.toThrow(
+      "query invalid staged durable work",
+    )
+    const effect = await runtime.settings.database.connection((connection) =>
+      connection.get(`SELECT id FROM ${runtime?.repository.table("effects")}`),
+    )
+    expect(effect).toBeUndefined()
+  })
+
+  it("rejects observables that mutate state or stage durable work", async () => {
+    runtime = configuredRuntime({ maxAttempts: 1 })
+    await runtime.install()
+
+    await expect(SideEffectingObservable.ref("bad").increment()).rejects.toThrow(
+      "observables must not mutate actor state or stage durable work",
+    )
+  })
+
+  it("returns deeply frozen result values", async () => {
+    runtime = configuredRuntime()
+    await runtime.install()
+
+    const result = await ReliableCounter.ref("readonly").resultObject()
+
+    expect(Object.isFrozen(result)).toBe(true)
+    expect(Object.isFrozen(result.nested)).toBe(true)
+  })
+
+  it("processes messages sequentially for one actor", async () => {
+    runtime = configuredRuntime()
+    await runtime.install()
+    const counter = ReliableCounter.ref("ordered")
+    const first = await counter.send.increment({ amount: 2 })
+    const second = await counter.send.increment({ amount: 3 })
+
+    expect(await runtime.worker().runUntilIdle()).toBe(2)
+
+    expect(await first.result()).toBe(2)
+    expect(await second.result()).toBe(5)
+  })
+
+  it("preserves ordering with concurrent SQLite workers", async () => {
+    runtime = configuredRuntime()
+    await runtime.install()
+    const counter = ReliableCounter.ref("concurrent")
+    const messages = await Promise.all(Array.from({ length: 20 }, () => counter.send.increment()))
+
+    const processed = await Promise.all([
+      runtime.worker().runUntilIdle(),
+      runtime.worker().runUntilIdle(),
+    ])
+
+    expect(processed.reduce((total, count) => total + count, 0)).toBe(20)
+    expect(await counter.count).toBe(20)
+    expect(await Promise.all(messages.map((message) => message.result()))).toEqual(
+      Array.from({ length: 20 }, (_value, index) => index + 1),
+    )
+  })
+
+  it("requires actor code to use sendTo for transactional delivery", async () => {
+    runtime = configuredRuntime({ maxAttempts: 1 })
+    await runtime.install()
+    const message = await InvalidSource.ref("source").send.sendWithoutStaging()
+
+    await runtime.worker().runUntilIdle()
+
+    const stored = await runtime.repository.findMessage(message.id)
+    expect(JSON.parse(stored?.error ?? "{}")).toMatchObject({
+      name: "ActorCallCycle",
+      message: expect.stringContaining("sendTo"),
+    })
+    expect(await Target.ref("target").received).toBe(0)
+  })
+})
+
+function configuredRuntime(
+  overrides: Partial<SolidObjectsConfiguration> = {},
+): SolidObjectsRuntime {
+  return configureSolidObjects({
+    database: sqlite({ path: ":memory:" }),
+    authorizeMessage: () => true,
+    authorizeQuery: () => true,
+    authorizeDestroy: () => true,
+    pollingIntervalMilliseconds: 1,
+    syncPollingIntervalMilliseconds: 1,
+    maxAttempts: 2,
+    ...overrides,
+  })
+}

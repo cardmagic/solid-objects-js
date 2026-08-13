@@ -1,0 +1,67 @@
+import { randomUUID } from "node:crypto"
+import type { SolidObjectsRuntime } from "./runtime.js"
+import { waitFor, withProcessHeartbeat } from "./worker.js"
+
+export class BroadcastWorker {
+  readonly processId = randomUUID()
+  private registered = false
+  private stopping = false
+
+  constructor(private readonly runtime: SolidObjectsRuntime) {}
+
+  async runOnce(): Promise<number> {
+    if (this.stopping) return 0
+    await this.ensureRegistered()
+    await this.runtime.repository.heartbeatProcess(this.processId)
+    const broadcast = await this.runtime.repository.claimBroadcast(this.processId)
+    if (!broadcast) return 0
+    await withProcessHeartbeat({
+      runtime: this.runtime,
+      processId: this.processId,
+      operation: () => this.runtime.executeBroadcast(broadcast),
+    })
+    return 1
+  }
+
+  async runUntilIdle(options: { maxBroadcasts?: number } = {}): Promise<number> {
+    const maxBroadcasts = options.maxBroadcasts ?? 10_000
+    let processed = 0
+    while (!this.stopping && processed < maxBroadcasts) {
+      const count = await this.runOnce()
+      if (count === 0) break
+      processed += count
+    }
+    return processed
+  }
+
+  async run(signal: AbortSignal): Promise<void> {
+    await this.ensureRegistered()
+    while (!signal.aborted && !this.stopping) {
+      const processed = await this.runOnce()
+      if (processed === 0) await waitFor(this.runtime.settings.pollingIntervalMilliseconds, signal)
+    }
+    await this.stop()
+  }
+
+  requestShutdown(): void {
+    this.stopping = true
+  }
+
+  stopped(): boolean {
+    return this.stopping
+  }
+
+  async stop(): Promise<void> {
+    if (this.stopping && !this.registered) return
+    this.stopping = true
+    if (!this.registered) return
+    await this.runtime.repository.stopProcess(this.processId)
+    this.registered = false
+  }
+
+  private async ensureRegistered(): Promise<void> {
+    if (this.registered) return
+    await this.runtime.repository.registerProcess(this.processId, "broadcast_worker")
+    this.registered = true
+  }
+}

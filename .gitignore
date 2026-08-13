@@ -1,0 +1,9 @@
+node_modules/
+dist/
+.test-dist/
+coverage/
+*.tgz
+*.sqlite3
+.DS_Store
+.claude/
+.codex/

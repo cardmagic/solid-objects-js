@@ -1,0 +1,56 @@
+{
+  "name": "solid-objects",
+  "version": "0.1.0",
+  "description": "Durable, addressable objects for Node.js",
+  "type": "module",
+  "license": "MIT",
+  "author": "Lucas Carlson",
+  "repository": {
+    "type": "git",
+    "url": "git+ssh://git@github.com/cardmagic/solid-objects-js.git"
+  },
+  "engines": {
+    "node": ">=24.15.0"
+  },
+  "packageManager": "pnpm@11.11.0",
+  "files": [
+    "dist",
+    "README.md",
+    "CHANGELOG.md",
+    "MIT-LICENSE"
+  ],
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./database/sqlite": {
+      "types": "./dist/database/sqlite.d.ts",
+      "import": "./dist/database/sqlite.js"
+    },
+    "./browser": {
+      "types": "./dist/browser/index.d.ts",
+      "import": "./dist/browser/index.js"
+    }
+  },
+  "scripts": {
+    "build": "pnpm run clean && tsc -p tsconfig.build.json",
+    "check": "pnpm run check:parameters && tsc -p tsconfig.json --noEmit",
+    "check:parameters": "node scripts/check-parameter-style.mjs",
+    "clean": "node scripts/clean.mjs",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
+    "test:watch": "vitest",
+    "pack:check": "pnpm pack --dry-run",
+    "prepack": "pnpm run build"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "@vitest/coverage-v8": "^4.1.10",
+    "prettier": "^3.9.6",
+    "typescript": "^5.9.0",
+    "vitest": "^4.1.10"
+  }
+}
