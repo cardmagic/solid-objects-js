@@ -209,6 +209,9 @@ describe("runtime configuration", () => {
     expect(() => buildSettings({ database, idleDeactivationTimeoutMilliseconds: -1 })).toThrow(
       "must be non-negative",
     )
+    expect(() => buildSettings({ database, maxActivationDurationMilliseconds: 0 })).toThrow(
+      "maxActivationDurationMilliseconds must be positive",
+    )
     expect(() => buildSettings({ database, workerCount: -1 })).toThrow("non-negative integer")
     expect(() =>
       buildSettings({

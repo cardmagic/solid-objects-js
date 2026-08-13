@@ -45,6 +45,8 @@
 - Add hydrated idle activation reuse with renewable fenced leases, protected
   async lifecycle hooks, state restoration after failed turns, and release on
   timeout, fairness yield, lease loss, and shutdown.
+- Bound activation passes by configurable elapsed time as well as message
+  count so slow hot actors yield workers fairly.
 
 ## 0.1.0 - 2026-08-13
 

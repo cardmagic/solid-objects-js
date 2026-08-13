@@ -50,6 +50,7 @@ export interface SolidObjectsConfiguration {
   maxResultBytes?: number
   maxAttempts?: number
   maxMessagesPerActivationPass?: number
+  maxActivationDurationMilliseconds?: number
   retryDelayMilliseconds?: (attempt: number) => number
   processHeartbeatIntervalMilliseconds?: number
   processAliveThresholdMilliseconds?: number
@@ -116,6 +117,7 @@ export function buildSettings(configuration: SolidObjectsConfiguration): Runtime
     maxResultBytes: configuration.maxResultBytes ?? 1_048_576,
     maxAttempts: configuration.maxAttempts ?? 5,
     maxMessagesPerActivationPass: configuration.maxMessagesPerActivationPass ?? 50,
+    maxActivationDurationMilliseconds: configuration.maxActivationDurationMilliseconds ?? 5_000,
     retryDelayMilliseconds:
       configuration.retryDelayMilliseconds ??
       ((attempt) => Math.min(2 ** (attempt - 1), 60) * 1_000),
@@ -195,6 +197,7 @@ function validateSettings(settings: RuntimeSettings): void {
     maxStateBytes: settings.maxStateBytes,
     maxResultBytes: settings.maxResultBytes,
     maxAttempts: settings.maxAttempts,
+    maxActivationDurationMilliseconds: settings.maxActivationDurationMilliseconds,
     processHeartbeatIntervalMilliseconds: settings.processHeartbeatIntervalMilliseconds,
     processAliveThresholdMilliseconds: settings.processAliveThresholdMilliseconds,
     supervisorRestartDelayMilliseconds: settings.supervisorRestartDelayMilliseconds,

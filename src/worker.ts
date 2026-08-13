@@ -29,7 +29,9 @@ export class Worker {
       let turn = cached?.turn ?? (await this.runtime.repository.claim(this.processId))
       if (!turn) return 0
       let processed = 0
-      while (turn && processed < this.runtime.settings.maxMessagesPerActivationPass) {
+      const passStartedAt = performance.now()
+      let passExhausted = false
+      while (turn) {
         const execution = await this.runtime.executeTurn(turn, cached?.actor)
         processed += 1
         if (!execution.retainActivation || !execution.actor) {
@@ -48,12 +50,16 @@ export class Worker {
           renewAt: now + this.runtime.settings.leaseRenewalIntervalMilliseconds,
         }
         this.activations.set(turn.instance.id, cached)
-        if (processed >= this.runtime.settings.maxMessagesPerActivationPass) break
+        passExhausted =
+          processed >= this.runtime.settings.maxMessagesPerActivationPass ||
+          performance.now() - passStartedAt >=
+            this.runtime.settings.maxActivationDurationMilliseconds
+        if (passExhausted) break
         turn = await this.runtime.repository.claim(this.processId, {
           activation: activationLease(cached.turn),
         })
       }
-      if (processed >= this.runtime.settings.maxMessagesPerActivationPass) {
+      if (passExhausted) {
         if (!cached) return processed
         const yielded = await this.runtime.repository.yieldReadyMessages(cached.turn.instance.id)
         if (yielded > 0) {

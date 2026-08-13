@@ -28,6 +28,11 @@ class FairActor extends Actor {
   record(): void {
     FairActor.runs.push(this.actorId)
   }
+
+  async recordSlowly(): Promise<void> {
+    await new Promise((resolve) => setTimeout(resolve, 20))
+    FairActor.runs.push(this.actorId)
+  }
 }
 
 class CachedActor extends Actor {
@@ -442,6 +447,23 @@ describe("runtime lifecycle", () => {
     expect(await runtime.worker().runOnce()).toBe(2)
     expect(FairActor.runs).toEqual(["hot", "hot"])
     expect(await runtime.worker().runUntilIdle()).toBe(1)
+  })
+
+  it("bounds an activation pass by elapsed time", async () => {
+    runtime = configuredRuntime({
+      maxMessagesPerActivationPass: 50,
+      maxActivationDurationMilliseconds: 5,
+    })
+    runtime.register(FairActor)
+    await runtime.install()
+    const actor = FairActor.ref("slow")
+    await actor.send.recordSlowly()
+    await actor.send.record()
+    const worker = runtime.worker()
+
+    expect(await worker.runOnce()).toBe(1)
+    expect(FairActor.runs).toEqual(["slow"])
+    expect(await worker.runUntilIdle()).toBe(1)
   })
 
   it("yields a hot actor so an older waiting actor runs next", async () => {

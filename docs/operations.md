@@ -16,10 +16,12 @@ capped by `supervisorMaximumRestartDelayMilliseconds` at 10 seconds. Replacement
 and replacement-failure events contain the role class, failure count, and error
 class only. Repeated failure messages are excluded from instrumentation.
 
-`maxMessagesPerActivationPass` defaults to 50. Lower values improve fairness
-when a few actor identities stay continuously busy; higher values reduce claim
-overhead for isolated backlogs. `solid_objects.activation.yielded` reports the
-actor identity, turns processed, and remaining due membership count.
+`maxMessagesPerActivationPass` defaults to 50 and
+`maxActivationDurationMilliseconds` defaults to 5 seconds. A pass yields when
+either budget is exhausted. Lower values improve fairness when a few actor
+identities stay continuously busy; higher values reduce claim overhead for
+isolated backlogs. `solid_objects.activation.yielded` reports the actor
+identity, turns processed, and remaining due membership count.
 
 Workers retain a hydrated actor and its fenced lease for
 `idleDeactivationTimeoutMilliseconds`, which defaults to 30 seconds. Idle
