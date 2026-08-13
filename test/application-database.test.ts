@@ -1,5 +1,5 @@
-import { afterEach, describe, expect, it } from "vitest"
-import { Actor } from "../src/actor.js"
+import { afterEach, describe, expect, it, vi } from "vitest"
+import { Actor, type PayloadBroadcasts } from "../src/actor.js"
 import { guardApplicationDatabase } from "../src/application-database.js"
 import { sqlite, type SQLiteDatabase } from "../src/database/sqlite.js"
 import type { Database } from "../src/database/types.js"
@@ -11,6 +11,14 @@ let applicationDatabase: Database
 
 class DatabaseActor extends Actor {
   static override readonly actorType = "DatabaseActor"
+  static override readonly payloads = {
+    directWrite: async () => {
+      await applicationDatabase.connection((connection) =>
+        connection.run("UPDATE records SET value = 'unsafe' WHERE id = 1"),
+      )
+      return { written: true }
+    },
+  } satisfies PayloadBroadcasts<DatabaseActor, unknown>
 
   async read(): Promise<string | null> {
     const row = await applicationDatabase.connection((connection) =>
@@ -84,6 +92,23 @@ describe("guarded application database", () => {
       "application database reads must begin with SELECT during actor execution",
     )
   })
+
+  it("rejects writes from projections without rejecting the subscription", async () => {
+    await configure()
+    const send = vi.fn()
+    const session = runtime?.realtime.connect({ authorizationContext: {}, send })
+
+    await session?.receive({
+      version: 1,
+      action: "subscribe",
+      actorType: DatabaseActor.actorType,
+      actorId: "projected",
+      payloads: ["directWrite"],
+    })
+
+    await expect(DatabaseActor.ref("projected").read()).resolves.toBe("initial")
+    expect(send).toHaveBeenCalledOnce()
+  })
 })
 
 async function configure(): Promise<void> {
@@ -98,6 +123,7 @@ async function configure(): Promise<void> {
     authorizeMessage: () => true,
     authorizeQuery: () => true,
     authorizeDestroy: () => true,
+    authorizeSubscription: () => true,
     maxAttempts: 1,
   })
   runtime.register(DatabaseActor)

@@ -25,6 +25,9 @@
   fairness.
 - Add an opt-in application-database facade that rejects direct writes during
   actor execution while keeping registered commit actions writable.
+- Add typed subscriber-specific realtime payloads with query authorization,
+  committed-state projection, failure isolation, and independent revision
+  fencing.
 
 ## 0.1.0 - 2026-08-13
 

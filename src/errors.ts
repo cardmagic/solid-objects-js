@@ -29,6 +29,8 @@ export class InvalidStreamToken extends SolidObjectsError {}
 export class InvalidComponentToken extends SolidObjectsError {}
 export class UnknownComponent extends SolidObjectsError {}
 export class UnknownComponentDependency extends SolidObjectsError {}
+export class InvalidPayloadBroadcast extends SolidObjectsError {}
+export class UnknownPayloadBroadcast extends SolidObjectsError {}
 
 export class Rejected extends SolidObjectsError {
   readonly code: string

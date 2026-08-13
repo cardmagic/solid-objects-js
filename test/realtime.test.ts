@@ -1,10 +1,14 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
-import { Actor } from "../src/actor.js"
+import { Actor, type PayloadBroadcasts } from "../src/actor.js"
 import type { SolidObjectsConfiguration } from "../src/configuration.js"
 import { sqlite } from "../src/database/sqlite.js"
 import { Unauthorized } from "../src/errors.js"
 import { configureSolidObjects, type SolidObjectsRuntime } from "../src/runtime.js"
-import type { InvalidationEnvelope } from "../src/browser/index.js"
+import type {
+  InvalidationEnvelope,
+  PayloadEnvelope,
+  RealtimeEnvelope,
+} from "../src/browser/index.js"
 
 class RealtimeCounter extends Actor {
   static override readonly actorType = "RealtimeCounter"
@@ -18,6 +22,49 @@ class RealtimeCounter extends Actor {
 
   override observables(): Record<string, unknown> {
     return { count: this.count }
+  }
+}
+
+interface PayloadViewer {
+  name: string
+  mayReadPayloads: boolean
+}
+
+class PayloadCounter extends Actor {
+  static override readonly actorType = "PayloadCounter"
+  static override readonly payloads = {
+    personalized: (actor, viewer) => ({ count: actor.count, viewer: viewer.name }),
+    fragile: (actor) => {
+      if (actor.count === 0) throw new Error("payload contained sensitive failure text")
+      return { count: actor.count }
+    },
+    mutating: (actor) => {
+      actor.count += 1
+      return { count: actor.count }
+    },
+  } satisfies PayloadBroadcasts<PayloadCounter, PayloadViewer>
+
+  count = 0
+
+  increment(): void {
+    this.count += 1
+  }
+
+  override observables(): Record<string, unknown> {
+    return { count: this.count }
+  }
+}
+
+class PayloadOnlyCounter extends Actor {
+  static override readonly actorType = "PayloadOnlyCounter"
+  static override readonly payloads = {
+    summary: (actor: PayloadOnlyCounter) => ({ count: actor.count }),
+  } satisfies PayloadBroadcasts<PayloadOnlyCounter, unknown>
+
+  count = 0
+
+  increment(): void {
+    this.count += 1
   }
 }
 
@@ -81,7 +128,7 @@ describe("realtime subscriptions", () => {
     await runtime.install()
     await RealtimeCounter.ref("allowed").increment()
     const messageCountBefore = await countRows("messages")
-    const delivered: InvalidationEnvelope[] = []
+    const delivered: RealtimeEnvelope[] = []
     const session = runtime.realtime.connect({
       authorizationContext: "viewer",
       send: (envelope) => {
@@ -98,24 +145,25 @@ describe("realtime subscriptions", () => {
       }),
     )
 
-    expect(delivered).toHaveLength(1)
-    expect(delivered[0]).toMatchObject({
+    const received = invalidations(delivered)
+    expect(received).toHaveLength(1)
+    expect(received[0]).toMatchObject({
       version: 1,
       actorType: RealtimeCounter.actorType,
       actorId: "allowed",
       revision: "1",
       observables: { count: 1 },
     })
-    expect(delivered[0]?.instanceId).toEqual(expect.any(String))
-    expect(Object.isFrozen(delivered[0])).toBe(true)
-    expect(Object.isFrozen(delivered[0]?.observables)).toBe(true)
+    expect(received[0]?.instanceId).toEqual(expect.any(String))
+    expect(Object.isFrozen(received[0])).toBe(true)
+    expect(Object.isFrozen(received[0]?.observables)).toBe(true)
     expect(await countRows("messages")).toBe(messageCountBefore)
   })
 
   it("delivers committed changes without an external broadcaster", async () => {
     runtime = configuredRuntime({ authorizeSubscription: () => true })
     await runtime.install()
-    const delivered: InvalidationEnvelope[] = []
+    const delivered: RealtimeEnvelope[] = []
     const session = runtime.realtime.connect({
       authorizationContext: {},
       send: (envelope) => {
@@ -132,8 +180,9 @@ describe("realtime subscriptions", () => {
     await RealtimeCounter.ref("live").increment()
     expect(await runtime.broadcastWorker().runUntilIdle()).toBe(1)
 
-    expect(delivered.map(({ revision }) => revision)).toEqual(["0", "1"])
-    expect(delivered.map(({ observables }) => observables.count)).toEqual([0, 1])
+    const received = invalidations(delivered)
+    expect(received.map(({ revision }) => revision)).toEqual(["0", "1"])
+    expect(received.map(({ observables }) => observables.count)).toEqual([0, 1])
   })
 
   it("stops delivery after unsubscribe or connection close", async () => {
@@ -164,7 +213,7 @@ describe("realtime subscriptions", () => {
   it("fences duplicate and stale delivery within an actor incarnation", async () => {
     runtime = configuredRuntime({ authorizeSubscription: () => true })
     await runtime.install()
-    const delivered: InvalidationEnvelope[] = []
+    const delivered: RealtimeEnvelope[] = []
     const session = runtime.realtime.connect({
       authorizationContext: {},
       send: (envelope) => {
@@ -188,7 +237,7 @@ describe("realtime subscriptions", () => {
     await runtime.realtime.publish({ ...event, revision: "1", observables: { count: 1 } })
     await runtime.realtime.publish({ ...event, revision: "2" })
 
-    expect(delivered.map(({ revision }) => revision)).toEqual(["0", "2"])
+    expect(invalidations(delivered).map(({ revision }) => revision)).toEqual(["0", "2"])
   })
 
   it("claims each actor's broadcasts in revision order", async () => {
@@ -264,6 +313,172 @@ describe("realtime subscriptions", () => {
     expect(JSON.stringify(instrumentation.mock.calls)).not.toContain("sensitive failure text")
     expect(await countRows("broadcasts", "WHERE status = 'delivered'")).toBe(1)
   })
+
+  it("delivers personalized payloads under each subscriber context", async () => {
+    runtime = configuredRuntime({
+      authorizeSubscription: () => true,
+      authorizeQuery: ({ operation, authorizationContext }) =>
+        operation !== "personalized" || (authorizationContext as PayloadViewer).mayReadPayloads,
+    })
+    await runtime.install()
+    const alice: RealtimeEnvelope[] = []
+    const bob: RealtimeEnvelope[] = []
+    const aliceSession = runtime.realtime.connect({
+      authorizationContext: { name: "alice", mayReadPayloads: true } satisfies PayloadViewer,
+      send: (envelope) => {
+        alice.push(envelope)
+      },
+    })
+    const bobSession = runtime.realtime.connect({
+      authorizationContext: { name: "bob", mayReadPayloads: false } satisfies PayloadViewer,
+      send: (envelope) => {
+        bob.push(envelope)
+      },
+    })
+    const request = {
+      version: 1 as const,
+      action: "subscribe" as const,
+      actorType: PayloadCounter.actorType,
+      actorId: "room",
+      payloads: ["personalized"],
+    }
+
+    await aliceSession.receive(request)
+    await bobSession.receive(request)
+    await PayloadCounter.ref("room").increment()
+    expect(await runtime.broadcastWorker().runUntilIdle()).toBe(1)
+
+    expect(payloads(alice)).toEqual([
+      expect.objectContaining({
+        kind: "payload",
+        name: "personalized",
+        revision: "0",
+        payload: { count: 0, viewer: "alice" },
+      }),
+      expect.objectContaining({
+        kind: "payload",
+        name: "personalized",
+        revision: "1",
+        payload: { count: 1, viewer: "alice" },
+      }),
+    ])
+    expect(payloads(bob)).toEqual([])
+    expect(invalidations(alice)).toHaveLength(2)
+    expect(invalidations(bob)).toHaveLength(2)
+  })
+
+  it("confines a failing payload and retries it at a later revision", async () => {
+    const instrumentation = vi.fn()
+    runtime = configuredRuntime({
+      authorizeSubscription: () => true,
+      instrumentation,
+    })
+    await runtime.install()
+    const delivered: RealtimeEnvelope[] = []
+    const session = runtime.realtime.connect({
+      authorizationContext: { name: "viewer", mayReadPayloads: true } satisfies PayloadViewer,
+      send: (envelope) => {
+        delivered.push(envelope)
+      },
+    })
+
+    await session.receive({
+      version: 1,
+      action: "subscribe",
+      actorType: PayloadCounter.actorType,
+      actorId: "fragile",
+      payloads: ["fragile", "personalized"],
+    })
+
+    expect(payloads(delivered).map(({ name }) => name)).toEqual(["personalized"])
+    expect(instrumentation).toHaveBeenCalledWith(
+      expect.objectContaining({
+        name: "solid_objects.payload_broadcast.failed",
+        attributes: expect.objectContaining({
+          actorType: PayloadCounter.actorType,
+          actorId: "fragile",
+          payload: "fragile",
+          errorName: "Error",
+        }),
+      }),
+    )
+    expect(JSON.stringify(instrumentation.mock.calls)).not.toContain("sensitive failure text")
+
+    await PayloadCounter.ref("fragile").increment()
+    expect(await runtime.broadcastWorker().runUntilIdle()).toBe(1)
+
+    expect(payloads(delivered).filter(({ name }) => name === "fragile")).toEqual([
+      expect.objectContaining({ revision: "1", payload: { count: 1 } }),
+    ])
+  })
+
+  it("isolates payload state mutation and replays a newly restored payload", async () => {
+    const instrumentation = vi.fn()
+    runtime = configuredRuntime({
+      authorizeSubscription: () => true,
+      instrumentation,
+    })
+    await runtime.install()
+    const delivered: RealtimeEnvelope[] = []
+    const session = runtime.realtime.connect({
+      authorizationContext: { name: "viewer", mayReadPayloads: true } satisfies PayloadViewer,
+      send: (envelope) => {
+        delivered.push(envelope)
+      },
+    })
+    const subscription = {
+      version: 1 as const,
+      action: "subscribe" as const,
+      actorType: PayloadCounter.actorType,
+      actorId: "resubscribed",
+    }
+
+    await session.receive({ ...subscription, payloads: ["mutating", "personalized"] })
+    await session.receive(subscription)
+    await session.receive({ ...subscription, payloads: ["personalized"] })
+
+    expect(payloads(delivered).map(({ name }) => name)).toEqual(["personalized", "personalized"])
+    expect(payloads(delivered).map(({ payload }) => payload)).toEqual([
+      { count: 0, viewer: "viewer" },
+      { count: 0, viewer: "viewer" },
+    ])
+    expect(instrumentation).toHaveBeenCalledWith(
+      expect.objectContaining({
+        name: "solid_objects.payload_broadcast.failed",
+        attributes: expect.objectContaining({
+          payload: "mutating",
+          errorName: "QueryMutatedState",
+        }),
+      }),
+    )
+  })
+
+  it("broadcasts state revisions for actors with payloads but no observables", async () => {
+    runtime = configuredRuntime({ authorizeSubscription: () => true })
+    await runtime.install()
+    const delivered: RealtimeEnvelope[] = []
+    const session = runtime.realtime.connect({
+      authorizationContext: {},
+      send: (envelope) => {
+        delivered.push(envelope)
+      },
+    })
+    await session.receive({
+      version: 1,
+      action: "subscribe",
+      actorType: PayloadOnlyCounter.actorType,
+      actorId: "only",
+      payloads: ["summary"],
+    })
+
+    await PayloadOnlyCounter.ref("only").increment()
+    expect(await runtime.broadcastWorker().runUntilIdle()).toBe(1)
+
+    expect(payloads(delivered).map(({ revision, payload }) => ({ revision, payload }))).toEqual([
+      { revision: "0", payload: { count: 0 } },
+      { revision: "1", payload: { count: 1 } },
+    ])
+  })
 })
 
 function configuredRuntime(
@@ -280,7 +495,19 @@ function configuredRuntime(
     ...overrides,
   })
   runtime.register(RealtimeCounter)
+  runtime.register(PayloadCounter)
+  runtime.register(PayloadOnlyCounter)
   return runtime
+}
+
+function invalidations(envelopes: RealtimeEnvelope[]): InvalidationEnvelope[] {
+  return envelopes.filter(
+    (envelope): envelope is InvalidationEnvelope => envelope.kind !== "payload",
+  )
+}
+
+function payloads(envelopes: RealtimeEnvelope[]): PayloadEnvelope[] {
+  return envelopes.filter((envelope): envelope is PayloadEnvelope => envelope.kind === "payload")
 }
 
 async function countRows(table: string, condition = ""): Promise<number> {

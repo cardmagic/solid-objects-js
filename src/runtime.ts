@@ -8,7 +8,12 @@ import {
   type ComponentRegistration,
   type SolidObjectsConfiguration,
 } from "./configuration.js"
-import { currentActor, withActorContext } from "./context.js"
+import {
+  currentActor,
+  withActorContext,
+  withActorProjection,
+  withApplicationWritesForbidden,
+} from "./context.js"
 import { DeadLetterManager, type DeadLetter } from "./dead-letters.js"
 import { Doctor } from "./doctor.js"
 import { clearDefaultRuntime, setDefaultRuntime } from "./default-runtime.js"
@@ -22,6 +27,7 @@ import {
 } from "./definition.js"
 import {
   ActorCallCycle,
+  InvalidPayloadBroadcast,
   InvalidActor,
   LostActivation,
   NonRetryableError,
@@ -34,6 +40,7 @@ import {
   UnknownEffect,
   UnknownActorType,
   UnknownOperation,
+  UnknownPayloadBroadcast,
 } from "./errors.js"
 import {
   ActorReferenceCore,
@@ -58,6 +65,7 @@ import {
   type ProcessRecord,
 } from "./process-administration.js"
 import { RealtimeManager } from "./realtime.js"
+import type { PayloadEnvelope } from "./browser/index.js"
 import type {
   BroadcastRow,
   ClaimedTurn,
@@ -103,6 +111,12 @@ interface RegisteredActor {
   definition: ValidatedActorDefinition
   operations: ReadonlySet<string>
   queries: ReadonlySet<string>
+}
+
+interface PayloadProjectionSnapshot {
+  state: JsonObject
+  instanceId: string
+  revision: string
 }
 
 interface ComponentSlot {
@@ -453,6 +467,35 @@ export class SolidObjectsRuntime {
     })
   }
 
+  async subscriptionPayloads(options: {
+    actorType: string
+    actorId: string
+    payloadNames: readonly string[]
+    authorizationContext: unknown
+  }): Promise<PayloadEnvelope[]> {
+    if (options.payloadNames.length === 0) return []
+    const registered = this.fetchActor(options.actorType)
+    const payloadNames = this.validatePayloadNames(registered, options.payloadNames)
+    const snapshot = await this.payloadProjectionSnapshot({
+      registered,
+      actorType: options.actorType,
+      actorId: options.actorId,
+    })
+    const payloads: PayloadEnvelope[] = []
+    for (const name of payloadNames) {
+      const payload = await this.projectSubscriptionPayload({
+        registered,
+        snapshot,
+        actorType: options.actorType,
+        actorId: options.actorId,
+        name,
+        authorizationContext: options.authorizationContext,
+      })
+      if (payload) payloads.push(payload)
+    }
+    return payloads
+  }
+
   async destroy(
     reference: ActorReferenceCore<Actor>,
     options: DestroyOptions = {},
@@ -777,6 +820,11 @@ export class SolidObjectsRuntime {
           ([name, value]) => stableJson(value) !== stableJson(oldObservables[name]),
         ),
       )
+      const broadcastObservables =
+        Object.keys(changedObservables).length > 0 ||
+        (Object.keys(definition.payloads).length > 0 && stableJson(committedState) !== before)
+          ? changedObservables
+          : undefined
       renewalController.abort()
       await renewal
       if (renewalError) throw renewalError
@@ -785,7 +833,7 @@ export class SolidObjectsRuntime {
         state: committedState,
         stateVersion: definition.stateVersion,
         result,
-        changedObservables,
+        ...(broadcastObservables === undefined ? {} : { broadcastObservables }),
         intents,
         executeCommitAction: async (intent, connection) => {
           const handler = this.commitActions.get(intent.name)
@@ -818,7 +866,7 @@ export class SolidObjectsRuntime {
       if (intents.outboundMessages.length > 0) this.wakeUp("actors")
       if (intents.effects.length > 0) this.wakeUp("effects")
       if (intents.reminders.length > 0) this.wakeUp("reminders")
-      if (Object.keys(changedObservables).length > 0) this.wakeUp("broadcasts")
+      if (broadcastObservables !== undefined) this.wakeUp("broadcasts")
       for (const replacement of completion.reminderReplacements) {
         this.emitInstrumentation("reminder.replaced", {
           reminderId: replacement.reminderId,
@@ -1163,7 +1211,7 @@ export class SolidObjectsRuntime {
   private readObservables(actor: Actor, definition: ValidatedActorDefinition): JsonObject {
     const stateBefore = stableJson(actorState(actor, definition.stateKeys))
     const intentCount = actor.intentCount()
-    const values = actor.observableValues()
+    const values = withApplicationWritesForbidden(() => actor.observableValues())
     if (
       stableJson(actorState(actor, definition.stateKeys)) !== stateBefore ||
       actor.intentCount() !== intentCount
@@ -1171,6 +1219,110 @@ export class SolidObjectsRuntime {
       throw new QueryMutatedState("observables must not mutate actor state or stage durable work")
     }
     return values
+  }
+
+  private validatePayloadNames(
+    registered: RegisteredActor,
+    requestedNames: readonly string[],
+  ): string[] {
+    const names = [...new Set(requestedNames)]
+    for (const name of names) {
+      if (registered.definition.payloads[name]) continue
+      throw new UnknownPayloadBroadcast(`unknown payload broadcast ${JSON.stringify(name)}`)
+    }
+    return names
+  }
+
+  private async payloadProjectionSnapshot(options: {
+    registered: RegisteredActor
+    actorType: string
+    actorId: string
+  }): Promise<PayloadProjectionSnapshot> {
+    const instance = await this.repository.findInstanceByIdentity(
+      options.actorType,
+      options.actorId,
+    )
+    if (!instance) {
+      return {
+        state: initialStateFor(options.registered.definition),
+        instanceId: "0",
+        revision: "0",
+      }
+    }
+    return {
+      state: migrateState({
+        definition: options.registered.definition,
+        storedVersion: Number(instance.state_version),
+        storedState: jsonObject(JSON.parse(instance.state)),
+      }),
+      instanceId: instance.id,
+      revision: String(instance.state_revision),
+    }
+  }
+
+  private async projectSubscriptionPayload(options: {
+    registered: RegisteredActor
+    snapshot: PayloadProjectionSnapshot
+    actorType: string
+    actorId: string
+    name: string
+    authorizationContext: unknown
+  }): Promise<PayloadEnvelope | undefined> {
+    try {
+      const authorized = await this.settings.authorizeQuery({
+        actorType: options.actorType,
+        actorId: options.actorId,
+        operation: options.name,
+        arguments: {},
+        authorizationContext: options.authorizationContext,
+      })
+      if (!authorized) return undefined
+
+      const actor = hydrateActor({
+        definition: options.registered.definition,
+        actorId: options.actorId,
+        state: deepCopy(options.snapshot.state),
+      })
+      const stateBefore = stableJson(actorState(actor, options.registered.definition.stateKeys))
+      const intentCount = actor.intentCount()
+      const handler = options.registered.definition.payloads[options.name]
+      if (!handler) {
+        throw new UnknownPayloadBroadcast(`unknown payload broadcast ${options.name}`)
+      }
+      const rawPayload = await withActorProjection(actor, () =>
+        handler(actor, options.authorizationContext),
+      )
+      if (
+        stableJson(actorState(actor, options.registered.definition.stateKeys)) !== stateBefore ||
+        actor.intentCount() !== intentCount
+      ) {
+        throw new QueryMutatedState("payload broadcasts must not mutate actor state or stage work")
+      }
+      const payload = normalizeJson(rawPayload, { maxBytes: this.settings.maxPayloadBytes })
+      if (!Array.isArray(payload) && (typeof payload !== "object" || payload === null)) {
+        throw new InvalidPayloadBroadcast(
+          `payload broadcast ${JSON.stringify(options.name)} must return a JSON object or array`,
+        )
+      }
+      return readonlyCopy({
+        version: 1,
+        kind: "payload",
+        actorType: options.actorType,
+        actorId: options.actorId,
+        instanceId: options.snapshot.instanceId,
+        revision: options.snapshot.revision,
+        name: options.name,
+        payload,
+      })
+    } catch (error) {
+      this.emitInstrumentation("payload_broadcast.failed", {
+        actorType: options.actorType,
+        actorId: options.actorId,
+        payload: options.name,
+        errorName: error instanceof Error ? error.name : "Error",
+      })
+      return undefined
+    }
   }
 
   private fetchActor(actorType: string): RegisteredActor {

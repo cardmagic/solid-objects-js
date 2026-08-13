@@ -6,6 +6,8 @@ export {
   type EffectIntent,
   type OutboundMessageIntent,
   type OutboundMessageOptions,
+  type PayloadBroadcasts,
+  type PayloadBroadcastValue,
   type ReminderIntent,
   type ReminderOptions,
 } from "./actor.js"
@@ -117,6 +119,7 @@ export {
   IdempotencyConflict,
   InvalidActor,
   InvalidPayload,
+  InvalidPayloadBroadcast,
   LostActivation,
   MailboxFull,
   NonRetryableError,
@@ -133,6 +136,7 @@ export {
   UnknownDeadLetter,
   UnknownEffect,
   UnknownOperation,
+  UnknownPayloadBroadcast,
   UnknownReminder,
   UnsupportedDatabase,
 } from "./errors.js"

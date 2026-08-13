@@ -1,17 +1,20 @@
-import type { InvalidationEnvelope } from "./browser/index.js"
+import type { InvalidationEnvelope, RealtimeEnvelope } from "./browser/index.js"
 import type { BroadcastEvent } from "./configuration.js"
 import type { SolidObjectsRuntime } from "./runtime.js"
+
+const MAXIMUM_PAYLOADS_PER_SUBSCRIPTION = 50
 
 export interface SubscriptionRequest {
   readonly version: 1
   readonly action: "subscribe" | "unsubscribe"
   readonly actorType: string
   readonly actorId: string
+  readonly payloads?: readonly string[]
 }
 
 export interface RealtimeConnectionOptions<AuthorizationContext = unknown> {
   authorizationContext: AuthorizationContext
-  send(envelope: InvalidationEnvelope): void | Promise<void>
+  send(envelope: RealtimeEnvelope): void | Promise<void>
 }
 
 export interface RealtimeSession {
@@ -42,7 +45,14 @@ export class RealtimeManager {
     await Promise.all(
       sessions.map(async (session) => {
         try {
-          await session.deliver(realtimeEnvelope(event))
+          await session.deliver(invalidationEnvelope(event))
+          const payloads = await this.runtime.subscriptionPayloads({
+            actorType: event.actorType,
+            actorId: event.actorId,
+            payloadNames: session.payloadNames(event),
+            authorizationContext: session.authorizationContext,
+          })
+          for (const payload of payloads) await session.deliver(payload)
         } catch (error) {
           this.remove(session, event)
           this.runtime.emitInstrumentation("subscription.delivery_failed", {
@@ -79,7 +89,14 @@ export class RealtimeManager {
         },
       })
       if (session.closed) return
-      await session.deliver(realtimeEnvelope(snapshot))
+      const payloads = await this.runtime.subscriptionPayloads({
+        actorType: request.actorType,
+        actorId: request.actorId,
+        payloadNames: request.payloads ?? [],
+        authorizationContext: session.authorizationContext,
+      })
+      await session.deliver(invalidationEnvelope(snapshot))
+      for (const payload of payloads) await session.deliver(payload)
     } catch (error) {
       this.remove(session, request)
       throw error
@@ -116,8 +133,8 @@ class ManagedRealtimeSession implements RealtimeSession {
   #closed = false
   #delivery = Promise.resolve()
   #requests = Promise.resolve()
-  readonly #subscriptions = new Set<string>()
-  readonly #revisions = new Map<string, { instanceId: string; revision: bigint }>()
+  readonly #subscriptions = new Map<string, ReadonlySet<string>>()
+  readonly #revisions = new Map<string, Map<string, { instanceId: string; revision: bigint }>>()
 
   constructor(
     private readonly options: RealtimeConnectionOptions,
@@ -147,15 +164,11 @@ class ManagedRealtimeSession implements RealtimeSession {
     this.lifecycle.disconnect()
   }
 
-  deliver(envelope: InvalidationEnvelope): Promise<void> {
+  deliver(envelope: RealtimeEnvelope): Promise<void> {
     const delivery = this.#delivery
       .catch(() => undefined)
       .then(() => {
-        if (
-          this.#closed ||
-          !this.#subscriptions.has(subscriptionKey(envelope)) ||
-          !this.accept(envelope)
-        ) {
+        if (this.#closed || !this.accepts(envelope) || !this.accept(envelope)) {
           return
         }
         return this.options.send(envelope)
@@ -172,15 +185,36 @@ class ManagedRealtimeSession implements RealtimeSession {
   }
 
   add(subscription: SubscriptionIdentity): void {
-    this.#subscriptions.add(subscriptionKey(subscription))
+    const key = subscriptionKey(subscription)
+    const previous = this.#subscriptions.get(key)
+    const revisions = this.#revisions.get(key)
+    for (const payload of subscription.payloads ?? []) {
+      if (!previous?.has(payload)) revisions?.delete(`payload:${payload}`)
+    }
+    this.#subscriptions.set(key, new Set(subscription.payloads ?? []))
   }
 
-  private accept(envelope: InvalidationEnvelope): boolean {
+  payloadNames(subscription: SubscriptionIdentity): readonly string[] {
+    return [...(this.#subscriptions.get(subscriptionKey(subscription)) ?? [])]
+  }
+
+  private accepts(envelope: RealtimeEnvelope): boolean {
+    const key = subscriptionKey(envelope)
+    const payloadNames = this.#subscriptions.get(key)
+    if (!payloadNames) return false
+    if (envelope.kind === "payload" && !payloadNames.has(envelope.name)) return false
+    return true
+  }
+
+  private accept(envelope: RealtimeEnvelope): boolean {
     const key = subscriptionKey(envelope)
     const revision = BigInt(envelope.revision)
-    const current = this.#revisions.get(key)
+    const channel = envelope.kind === "payload" ? `payload:${envelope.name}` : "invalidation"
+    const revisions = this.#revisions.get(key) ?? new Map()
+    const current = revisions.get(channel)
     if (current?.instanceId === envelope.instanceId && revision <= current.revision) return false
-    this.#revisions.set(key, { instanceId: envelope.instanceId, revision })
+    revisions.set(channel, { instanceId: envelope.instanceId, revision })
+    this.#revisions.set(key, revisions)
     return true
   }
 }
@@ -198,12 +232,14 @@ export function parseSubscriptionRequest(value: unknown): SubscriptionRequest {
     action: parsed.action,
     actorType: requiredString(parsed.actorType, "actorType"),
     actorId: requiredString(parsed.actorId, "actorId"),
+    ...(parsed.payloads === undefined ? {} : { payloads: parsePayloadNames(parsed.payloads) }),
   })
 }
 
 interface SubscriptionIdentity {
   actorType: string
   actorId: string
+  payloads?: readonly string[]
 }
 
 function parseValue(value: unknown): unknown {
@@ -216,8 +252,18 @@ function subscriptionKey(subscription: SubscriptionIdentity): string {
   return JSON.stringify([subscription.actorType, subscription.actorId])
 }
 
-function realtimeEnvelope(event: BroadcastEvent): InvalidationEnvelope {
-  return Object.freeze({ version: 1, ...event })
+function invalidationEnvelope(event: BroadcastEvent): InvalidationEnvelope {
+  return Object.freeze({ version: 1, kind: "invalidation", ...event })
+}
+
+function parsePayloadNames(value: unknown): readonly string[] {
+  if (!Array.isArray(value) || value.length > MAXIMUM_PAYLOADS_PER_SUBSCRIPTION) {
+    throw new TypeError(
+      `payloads must be an array of at most ${MAXIMUM_PAYLOADS_PER_SUBSCRIPTION} names`,
+    )
+  }
+  const names = value.map((name) => requiredString(name, "payload name"))
+  return Object.freeze([...new Set(names)])
 }
 
 function requiredString(value: unknown, name: string): string {

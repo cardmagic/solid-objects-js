@@ -1,7 +1,13 @@
 import { Actor, type ActorClass } from "./actor.js"
+import { withApplicationWritesForbidden } from "./context.js"
 import { InvalidActor, StateMigrationError } from "./errors.js"
 import { deepCopy, jsonObject, normalizeJson } from "./serialization.js"
 import type { JsonObject } from "./types.js"
+
+export type PayloadBroadcastHandler = (
+  actor: Actor,
+  authorizationContext: unknown,
+) => unknown | Promise<unknown>
 
 export interface StateMigration {
   from: number
@@ -17,6 +23,7 @@ export interface ValidatedActorDefinition<ActorType extends Actor = Actor> {
   queries: readonly string[]
   stateVersion: number
   migrations: readonly StateMigration[]
+  payloads: Readonly<Record<string, PayloadBroadcastHandler>>
 }
 
 export function validateDefinition<ActorType extends Actor>(
@@ -95,6 +102,8 @@ export function validateDefinition<ActorType extends Actor>(
     migrationStarts.add(migration.from)
   }
 
+  const payloads = validatePayloads(actorClass)
+
   return Object.freeze({
     actorClass,
     type,
@@ -103,6 +112,7 @@ export function validateDefinition<ActorType extends Actor>(
     queries: Object.freeze(queries),
     stateVersion,
     migrations: Object.freeze([...migrations]),
+    payloads,
   })
 }
 
@@ -147,7 +157,7 @@ export function migrateState(options: {
   while (version < definition.stateVersion) {
     const migration = definition.migrations.find((candidate) => candidate.from === version)
     if (!migration) throw new StateMigrationError(`missing state migration from version ${version}`)
-    state = jsonObject(migration.migrate(deepCopy(state)))
+    state = jsonObject(withApplicationWritesForbidden(() => migration.migrate(deepCopy(state))))
     version = migration.to
   }
 
@@ -178,4 +188,27 @@ function validateReferenceName(name: string, reservedNames: ReadonlySet<string>)
   if (reservedNames.has(name)) {
     throw new InvalidActor(`actor member ${JSON.stringify(name)} conflicts with the reference API`)
   }
+}
+
+function validatePayloads(
+  actorClass: ActorClass,
+): Readonly<Record<string, PayloadBroadcastHandler>> {
+  const configured = actorClass.payloads ?? {}
+  if (!isRecord(configured)) throw new InvalidActor("actor payloads must be an object")
+
+  const payloads: Record<string, PayloadBroadcastHandler> = {}
+  for (const [name, handler] of Object.entries(configured)) {
+    validateOperationName(name)
+    if (typeof handler !== "function") {
+      throw new InvalidActor(`actor payload ${JSON.stringify(name)} must be a function`)
+    }
+    payloads[name] = handler as PayloadBroadcastHandler
+  }
+  return Object.freeze(payloads)
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) return false
+  const prototype = Object.getPrototypeOf(value) as object | null
+  return prototype === Object.prototype || prototype === null
 }

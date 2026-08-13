@@ -12,7 +12,8 @@ The 0.1 subscription request is:
   "version": 1,
   "action": "subscribe",
   "actorType": "Counter",
-  "actorId": "primary"
+  "actorId": "primary",
+  "payloads": ["summary"]
 }
 ```
 
@@ -26,6 +27,7 @@ The 0.1 envelope is:
 ```json
 {
   "version": 1,
+  "kind": "invalidation",
   "actorType": "Counter",
   "actorId": "primary",
   "instanceId": "019...",
@@ -33,6 +35,26 @@ The 0.1 envelope is:
   "observables": { "count": 3 }
 }
 ```
+
+Requested personalized projections use a separate envelope:
+
+```json
+{
+  "version": 1,
+  "kind": "payload",
+  "actorType": "Counter",
+  "actorId": "primary",
+  "instanceId": "019...",
+  "revision": "42",
+  "name": "summary",
+  "payload": { "label": "Your counter", "count": 3 }
+}
+```
+
+Invalidations and each payload name have independent revision fences. This
+lets the server project the latest committed subscriber view even while an
+older durable invalidation is being delivered. Payload bodies must be JSON
+objects or arrays and are deeply frozen after parsing.
 
 Revisions are non-negative integer strings so values larger than JavaScript's
 safe integer range remain exact. A new instance ID establishes a new actor

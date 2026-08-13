@@ -145,6 +145,17 @@ describe("actor definitions", () => {
     expect(() => validateDefinition(Collision)).toThrow(/"send" conflicts with the reference API/)
   })
 
+  it("rejects invalid payload broadcast declarations", () => {
+    class InvalidPayloadActor extends Actor {
+      static override readonly actorType = "InvalidPayloadActor"
+      static override readonly payloads = { summary: "not a function" }
+    }
+
+    expect(() => validateDefinition(InvalidPayloadActor)).toThrow(
+      'actor payload "summary" must be a function',
+    )
+  })
+
   it("rejects invalid actor types, state versions, and member names", () => {
     class InvalidType extends Actor {
       static override readonly actorType = "invalid actor"

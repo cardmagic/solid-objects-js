@@ -40,6 +40,14 @@ actor subscriptions, replays a committed observable projection, and follows
 the durable broadcast outbox in revision order. The browser client applies the
 same incarnation and revision fence without importing Node APIs.
 
+Actors may also declare static personalized payload projections. Each requested
+name is reauthorized as a query and evaluated against a fresh actor hydrated
+from committed state under that subscriber's session context. Payload names use
+independent revision fences, so a failed projection is omitted and retried at a
+later committed revision without blocking invalidations or sibling payloads.
+Actors with payload declarations emit an empty-observable revision event for a
+state change when no scalar observable changed.
+
 Sessions are process-local. A multi-process deployment bridges committed
 broadcast events through an application-owned shared transport and calls
 `runtime.realtime.publish()` in each process that owns connections. This keeps

@@ -1,8 +1,10 @@
 import { describe, expect, it, vi } from "vitest"
 import {
   parseInvalidation,
+  parseRealtimeEnvelope,
   SolidObjectsBrowserClient,
   type InvalidationEnvelope,
+  type PayloadEnvelope,
 } from "../src/browser/index.js"
 
 describe("SolidObjectsBrowserClient", () => {
@@ -13,13 +15,19 @@ describe("SolidObjectsBrowserClient", () => {
       createWebSocket: () => socket as unknown as WebSocket,
       onInvalidation: () => {},
     })
-    client.subscribe({ actorType: "Counter", actorId: "one" })
+    client.subscribe({ actorType: "Counter", actorId: "one", payloads: ["summary"] })
 
     client.connect()
     socket.open()
 
     expect(socket.sent).toEqual([
-      JSON.stringify({ version: 1, action: "subscribe", actorType: "Counter", actorId: "one" }),
+      JSON.stringify({
+        version: 1,
+        action: "subscribe",
+        actorType: "Counter",
+        actorId: "one",
+        payloads: ["summary"],
+      }),
     ])
   })
 
@@ -53,6 +61,52 @@ describe("SolidObjectsBrowserClient", () => {
     expect(onInvalidation).not.toHaveBeenCalled()
     expect(onError).toHaveBeenCalledOnce()
   })
+
+  it("delivers each personalized payload once per revision", () => {
+    const received: PayloadEnvelope[] = []
+    const client = new SolidObjectsBrowserClient({
+      url: "wss://example.test/solid-objects",
+      onInvalidation: () => {},
+      onPayload: (envelope) => received.push(envelope),
+    })
+    client.subscribe({
+      actorType: "Counter",
+      actorId: "one",
+      payloads: ["summary"],
+    })
+
+    client.receive(payloadEnvelope({ instanceId: "first", revision: "2", count: 2 }))
+    client.receive(payloadEnvelope({ instanceId: "first", revision: "2", count: 2 }))
+    client.receive(payloadEnvelope({ instanceId: "second", revision: "1", count: 0 }))
+
+    expect(received.map(({ payload }) => payload)).toEqual([{ count: 2 }, { count: 0 }])
+    expect(Object.isFrozen(received[0]?.payload)).toBe(true)
+  })
+
+  it("replays a payload restored by a replacement subscription", () => {
+    const received: PayloadEnvelope[] = []
+    const client = new SolidObjectsBrowserClient({
+      url: "wss://example.test/solid-objects",
+      onInvalidation: () => {},
+      onPayload: (envelope) => received.push(envelope),
+    })
+    const firstUnsubscribe = client.subscribe({
+      actorType: "Counter",
+      actorId: "one",
+      payloads: ["summary"],
+    })
+    client.receive(payloadEnvelope({ instanceId: "first", revision: "2", count: 2 }))
+    client.subscribe({ actorType: "Counter", actorId: "one" })
+    client.subscribe({
+      actorType: "Counter",
+      actorId: "one",
+      payloads: ["summary"],
+    })
+    firstUnsubscribe()
+    client.receive(payloadEnvelope({ instanceId: "first", revision: "2", count: 2 }))
+
+    expect(received).toHaveLength(2)
+  })
 })
 
 describe("parseInvalidation", () => {
@@ -84,6 +138,35 @@ describe("parseInvalidation", () => {
   })
 })
 
+describe("parseRealtimeEnvelope", () => {
+  it("validates personalized payload envelopes", () => {
+    const parsed = parseRealtimeEnvelope(
+      payloadEnvelope({ instanceId: "instance", revision: "3", count: 3 }),
+    )
+
+    expect(parsed).toMatchObject({
+      kind: "payload",
+      name: "summary",
+      revision: "3",
+      payload: { count: 3 },
+    })
+  })
+
+  it("rejects unknown envelope kinds", () => {
+    expect(() =>
+      parseRealtimeEnvelope({
+        version: 1,
+        kind: "unknown",
+        actorType: "Counter",
+        actorId: "one",
+        instanceId: "instance",
+        revision: "3",
+        observables: {},
+      }),
+    ).toThrow("invalid realtime envelope kind")
+  })
+})
+
 class FakeWebSocket extends EventTarget {
   readyState: number = WebSocket.CONNECTING
   sent: string[] = []
@@ -110,5 +193,18 @@ function envelope(options: { instanceId: string; revision: string; count: number
     instanceId: options.instanceId,
     revision: options.revision,
     observables: { count: options.count },
+  })
+}
+
+function payloadEnvelope(options: { instanceId: string; revision: string; count: number }): string {
+  return JSON.stringify({
+    version: 1,
+    kind: "payload",
+    actorType: "Counter",
+    actorId: "one",
+    instanceId: options.instanceId,
+    revision: options.revision,
+    name: "summary",
+    payload: { count: options.count },
   })
 }

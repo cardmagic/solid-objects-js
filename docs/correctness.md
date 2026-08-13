@@ -17,7 +17,14 @@
 - Activation passes are bounded. Yielding changes ready-membership polling
   order only; it neither changes durable message sequence nor makes future work
   due early.
-- `guardApplicationDatabase()` rejects direct application writes while actor
-  code is executing. It permits only `SELECT` through row-returning methods;
-  commit actions remain the fenced write path. The guarantee applies only to
-  clients passed through the facade.
+- `guardApplicationDatabase()` rejects direct application writes during actor
+  operations, observable and payload projections, and state migrations. It
+  permits only `SELECT` through row-returning methods; commit actions remain the
+  fenced write path. The guarantee applies only to clients passed through the
+  facade.
+- Personalized payloads hydrate committed state separately for every payload
+  name and subscriber. Each projection is read-only, size bounded, and fenced
+  independently by actor incarnation and revision. One denied, mutating, or
+  failing projection cannot stop its siblings or observable delivery. A state
+  change on an actor declaring payloads creates a revision broadcast even when
+  the actor declares no scalar observables.

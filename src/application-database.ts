@@ -1,4 +1,4 @@
-import { currentActor } from "./context.js"
+import { applicationWritesForbidden } from "./context.js"
 import type { Database, DatabaseConnection } from "./database/types.js"
 import { ApplicationWriteForbidden } from "./errors.js"
 
@@ -53,7 +53,7 @@ function guardConnection(connection: DatabaseConnection): DatabaseConnection {
 }
 
 function assertWriteAllowed(): void {
-  if (!currentActor()) return
+  if (!applicationWritesForbidden()) return
 
   throw new ApplicationWriteForbidden(
     "application database writes are forbidden during actor execution",
@@ -61,7 +61,7 @@ function assertWriteAllowed(): void {
 }
 
 function assertReadAllowed(sql: string): void {
-  if (!currentActor()) return
+  if (!applicationWritesForbidden()) return
   if (/^\s*SELECT(?:\s|$)/i.test(sql)) return
 
   throw new ApplicationWriteForbidden(

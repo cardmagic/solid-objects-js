@@ -412,7 +412,7 @@ export class Repository {
       state: Record<string, JsonValue>
       stateVersion: number
       result: JsonValue
-      changedObservables: Record<string, JsonValue>
+      broadcastObservables?: Record<string, JsonValue>
       intents: ActorIntents
       executeCommitAction(
         intent: ActorIntents["commitActions"][number],
@@ -528,7 +528,7 @@ export class Repository {
         })
       }
 
-      if (Object.keys(input.changedObservables).length > 0) {
+      if (input.broadcastObservables !== undefined) {
         await connection.run(
           `INSERT INTO ${this.table("broadcasts")}
            (id, message_id, instance_id, actor_type, actor_id, state_revision, observables,
@@ -541,7 +541,7 @@ export class Repository {
             turn.message.actor_type,
             turn.message.actor_id,
             turn.message.sequence,
-            JSON.stringify(input.changedObservables),
+            JSON.stringify(input.broadcastObservables),
             now,
           ],
         )

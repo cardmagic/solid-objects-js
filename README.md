@@ -318,11 +318,12 @@ import { sqlite } from "solid-objects/database/sqlite"
 const applicationDatabase = guardApplicationDatabase(sqlite({ path: "application.sqlite3" }))
 ```
 
-During actor execution, the facade permits `SELECT` through `get()` and `all()`
-and rejects `run()` or row-returning write statements. Registered commit
-actions run outside actor execution and may write through the same facade.
-This boundary is opt-in: Solid Objects cannot intercept a separate ORM pool or
-an unwrapped database client.
+During actor execution, observable and payload projection, and state migration,
+the facade permits `SELECT` through `get()` and `all()` and rejects `run()` or
+row-returning write statements. Registered commit actions run outside that
+read-only context and may write through the same facade. This boundary is
+opt-in: Solid Objects cannot intercept a separate ORM pool or an unwrapped
+database client.
 
 ## Inspect and retry terminal failures
 
@@ -562,6 +563,52 @@ const client = new SolidObjectsBrowserClient({
 client.subscribe({ actorType: "Counter", actorId: "primary" })
 client.connect()
 ```
+
+For subscriber-specific views, declare a static payload map with a TypeScript
+`satisfies` check:
+
+```typescript
+import { Actor, type PayloadBroadcasts } from "solid-objects"
+
+interface Viewer {
+  accountId: string
+}
+
+class GameRoom extends Actor {
+  static override readonly actorType = "GameRoom"
+  static override readonly payloads = {
+    playmat: (room, viewer) => ({
+      turn: room.turn,
+      hand: room.hands[viewer.accountId] ?? [],
+    }),
+  } satisfies PayloadBroadcasts<GameRoom, Viewer>
+
+  turn = 1
+  hands: Record<string, string[]> = {}
+}
+```
+
+Request payloads by name and render them separately from observable
+invalidations:
+
+```typescript
+const client = new SolidObjectsBrowserClient({
+  url: new URL("/solid-objects", window.location.href),
+  onInvalidation: ({ observables }) => renderScalars(observables),
+  onPayload: ({ name, payload }) => renderPayload(name, payload),
+})
+
+client.subscribe({
+  actorType: "GameRoom",
+  actorId: "primary",
+  payloads: ["playmat"],
+})
+```
+
+Each payload runs against committed state and the subscribing session's fresh
+authorization context. `authorizeQuery` is called with the payload name before
+projection. A denied or failing payload is omitted without stopping sibling
+payloads or observable invalidations.
 
 `broadcast` remains available when an application also needs to forward the
 same durable events through another transport or broker. Browser-visible actor

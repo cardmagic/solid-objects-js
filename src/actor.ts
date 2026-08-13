@@ -10,7 +10,19 @@ import {
   type StagedOperations,
 } from "./reference.js"
 import { jsonObject } from "./serialization.js"
-import type { ActorIdentifier, JsonObject, MessageContext } from "./types.js"
+import type { ActorIdentifier, JsonObject, JsonValue, MessageContext } from "./types.js"
+
+export type PayloadBroadcastValue = JsonObject | JsonValue[]
+
+export type PayloadBroadcasts<ActorType extends Actor, AuthorizationContext> = Readonly<
+  Record<
+    string,
+    (
+      actor: ActorType,
+      authorizationContext: AuthorizationContext,
+    ) => PayloadBroadcastValue | Promise<PayloadBroadcastValue>
+  >
+>
 
 export interface EffectIntent {
   name: string
@@ -53,6 +65,7 @@ export interface ActorClass<ActorType extends Actor = Actor> {
   readonly actorType: string
   readonly stateVersion?: number
   readonly migrations?: readonly StateMigration[]
+  readonly payloads?: Readonly<Record<string, unknown>>
 }
 
 export interface ReminderOptions {
@@ -70,6 +83,7 @@ export abstract class Actor {
   static readonly actorType: string
   static readonly stateVersion?: number
   static readonly migrations?: readonly StateMigration[]
+  static readonly payloads: Readonly<Record<string, unknown>> = Object.freeze({})
 
   static ref<ActorType extends Actor>(
     this: new (actorId?: string) => ActorType,

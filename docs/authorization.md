@@ -22,3 +22,10 @@ Successful subscription authorization allows the explicit `observables()`
 projection for that actor, including the immediate committed replay. It does
 not authorize actor state, operations, queries, destruction, or administration.
 The runtime removes all registrations when the host calls `session.close()`.
+
+Requested personalized payloads cross both boundaries. The runtime first calls
+`authorizeSubscription`, then calls `authorizeQuery` with the payload name and
+the same fresh session authorization context before every projection. A false
+query decision omits that payload. Projection and authorization failures are
+confined to the payload name and emit metadata-only instrumentation; they do
+not reject observable delivery or expose exception messages.
