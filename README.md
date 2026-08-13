@@ -555,6 +555,8 @@ IDs and observable values are not authorization.
 
 - Messages are ordered per actor identity and delivered at least once.
 - Different actor identities may execute concurrently.
+- A worker drains at most `maxMessagesPerActivationPass` turns from one actor,
+  then yields its still-due work behind actors that were already waiting.
 - State, completion, staged messages, effects, reminders, commit actions, and
   observable broadcasts share one fenced commit.
 - A lost or expired activation lease cannot commit.

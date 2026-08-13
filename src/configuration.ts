@@ -48,6 +48,7 @@ export interface SolidObjectsConfiguration {
   maxStateBytes?: number
   maxResultBytes?: number
   maxAttempts?: number
+  maxMessagesPerActivationPass?: number
   retryDelayMilliseconds?: (attempt: number) => number
   processHeartbeatIntervalMilliseconds?: number
   processAliveThresholdMilliseconds?: number
@@ -111,6 +112,7 @@ export function buildSettings(configuration: SolidObjectsConfiguration): Runtime
     maxStateBytes: configuration.maxStateBytes ?? 5_242_880,
     maxResultBytes: configuration.maxResultBytes ?? 1_048_576,
     maxAttempts: configuration.maxAttempts ?? 5,
+    maxMessagesPerActivationPass: configuration.maxMessagesPerActivationPass ?? 50,
     retryDelayMilliseconds:
       configuration.retryDelayMilliseconds ??
       ((attempt) => Math.min(2 ** (attempt - 1), 60) * 1_000),
@@ -196,6 +198,12 @@ function validateSettings(settings: RuntimeSettings): void {
     supervisorMaximumRestartDelayMilliseconds: settings.supervisorMaximumRestartDelayMilliseconds,
     messageRetentionMilliseconds: settings.messageRetentionMilliseconds,
     processRetentionMilliseconds: settings.processRetentionMilliseconds,
+  }
+  if (
+    !Number.isSafeInteger(settings.maxMessagesPerActivationPass) ||
+    settings.maxMessagesPerActivationPass < 1
+  ) {
+    throw new TypeError("maxMessagesPerActivationPass must be a positive safe integer")
   }
   for (const [name, value] of Object.entries(positive)) {
     if (!Number.isFinite(value) || value <= 0) throw new TypeError(`${name} must be positive`)

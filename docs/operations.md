@@ -16,6 +16,11 @@ capped by `supervisorMaximumRestartDelayMilliseconds` at 10 seconds. Replacement
 and replacement-failure events contain the role class, failure count, and error
 class only. Repeated failure messages are excluded from instrumentation.
 
+`maxMessagesPerActivationPass` defaults to 50. Lower values improve fairness
+when a few actor identities stay continuously busy; higher values reduce claim
+overhead for isolated backlogs. `solid_objects.activation.yielded` reports the
+actor identity, turns processed, and remaining due membership count.
+
 `runtime.processes.all()` returns administration-authorized immutable process
 metadata with a current `stale` flag. `cleanup()` reauthorizes separately and
 atomically fences stale processes out of every owned role claim before waking

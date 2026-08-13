@@ -394,6 +394,18 @@ export class Repository {
     })
   }
 
+  async yieldReadyMessages(instanceId: string): Promise<number> {
+    return this.settings.database.transaction(async (connection) => {
+      const now = await connection.nowMilliseconds()
+      const yielded = await connection.run(
+        `UPDATE ${this.table("ready_messages")} SET available_at_ms = ?
+         WHERE instance_id = ? AND available_at_ms <= ?`,
+        [now, instanceId, now],
+      )
+      return yielded.changes
+    })
+  }
+
   async complete(
     turn: ClaimedTurn,
     input: {

@@ -29,6 +29,12 @@ backoff, and builds the replacement through the same factory. Supervision stops
 at the shutdown boundary; database leases and fencing remain the correctness
 mechanism if a failed role was still executing actor code.
 
+A worker claims one actor globally, then preferentially drains up to
+`maxMessagesPerActivationPass` ready turns for that instance. Reaching the cap
+moves only that actor's already-due ready memberships to current database time.
+Actors with older ready work therefore win the next global claim; delayed work
+keeps its original future availability.
+
 Realtime delivery is transport-neutral. A host-authenticated session authorizes
 actor subscriptions, replays a committed observable projection, and follows
 the durable broadcast outbox in revision order. The browser client applies the

@@ -12,10 +12,30 @@ export class Worker {
     if (this.stopping) return 0
     await this.ensureRegistered()
     await this.runtime.repository.heartbeatProcess(this.processId)
-    const turn = await this.runtime.repository.claim(this.processId)
+    let turn = await this.runtime.repository.claim(this.processId)
     if (!turn) return 0
-    await this.runtime.executeTurn(turn)
-    return 1
+    const firstTurn = turn
+    let processed = 0
+    while (turn && processed < this.runtime.settings.maxMessagesPerActivationPass) {
+      await this.runtime.executeTurn(turn)
+      processed += 1
+      if (processed >= this.runtime.settings.maxMessagesPerActivationPass) break
+      turn = await this.runtime.repository.claim(this.processId, {
+        instanceId: firstTurn.instance.id,
+      })
+    }
+    if (processed >= this.runtime.settings.maxMessagesPerActivationPass) {
+      const yielded = await this.runtime.repository.yieldReadyMessages(firstTurn.instance.id)
+      if (yielded > 0) {
+        this.runtime.emitInstrumentation("activation.yielded", {
+          actorType: firstTurn.message.actor_type,
+          actorId: firstTurn.message.actor_id,
+          processed,
+          readyMessages: yielded,
+        })
+      }
+    }
+    return processed
   }
 
   async runUntilIdle(options: { maxTurns?: number } = {}): Promise<number> {

@@ -21,6 +21,8 @@
 - Add authorized process inspection and atomic stale-owner cleanup.
 - Add a JSON CLI for runtime startup, diagnostics, administration, and explicit
   retention pruning.
+- Add bounded multi-turn activation passes with database-ordered hot-actor
+  fairness.
 
 ## 0.1.0 - 2026-08-13
 

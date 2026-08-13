@@ -14,3 +14,6 @@
 - Wake-up notifications happen only after commit and never replace polling.
   Workers watch before claiming, so an in-process notification between an empty
   claim and the following wait is retained.
+- Activation passes are bounded. Yielding changes ready-membership polling
+  order only; it neither changes durable message sequence nor makes future work
+  due early.

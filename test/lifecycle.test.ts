@@ -21,11 +21,21 @@ class LifecycleCounter extends Actor {
   }
 }
 
+class FairActor extends Actor {
+  static override readonly actorType = "FairActor"
+  static runs: string[] = []
+
+  record(): void {
+    FairActor.runs.push(this.actorId)
+  }
+}
+
 let runtime: SolidObjectsRuntime | undefined
 
 afterEach(async () => {
   await runtime?.close()
   runtime = undefined
+  FairActor.runs = []
 })
 
 describe("runtime lifecycle", () => {
@@ -238,6 +248,44 @@ describe("runtime lifecycle", () => {
     expect(await message.result()).toBe(1)
     const stored = await runtime.repository.findMessage(message.id)
     expect(Number(stored?.attempt_count)).toBe(2)
+  })
+
+  it("drains a bounded activation pass before yielding", async () => {
+    runtime = configuredRuntime({ maxMessagesPerActivationPass: 2 })
+    runtime.register(FairActor)
+    await runtime.install()
+    const actor = FairActor.ref("hot")
+    await actor.send.record()
+    await actor.send.record()
+    await actor.send.record()
+
+    expect(await runtime.worker().runOnce()).toBe(2)
+    expect(FairActor.runs).toEqual(["hot", "hot"])
+    expect(await runtime.worker().runUntilIdle()).toBe(1)
+  })
+
+  it("yields a hot actor so an older waiting actor runs next", async () => {
+    runtime = configuredRuntime({ maxMessagesPerActivationPass: 1 })
+    runtime.register(FairActor)
+    await runtime.install()
+    await FairActor.ref("hot").send.record()
+    await FairActor.ref("hot").send.record()
+    await FairActor.ref("waiting").send.record()
+    await runtime.settings.database.connection(async (connection) => {
+      await connection.run(
+        `UPDATE ${runtime?.repository.table("ready_messages")}
+         SET available_at_ms = CASE
+           WHEN instance_id = (SELECT id FROM ${runtime?.repository.table("instances")} WHERE actor_id = 'hot') THEN 0
+           ELSE 1
+         END`,
+      )
+    })
+    const worker = runtime.worker()
+
+    expect(await worker.runOnce()).toBe(1)
+    expect(await worker.runOnce()).toBe(1)
+
+    expect(FairActor.runs).toEqual(["hot", "waiting"])
   })
 
   it("closes idempotently", async () => {
