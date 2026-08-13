@@ -12,6 +12,9 @@
 - Permanent operation failure raises `MessageFailed` with the durable message
   ID and persisted error details instead of treating actor code text as the
   public exception contract.
+- Operation, lifecycle, observable, and payload callbacks retain their owning
+  runtime through async context. Isolated runtimes therefore never fall back to
+  a global default while actor-owned code resolves another actor reference.
 - Observable outbox rows are claimed in actor revision order. Subscription
   sessions and browser clients reject duplicate or stale revisions within an
   incarnation, while a recreated actor starts a new revision sequence.

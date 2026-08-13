@@ -8,12 +8,7 @@ import {
   type ComponentRegistration,
   type SolidObjectsConfiguration,
 } from "./configuration.js"
-import {
-  currentActor,
-  withActorContext,
-  withActorProjection,
-  withApplicationWritesForbidden,
-} from "./context.js"
+import { currentActor, withActorContext, withActorProjection } from "./context.js"
 import { DeadLetterManager, type DeadLetter } from "./dead-letters.js"
 import { Doctor } from "./doctor.js"
 import { clearDefaultRuntime, setDefaultRuntime } from "./default-runtime.js"
@@ -104,6 +99,7 @@ import type {
   JsonObject,
   JsonValue,
   LongRunningComponent,
+  MessageContext,
   MessageStatus,
   SnapshotOptions,
 } from "./types.js"
@@ -1019,14 +1015,7 @@ export class SolidObjectsRuntime {
         state: deepCopy(state),
       })
     let activated = cachedActor !== undefined
-    const messageContext = {
-      id: turn.message.id,
-      requestId: turn.message.request_id,
-      actorType: turn.message.actor_type,
-      actorId: turn.message.actor_id,
-      sequence: BigInt(turn.message.sequence),
-      attempt: Number(turn.message.attempt_count),
-    }
+    const messageContext = actorMessageContext(turn.message)
     const renewalController = new AbortController()
     let renewalError: unknown
     const renewal = this.renewLease(turn, renewalController.signal).catch((error: unknown) => {
@@ -1036,7 +1025,7 @@ export class SolidObjectsRuntime {
 
     try {
       if (!activated) {
-        await withApplicationWritesForbidden(() => actor.activate())
+        await withActorContext({ actor, runtime: this }, () => actor.activate())
         activated = true
         this.emitInstrumentation("activation.started", {
           actorType: turn.message.actor_type,
@@ -1191,7 +1180,7 @@ export class SolidObjectsRuntime {
     const { turn, actor } = options
     try {
       if (actor && options.lifecycle === "activated") {
-        await withApplicationWritesForbidden(() => actor.deactivate())
+        await withActorContext({ actor, runtime: this }, () => actor.deactivate())
       }
     } catch (error) {
       this.emitInstrumentation("activation.deactivation_failed", {
@@ -1537,7 +1526,7 @@ export class SolidObjectsRuntime {
   private readObservables(actor: Actor, definition: ValidatedActorDefinition): JsonObject {
     const stateBefore = stableJson(actorState(actor, definition.stateKeys))
     const intentCount = actor.intentCount()
-    const values = withApplicationWritesForbidden(() => actor.observableValues())
+    const values = withActorProjection({ actor, runtime: this }, () => actor.observableValues())
     if (
       stableJson(actorState(actor, definition.stateKeys)) !== stateBefore ||
       actor.intentCount() !== intentCount
@@ -1789,6 +1778,17 @@ function messageInstrumentation(message: MessageRow): JsonObject {
     sequence: String(message.sequence),
     operation: message.operation,
     deliveryMode: message.delivery_mode,
+    attempt: Number(message.attempt_count),
+  }
+}
+
+function actorMessageContext(message: MessageRow): MessageContext {
+  return {
+    id: message.id,
+    requestId: message.request_id,
+    actorType: message.actor_type,
+    actorId: message.actor_id,
+    sequence: BigInt(message.sequence),
     attempt: Number(message.attempt_count),
   }
 }

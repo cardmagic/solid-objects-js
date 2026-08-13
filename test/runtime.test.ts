@@ -72,11 +72,39 @@ class Account extends Actor {
   }
 }
 
+class IsolatedLifecycle extends Actor {
+  static override readonly actorType = "IsolatedLifecycle"
+  static deactivationTargetType: string | null = null
+  static lifecycleHadMessage = false
+
+  count = 0
+
+  protected override onActivate(): void {
+    IsolatedLifecycle.lifecycleHadMessage ||= this.currentMessage !== undefined
+    this.sendTo(AuditLog.ref("lifecycle")).record({ eventName: "activated" })
+  }
+
+  protected override onDeactivate(): void {
+    IsolatedLifecycle.lifecycleHadMessage ||= this.currentMessage !== undefined
+    IsolatedLifecycle.deactivationTargetType = AuditLog.ref("lifecycle").actorType
+  }
+
+  increment(): void {
+    this.count += 1
+  }
+
+  override observables(): Record<string, unknown> {
+    return { count: this.count, targetType: AuditLog.ref("lifecycle").actorType }
+  }
+}
+
 let runtime: SolidObjectsRuntime | undefined
 
 afterEach(async () => {
   await runtime?.close()
   runtime = undefined
+  IsolatedLifecycle.deactivationTargetType = null
+  IsolatedLifecycle.lifecycleHadMessage = false
 })
 
 describe("typed actor references", () => {
@@ -89,6 +117,21 @@ describe("typed actor references", () => {
     await runtime.ref(Account, "account").disable({ auditLogId: "audit" })
 
     await expect(runtime.ref(AuditLog, "audit").events).resolves.toEqual(["account_disabled"])
+  })
+
+  it("keeps lifecycle and observable callbacks inside their isolated runtime", async () => {
+    runtime = createRuntime(configuredSettings())
+    runtime.register(IsolatedLifecycle)
+    runtime.register(AuditLog)
+    await runtime.install()
+    const message = await runtime.ref(IsolatedLifecycle, "source").send.increment()
+
+    await runtime.testing.drain({ roles: ["actors"] })
+
+    await expect(message.result()).resolves.toBeNull()
+    await expect(runtime.ref(AuditLog, "lifecycle").events).resolves.toEqual(["activated"])
+    expect(IsolatedLifecycle.deactivationTargetType).toBe(AuditLog.actorType)
+    expect(IsolatedLifecycle.lifecycleHadMessage).toBe(false)
   })
 
   it("invokes messages and reads fields and getters as committed queries", async () => {

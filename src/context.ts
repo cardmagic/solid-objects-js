@@ -13,7 +13,7 @@ interface ExecutionContext {
 interface ActorExecutionContext {
   actor: Actor
   runtime: SolidObjectsRuntime
-  message: MessageContext
+  message?: MessageContext
 }
 
 const storage = new AsyncLocalStorage<ExecutionContext>()

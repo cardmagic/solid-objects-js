@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Preserve isolated runtime ownership across operation, lifecycle, observable,
+  and payload callbacks while keeping lifecycle callbacks message-free.
 - Retry transient SQLite writer acquisition with bounded capped backoff without
   replaying transaction callbacks or extending synchronous deadlines.
 - Expose concise `configure()` and isolated `createRuntime()` entry points;
