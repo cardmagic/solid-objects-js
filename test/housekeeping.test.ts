@@ -19,7 +19,7 @@ afterEach(async () => {
 
 describe("scheduled housekeeping", () => {
   it("does not schedule disabled housekeeping", async () => {
-    runtime = configuredRuntime()
+    runtime = configuredRuntime({ workerCount: 1 })
     await runtime.install()
     const prune = vi.spyOn(runtime.repository, "pruneRetention")
     const cleanup = vi.spyOn(runtime.repository, "cleanupStaleProcesses")
@@ -170,7 +170,7 @@ function configuredRuntime(
     authorizeQuery: () => true,
     authorizeDestroy: () => true,
     authorizeAdministration: () => true,
-    workerCount: 1,
+    workerCount: 0,
     effectWorkerCount: 0,
     reminderSchedulerCount: 0,
     broadcastWorkerCount: 0,

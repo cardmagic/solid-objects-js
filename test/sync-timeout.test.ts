@@ -123,6 +123,19 @@ describe("synchronous timeout diagnostics", () => {
       TimeoutActor.ref("invalid").with({ timeoutMilliseconds: -1 }).increment(),
     ).rejects.toThrow("timeoutMilliseconds must be a non-negative number")
   })
+
+  it("does not assist execution when the timeout is zero", async () => {
+    runtime = configuredRuntime()
+    await runtime.install()
+
+    const error = await captureTimeout(() =>
+      TimeoutActor.ref("immediate").with({ timeoutMilliseconds: 0 }).increment(),
+    )
+
+    expect(error.details.waitingOn).toBe("readyUnclaimed")
+    expect(await error.messageReference.status()).toBe("ready")
+    expect(await error.messageReference.wait({ timeoutMilliseconds: 1_000 })).toBe(1)
+  })
 })
 
 function configuredRuntime(

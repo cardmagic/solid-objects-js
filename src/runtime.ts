@@ -354,7 +354,7 @@ export class SolidObjectsRuntime {
     options: { timeout: number; deadline: number },
   ): Promise<DeepReadonly<Result>> {
     this.callerWorker ??= new Worker(this)
-    while (performance.now() <= options.deadline) {
+    while (performance.now() < options.deadline) {
       const message = await this.repository.findMessage(messageReference.id)
       if (!message || message.request_id !== messageReference.requestId) {
         throw new Error("message reference no longer identifies this invocation")
@@ -401,20 +401,21 @@ export class SolidObjectsRuntime {
       instance.activation_owner_id !== null &&
       instance.activation_expires_at_ms !== null &&
       Number(instance.activation_expires_at_ms) > diagnostics.nowMilliseconds
-    const waitingOn = instance.paused
-      ? ("actorPaused" as const)
-      : activationLive
-        ? ("activationHeld" as const)
-        : blocker
-          ? ("earlierMessage" as const)
-          : diagnostics.status === "claimed"
-            ? ("messageClaimed" as const)
-            : diagnostics.readyAvailableAtMilliseconds !== undefined &&
-                diagnostics.readyAvailableAtMilliseconds > diagnostics.nowMilliseconds
-              ? ("notYetAvailable" as const)
-              : diagnostics.status === "ready"
-                ? ("readyUnclaimed" as const)
-                : ("unknown" as const)
+    const waitingOn =
+      Number(instance.paused) !== 0
+        ? ("actorPaused" as const)
+        : activationLive
+          ? ("activationHeld" as const)
+          : blocker
+            ? ("earlierMessage" as const)
+            : diagnostics.status === "claimed"
+              ? ("messageClaimed" as const)
+              : diagnostics.readyAvailableAtMilliseconds !== undefined &&
+                  diagnostics.readyAvailableAtMilliseconds > diagnostics.nowMilliseconds
+                ? ("notYetAvailable" as const)
+                : diagnostics.status === "ready"
+                  ? ("readyUnclaimed" as const)
+                  : ("unknown" as const)
     const error = new SyncTimeout({
       details: {
         timeoutMilliseconds,
