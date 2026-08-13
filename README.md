@@ -1,13 +1,61 @@
-# Solid Objects for JavaScript
+# Solid Objects JS
 
-Solid Objects is a durable virtual-actor runtime for Node.js. Each actor is
-addressed by its class and ID, owns JSON state, and processes one durable
-mailbox turn at a time.
+**Stateful virtual actors for Node.js, powered entirely by your relational database.**
 
-This package ports the programming model of the Ruby
+Get the programming model of Cloudflare Durable Objects without moving your
+state into custom cloud isolates. Write ordinary TypeScript classes; Solid
+Objects gives each instance a durable identity, persisted state, an ordered
+mailbox, and safe one-at-a-time execution.
+
+No Redis locks. No separate message broker for actor mailboxes. No proprietary
+state service. The database you already understand provides the transaction,
+lease, fencing, retry, timer, and outbox primitives.
+
+> Version 0.1 supports SQLite through Node's built-in `node:sqlite` module.
+> PostgreSQL and MySQL are not yet supported and are not implied by the current
+> compatibility contract.
+
+## The boring stack, with an actor model
+
+Most stateful features eventually need the same machinery: load one entity,
+serialize concurrent changes, persist the result, schedule follow-up work, and
+recover after a process dies. Applications often assemble that machinery from
+a database, Redis, a queue, distributed locks, and a pile of retry code.
+
+Solid Objects keeps that coordination in one place: the relational database.
+
+- An actor is addressed by its TypeScript class and ID.
+- Public fields are JSON state.
+- Public methods are durable operations.
+- Public getters are ordered, read-only queries.
+- Every actor has a durable, sequential mailbox.
+- State, results, actor-to-actor delivery, effects, reminders, and observable
+  invalidations commit together.
+- Renewable leases and fencing prevent stale workers from committing.
+
+The result is a Durable Objects-style primitive that runs inside a conventional
+Node application and can be inspected, backed up, and operated with familiar
+database tooling.
+
+## What you stop building
+
+For workloads organized around durable identities—accounts, carts, game rooms,
+workflows, devices, collaborative documents, or agent sessions—Solid Objects
+replaces a recurring layer of infrastructure and application code:
+
+- per-entity locking and race-condition handling;
+- bespoke queue consumers that must preserve ordering;
+- retry bookkeeping and poison-message handling;
+- timer tables and scheduler claim logic;
+- transactional outboxes for follow-up work; and
+- a separate realtime invalidation pipeline.
+
+This is not an in-memory actor library. A call is complete only after its state
+and durable consequences commit to the database.
+
+Solid Objects JS ports the programming model of the Ruby
 [`solid_objects`](https://github.com/cardmagic/solid_objects) gem to idiomatic
-TypeScript. It does not share a database schema or wire protocol with the Ruby
-runtime.
+TypeScript. The runtimes do not share a database schema or wire protocol.
 
 ## Requirements
 
@@ -15,11 +63,11 @@ runtime.
 - TypeScript 5.9 or newer for TypeScript applications
 - SQLite for the 0.1 release
 
-The initial release focuses on the portable actor programming model and its
-SQLite runtime. It does not include the Ruby gem's Rails engine, administration
-UI, retention tooling, PostgreSQL/MySQL adapters, or Turbo rendering. Browser
-delivery is transport-only: the host application owns its authenticated
-WebSocket endpoint and rendering behavior.
+The initial release focuses on the portable actor model and its SQLite runtime.
+It does not include the Ruby gem's Rails engine, administration UI, retention
+tooling, PostgreSQL/MySQL adapters, or Turbo rendering. Browser delivery is
+transport-only: the host application owns its authenticated WebSocket endpoint
+and rendering behavior.
 
 ## Installation
 
@@ -27,10 +75,10 @@ WebSocket endpoint and rendering behavior.
 pnpm add solid-objects
 ```
 
-## Define an actor
+## Write an ordinary TypeScript class
 
-An actor is an ordinary class. Public fields are persisted state, public
-methods are messages, and public getters are read-only queries.
+There is no actor-definition DSL. Public fields are persisted state, public
+methods are durable operations, and public getters are read-only queries.
 
 ```typescript
 import { Actor } from "solid-objects"
@@ -55,15 +103,14 @@ export class Counter extends Actor {
 }
 ```
 
-There is no actor-definition wrapper, state interface, decorator, or message
-union to maintain. Native `#private` fields remain private and are not
-persisted. Persisted fields, message arguments, results, and observable values
-must be JSON-compatible.
+There is no wrapper, state interface, decorator, or operation union to maintain.
+Native `#private` fields remain private and are not persisted. Persisted fields,
+operation arguments, results, and observable values must be JSON-compatible.
 
 `observables()` is deliberately explicit. State fields and getters do not
 become realtime data automatically.
 
-## Configure the runtime
+## Point it at SQLite
 
 ```typescript
 import { configureSolidObjects } from "solid-objects"
@@ -89,7 +136,7 @@ await runtime.run(shutdown.signal)
 Authorization for messages, queries, and destruction is deny-by-default. Actor
 IDs identify actors; they are not capabilities.
 
-## Invoke actors
+## Call it like a local object
 
 `await` is the committed call boundary. JavaScript does not need separate
 public synchronous and asynchronous invocation APIs.
@@ -101,8 +148,9 @@ const count = await counter.increment({ amount: 2 })
 const doubled = await counter.doubled
 ```
 
-The call is durably enqueued, waits its turn, and resolves with the committed,
-deeply frozen result. A timeout never cancels the durable message.
+The method call is still a durable database operation: it enters the actor's
+mailbox, waits its turn, and resolves with the committed, deeply frozen result.
+A timeout never cancels the durable message.
 
 Use `with()` when invocation behavior needs configuration:
 
@@ -119,9 +167,9 @@ await counter
 Invocation options stay separate from actor arguments, so an actor may safely
 use argument names such as `timeoutMilliseconds` or `authorizationContext`.
 
-## Enqueue without waiting
+## Send background work without a queue service
 
-Use the typed `send` dispatcher for durable fire-and-forget work:
+Use the typed `send` dispatcher when the caller should not wait for execution:
 
 ```typescript
 const message = await counter.send.increment({ amount: 2 })
@@ -140,7 +188,8 @@ await message.wait({ timeoutMilliseconds: 2_000 })
 ```
 
 Actor code must not call another reference directly or through `send`. Use
-`sendTo()` so outbound delivery commits atomically with the source actor turn:
+`sendTo()` so outbound delivery commits atomically with the source actor turn—no
+separate broker or hand-built transactional outbox required:
 
 ```typescript
 class Account extends Actor {
@@ -156,7 +205,7 @@ class Account extends Actor {
 
 If `disable` fails or is rejected, the staged audit message is discarded.
 
-## Reminders
+## Use database-backed timers
 
 Reminders are actor-owned durable alarms. The operation name is also the
 reminder identity, so scheduling it again moves the existing reminder.
@@ -179,10 +228,10 @@ class Trial extends Actor {
 
 The non-null assertion is only needed by projects using
 `noUncheckedIndexedAccess`; runtime registration still rejects unknown reminder
-messages before persistence. Recurring reminders accept `everyMilliseconds`
+operations before persistence. Recurring reminders accept `everyMilliseconds`
 and a `missed` policy of `"latest"` or `"all"`.
 
-## Effects
+## Keep external I/O outside the transaction
 
 Effects run outside the actor turn through a transactional outbox. Handlers
 must deduplicate external work using `context.id` because delivery is at least
@@ -234,7 +283,7 @@ runtime.registerCommitAction("completeAttempt", async ({ attemptId }, context) =
 Do not perform network I/O in a commit action. Use an effect when work cannot
 share the Solid Objects database transaction.
 
-## Realtime observables and browsers
+## Add realtime updates without exposing all state
 
 Configure `broadcast` to forward explicit observable changes to the transport
 used by the application:
