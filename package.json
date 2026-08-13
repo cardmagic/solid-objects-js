@@ -13,6 +13,9 @@
     "node": ">=24.15.0"
   },
   "packageManager": "pnpm@11.11.0",
+  "bin": {
+    "solid-objects": "./dist/executable.js"
+  },
   "files": [
     "dist",
     "README.md",

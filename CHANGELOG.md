@@ -19,6 +19,8 @@
 - Add supervised role replacement through original factories with capped
   restart backoff.
 - Add authorized process inspection and atomic stale-owner cleanup.
+- Add a JSON CLI for runtime startup, diagnostics, administration, and explicit
+  retention pruning.
 
 ## 0.1.0 - 2026-08-13
 

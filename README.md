@@ -417,6 +417,44 @@ current `stale` calculation based on the configured heartbeat threshold.
 their actor activations, returns claimed messages to ready membership, and
 releases their effect, reminder, and broadcast claims.
 
+## Operate it from the command line
+
+Export the configured runtime from an application module:
+
+```javascript
+import { configureSolidObjects } from "solid-objects"
+import { sqlite } from "solid-objects/database/sqlite"
+import { Counter } from "./dist/counter.js"
+
+const runtime = configureSolidObjects({
+  database: sqlite({ path: "storage/solid-objects.sqlite3" }),
+  authorizeAdministration: ({ authorizationContext }) => authorizationContext?.source === "cli",
+})
+
+runtime.register(Counter)
+export default runtime
+```
+
+The CLI loads `solid-objects.config.js` by default; use `--config` for another
+compiled module:
+
+```bash
+pnpm exec solid-objects start
+pnpm exec solid-objects doctor
+pnpm exec solid-objects status
+pnpm exec solid-objects cleanup
+pnpm exec solid-objects dead-letters
+pnpm exec solid-objects retry-dead-letter DEAD_LETTER_ID
+pnpm exec solid-objects reminders --status paused
+pnpm exec solid-objects resume-reminder REMINDER_ID
+pnpm exec solid-objects prune messages
+pnpm exec solid-objects prune messages --execute
+```
+
+Pruning is preview-only unless `--execute` is present. Administrative commands
+use `{ source: "cli" }` as their authorization context and emit JSON for shell
+automation.
+
 ## Test durable workflows without sleeps
 
 `runtime.testing.drain()` runs configured roles in deterministic passes until
@@ -529,8 +567,8 @@ IDs and observable values are not authorization.
 
 Version 0.1 supports Node.js 24 and SQLite through the built-in `node:sqlite`
 module. PostgreSQL and MySQL adapters, HTTP/WebSocket server adapters,
-administrative command-line tooling, and Ruby schema interoperability are not
-part of the 0.1 compatibility contract.
+and Ruby schema interoperability are not part of the 0.1 compatibility
+contract.
 
 See [`docs/architecture.md`](docs/architecture.md),
 [`docs/correctness.md`](docs/correctness.md), and

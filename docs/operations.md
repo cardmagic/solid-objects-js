@@ -65,6 +65,14 @@ The doctor reports whether each authorization callback was explicitly
 configured without calling it. Do not expose the report through an HTTP or CLI
 surface without applying the host application's own administration policy.
 
+The packaged `solid-objects` executable loads a configured runtime exported as
+default or `runtime` from `solid-objects.config.js`, or from `--config PATH`.
+It provides `start`, `doctor`, `status`, `cleanup`, `dead-letters`,
+`retry-dead-letter`, `reminders`, `resume-reminder`, and `prune`. Output is JSON,
+and destructive retention requires `prune TARGET --execute`; the unqualified
+command is a preview. Administrative commands consistently pass
+`{ source: "cli" }` through the ordinary policy boundary.
+
 Tests can use `runtime.testing.drain()` to process reminders, actor turns,
 effects, actor callbacks, and broadcasts in deterministic passes. The helper
 stops every temporary runner even when a handler raises. `reset()` must only run

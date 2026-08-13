@@ -10,6 +10,7 @@ export {
   type ReminderOptions,
 } from "./actor.js"
 export { configureSolidObjects, createSolidObjects, SolidObjectsRuntime } from "./runtime.js"
+export { runCli, type CliRunOptions } from "./cli.js"
 export { Worker } from "./worker.js"
 export { EffectWorker } from "./effect-worker.js"
 export { ReminderScheduler } from "./reminder-scheduler.js"
