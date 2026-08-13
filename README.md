@@ -33,10 +33,6 @@ Solid Objects keeps that coordination in one place: the relational database.
   invalidations commit together.
 - Renewable leases and fencing prevent stale workers from committing.
 
-The result is a Durable Objects-style primitive that runs inside a conventional
-Node application and can be inspected, backed up, and operated with familiar
-database tooling.
-
 ## What you stop building
 
 For workloads organized around durable identities—accounts, carts, game rooms,
@@ -48,7 +44,7 @@ replaces a recurring layer of infrastructure and application code:
 - retry bookkeeping and poison-message handling;
 - timer tables and scheduler claim logic;
 - transactional outboxes for follow-up work; and
-- a separate realtime invalidation pipeline.
+- durable invalidation bookkeeping.
 
 This is not an in-memory actor library. A call is complete only after its state
 and durable consequences commit to the database.
@@ -63,12 +59,6 @@ TypeScript. The runtimes do not share a database schema or wire protocol.
 - TypeScript 5.9 or newer for TypeScript applications
 - SQLite for the 0.1 release
 
-The initial release focuses on the portable actor model and its SQLite runtime.
-It does not include the Ruby gem's Rails engine, administration UI, retention
-tooling, PostgreSQL/MySQL adapters, or Turbo rendering. Browser delivery is
-transport-only: the host application owns its authenticated WebSocket endpoint
-and rendering behavior.
-
 ## Installation
 
 ```bash
@@ -76,9 +66,6 @@ pnpm add solid-objects
 ```
 
 ## Write an ordinary TypeScript class
-
-There is no actor-definition DSL. Public fields are persisted state, public
-methods are durable operations, and public getters are read-only queries.
 
 ```typescript
 import { Actor } from "solid-objects"
@@ -103,8 +90,8 @@ export class Counter extends Actor {
 }
 ```
 
-There is no wrapper, state interface, decorator, or operation union to maintain.
-Native `#private` fields remain private and are not persisted. Persisted fields,
+No wrapper, state interface, decorator, or operation union is required. Native
+`#private` fields remain private and are not persisted. Persisted fields,
 operation arguments, results, and observable values must be JSON-compatible.
 
 `observables()` is deliberately explicit. State fields and getters do not
@@ -138,8 +125,7 @@ IDs identify actors; they are not capabilities.
 
 ## Call it like a local object
 
-`await` is the committed call boundary. JavaScript does not need separate
-public synchronous and asynchronous invocation APIs.
+`await` is the committed call boundary.
 
 ```typescript
 const counter = Counter.ref("primary")
@@ -292,7 +278,6 @@ used by the application:
 const runtime = configureSolidObjects({
   database,
   broadcast: async (event) => websocketHub.publish(event),
-  // authorization policies
 })
 ```
 
@@ -312,8 +297,8 @@ client.connect()
 ```
 
 The application owns WebSocket authentication and must authorize every
-subscription server-side. Signed IDs and browser-visible values are not
-authorization.
+subscription server-side. Browser-visible actor IDs and observable values are
+not authorization.
 
 ## Delivery contract
 
