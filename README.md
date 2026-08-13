@@ -96,6 +96,44 @@ operation arguments, results, and observable values must be JSON-compatible.
 `observables()` is deliberately explicit. State fields and getters do not
 become realtime data automatically.
 
+## Evolve state with explicit migrations
+
+Increase `stateVersion` and retain every adjacent migration when persisted
+state changes shape:
+
+```typescript
+import { Actor, type JsonObject } from "solid-objects"
+
+export class ShoppingCart extends Actor {
+  static override readonly actorType = "ShoppingCart"
+  static override readonly stateVersion = 2
+  static override readonly migrations = [
+    {
+      from: 1,
+      to: 2,
+      migrate: (state: JsonObject): JsonObject => ({
+        ...state,
+        currency: "USD",
+      }),
+    },
+  ]
+
+  items: string[] = []
+  currency = "USD"
+}
+```
+
+Migrations run in order when an actor is next hydrated. They must be
+deterministic, synchronous, JSON-compatible transformations and cannot write
+through a guarded application database. New field defaults are filled from a
+fresh actor after migration. Do not run application processes with different
+`stateVersion` values at the same time: once new code persists a newer state,
+old code rejects it.
+
+See [`docs/state-and-lifecycle.md`](docs/state-and-lifecycle.md) for field
+discovery, rolling deployment, activation hooks, snapshots, rejection, and
+destruction.
+
 ## Point it at SQLite, PostgreSQL, or MySQL
 
 SQLite needs no database driver package:
@@ -274,12 +312,67 @@ caller's deduplication key and is never reused as request identity. During an
 operation, `this.currentMessage` exposes both values along with `id`,
 `enqueuedAt`, `actorType`, `actorId`, `sequence`, and `attempt`.
 
+Use `this.reject()` for an expected domain refusal that should roll back the
+turn without retrying or blocking later mailbox work:
+
+```typescript
+class Reservation extends Actor {
+  static override readonly actorType = "Reservation"
+
+  available = 0
+
+  reserve({ quantity }: { quantity: number }): void {
+    if (quantity > this.available) {
+      this.reject("insufficient_inventory", {
+        message: "Not enough inventory is available",
+        details: { available: this.available },
+      })
+    }
+    this.available -= quantity
+  }
+}
+```
+
+Callers receive `Rejected` with `code`, frozen `details`, and the durable
+`messageId`. Unexpected exceptions are retried and eventually surface as
+`MessageFailed`.
+
 Do not make a committed actor call or wait on a message from inside
 `database.transaction(...)` on the Solid Objects database. The runtime raises
 `SyncInsideTransaction` before enqueue or waiting, avoiding a self-deadlock on
 the transaction's checked-out connection. Send background work outside the
 transaction, or let the actor coordinate same-database changes through a commit
 action.
+
+## Read snapshots and destroy actors
+
+An authorized snapshot reads all persisted fields and getters from one
+committed state image without entering the mailbox:
+
+```typescript
+const snapshot = await Counter.ref("primary").snapshot({
+  authorizationContext: currentUser,
+})
+
+console.log(snapshot.count, snapshot.doubled)
+```
+
+Snapshots are deeply frozen. Getters must not mutate state or stage durable
+work. Because snapshots do not enter the mailbox, use an ordinary query when
+the read must be ordered behind earlier messages.
+
+Destroy an actor through its separate deny-by-default policy:
+
+```typescript
+const destroyed = await Counter.ref("primary").destroy({
+  authorizationContext: currentUser,
+})
+```
+
+Destruction is idempotent and cascades through the current incarnation's
+state, mailbox history, effects, reminders, broadcasts, and dead letters. A
+later message creates a new incarnation, and an authorized waiter on the old
+one receives `ActorDestroyed`.
 
 ## Send background work without a queue service
 
@@ -562,6 +655,13 @@ its hostname, host process ID, Node version, and Solid Objects version.
 their actor activations, returns claimed messages to ready membership, and
 releases their effect, reminder, and broadcast claims.
 
+For application-owned long-running roles, call `runtime.registerComponent()`
+before `run()`. Each factory-created component implements `run(signal)`,
+`requestShutdown()`, `stopped()`, and `stop()`. The runtime supervises and
+replaces failed components just like built-in roles. See
+[`docs/api.md`](docs/api.md#runtime-extensions-and-manual-workers) for the full
+contract.
+
 ## Operate it from the command line
 
 Export the configured runtime from an application module:
@@ -599,6 +699,12 @@ pnpm exec solid-objects prune messages --execute
 Pruning is preview-only unless `--execute` is present. Administrative commands
 use `{ source: "cli" }` as their authorization context and emit JSON for shell
 automation.
+
+Every command accepts `--config PATH` or `-c PATH`. `doctor` accepts
+`--skip-round-trip`; `reminders` accepts `--actor-type TYPE` and `--status
+scheduled|paused|completed`; `resume-reminder` accepts an ISO `--run-at DATE`;
+and `prune` accepts `--execute`. Run `solid-objects --help` for the command
+summary.
 
 ## Test durable workflows without sleeps
 
@@ -824,11 +930,26 @@ PostgreSQL 14 or newer through `pg` 8.23, and MySQL 8.0 or newer through
 `mysql2` 3.23 with InnoDB. HTTP/WebSocket server adapters and Ruby schema
 interoperability are not part of the compatibility contract.
 
-See [`docs/architecture.md`](docs/architecture.md),
-[`docs/correctness.md`](docs/correctness.md), and
-[`docs/authorization.md`](docs/authorization.md) for the runtime contract. The
-[`Ruby parity ledger`](docs/parity.md) tracks native equivalents and remaining
-gaps against the current gem.
+## Documentation
+
+- [`docs/state-and-lifecycle.md`](docs/state-and-lifecycle.md) covers actor
+  discovery, migrations, lifecycle hooks, rejection, snapshots, and
+  destruction.
+- [`docs/configuration.md`](docs/configuration.md) lists every runtime and
+  adapter option with its default and constraint.
+- [`docs/errors-and-recovery.md`](docs/errors-and-recovery.md) maps public
+  errors to retry and recovery behavior.
+- [`docs/api.md`](docs/api.md) indexes every supported public export and runtime
+  manager.
+- [`docs/operations.md`](docs/operations.md),
+  [`docs/architecture.md`](docs/architecture.md), and
+  [`docs/correctness.md`](docs/correctness.md) define the operating and delivery
+  contracts.
+- [`docs/authorization.md`](docs/authorization.md) and
+  [`docs/browser-protocol.md`](docs/browser-protocol.md) cover security and the
+  transport-neutral realtime protocol.
+- The [`Ruby parity ledger`](docs/parity.md) tracks native equivalents and
+  explicit scope boundaries against Ruby Solid Objects 0.12.0.
 
 ## License
 

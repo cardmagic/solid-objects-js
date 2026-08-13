@@ -18,6 +18,7 @@
   },
   "files": [
     "dist",
+    "docs",
     "README.md",
     "CHANGELOG.md",
     "MIT-LICENSE"
@@ -50,7 +51,8 @@
   },
   "scripts": {
     "build": "pnpm run clean && tsc -p tsconfig.build.json",
-    "check": "pnpm run check:parameters && tsc -p tsconfig.json --noEmit",
+    "check": "pnpm run check:parameters && pnpm run check:documentation && tsc -p tsconfig.json --noEmit",
+    "check:documentation": "node scripts/check-documentation.mjs",
     "check:parameters": "node scripts/check-parameter-style.mjs",
     "clean": "node scripts/clean.mjs",
     "format": "prettier --write .",

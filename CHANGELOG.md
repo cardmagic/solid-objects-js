@@ -4,6 +4,8 @@
 
 ## 0.12.0 - 2026-08-13
 
+- Document the complete public API, runtime and adapter configuration,
+  state-evolution lifecycle, and error-recovery contracts.
 - Complete the Ruby 0.12.0 spiritual-parity pass with Node-native runtime,
   administration, realtime, browser, and multi-adapter equivalents.
 - Return claimed messages to ready membership without consuming an attempt when
