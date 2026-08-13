@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, expectTypeOf, it } from "vitest"
 import { Actor } from "../src/actor.js"
-import { configureSolidObjects, type SolidObjectsRuntime } from "../src/runtime.js"
+import { configure, createRuntime, type SolidObjectsRuntime } from "../src/runtime.js"
 import type { SolidObjectsConfiguration } from "../src/configuration.js"
 import { sqlite } from "../src/database/sqlite.js"
 import { UnknownOperation } from "../src/errors.js"
@@ -80,6 +80,17 @@ afterEach(async () => {
 })
 
 describe("typed actor references", () => {
+  it("keeps createRuntime isolated while resolving actor references inside its turns", async () => {
+    runtime = createRuntime(configuredSettings())
+    runtime.register(Account)
+    runtime.register(AuditLog)
+    await runtime.install()
+
+    await runtime.ref(Account, "account").disable({ auditLogId: "audit" })
+
+    await expect(runtime.ref(AuditLog, "audit").events).resolves.toEqual(["account_disabled"])
+  })
+
   it("invokes messages and reads fields and getters as committed queries", async () => {
     runtime = configuredRuntime()
     await runtime.install()
@@ -258,7 +269,13 @@ describe("actor reminders", () => {
 function configuredRuntime(
   overrides: Partial<SolidObjectsConfiguration> = {},
 ): SolidObjectsRuntime {
-  return configureSolidObjects({
+  return configure(configuredSettings(overrides))
+}
+
+function configuredSettings(
+  overrides: Partial<SolidObjectsConfiguration> = {},
+): SolidObjectsConfiguration {
+  return {
     database: sqlite({ path: ":memory:" }),
     authorizeMessage: () => true,
     authorizeQuery: () => true,
@@ -267,5 +284,5 @@ function configuredRuntime(
     syncPollingIntervalMilliseconds: 1,
     maxAttempts: 2,
     ...overrides,
-  })
+  }
 }

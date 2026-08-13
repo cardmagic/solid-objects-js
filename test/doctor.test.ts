@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it } from "vitest"
 import { Actor } from "../src/actor.js"
 import { sqlite } from "../src/database/sqlite.js"
-import { configureSolidObjects, type SolidObjectsRuntime } from "../src/runtime.js"
+import { configure, type SolidObjectsRuntime } from "../src/runtime.js"
 
 let runtime: SolidObjectsRuntime | undefined
 
@@ -41,7 +41,7 @@ describe("runtime doctor", () => {
   })
 
   it("warns about authorization policies that were not explicitly configured", async () => {
-    runtime = configureSolidObjects({
+    runtime = configure({
       database: sqlite({ path: ":memory:" }),
       authorizeAdministration: () => true,
     })
@@ -104,7 +104,7 @@ function check(report: Awaited<ReturnType<SolidObjectsRuntime["doctor"]["run"]>>
 }
 
 function configuredRuntime(): SolidObjectsRuntime {
-  return configureSolidObjects({
+  return configure({
     database: sqlite({ path: ":memory:" }),
     authorizeMessage: () => true,
     authorizeQuery: () => true,

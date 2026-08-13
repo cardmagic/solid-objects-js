@@ -3,7 +3,7 @@ import { Actor } from "../src/actor.js"
 import type { InstrumentationEvent, SolidObjectsConfiguration } from "../src/configuration.js"
 import { sqlite } from "../src/database/sqlite.js"
 import { Unauthorized } from "../src/errors.js"
-import { configureSolidObjects, type SolidObjectsRuntime } from "../src/runtime.js"
+import { configure, type SolidObjectsRuntime } from "../src/runtime.js"
 
 class ReminderActor extends Actor {
   static override readonly actorType = "ReminderAdministrationActor"
@@ -28,7 +28,7 @@ afterEach(async () => {
 
 describe("reminder administration", () => {
   it("denies inspection and resume before revealing reminder existence", async () => {
-    runtime = configureSolidObjects({ database: sqlite({ path: ":memory:" }) })
+    runtime = configure({ database: sqlite({ path: ":memory:" }) })
     await runtime.install()
 
     await expect(runtime.reminders.all()).rejects.toBeInstanceOf(Unauthorized)
@@ -102,7 +102,7 @@ describe("reminder administration", () => {
 function configuredRuntime(
   overrides: Partial<SolidObjectsConfiguration> = {},
 ): SolidObjectsRuntime {
-  return configureSolidObjects({
+  return configure({
     database: sqlite({ path: ":memory:" }),
     authorizeMessage: () => true,
     authorizeQuery: () => true,

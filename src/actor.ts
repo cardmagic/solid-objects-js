@@ -1,4 +1,4 @@
-import { currentMessage } from "./context.js"
+import { currentMessage, currentRuntime } from "./context.js"
 import { getDefaultRuntime } from "./default-runtime.js"
 import type { StateMigration } from "./definition.js"
 import { Rejected, UnknownOperation } from "./errors.js"
@@ -89,7 +89,7 @@ export abstract class Actor {
     this: new (actorId?: string) => ActorType,
     actorId: ActorIdentifier,
   ): ActorReference<ActorType> {
-    return getDefaultRuntime().ref(this as ActorClass<ActorType>, actorId)
+    return (currentRuntime() ?? getDefaultRuntime()).ref(this as ActorClass<ActorType>, actorId)
   }
 
   readonly #actorId: string

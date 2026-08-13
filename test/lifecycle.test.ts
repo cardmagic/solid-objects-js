@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
 import { Actor } from "../src/actor.js"
 import type { SolidObjectsConfiguration } from "../src/configuration.js"
-import { configureSolidObjects, type SolidObjectsRuntime } from "../src/runtime.js"
+import { configure, type SolidObjectsRuntime } from "../src/runtime.js"
 import { sqlite } from "../src/database/sqlite.js"
 
 class LifecycleCounter extends Actor {
@@ -358,7 +358,7 @@ describe("runtime lifecycle", () => {
     const failed = await reference.send.failAfterMutation()
 
     expect(await worker.runOnce()).toBe(1)
-    await expect(failed.result()).rejects.toThrow("rollback")
+    await expect(failed.result()).rejects.toMatchObject({ details: { message: "rollback" } })
 
     const identity = await reference.send.readIdentity()
     expect(await worker.runOnce()).toBe(1)
@@ -440,7 +440,9 @@ describe("runtime lifecycle", () => {
     const activationFailure = await FailingLifecycleActor.ref("activate").send.work()
 
     expect(await runtime.worker().runUntilIdle()).toBe(1)
-    await expect(activationFailure.result()).rejects.toThrow("activation failed")
+    await expect(activationFailure.result()).rejects.toMatchObject({
+      details: { message: "activation failed" },
+    })
 
     FailingLifecycleActor.activationFailure = false
     expect(await FailingLifecycleActor.ref("deactivate").work()).toBe("done")
@@ -547,7 +549,7 @@ describe("runtime lifecycle", () => {
 function configuredRuntime(
   overrides: Partial<SolidObjectsConfiguration> = {},
 ): SolidObjectsRuntime {
-  return configureSolidObjects({
+  return configure({
     database: sqlite({ path: ":memory:" }),
     authorizeMessage: () => true,
     authorizeQuery: () => true,

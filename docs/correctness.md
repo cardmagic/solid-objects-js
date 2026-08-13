@@ -7,7 +7,11 @@
 - A stale activation may finish JavaScript but cannot commit.
 - Effects can execute more than once and must deduplicate by their stable id.
 - Destruction creates an incarnation boundary; old leases cannot address a
-  recreated actor.
+  recreated actor. A caller authorized before destruction receives
+  `ActorDestroyed`; an unknown or forged reference remains unauthorized.
+- Permanent operation failure raises `MessageFailed` with the durable message
+  ID and persisted error details instead of treating actor code text as the
+  public exception contract.
 - Observable outbox rows are claimed in actor revision order. Subscription
   sessions and browser clients reject duplicate or stale revisions within an
   incarnation, while a recreated actor starts a new revision sequence.

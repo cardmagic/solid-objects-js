@@ -27,10 +27,12 @@ import {
 } from "./definition.js"
 import {
   ActorCallCycle,
+  ActorDestroyed,
   DatabaseDeadlineExceeded,
   InvalidPayloadBroadcast,
   InvalidActor,
   LostActivation,
+  MessageFailed,
   NonRetryableError,
   QueryMutatedState,
   Rejected,
@@ -413,13 +415,12 @@ export class SolidObjectsRuntime {
       }
       const { message, status } = snapshot
       if (!message || message.request_id !== messageReference.requestId) {
-        throw new Error("message reference no longer identifies this invocation")
+        throw actorDestroyedWhileWaiting()
       }
       if (message.rejection !== null) throw rejectionFromMessage(message)
       if (status === "completed")
         return readonlyCopy(parseResult(message.result)) as DeepReadonly<Result>
-      if (status === "dead")
-        throw new Error(JSON.parse(message.error ?? "{}")?.message ?? "actor message failed")
+      if (status === "dead") throw messageFailure(message)
       const processed = await this.callerWorker.runOnce({ activationRetention: "release" })
       const remaining = options.deadline - performance.now()
       if (processed === 0 && remaining > 0)
@@ -450,14 +451,14 @@ export class SolidObjectsRuntime {
     }
     const { message: finalMessage, status: finalStatus } = finalSnapshot
     if (!finalMessage || finalMessage.request_id !== messageReference.requestId) {
-      throw new Error("message reference no longer identifies this invocation")
+      throw actorDestroyedWhileWaiting()
     }
     if (finalMessage.rejection !== null) throw rejectionFromMessage(finalMessage)
     if (finalStatus === "completed") {
       return readonlyCopy(parseResult(finalMessage.result)) as DeepReadonly<Result>
     }
     if (finalStatus === "dead") {
-      throw new Error(JSON.parse(finalMessage.error ?? "{}")?.message ?? "actor message failed")
+      throw messageFailure(finalMessage)
     }
     throw await this.syncTimeout(messageReference, options.timeout)
   }
@@ -495,7 +496,7 @@ export class SolidObjectsRuntime {
       })
     }
     if (!diagnostics || diagnostics.message.request_id !== messageReference.requestId) {
-      throw new Error("message reference no longer identifies this invocation")
+      throw actorDestroyedWhileWaiting()
     }
     const { instance, message, process, blocker } = diagnostics
     const activationLive =
@@ -630,7 +631,7 @@ export class SolidObjectsRuntime {
     )
     if (message.rejection !== null) throw rejectionFromMessage(message)
     if ((await this.repository.messageStatus(message.id)) === "dead") {
-      throw new Error(JSON.parse(message.error ?? "{}")?.message ?? "actor message failed")
+      throw messageFailure(message)
     }
     if (message.result === null) return undefined
     return readonlyCopy(parseResult(message.result)) as DeepReadonly<Result>
@@ -1049,12 +1050,15 @@ export class SolidObjectsRuntime {
       const before = stableJson(stateBefore)
       const query = this.isQuery(definition, turn.message.operation)
       const argumentsValue = jsonObject(JSON.parse(turn.message.arguments))
-      const rawResult = await withActorContext({ actor, message: messageContext }, async () => {
-        if (definition.stateKeys.includes(turn.message.operation)) {
-          return (actor as unknown as Record<string, unknown>)[turn.message.operation]
-        }
-        return actor.invoke(turn.message.operation, argumentsValue)
-      })
+      const rawResult = await withActorContext(
+        { actor, runtime: this, message: messageContext },
+        async () => {
+          if (definition.stateKeys.includes(turn.message.operation)) {
+            return (actor as unknown as Record<string, unknown>)[turn.message.operation]
+          }
+          return actor.invoke(turn.message.operation, argumentsValue)
+        },
+      )
       if (query && stableJson(actorState(actor, definition.stateKeys)) !== before) {
         throw new QueryMutatedState(`query ${turn.message.operation} mutated actor state`)
       }
@@ -1611,7 +1615,7 @@ export class SolidObjectsRuntime {
       if (!handler) {
         throw new UnknownPayloadBroadcast(`unknown payload broadcast ${options.name}`)
       }
-      const rawPayload = await withActorProjection(actor, () =>
+      const rawPayload = await withActorProjection({ actor, runtime: this }, () =>
         handler(actor, options.authorizationContext),
       )
       if (
@@ -1733,14 +1737,12 @@ export class SolidObjectsRuntime {
   }
 }
 
-export function createSolidObjects(configuration: SolidObjectsConfiguration): SolidObjectsRuntime {
+export function createRuntime(configuration: SolidObjectsConfiguration): SolidObjectsRuntime {
   return new SolidObjectsRuntime(configuration)
 }
 
-export function configureSolidObjects(
-  configuration: SolidObjectsConfiguration,
-): SolidObjectsRuntime {
-  const runtime = createSolidObjects(configuration)
+export function configure(configuration: SolidObjectsConfiguration): SolidObjectsRuntime {
+  const runtime = createRuntime(configuration)
   setDefaultRuntime(runtime)
   return runtime
 }
@@ -1767,6 +1769,15 @@ function rejectionFromMessage(message: ClaimedTurn["message"]): Rejected {
   const error = new Rejected(rejection)
   error.messageId = message.id
   return error
+}
+
+function messageFailure(message: MessageRow): MessageFailed {
+  const details = jsonObject(JSON.parse(message.error ?? "{}"))
+  return new MessageFailed({ messageId: message.id, details })
+}
+
+function actorDestroyedWhileWaiting(): ActorDestroyed {
+  return new ActorDestroyed("actor was destroyed while waiting for its result")
 }
 
 function messageInstrumentation(message: MessageRow): JsonObject {

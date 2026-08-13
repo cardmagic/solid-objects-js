@@ -3,7 +3,7 @@ import { Actor, type PayloadBroadcasts } from "../src/actor.js"
 import type { SolidObjectsConfiguration } from "../src/configuration.js"
 import { sqlite } from "../src/database/sqlite.js"
 import { Unauthorized } from "../src/errors.js"
-import { configureSolidObjects, type SolidObjectsRuntime } from "../src/runtime.js"
+import { configure, type SolidObjectsRuntime } from "../src/runtime.js"
 import type {
   InvalidationEnvelope,
   PayloadEnvelope,
@@ -484,7 +484,7 @@ describe("realtime subscriptions", () => {
 function configuredRuntime(
   overrides: Partial<SolidObjectsConfiguration> = {},
 ): SolidObjectsRuntime {
-  runtime = configureSolidObjects({
+  runtime = configure({
     database: sqlite({ path: ":memory:" }),
     authorizeMessage: () => true,
     authorizeQuery: () => true,

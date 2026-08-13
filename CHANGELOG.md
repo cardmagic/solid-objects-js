@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Expose concise `configure()` and isolated `createRuntime()` entry points;
+  isolated actor turns resolve references from their executing runtime.
+- Raise structured `MessageFailed` errors for terminal operations and
+  `ActorDestroyed` when an authorized incarnation disappears during a wait.
 - Add deny-by-default dead-letter inspection and idempotent durable retry.
 - Add sequential schema migrations and upgrade version-one SQLite databases.
 - Add bounded, authorization-gated reconciliation reads for actor lifecycle

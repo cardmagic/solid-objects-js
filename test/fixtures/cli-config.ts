@@ -1,7 +1,7 @@
 import { sqlite } from "../../src/database/sqlite.js"
-import { configureSolidObjects } from "../../src/runtime.js"
+import { configure } from "../../src/runtime.js"
 
-export default configureSolidObjects({
+export default configure({
   database: sqlite({ path: ":memory:" }),
   authorizeMessage: () => true,
   authorizeQuery: () => true,

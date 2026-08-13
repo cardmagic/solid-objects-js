@@ -7,7 +7,7 @@ import {
   postgresqlWakeUp,
   type PostgreSQLDatabase,
 } from "../src/database/postgresql.js"
-import { configureSolidObjects, type SolidObjectsRuntime } from "../src/runtime.js"
+import { configure, type SolidObjectsRuntime } from "../src/runtime.js"
 import type { RealtimeEnvelope } from "../src/browser/index.js"
 import { SyncTimeout } from "../src/errors.js"
 import { DatabaseDeadlineExceeded } from "../src/errors.js"
@@ -222,7 +222,7 @@ describePostgreSQL("PostgreSQL adapter", () => {
   it("installs and allocates ordered sequences under concurrent enqueue", async () => {
     if (!connectionString) throw new Error("PostgreSQL connection string is required")
     database = postgresql({ connectionString, maximumConnections: 10 })
-    runtime = configureSolidObjects({
+    runtime = configure({
       database,
       tableNamePrefix: "postgresql_test_",
       authorizeMessage: () => true,
@@ -279,7 +279,7 @@ describePostgreSQL("PostgreSQL adapter", () => {
   it("runs outboxes, reconciliation, and retention on PostgreSQL", async () => {
     if (!connectionString) throw new Error("PostgreSQL connection string is required")
     database = postgresql({ connectionString, maximumConnections: 10 })
-    runtime = configureSolidObjects({
+    runtime = configure({
       database,
       tableNamePrefix: "postgresql_test_",
       authorizeMessage: () => true,

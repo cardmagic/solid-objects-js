@@ -7,7 +7,7 @@ import { Actor } from "../src/actor.js"
 import type { SolidObjectsConfiguration } from "../src/configuration.js"
 import { sqlite } from "../src/database/sqlite.js"
 import { Unauthorized } from "../src/errors.js"
-import { configureSolidObjects, type SolidObjectsRuntime } from "../src/runtime.js"
+import { configure, type SolidObjectsRuntime } from "../src/runtime.js"
 
 class PoisonActor extends Actor {
   static override readonly actorType = "PoisonActor"
@@ -36,7 +36,7 @@ afterEach(async () => {
 
 describe("dead-letter administration", () => {
   it("denies inspection and retry before revealing whether a record exists", async () => {
-    runtime = configureSolidObjects({ database: sqlite({ path: ":memory:" }) })
+    runtime = configure({ database: sqlite({ path: ":memory:" }) })
     await runtime.install()
 
     await expect(runtime.deadLetters.all()).rejects.toBeInstanceOf(Unauthorized)
@@ -166,7 +166,7 @@ async function createDeadLetter(currentRuntime: SolidObjectsRuntime) {
 function configuredRuntime(
   overrides: Partial<SolidObjectsConfiguration> = {},
 ): SolidObjectsRuntime {
-  return configureSolidObjects({
+  return configure({
     database: sqlite({ path: ":memory:" }),
     authorizeMessage: () => true,
     authorizeQuery: () => true,

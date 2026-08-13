@@ -101,11 +101,11 @@ become realtime data automatically.
 SQLite needs no database driver package:
 
 ```typescript
-import { configureSolidObjects } from "solid-objects"
+import { configure } from "solid-objects"
 import { sqlite } from "solid-objects/database/sqlite"
 import { Counter } from "./counter.js"
 
-const runtime = configureSolidObjects({
+const runtime = configure({
   database: sqlite({ path: "storage/solid-objects.sqlite3" }),
   authorizeMessage: ({ authorizationContext }) => authorizationContext !== undefined,
   authorizeQuery: ({ authorizationContext }) => authorizationContext !== undefined,
@@ -124,6 +124,11 @@ process.once("SIGINT", () => shutdown.abort())
 await runtime.run(shutdown.signal)
 ```
 
+`configure()` installs this runtime as the default used by `Actor.ref()`. Use
+`createRuntime()` when an application needs an isolated runtime and address its
+actors through `runtime.ref(ActorClass, actorId)`. Actor code executing in that
+runtime resolves its own actor references without changing the global default.
+
 For PostgreSQL, install the optional driver and replace the database value:
 
 ```bash
@@ -141,7 +146,7 @@ const database = postgresql({
   maximumConnections: 10,
 })
 
-const runtime = configureSolidObjects({
+const runtime = configure({
   database,
   wakeUp: database.wakeUp(),
 })
@@ -208,7 +213,7 @@ pnpm add redis
 ```typescript
 import { redisWakeUp } from "solid-objects/wake-up/redis"
 
-const runtime = configureSolidObjects({
+const runtime = configure({
   database,
   wakeUp: redisWakeUp({ url: process.env.REDIS_URL ?? "redis://127.0.0.1:6379" }),
 })
@@ -419,6 +424,12 @@ database client.
 
 ## Inspect and retry terminal failures
 
+A committed invocation that exhausts its attempts raises `MessageFailed`.
+The exception carries the durable `messageId` and the persisted error record in
+`details`, so callers can correlate the failure without parsing its message.
+If an already-authorized actor is destroyed while a caller is waiting,
+`ActorDestroyed` is raised instead.
+
 Messages that exhaust their attempts remain available as dead letters. Access
 is deny-by-default and goes through the administration policy:
 
@@ -468,7 +479,7 @@ Message history defaults to 30 days, stopped process history to 7 days, and
 actor instances never expire unless their actor type opts in:
 
 ```typescript
-const runtime = configureSolidObjects({
+const runtime = configure({
   database,
   messageRetentionMilliseconds: 30 * 24 * 60 * 60 * 1_000,
   messageRetentionByActorType: {
@@ -532,11 +543,11 @@ releases their effect, reminder, and broadcast claims.
 Export the configured runtime from an application module:
 
 ```javascript
-import { configureSolidObjects } from "solid-objects"
+import { configure } from "solid-objects"
 import { sqlite } from "solid-objects/database/sqlite"
 import { Counter } from "./dist/counter.js"
 
-const runtime = configureSolidObjects({
+const runtime = configure({
   database: sqlite({ path: "storage/solid-objects.sqlite3" }),
   authorizeAdministration: ({ authorizationContext }) => authorizationContext?.source === "cli",
 })
@@ -589,7 +600,7 @@ Provide a synchronous instrumentation sink and forward events to the
 observability system already used by the application:
 
 ```typescript
-const runtime = configureSolidObjects({
+const runtime = configure({
   database,
   instrumentation: (event) => diagnosticsChannel.publish(event),
 })

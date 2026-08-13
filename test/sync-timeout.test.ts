@@ -3,7 +3,7 @@ import { Actor } from "../src/actor.js"
 import type { InstrumentationEvent } from "../src/configuration.js"
 import { sqlite } from "../src/database/sqlite.js"
 import { SyncEnqueueTimeout, SyncTimeout } from "../src/errors.js"
-import { configureSolidObjects, type SolidObjectsRuntime } from "../src/runtime.js"
+import { configure, type SolidObjectsRuntime } from "../src/runtime.js"
 
 class TimeoutActor extends Actor {
   static override readonly actorType = "TimeoutActor"
@@ -152,7 +152,7 @@ describe("synchronous timeout diagnostics", () => {
 function configuredRuntime(
   overrides: { instrumentation?: (event: InstrumentationEvent) => void } = {},
 ): SolidObjectsRuntime {
-  const configured = configureSolidObjects({
+  const configured = configure({
     database: sqlite({ path: ":memory:" }),
     authorizeMessage: () => true,
     authorizeQuery: () => true,

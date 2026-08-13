@@ -1,15 +1,18 @@
 import { AsyncLocalStorage } from "node:async_hooks"
 import type { Actor } from "./actor.js"
+import type { SolidObjectsRuntime } from "./runtime.js"
 import type { MessageContext } from "./types.js"
 
 interface ExecutionContext {
   actor?: Actor
+  runtime?: SolidObjectsRuntime
   message?: MessageContext
   applicationWritesForbidden?: true
 }
 
 interface ActorExecutionContext {
   actor: Actor
+  runtime: SolidObjectsRuntime
   message: MessageContext
 }
 
@@ -17,6 +20,10 @@ const storage = new AsyncLocalStorage<ExecutionContext>()
 
 export function currentActor(): Actor | undefined {
   return storage.getStore()?.actor
+}
+
+export function currentRuntime(): SolidObjectsRuntime | undefined {
+  return storage.getStore()?.runtime
 }
 
 export function currentMessage(): MessageContext | undefined {
@@ -34,8 +41,11 @@ export function withActorContext<Result>(
   return storage.run({ ...context, applicationWritesForbidden: true }, callback)
 }
 
-export function withActorProjection<Result>(actor: Actor, callback: () => Result): Result {
-  return storage.run({ actor, applicationWritesForbidden: true }, callback)
+export function withActorProjection<Result>(
+  context: { actor: Actor; runtime: SolidObjectsRuntime },
+  callback: () => Result,
+): Result {
+  return storage.run({ ...context, applicationWritesForbidden: true }, callback)
 }
 
 export function withApplicationWritesForbidden<Result>(callback: () => Result): Result {

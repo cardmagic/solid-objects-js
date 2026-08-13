@@ -3,7 +3,7 @@ import { Actor, type PayloadBroadcasts } from "../src/actor.js"
 import { guardApplicationDatabase } from "../src/application-database.js"
 import { sqlite, type SQLiteDatabase } from "../src/database/sqlite.js"
 import type { Database } from "../src/database/types.js"
-import { configureSolidObjects, type SolidObjectsRuntime } from "../src/runtime.js"
+import { configure, type SolidObjectsRuntime } from "../src/runtime.js"
 
 let runtime: SolidObjectsRuntime | undefined
 let rawApplicationDatabase: SQLiteDatabase | undefined
@@ -47,18 +47,18 @@ afterEach(async () => {
 
 describe("guarded application database", () => {
   it("allows actor reads but rejects direct writes", async () => {
-    await configure()
+    await configureDatabases()
     const actor = DatabaseActor.ref("guarded")
 
     await expect(actor.read()).resolves.toBe("initial")
-    await expect(actor.writeDirectly()).rejects.toThrow(
-      "application database writes are forbidden during actor execution",
-    )
+    await expect(actor.writeDirectly()).rejects.toMatchObject({
+      details: { message: "application database writes are forbidden during actor execution" },
+    })
     await expect(actor.read()).resolves.toBe("initial")
   })
 
   it("allows a registered commit action to use the same facade", async () => {
-    await configure()
+    await configureDatabases()
 
     await DatabaseActor.ref("commit").writeAfterCommit()
 
@@ -66,7 +66,7 @@ describe("guarded application database", () => {
   })
 
   it("rejects write statements disguised as row-returning reads", async () => {
-    await configure()
+    await configureDatabases()
 
     await expect(
       applicationDatabase.connection((connection) =>
@@ -88,13 +88,15 @@ describe("guarded application database", () => {
     }
     runtime?.register(ReturningWriteActor)
 
-    await expect(ReturningWriteActor.ref("one").attempt()).rejects.toThrow(
-      "application database reads must begin with SELECT during actor execution",
-    )
+    await expect(ReturningWriteActor.ref("one").attempt()).rejects.toMatchObject({
+      details: {
+        message: "application database reads must begin with SELECT during actor execution",
+      },
+    })
   })
 
   it("rejects writes from projections without rejecting the subscription", async () => {
-    await configure()
+    await configureDatabases()
     const send = vi.fn()
     const session = runtime?.realtime.connect({ authorizationContext: {}, send })
 
@@ -111,14 +113,14 @@ describe("guarded application database", () => {
   })
 })
 
-async function configure(): Promise<void> {
+async function configureDatabases(): Promise<void> {
   rawApplicationDatabase = sqlite({ path: ":memory:" })
   applicationDatabase = guardApplicationDatabase(rawApplicationDatabase)
   await applicationDatabase.connection(async (connection) => {
     await connection.run("CREATE TABLE records (id INTEGER PRIMARY KEY, value TEXT NOT NULL)")
     await connection.run("INSERT INTO records (id, value) VALUES (1, 'initial')")
   })
-  runtime = configureSolidObjects({
+  runtime = configure({
     database: sqlite({ path: ":memory:" }),
     authorizeMessage: () => true,
     authorizeQuery: () => true,

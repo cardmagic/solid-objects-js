@@ -2,12 +2,14 @@ import { afterEach, describe, expect, it } from "vitest"
 import { Actor } from "../src/actor.js"
 import type { SolidObjectsConfiguration } from "../src/configuration.js"
 import {
+  ActorDestroyed,
   IdempotencyConflict,
+  MessageFailed,
   Rejected,
   SyncInsideTransaction,
   Unauthorized,
 } from "../src/errors.js"
-import { configureSolidObjects, type SolidObjectsRuntime } from "../src/runtime.js"
+import { configure, type SolidObjectsRuntime } from "../src/runtime.js"
 import { sqlite } from "../src/database/sqlite.js"
 
 class ReliableCounter extends Actor {
@@ -96,7 +98,7 @@ afterEach(async () => {
 
 describe("durable invocation correctness", () => {
   it("denies messages and queries when no authorization policy is configured", async () => {
-    runtime = configureSolidObjects({ database: sqlite({ path: ":memory:" }) })
+    runtime = configure({ database: sqlite({ path: ":memory:" }) })
     await runtime.install()
     const counter = ReliableCounter.ref("denied")
 
@@ -206,7 +208,60 @@ describe("durable invocation correctness", () => {
     await runtime.worker().runUntilIdle()
 
     await expect(rejected.result()).rejects.toBeInstanceOf(Rejected)
-    await expect(failed.result()).rejects.toThrow("turn failed")
+    const failure = await failed.result().catch((error: unknown) => error)
+    expect(failure).toBeInstanceOf(MessageFailed)
+    expect(failure).toMatchObject({
+      message: "actor message failed permanently",
+      messageId: failed.id,
+      details: { name: "Error", message: "turn failed" },
+    })
+  })
+
+  it("raises a structured terminal failure from direct invocation", async () => {
+    runtime = configuredRuntime({ maxAttempts: 1 })
+    await runtime.install()
+
+    const failure = await ReliableCounter.ref("direct-failure")
+      .incrementThenFail()
+      .catch((error: unknown) => error)
+
+    expect(failure).toBeInstanceOf(MessageFailed)
+    expect(failure).toMatchObject({
+      message: "actor message failed permanently",
+      messageId: expect.any(String),
+      details: { name: "Error", message: "turn failed" },
+    })
+  })
+
+  it("raises ActorDestroyed when an authorized actor disappears while waiting", async () => {
+    let authorizationCalls = 0
+    let waitingAuthorizationStarted: (() => void) | undefined
+    let continueAuthorization: (() => void) | undefined
+    const authorizationStarted = new Promise<void>((resolve) => {
+      waitingAuthorizationStarted = resolve
+    })
+    const authorizationCanContinue = new Promise<void>((resolve) => {
+      continueAuthorization = resolve
+    })
+    runtime = configuredRuntime({
+      authorizeMessage: async () => {
+        authorizationCalls += 1
+        if (authorizationCalls !== 2) return true
+        waitingAuthorizationStarted?.()
+        await authorizationCanContinue
+        return true
+      },
+    })
+    await runtime.install()
+    const counter = ReliableCounter.ref("destroyed-wait")
+    const message = await counter.send.increment()
+    const result = message.wait({ timeoutMilliseconds: 1_000 })
+    await authorizationStarted
+
+    await counter.destroy()
+    continueAuthorization?.()
+
+    await expect(result).rejects.toBeInstanceOf(ActorDestroyed)
   })
 
   it("rejects getters that mutate persisted state", async () => {
@@ -214,7 +269,9 @@ describe("durable invocation correctness", () => {
     await runtime.install()
 
     const query = MutatingQuery.ref("bad")
-    await expect(query.invalid).rejects.toThrow("query invalid mutated actor state")
+    await expect(query.invalid).rejects.toMatchObject({
+      details: { message: "query invalid mutated actor state" },
+    })
     const message = await runtime.settings.database.connection((connection) =>
       connection.get<{
         attempt_count: number | bigint
@@ -227,9 +284,9 @@ describe("durable invocation correctness", () => {
     runtime = configuredRuntime({ maxAttempts: 1 })
     await runtime.install()
 
-    await expect(SideEffectingQuery.ref("bad").invalid).rejects.toThrow(
-      "query invalid staged durable work",
-    )
+    await expect(SideEffectingQuery.ref("bad").invalid).rejects.toMatchObject({
+      details: { message: "query invalid staged durable work" },
+    })
     const effect = await runtime.settings.database.connection((connection) =>
       connection.get(`SELECT id FROM ${runtime?.repository.table("effects")}`),
     )
@@ -240,9 +297,9 @@ describe("durable invocation correctness", () => {
     runtime = configuredRuntime({ maxAttempts: 1 })
     await runtime.install()
 
-    await expect(SideEffectingObservable.ref("bad").increment()).rejects.toThrow(
-      "observables must not mutate actor state or stage durable work",
-    )
+    await expect(SideEffectingObservable.ref("bad").increment()).rejects.toMatchObject({
+      details: { message: "observables must not mutate actor state or stage durable work" },
+    })
   })
 
   it("returns deeply frozen result values", async () => {
@@ -371,7 +428,7 @@ describe("durable invocation correctness", () => {
 function configuredRuntime(
   overrides: Partial<SolidObjectsConfiguration> = {},
 ): SolidObjectsRuntime {
-  return configureSolidObjects({
+  return configure({
     database: sqlite({ path: ":memory:" }),
     authorizeMessage: () => true,
     authorizeQuery: () => true,

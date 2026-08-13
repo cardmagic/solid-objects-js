@@ -3,7 +3,7 @@ import { Actor } from "../src/actor.js"
 import type { SolidObjectsConfiguration } from "../src/configuration.js"
 import { sqlite } from "../src/database/sqlite.js"
 import { Unauthorized } from "../src/errors.js"
-import { configureSolidObjects, type SolidObjectsRuntime } from "../src/runtime.js"
+import { configure, type SolidObjectsRuntime } from "../src/runtime.js"
 import type { JsonObject } from "../src/types.js"
 
 class ReconciledActor extends Actor {
@@ -39,7 +39,7 @@ afterEach(async () => {
 
 describe("reconciliation reads", () => {
   it("denies reads when no administration policy is configured", async () => {
-    runtime = configureSolidObjects({ database: sqlite({ path: ":memory:" }) })
+    runtime = configure({ database: sqlite({ path: ":memory:" }) })
     runtime.register(ReconciledActor)
     await runtime.install()
 
@@ -191,7 +191,7 @@ describe("reconciliation reads", () => {
 function configuredRuntime(
   overrides: Partial<SolidObjectsConfiguration> = {},
 ): SolidObjectsRuntime {
-  return configureSolidObjects({
+  return configure({
     database: sqlite({ path: ":memory:" }),
     authorizeMessage: () => true,
     authorizeQuery: () => true,

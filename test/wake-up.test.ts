@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
 import { Actor } from "../src/actor.js"
 import { sqlite } from "../src/database/sqlite.js"
-import { configureSolidObjects, type SolidObjectsRuntime } from "../src/runtime.js"
+import { configure, type SolidObjectsRuntime } from "../src/runtime.js"
 import {
   InProcessWakeUpAdapter,
   type WakeUpAdapter,
@@ -79,7 +79,7 @@ describe("in-process wake-up", () => {
 
   it("signals every role created by a committed actor turn", async () => {
     const wakeUp = new RecordingWakeUpAdapter()
-    runtime = configureSolidObjects({
+    runtime = configure({
       database: sqlite({ path: ":memory:" }),
       authorizeMessage: () => true,
       authorizeQuery: () => true,
@@ -99,7 +99,7 @@ describe("in-process wake-up", () => {
   })
 
   it("interrupts a long polling wait when a message commits", async () => {
-    runtime = configureSolidObjects({
+    runtime = configure({
       database: sqlite({ path: ":memory:" }),
       authorizeMessage: () => true,
       authorizeQuery: () => true,
@@ -130,7 +130,7 @@ describe("in-process wake-up", () => {
       warn: () => {},
       error: vi.fn(),
     }
-    runtime = configureSolidObjects({
+    runtime = configure({
       database: sqlite({ path: ":memory:" }),
       authorizeMessage: () => true,
       authorizeQuery: () => true,

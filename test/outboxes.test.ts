@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it } from "vitest"
 import { Actor } from "../src/actor.js"
 import type { BroadcastEvent, SolidObjectsConfiguration } from "../src/configuration.js"
-import { configureSolidObjects, type SolidObjectsRuntime } from "../src/runtime.js"
+import { configure, type SolidObjectsRuntime } from "../src/runtime.js"
 import { sqlite } from "../src/database/sqlite.js"
 
 class Checkout extends Actor {
@@ -273,7 +273,7 @@ describe("observable broadcasts", () => {
 function configuredRuntime(
   overrides: Partial<SolidObjectsConfiguration> = {},
 ): SolidObjectsRuntime {
-  return configureSolidObjects({
+  return configure({
     database: sqlite({ path: ":memory:" }),
     authorizeMessage: () => true,
     authorizeQuery: () => true,

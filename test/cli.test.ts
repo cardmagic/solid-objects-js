@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it } from "vitest"
 import { sqlite } from "../src/database/sqlite.js"
 import { runCli } from "../src/cli.js"
-import { configureSolidObjects, type SolidObjectsRuntime } from "../src/runtime.js"
+import { configure, type SolidObjectsRuntime } from "../src/runtime.js"
 
 let runtime: SolidObjectsRuntime | undefined
 
@@ -116,7 +116,7 @@ function configuredRuntime(
     authorizeAdministration?: (input: { authorizationContext: unknown }) => boolean
   } = {},
 ): SolidObjectsRuntime {
-  runtime = configureSolidObjects({
+  runtime = configure({
     database: sqlite({ path: ":memory:" }),
     authorizeMessage: () => true,
     authorizeQuery: () => true,

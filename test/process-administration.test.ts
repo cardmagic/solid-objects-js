@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it } from "vitest"
 import { Actor } from "../src/actor.js"
 import { sqlite } from "../src/database/sqlite.js"
 import { Unauthorized } from "../src/errors.js"
-import { configureSolidObjects, type SolidObjectsRuntime } from "../src/runtime.js"
+import { configure, type SolidObjectsRuntime } from "../src/runtime.js"
 
 class ProcessActor extends Actor {
   static override readonly actorType = "ProcessActor"
@@ -123,7 +123,7 @@ describe("process administration", () => {
 function configuredRuntime(
   overrides: { authorizeAdministration?: () => boolean } = {},
 ): SolidObjectsRuntime {
-  runtime = configureSolidObjects({
+  runtime = configure({
     database: sqlite({ path: ":memory:" }),
     authorizeMessage: () => true,
     authorizeQuery: () => true,

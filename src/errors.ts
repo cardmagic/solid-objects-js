@@ -50,6 +50,16 @@ export class IdempotencyConflict extends SolidObjectsError {}
 export class Unauthorized extends SolidObjectsError {}
 export class LostActivation extends SolidObjectsError {}
 export class ActorDestroyed extends LostActivation {}
+export class MessageFailed extends SolidObjectsError {
+  readonly messageId: string
+  readonly details: Readonly<Record<string, unknown>>
+
+  constructor(options: { messageId: string; details: Record<string, unknown> }) {
+    super("actor message failed permanently")
+    this.messageId = options.messageId
+    this.details = Object.freeze({ ...options.details })
+  }
+}
 export class StateMigrationError extends NonRetryableError {}
 export class ActorCallCycle extends NonRetryableError {}
 export class QueryMutatedState extends NonRetryableError {}

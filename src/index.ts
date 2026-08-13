@@ -11,7 +11,7 @@ export {
   type ReminderIntent,
   type ReminderOptions,
 } from "./actor.js"
-export { configureSolidObjects, createSolidObjects, SolidObjectsRuntime } from "./runtime.js"
+export { configure, createRuntime, SolidObjectsRuntime } from "./runtime.js"
 export { guardApplicationDatabase } from "./application-database.js"
 export { runCli, type CliRunOptions } from "./cli.js"
 export { Worker } from "./worker.js"
@@ -123,6 +123,7 @@ export {
   InvalidPayloadBroadcast,
   LostActivation,
   MailboxFull,
+  MessageFailed,
   NonRetryableError,
   PayloadTooLarge,
   QueryMutatedState,

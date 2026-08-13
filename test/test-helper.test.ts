@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it } from "vitest"
 import { Actor } from "../src/actor.js"
 import { sqlite } from "../src/database/sqlite.js"
-import { configureSolidObjects, type SolidObjectsRuntime } from "../src/runtime.js"
+import { configure, type SolidObjectsRuntime } from "../src/runtime.js"
 
 class HelperActor extends Actor {
   static override readonly actorType = "HelperActor"
@@ -115,7 +115,7 @@ describe("public test helper", () => {
 function configuredRuntime(
   options: { broadcast?: (event: { actorId: string }) => Promise<void> } = {},
 ): SolidObjectsRuntime {
-  return configureSolidObjects({
+  return configure({
     database: sqlite({ path: ":memory:" }),
     authorizeMessage: () => true,
     authorizeQuery: () => true,

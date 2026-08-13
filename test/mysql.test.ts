@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it } from "vitest"
 import { Actor } from "../src/actor.js"
 import { mysql, mysqlSql, type MySQLDatabase } from "../src/database/mysql.js"
-import { configureSolidObjects, type SolidObjectsRuntime } from "../src/runtime.js"
+import { configure, type SolidObjectsRuntime } from "../src/runtime.js"
 import { SyncTimeout } from "../src/errors.js"
 import { DatabaseDeadlineExceeded } from "../src/errors.js"
 import { withDatabaseDeadline } from "../src/database/deadline.js"
@@ -115,7 +115,7 @@ describeMySQL("MySQL adapter", () => {
   it("runs mailbox, outbox, reconciliation, retention, and doctor workflows", async () => {
     if (!connectionString) throw new Error("MySQL connection string is required")
     database = mysql({ connectionString, maximumConnections: 10 })
-    runtime = configureSolidObjects({
+    runtime = configure({
       database,
       tableNamePrefix: "mysql_test_",
       authorizeMessage: () => true,
