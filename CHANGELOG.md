@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Make typed snapshots return persisted fields and getter values from one
+  committed state image, rejecting getters that mutate state or stage work.
 - Probe configured authorization policies with a neutral context in the doctor
   and warn when sensitive access is open or a policy cannot evaluate safely.
 - Align effect and commit-action context with their durable source message and

@@ -5,6 +5,7 @@ import {
   ActorDestroyed,
   IdempotencyConflict,
   MessageFailed,
+  QueryMutatedState,
   Rejected,
   SyncInsideTransaction,
   Unauthorized,
@@ -322,6 +323,14 @@ describe("durable invocation correctness", () => {
       connection.get(`SELECT id FROM ${runtime?.repository.table("effects")}`),
     )
     expect(effect).toBeUndefined()
+  })
+
+  it("rejects snapshot getters that mutate state", async () => {
+    runtime = configuredRuntime()
+    await runtime.install()
+
+    await expect(MutatingQuery.ref("snapshot").snapshot()).rejects.toBeInstanceOf(QueryMutatedState)
+    expect(await MutatingQuery.ref("snapshot").count).toBe(0)
   })
 
   it("rejects observables that mutate state or stage durable work", async () => {

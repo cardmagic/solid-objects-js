@@ -683,7 +683,30 @@ export class SolidObjectsRuntime {
           storedState: jsonObject(JSON.parse(instance.state)),
         })
       : initialStateFor(registered.definition)
-    return readonlyCopy(state) as ActorSnapshot<ActorType>
+    const actor = hydrateActor({
+      definition: registered.definition,
+      actorId: reference.actorId,
+      state,
+    })
+    const stateBefore = stableJson(actorState(actor, registered.definition.stateKeys))
+    const intentCount = actor.intentCount()
+    const snapshot: Record<string, JsonValue> = { ...state }
+    await withActorProjection({ actor, runtime: this }, async () => {
+      for (const query of registered.definition.queries) {
+        if (registered.definition.stateKeys.includes(query)) continue
+        const value = await (actor as unknown as Record<string, unknown>)[query]
+        snapshot[query] = normalizeJson(value === undefined ? null : value, {
+          maxBytes: this.settings.maxResultBytes,
+        })
+      }
+    })
+    if (
+      stableJson(actorState(actor, registered.definition.stateKeys)) !== stateBefore ||
+      actor.intentCount() !== intentCount
+    ) {
+      throw new QueryMutatedState("snapshot getters must not mutate actor state or stage work")
+    }
+    return readonlyCopy(snapshot) as ActorSnapshot<ActorType>
   }
 
   async subscriptionSnapshot(options: {

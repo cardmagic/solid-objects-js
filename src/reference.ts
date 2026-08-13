@@ -30,7 +30,7 @@ export type ActorQueryNames<ActorType extends Actor> = Exclude<
 >
 
 export type ActorSnapshot<ActorType extends Actor> = {
-  readonly [Key in ActorQueryNames<ActorType>]: DeepReadonly<ActorType[Key]>
+  readonly [Key in ActorQueryNames<ActorType>]: DeepReadonly<Awaited<ActorType[Key]>>
 }
 
 type MethodResult<Method> = Method extends (...argumentsValue: any[]) => infer Result

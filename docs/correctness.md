@@ -33,6 +33,9 @@
   permits only `SELECT` through row-returning methods; commit actions remain the
   fenced write path. The guarantee applies only to clients passed through the
   facade.
+- Snapshots hydrate one committed state image and evaluate every inferred getter
+  against it. Getter mutation or staged durable work rejects the whole snapshot;
+  successful snapshots and their nested JSON values are frozen copies.
 - Personalized payloads hydrate committed state separately for every payload
   name and subscriber. Each projection is read-only, size bounded, and fenced
   independently by actor incarnation and revision. One denied, mutating, or

@@ -809,7 +809,9 @@ IDs and observable values are not authorization.
 - Failed turns roll state and staged intents back and block later work until
   retry or dead-letter completion.
 - Effects can execute more than once.
-- Results and snapshots are deeply frozen copies.
+- Results and snapshots are deeply frozen copies. A snapshot contains every
+  persisted field and getter from one committed state image; snapshot getters
+  must not mutate state or stage durable work.
 
 Override protected `onActivate()` and `onDeactivate()` methods when an actor
 needs a process-local resource during that window. Hooks may be asynchronous,

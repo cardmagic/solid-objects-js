@@ -142,9 +142,13 @@ describe("typed actor references", () => {
     expect(await counter.increment({ amount: 3 })).toBe(3)
     expect(await counter.count).toBe(3)
     expect(await counter.doubled).toBe(6)
+    const snapshot = await counter.snapshot()
+    expect(snapshot).toEqual({ count: 3, lastAuthorizationContext: null, doubled: 6 })
+    expect(Object.isFrozen(snapshot)).toBe(true)
 
     expectTypeOf(counter.increment).returns.toEqualTypeOf<Promise<number>>()
     expectTypeOf(counter).toHaveProperty("count").toEqualTypeOf<Promise<number>>()
+    expectTypeOf(snapshot.doubled).toEqualTypeOf<number>()
     expectTypeOf(counter).not.toHaveProperty("async")
     expectTypeOf(counter).not.toHaveProperty("sync")
   })
