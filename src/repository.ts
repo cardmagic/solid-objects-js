@@ -215,7 +215,7 @@ export class Repository {
         SELECT message_id FROM ${this.table("ready_messages")} WHERE instance_id = ?
         UNION ALL
         SELECT message_id FROM ${this.table("claimed_messages")} WHERE instance_id = ?
-      )`,
+      ) AS live_messages`,
       [instance.id, instance.id],
     )
     if (Number(live?.count ?? 0) >= this.settings.maxMailboxLength) {
