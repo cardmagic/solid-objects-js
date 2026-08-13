@@ -62,3 +62,14 @@ pruning. Event attributes are restricted to identities, operation or handler
 names, delivery mode, sequence, attempt, outcome, counts, durations, and error
 class names. The runtime catches sink exceptions and reports only the failed
 event name and sink error class through the configured logger.
+
+`runtime.reminders.all()` provides administration-authorized, cursor-paginated
+alarm metadata filtered by actor type or status. Arguments and error messages
+remain private. `resume()` moves a paused reminder back to `scheduled`, clears
+its claim and stored error, and optionally assigns a new run time. Repeating
+resume on an already scheduled reminder is a no-op; completed reminders cannot
+be resumed.
+
+Scheduling an existing actor operation for a different time emits
+`solid_objects.reminder.replaced` after the fenced actor commit. Scheduling it
+for the same time emits nothing.

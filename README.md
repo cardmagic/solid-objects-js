@@ -222,6 +222,27 @@ The non-null assertion is only needed by projects using
 operations before persistence. Recurring reminders accept `everyMilliseconds`
 and a `missed` policy of `"latest"` or `"all"`.
 
+Authorized operators can inspect alarm metadata and resume a reminder that was
+paused after a scheduler error:
+
+```typescript
+const paused = await runtime.reminders.all({
+  status: "paused",
+  authorizationContext: currentUser,
+})
+
+const reminder = paused.items[0]
+if (reminder) {
+  await runtime.reminders.resume(reminder.id, {
+    runAt: new Date(Date.now() + 60_000),
+    authorizationContext: currentUser,
+  })
+}
+```
+
+Inspection omits reminder arguments and error messages. Resume is idempotent;
+completed reminders must be scheduled again by their owning actor.
+
 ## Keep external I/O outside the transaction
 
 Effects run outside the actor turn through a transactional outbox. Handlers
@@ -413,6 +434,11 @@ Records are immutable and contain operational metadata only. Arguments, actor
 state, results, rejection messages and details, error messages, and broadcast
 payloads never enter the instrumentation API. A sink failure is logged and
 cannot fail durable work.
+
+Moving an existing alarm to another time emits
+`solid_objects.reminder.replaced` only after the actor turn commits. The event
+contains the actor identity, operation, reminder ID, and previous and next run
+times without reminder arguments.
 
 ## Add realtime updates without exposing all state
 

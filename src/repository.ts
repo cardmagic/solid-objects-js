@@ -4,7 +4,9 @@ import {
   IdempotencyConflict,
   LostActivation,
   MailboxFull,
+  ReminderNotPaused,
   UnknownDeadLetter,
+  UnknownReminder,
 } from "./errors.js"
 import type { ActorIntents } from "./actor.js"
 import type { RuntimeSettings } from "./configuration.js"
@@ -326,7 +328,20 @@ export class Repository {
         connection: DatabaseConnection,
       ): Promise<void>
     },
-  ): Promise<void> {
+  ): Promise<{
+    reminderReplacements: Array<{
+      reminderId: string
+      operation: string
+      previousRunAtMilliseconds: number
+      nextRunAtMilliseconds: number
+    }>
+  }> {
+    const reminderReplacements: Array<{
+      reminderId: string
+      operation: string
+      previousRunAtMilliseconds: number
+      nextRunAtMilliseconds: number
+    }> = []
     await this.settings.database.transaction(async (connection) => {
       const now = await this.assertFence(connection, turn)
       for (const intent of input.intents.commitActions) {
@@ -374,6 +389,19 @@ export class Repository {
       }
 
       for (const reminder of input.intents.reminders) {
+        const existing = await connection.get<{ id: string; run_at_ms: number | bigint }>(
+          `SELECT id, run_at_ms FROM ${this.table("reminders")}
+           WHERE instance_id = ? AND operation = ?`,
+          [turn.instance.id, reminder.operation],
+        )
+        if (existing && Number(existing.run_at_ms) !== reminder.atMilliseconds) {
+          reminderReplacements.push({
+            reminderId: existing.id,
+            operation: reminder.operation,
+            previousRunAtMilliseconds: Number(existing.run_at_ms),
+            nextRunAtMilliseconds: reminder.atMilliseconds,
+          })
+        }
         await connection.run(
           `INSERT INTO ${this.table("reminders")}
            (id, instance_id, operation, run_at_ms, arguments, interval_ms, missed_policy, status)
@@ -428,6 +456,77 @@ export class Repository {
         )
       }
     })
+    return { reminderReplacements }
+  }
+
+  async listReminders(options: {
+    actorType?: string
+    status?: "scheduled" | "paused" | "completed"
+    cursor?: string
+    limit: number
+  }): Promise<ReminderRow[]> {
+    const conditions: string[] = []
+    const parameters: unknown[] = []
+    if (options.actorType !== undefined) {
+      conditions.push("instances.actor_type = ?")
+      parameters.push(options.actorType)
+    }
+    if (options.status !== undefined) {
+      conditions.push("reminders.status = ?")
+      parameters.push(options.status)
+    }
+    if (options.cursor !== undefined) {
+      conditions.push("reminders.id > ?")
+      parameters.push(options.cursor)
+    }
+    parameters.push(options.limit + 1)
+    const where = conditions.length === 0 ? "" : `WHERE ${conditions.join(" AND ")}`
+    return this.settings.database.connection((connection) =>
+      connection.all<ReminderRow>(
+        `SELECT reminders.*, instances.actor_type, instances.actor_id
+         FROM ${this.table("reminders")} reminders
+         JOIN ${this.table("instances")} instances ON instances.id = reminders.instance_id
+         ${where} ORDER BY reminders.id LIMIT ?`,
+        parameters,
+      ),
+    )
+  }
+
+  async resumeReminder(options: {
+    id: string
+    runAtMilliseconds?: number
+  }): Promise<{ reminder: ReminderRow; resumed: boolean }> {
+    return this.settings.database.transaction(async (connection) => {
+      const reminder = await this.findReminderInConnection(connection, options.id)
+      if (!reminder) throw new UnknownReminder(`unknown reminder ${options.id}`)
+      if (reminder.status === "completed") {
+        throw new ReminderNotPaused(`completed reminder ${options.id} cannot be resumed`)
+      }
+      if (reminder.status === "scheduled") return { reminder, resumed: false }
+      const runAt = options.runAtMilliseconds ?? (await connection.nowMilliseconds())
+      await connection.run(
+        `UPDATE ${this.table("reminders")}
+         SET status = 'scheduled', run_at_ms = ?, error = NULL, claimed_by = NULL, claimed_at_ms = NULL
+         WHERE id = ? AND status = 'paused'`,
+        [runAt, options.id],
+      )
+      const resumed = await this.findReminderInConnection(connection, options.id)
+      if (!resumed) throw new UnknownReminder(`unknown reminder ${options.id}`)
+      return { reminder: resumed, resumed: true }
+    })
+  }
+
+  private async findReminderInConnection(
+    connection: DatabaseConnection,
+    id: string,
+  ): Promise<ReminderRow | undefined> {
+    return connection.get<ReminderRow>(
+      `SELECT reminders.*, instances.actor_type, instances.actor_id
+       FROM ${this.table("reminders")} reminders
+       JOIN ${this.table("instances")} instances ON instances.id = reminders.instance_id
+       WHERE reminders.id = ?`,
+      [id],
+    )
   }
 
   async reject(

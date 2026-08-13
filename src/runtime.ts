@@ -60,6 +60,13 @@ import type {
   ReminderRow,
 } from "./records.js"
 import { ReminderScheduler } from "./reminder-scheduler.js"
+import {
+  ReminderManager,
+  type ReminderPage,
+  type ReminderPageOptions,
+  type ReminderRecord,
+  type ResumeReminderOptions,
+} from "./reminder-administration.js"
 import { RetentionManager, type RetentionOptions, type RetentionResult } from "./retention.js"
 import { deepCopy, jsonObject, normalizeJson, readonlyCopy, stableJson } from "./serialization.js"
 import { installSchema } from "./schema.js"
@@ -106,6 +113,7 @@ export class SolidObjectsRuntime {
   readonly retention
   readonly doctor
   readonly testing
+  readonly reminders
   private readonly registry = new Map<string, RegisteredActor>()
   private readonly effects = new Map<string, EffectHandler>()
   private readonly commitActions = new Map<string, CommitActionHandler>()
@@ -121,6 +129,7 @@ export class SolidObjectsRuntime {
     this.retention = new RetentionManager(this)
     this.doctor = new Doctor(this)
     this.testing = new SolidObjectsTestHelper(this)
+    this.reminders = new ReminderManager(this)
   }
 
   async install(): Promise<void> {
@@ -561,6 +570,57 @@ export class SolidObjectsRuntime {
     return result
   }
 
+  async inspectReminders(options: ReminderPageOptions = {}): Promise<ReminderPage> {
+    await this.authorizeAdministration({
+      action: "inspect",
+      resource: "reminders",
+      authorizationContext: options.authorizationContext,
+    })
+    if (
+      options.status !== undefined &&
+      options.status !== "scheduled" &&
+      options.status !== "paused" &&
+      options.status !== "completed"
+    ) {
+      throw new TypeError(`unknown reminder status ${JSON.stringify(options.status)}`)
+    }
+    const limit = reminderPageLimit(options.limit)
+    const rows = await this.repository.listReminders({
+      limit,
+      ...(options.actorType === undefined ? {} : { actorType: options.actorType }),
+      ...(options.status === undefined ? {} : { status: options.status }),
+      ...(options.cursor === undefined ? {} : { cursor: options.cursor }),
+    })
+    return reminderPage(rows, limit)
+  }
+
+  async resumeReminder(id: string, options: ResumeReminderOptions = {}): Promise<ReminderRecord> {
+    await this.authorizeAdministration({
+      action: "resume",
+      resource: "reminders",
+      resourceId: id,
+      authorizationContext: options.authorizationContext,
+    })
+    const runAtMilliseconds = options.runAt?.getTime()
+    if (runAtMilliseconds !== undefined && !Number.isFinite(runAtMilliseconds)) {
+      throw new TypeError("reminder runAt must be a valid date")
+    }
+    const result = await this.repository.resumeReminder({
+      id,
+      ...(runAtMilliseconds === undefined ? {} : { runAtMilliseconds }),
+    })
+    if (result.resumed) {
+      this.emitInstrumentation("reminder.resumed", {
+        reminderId: result.reminder.id,
+        actorType: result.reminder.actor_type,
+        actorId: result.reminder.actor_id,
+        operation: result.reminder.operation,
+        runAt: new Date(Number(result.reminder.run_at_ms)).toISOString(),
+      })
+    }
+    return reminderRecord(result.reminder)
+  }
+
   async executeTurn(turn: ClaimedTurn): Promise<void> {
     const startedAt = Date.now()
     this.emitInstrumentation("message.started", messageInstrumentation(turn.message))
@@ -622,7 +682,7 @@ export class SolidObjectsRuntime {
       renewalController.abort()
       await renewal
       if (renewalError) throw renewalError
-      await this.repository.complete(turn, {
+      const completion = await this.repository.complete(turn, {
         state: committedState,
         stateVersion: definition.stateVersion,
         result,
@@ -656,6 +716,16 @@ export class SolidObjectsRuntime {
           }
         },
       })
+      for (const replacement of completion.reminderReplacements) {
+        this.emitInstrumentation("reminder.replaced", {
+          reminderId: replacement.reminderId,
+          actorType: turn.message.actor_type,
+          actorId: turn.message.actor_id,
+          operation: replacement.operation,
+          previousRunAt: new Date(replacement.previousRunAtMilliseconds).toISOString(),
+          nextRunAt: new Date(replacement.nextRunAtMilliseconds).toISOString(),
+        })
+      }
       this.emitInstrumentation("message.completed", {
         ...messageInstrumentation(turn.message),
         durationMilliseconds: Date.now() - startedAt,
@@ -1026,6 +1096,40 @@ function broadcastInstrumentation(broadcast: BroadcastRow): JsonObject {
     revision: String(broadcast.state_revision),
     attempt: Number(broadcast.attempt_count),
   }
+}
+
+function reminderPageLimit(value: number | undefined): number {
+  const limit = value ?? 100
+  if (!Number.isSafeInteger(limit) || limit < 1 || limit > 1_000) {
+    throw new TypeError("reminder limit must be an integer between 1 and 1000")
+  }
+  return limit
+}
+
+function reminderPage(rows: ReminderRow[], limit: number): ReminderPage {
+  const pageRows = rows.slice(0, limit)
+  const items = Object.freeze(pageRows.map(reminderRecord))
+  const last = pageRows.at(-1)
+  return Object.freeze({
+    items,
+    nextCursor: rows.length > limit && last ? last.id : null,
+  })
+}
+
+function reminderRecord(row: ReminderRow): ReminderRecord {
+  const parsedError = row.error === null ? null : jsonObject(JSON.parse(row.error))
+  return Object.freeze({
+    id: row.id,
+    actorType: row.actor_type,
+    actorId: row.actor_id,
+    operation: row.operation,
+    runAt: new Date(Number(row.run_at_ms)),
+    intervalMilliseconds: row.interval_ms === null ? null : Number(row.interval_ms),
+    missedPolicy: row.missed_policy,
+    occurrence: Number(row.occurrence),
+    status: row.status,
+    errorName: typeof parsedError?.name === "string" ? parsedError.name : null,
+  })
 }
 
 function deadLetterFromRow(row: DeadLetterRow): DeadLetter {

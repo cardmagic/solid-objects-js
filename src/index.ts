@@ -13,6 +13,14 @@ export { configureSolidObjects, createSolidObjects, SolidObjectsRuntime } from "
 export { Worker } from "./worker.js"
 export { EffectWorker } from "./effect-worker.js"
 export { ReminderScheduler } from "./reminder-scheduler.js"
+export {
+  ReminderManager,
+  type ReminderPage,
+  type ReminderPageOptions,
+  type ReminderRecord,
+  type ReminderStatus,
+  type ResumeReminderOptions,
+} from "./reminder-administration.js"
 export { BroadcastWorker } from "./broadcast-worker.js"
 export { DeadLetterManager, type DeadLetter } from "./dead-letters.js"
 export {
@@ -90,6 +98,7 @@ export {
   PayloadTooLarge,
   QueryMutatedState,
   Rejected,
+  ReminderNotPaused,
   SolidObjectsError,
   StateMigrationError,
   SyncTimeout,
@@ -99,5 +108,6 @@ export {
   UnknownDeadLetter,
   UnknownEffect,
   UnknownOperation,
+  UnknownReminder,
   UnsupportedDatabase,
 } from "./errors.js"

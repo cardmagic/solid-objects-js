@@ -12,6 +12,7 @@
 - Add deterministic runtime draining and explicit database reset helpers for
   tests.
 - Add isolated structured lifecycle instrumentation with metadata-only events.
+- Add reminder replacement events and authorized inspection and resume APIs.
 
 ## 0.1.0 - 2026-08-13
 
