@@ -8,7 +8,12 @@ import {
   type ComponentRegistration,
   type SolidObjectsConfiguration,
 } from "./configuration.js"
-import { currentActor, withActorContext, withActorProjection } from "./context.js"
+import {
+  currentActor,
+  withActorContext,
+  withActorProjection,
+  withApplicationWritesForbidden,
+} from "./context.js"
 import { DeadLetterManager, type DeadLetter } from "./dead-letters.js"
 import { Doctor } from "./doctor.js"
 import { clearDefaultRuntime, setDefaultRuntime } from "./default-runtime.js"
@@ -1149,15 +1154,17 @@ export class SolidObjectsRuntime {
           }
           this.emitInstrumentation("commit_action.started", attributes)
           try {
-            await handler(intent.arguments, {
-              actorType: turn.message.actor_type,
-              actorId: turn.message.actor_id,
-              messageId: turn.message.id,
-              requestId: turn.message.request_id,
-              sequence: BigInt(turn.message.sequence),
-              activationGeneration: turn.activationGeneration,
-              connection,
-            })
+            await withApplicationWritesForbidden(() =>
+              handler(intent.arguments, {
+                actorType: turn.message.actor_type,
+                actorId: turn.message.actor_id,
+                messageId: turn.message.id,
+                requestId: turn.message.request_id,
+                sequence: BigInt(turn.message.sequence),
+                activationGeneration: turn.activationGeneration,
+                connection,
+              }),
+            )
             this.emitInstrumentation("commit_action.completed", attributes)
           } catch (error) {
             this.emitInstrumentation("commit_action.failed", {

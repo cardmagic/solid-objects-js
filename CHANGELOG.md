@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Keep guarded application databases read-only during commit actions so the
+  supplied fenced transaction connection is the only atomic write path.
 - Persist the start of graceful runtime-role shutdown and expose its timestamp
   so operators can distinguish actively draining processes from dead owners.
 - Release actor, message, effect, reminder, and broadcast ownership atomically

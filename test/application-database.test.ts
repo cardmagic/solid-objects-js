@@ -36,6 +36,10 @@ class DatabaseActor extends Actor {
   writeAfterCommit(): void {
     this.commitAction("writeRecord", { value: "committed" })
   }
+
+  writeOutsideFence(): void {
+    this.commitAction("writeExternalRecord", { value: "escaped" })
+  }
 }
 
 afterEach(async () => {
@@ -57,12 +61,30 @@ describe("guarded application database", () => {
     await expect(actor.read()).resolves.toBe("initial")
   })
 
-  it("allows a registered commit action to use the same facade", async () => {
+  it("allows a registered commit action to use its fenced connection", async () => {
     await configureDatabases()
 
     await DatabaseActor.ref("commit").writeAfterCommit()
 
-    await expect(DatabaseActor.ref("commit").read()).resolves.toBe("committed")
+    const record = await runtime?.settings.database.connection((connection) =>
+      connection.get<{ value: string }>("SELECT value FROM committed_records WHERE id = 1"),
+    )
+    expect(record?.value).toBe("committed")
+  })
+
+  it("rolls back a commit action that writes outside its fenced connection", async () => {
+    await configureDatabases()
+    const message = await DatabaseActor.ref("external").send.writeOutsideFence()
+
+    expect(await runtime?.worker().runUntilIdle()).toBe(1)
+
+    await expect(message.result()).rejects.toMatchObject({
+      details: {
+        name: "ApplicationWriteForbidden",
+        message: "application database writes are forbidden during actor execution",
+      },
+    })
+    await expect(DatabaseActor.ref("external").read()).resolves.toBe("initial")
   })
 
   it("rejects write statements disguised as row-returning reads", async () => {
@@ -129,7 +151,14 @@ async function configureDatabases(): Promise<void> {
     maxAttempts: 1,
   })
   runtime.register(DatabaseActor)
-  runtime.registerCommitAction("writeRecord", async ({ value }) => {
+  await runtime.settings.database.connection(async (connection) => {
+    await connection.run("CREATE TABLE committed_records (id INTEGER PRIMARY KEY, value TEXT)")
+    await connection.run("INSERT INTO committed_records (id, value) VALUES (1, 'initial')")
+  })
+  runtime.registerCommitAction("writeRecord", async ({ value }, context) => {
+    await context.connection.run("UPDATE committed_records SET value = ? WHERE id = 1", [value])
+  })
+  runtime.registerCommitAction("writeExternalRecord", async ({ value }) => {
     await applicationDatabase.connection((connection) =>
       connection.run("UPDATE records SET value = ? WHERE id = 1", [value]),
     )

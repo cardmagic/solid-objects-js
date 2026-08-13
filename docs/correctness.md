@@ -35,9 +35,9 @@
   newer owner or generation.
 - `guardApplicationDatabase()` rejects direct application writes during actor
   operations, observable and payload projections, and state migrations. It
-  permits only `SELECT` through row-returning methods; commit actions remain the
-  fenced write path. The guarantee applies only to clients passed through the
-  facade.
+  permits only `SELECT` through row-returning methods. Commit actions remain in
+  that read-only context and may write only through their supplied fenced
+  connection. The guarantee applies only to clients passed through the facade.
 - Snapshots hydrate one committed state image and evaluate every inferred getter
   against it. Getter mutation or staged durable work rejects the whole snapshot;
   successful snapshots and their nested JSON values are frozen copies.

@@ -442,10 +442,10 @@ const applicationDatabase = guardApplicationDatabase(sqlite({ path: "application
 
 During actor execution, observable and payload projection, and state migration,
 the facade permits `SELECT` through `get()` and `all()` and rejects `run()` or
-row-returning write statements. Registered commit actions run outside that
-read-only context and may write through the same facade. This boundary is
-opt-in: Solid Objects cannot intercept a separate ORM pool or an unwrapped
-database client.
+row-returning write statements. A commit action stays inside the same read-only
+context and writes only through its supplied fenced `context.connection`. This
+boundary is opt-in: Solid Objects cannot intercept a separate ORM pool or an
+unwrapped database client.
 
 ## Inspect and retry terminal failures
 
