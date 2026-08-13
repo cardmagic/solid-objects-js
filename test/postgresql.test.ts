@@ -15,11 +15,21 @@ const describePostgreSQL = connectionString?.startsWith("postgresql:") ? describ
 
 class PostgreSQLCounter extends Actor {
   static override readonly actorType = "PostgreSQLCounter"
+  static activations = 0
 
   count = 0
+  #activation = 0
+
+  protected override onActivate(): void {
+    this.#activation = ++PostgreSQLCounter.activations
+  }
 
   increment(): void {
     this.count += 1
+  }
+
+  identity(): { activation: number; count: number } {
+    return { activation: this.#activation, count: this.count }
   }
 }
 
@@ -70,6 +80,7 @@ afterEach(async () => {
     runtime = undefined
     database = undefined
     wakeUps = []
+    PostgreSQLCounter.activations = 0
   }
 })
 
@@ -211,6 +222,15 @@ describePostgreSQL("PostgreSQL adapter", () => {
     await runtime.testing.drain({ roles: ["actors"] })
 
     await expect(PostgreSQLCounter.ref("shared").snapshot()).resolves.toMatchObject({ count: 25 })
+    PostgreSQLCounter.activations = 0
+    const worker = runtime.worker()
+    const cached = PostgreSQLCounter.ref("cached")
+    await cached.send.increment()
+    expect(await worker.runOnce()).toBe(1)
+    const identity = await cached.send.identity()
+    expect(await worker.runOnce()).toBe(1)
+    expect(await identity.result()).toEqual({ activation: 1, count: 1 })
+    await worker.stop()
     const report = await runtime.doctor.run()
     expect(report.healthy).toBe(true)
     expect(report.checks).toEqual(

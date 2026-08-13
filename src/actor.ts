@@ -117,6 +117,18 @@ export abstract class Actor {
     return {}
   }
 
+  async activate(): Promise<void> {
+    await this.onActivate()
+  }
+
+  async deactivate(): Promise<void> {
+    await this.onDeactivate()
+  }
+
+  protected onActivate(): void | Promise<void> {}
+
+  protected onDeactivate(): void | Promise<void> {}
+
   reject(code: string, options: { message: string; details?: Record<string, unknown> }): never {
     if (!/^[a-z][a-z0-9_]*$/.test(code)) {
       throw new TypeError("rejection code must contain lowercase letters, digits, and underscores")

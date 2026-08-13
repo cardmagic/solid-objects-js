@@ -358,7 +358,12 @@ export class Doctor {
         instanceId: message.instance_id,
       })
       if (!turn) throw new Error("doctor could not claim its probe message")
-      await this.runtime.executeTurn(turn)
+      const execution = await this.runtime.executeTurn(turn)
+      await this.runtime.deactivateActor({
+        turn,
+        actor: execution.actor,
+        lifecycle: execution.activated ? "activated" : "unactivated",
+      })
       const completed = await this.runtime.repository.findMessage(message.id)
       if (completed?.result === null || JSON.parse(completed?.result ?? "null") !== value) {
         throw new Error("doctor round trip returned an unexpected result")

@@ -68,6 +68,13 @@ export interface ClaimedTurn {
   nowMilliseconds: number
 }
 
+export interface ActivationLease {
+  instanceId: string
+  processId: string
+  activationToken: string
+  activationGeneration: bigint
+}
+
 export interface EnqueueInput {
   actorType: string
   actorId: string

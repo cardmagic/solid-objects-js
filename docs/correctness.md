@@ -17,6 +17,10 @@
 - Activation passes are bounded. Yielding changes ready-membership polling
   order only; it neither changes durable message sequence nor makes future work
   due early.
+- Idle hydrated actors remain fenced by the same renewable lease. Cache reuse
+  never bypasses claim membership or the commit fence, failed turns restore
+  their public fields before reuse, and conditional release cannot clear a
+  newer owner or generation.
 - `guardApplicationDatabase()` rejects direct application writes during actor
   operations, observable and payload projections, and state migrations. It
   permits only `SELECT` through row-returning methods; commit actions remain the

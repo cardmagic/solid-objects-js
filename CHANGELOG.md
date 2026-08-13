@@ -42,6 +42,9 @@
 - Add MySQL 8.0+ through the optional `mysql2` driver with pooled transactions,
   an InnoDB schema, scoped enqueue deadlock recovery, diagnostics, and
   real-server coverage across MySQL 8.0 and 8.4.
+- Add hydrated idle activation reuse with renewable fenced leases, protected
+  async lifecycle hooks, state restoration after failed turns, and release on
+  timeout, fairness yield, lease loss, and shutdown.
 
 ## 0.1.0 - 2026-08-13
 

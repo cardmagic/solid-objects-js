@@ -13,6 +13,7 @@ import type { RuntimeSettings } from "./configuration.js"
 import type { Database, DatabaseConnection } from "./database/types.js"
 import type {
   BroadcastRow,
+  ActivationLease,
   ClaimedTurn,
   DeadLetterRow,
   EffectRow,
@@ -279,15 +280,32 @@ export class Repository {
 
   async claim(
     processId: string,
-    options: { instanceId?: string } = {},
+    options: { instanceId?: string; activation?: ActivationLease } = {},
   ): Promise<ClaimedTurn | undefined> {
     return this.settings.database.transaction(async (connection) => {
       const now = await connection.nowMilliseconds()
       await this.recoverExpiredClaims(connection, now)
-      const instanceCondition = options.instanceId === undefined ? "" : "AND ready.instance_id = ?"
+      const instanceCondition =
+        options.activation !== undefined || options.instanceId !== undefined
+          ? "AND ready.instance_id = ?"
+          : ""
+      const leaseCondition = options.activation
+        ? `AND instances.activation_owner_id = ? AND instances.activation_token = ?
+           AND instances.activation_generation = ? AND instances.activation_expires_at_ms > ?`
+        : "AND (instances.activation_owner_id IS NULL OR instances.activation_expires_at_ms <= ?)"
       const parameters: unknown[] = [now]
-      if (options.instanceId !== undefined) parameters.push(options.instanceId)
-      parameters.push(now)
+      if (options.activation) {
+        parameters.push(
+          options.activation.instanceId,
+          options.activation.processId,
+          options.activation.activationToken,
+          options.activation.activationGeneration,
+          now,
+        )
+      } else {
+        if (options.instanceId !== undefined) parameters.push(options.instanceId)
+        parameters.push(now)
+      }
       const candidate = await connection.get<{ message_id: string; instance_id: string }>(
         `SELECT ready.message_id, ready.instance_id
          FROM ${this.table("ready_messages")} ready
@@ -302,29 +320,31 @@ export class Repository {
              SELECT 1 FROM ${this.table("ready_messages")} earlier
              WHERE earlier.instance_id = ready.instance_id AND earlier.sequence < ready.sequence
            )
-           AND (instances.activation_owner_id IS NULL OR instances.activation_expires_at_ms <= ?)
+           ${leaseCondition}
          ORDER BY ready.available_at_ms, ready.sequence
          LIMIT 1`,
         parameters,
       )
       if (!candidate) return undefined
 
-      const token = randomUUID()
-      const lease = await connection.run(
-        `UPDATE ${this.table("instances")}
-         SET activation_owner_id = ?, activation_token = ?, activation_generation = activation_generation + 1,
-           activation_expires_at_ms = ?, updated_at_ms = ?
-         WHERE id = ? AND (activation_owner_id IS NULL OR activation_expires_at_ms <= ?)`,
-        [
-          processId,
-          token,
-          now + this.settings.leaseDurationMilliseconds,
-          now,
-          candidate.instance_id,
-          now,
-        ],
-      )
-      if (lease.changes !== 1) return undefined
+      const token = options.activation?.activationToken ?? randomUUID()
+      if (!options.activation) {
+        const lease = await connection.run(
+          `UPDATE ${this.table("instances")}
+           SET activation_owner_id = ?, activation_token = ?, activation_generation = activation_generation + 1,
+             activation_expires_at_ms = ?, updated_at_ms = ?
+           WHERE id = ? AND (activation_owner_id IS NULL OR activation_expires_at_ms <= ?)`,
+          [
+            processId,
+            token,
+            now + this.settings.leaseDurationMilliseconds,
+            now,
+            candidate.instance_id,
+            now,
+          ],
+        )
+        if (lease.changes !== 1) return undefined
+      }
 
       const instance = await connection.get<InstanceRow>(
         `SELECT * FROM ${this.table("instances")} WHERE id = ?`,
@@ -408,6 +428,52 @@ export class Repository {
     })
   }
 
+  async renewActivation(activation: ActivationLease): Promise<void> {
+    await this.settings.database.transaction(async (connection) => {
+      const now = await connection.nowMilliseconds()
+      const renewed = await connection.run(
+        `UPDATE ${this.table("instances")}
+         SET activation_expires_at_ms = ?, updated_at_ms = ?
+         WHERE id = ? AND activation_owner_id = ? AND activation_token = ?
+           AND activation_generation = ? AND activation_expires_at_ms > ?`,
+        [
+          now + this.settings.leaseDurationMilliseconds,
+          now,
+          activation.instanceId,
+          activation.processId,
+          activation.activationToken,
+          activation.activationGeneration,
+          now,
+        ],
+      )
+      if (renewed.changes !== 1) throw new LostActivation("activation lease could not be renewed")
+      await connection.run(
+        `UPDATE ${this.table("processes")} SET heartbeat_at_ms = ? WHERE id = ?`,
+        [now, activation.processId],
+      )
+    })
+  }
+
+  async releaseActivation(activation: ActivationLease): Promise<void> {
+    await this.settings.database.transaction(async (connection) => {
+      const now = await connection.nowMilliseconds()
+      await connection.run(
+        `UPDATE ${this.table("instances")}
+         SET activation_owner_id = NULL, activation_token = NULL,
+           activation_expires_at_ms = NULL, updated_at_ms = ?
+         WHERE id = ? AND activation_owner_id = ? AND activation_token = ?
+           AND activation_generation = ?`,
+        [
+          now,
+          activation.instanceId,
+          activation.processId,
+          activation.activationToken,
+          activation.activationGeneration,
+        ],
+      )
+    })
+  }
+
   async yieldReadyMessages(instanceId: string): Promise<number> {
     return this.settings.database.transaction(async (connection) => {
       const now = await connection.nowMilliseconds()
@@ -455,7 +521,6 @@ export class Repository {
 
       await connection.run(
         `UPDATE ${this.table("instances")} SET state = ?, state_version = ?, state_revision = ?,
-         activation_owner_id = NULL, activation_token = NULL, activation_expires_at_ms = NULL,
          updated_at_ms = ? WHERE id = ?`,
         [
           JSON.stringify(input.state),
@@ -644,7 +709,7 @@ export class Repository {
         `UPDATE ${this.table("messages")} SET rejection = ?, completed_at_ms = ?, updated_at_ms = ? WHERE id = ?`,
         [JSON.stringify(rejection), now, now, turn.message.id],
       )
-      await this.releaseClaim({ connection, turn, now })
+      await this.releaseClaim({ connection, turn })
     })
   }
 
@@ -675,7 +740,7 @@ export class Repository {
             now,
           ],
         )
-        await this.releaseClaim({ connection, turn, now })
+        await this.releaseClaim({ connection, turn })
         return "dead" as const
       }
 
@@ -692,11 +757,6 @@ export class Repository {
         `INSERT INTO ${this.table("ready_messages")}(message_id, instance_id, sequence, available_at_ms)
          VALUES (?, ?, ?, ?)`,
         [turn.message.id, turn.instance.id, turn.message.sequence, availableAt],
-      )
-      await connection.run(
-        `UPDATE ${this.table("instances")} SET activation_owner_id = NULL, activation_token = NULL,
-         activation_expires_at_ms = NULL, updated_at_ms = ? WHERE id = ?`,
-        [now, turn.instance.id],
       )
       return "retrying" as const
     })
@@ -1448,17 +1508,11 @@ export class Repository {
   private async releaseClaim(options: {
     connection: DatabaseConnection
     turn: ClaimedTurn
-    now: number
   }): Promise<void> {
-    const { connection, turn, now } = options
+    const { connection, turn } = options
     await connection.run(`DELETE FROM ${this.table("claimed_messages")} WHERE message_id = ?`, [
       turn.message.id,
     ])
-    await connection.run(
-      `UPDATE ${this.table("instances")} SET activation_owner_id = NULL, activation_token = NULL,
-       activation_expires_at_ms = NULL, updated_at_ms = ? WHERE id = ?`,
-      [now, turn.instance.id],
-    )
   }
 }
 

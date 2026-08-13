@@ -754,6 +754,8 @@ IDs and observable values are not authorization.
 - Different actor identities may execute concurrently.
 - A worker drains at most `maxMessagesPerActivationPass` turns from one actor,
   then yields its still-due work behind actors that were already waiting.
+- Long-running workers reuse hydrated actors for
+  `idleDeactivationTimeoutMilliseconds` while renewing the same fenced lease.
 - State, completion, staged messages, effects, reminders, commit actions, and
   observable broadcasts share one fenced commit.
 - A lost or expired activation lease cannot commit.
@@ -761,6 +763,11 @@ IDs and observable values are not authorization.
   retry or dead-letter completion.
 - Effects can execute more than once.
 - Results and snapshots are deeply frozen copies.
+
+Override protected `onActivate()` and `onDeactivate()` methods when an actor
+needs a process-local resource during that window. Hooks may be asynchronous,
+cannot write through a guarded application database, and are nondurable;
+`onDeactivate()` is best effort and must not carry correctness work.
 
 ## Current scope
 

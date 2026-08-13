@@ -8,12 +8,22 @@ const describeMySQL = connectionString?.startsWith("mysql:") ? describe : descri
 
 class MySQLWorkflow extends Actor {
   static override readonly actorType = "MySQLWorkflow"
+  static activations = 0
   count = 0
   effectResult: string | null = null
   reminderResult: string | null = null
+  #activation = 0
+
+  protected override onActivate(): void {
+    this.#activation = ++MySQLWorkflow.activations
+  }
 
   increment(): void {
     this.count += 1
+  }
+
+  identity(): { activation: number; count: number } {
+    return { activation: this.#activation, count: this.count }
   }
 
   start(): void {
@@ -50,6 +60,7 @@ afterEach(async () => {
     await database?.close()
     runtime = undefined
     database = undefined
+    MySQLWorkflow.activations = 0
   }
 })
 
@@ -101,6 +112,15 @@ describeMySQL("MySQL adapter", () => {
     )
     await runtime.testing.drain({ roles: ["actors"] })
     await expect(MySQLWorkflow.ref("shared").snapshot()).resolves.toMatchObject({ count: 25 })
+    MySQLWorkflow.activations = 0
+    const worker = runtime.worker()
+    const cached = MySQLWorkflow.ref("cached")
+    await cached.send.increment()
+    expect(await worker.runOnce()).toBe(1)
+    const identity = await cached.send.identity()
+    expect(await worker.runOnce()).toBe(1)
+    expect(await identity.result()).toEqual({ activation: 1, count: 1 })
+    await worker.stop()
 
     await MySQLWorkflow.ref("flow").start()
     await runtime.testing.drain()

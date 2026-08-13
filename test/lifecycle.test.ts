@@ -30,12 +30,64 @@ class FairActor extends Actor {
   }
 }
 
+class CachedActor extends Actor {
+  static override readonly actorType = "CachedActor"
+  static activations = 0
+  static deactivations = 0
+
+  count = 0
+  #activation = 0
+
+  protected override onActivate(): void {
+    this.#activation = ++CachedActor.activations
+  }
+
+  protected override onDeactivate(): void {
+    CachedActor.deactivations += 1
+  }
+
+  increment(): { activation: number; count: number } {
+    this.count += 1
+    return { activation: this.#activation, count: this.count }
+  }
+
+  failAfterMutation(): void {
+    this.count += 1
+    throw new Error("rollback")
+  }
+
+  readIdentity(): { activation: number; count: number } {
+    return { activation: this.#activation, count: this.count }
+  }
+}
+
+class FailingLifecycleActor extends Actor {
+  static override readonly actorType = "FailingLifecycleActor"
+
+  static activationFailure = false
+
+  protected override onActivate(): void {
+    if (FailingLifecycleActor.activationFailure) throw new Error("activation failed")
+  }
+
+  protected override onDeactivate(): void {
+    throw new Error("deactivation failed")
+  }
+
+  work(): string {
+    return "done"
+  }
+}
+
 let runtime: SolidObjectsRuntime | undefined
 
 afterEach(async () => {
   await runtime?.close()
   runtime = undefined
   FairActor.runs = []
+  CachedActor.activations = 0
+  CachedActor.deactivations = 0
+  FailingLifecycleActor.activationFailure = false
 })
 
 describe("runtime lifecycle", () => {
@@ -225,6 +277,134 @@ describe("runtime lifecycle", () => {
     await runtime.install()
 
     expect(await LifecycleCounter.ref("slow").incrementSlowly()).toBe(1)
+  })
+
+  it("reuses a hydrated actor while its activation is idle", async () => {
+    runtime = configuredRuntime()
+    runtime.register(CachedActor)
+    await runtime.install()
+    const worker = runtime.worker()
+    const reference = CachedActor.ref("cached")
+    const first = await reference.send.increment()
+
+    expect(await worker.runOnce()).toBe(1)
+    expect(await first.result()).toEqual({ activation: 1, count: 1 })
+
+    const second = await reference.send.increment()
+    expect(await worker.runOnce()).toBe(1)
+
+    expect(await second.result()).toEqual({ activation: 1, count: 2 })
+    expect(CachedActor.activations).toBe(1)
+    await worker.stop()
+    expect(CachedActor.deactivations).toBe(1)
+  })
+
+  it("restores cached state after a failed turn", async () => {
+    runtime = configuredRuntime({ maxAttempts: 1 })
+    runtime.register(CachedActor)
+    await runtime.install()
+    const worker = runtime.worker()
+    const reference = CachedActor.ref("rollback")
+    const failed = await reference.send.failAfterMutation()
+
+    expect(await worker.runOnce()).toBe(1)
+    await expect(failed.result()).rejects.toThrow("rollback")
+
+    const identity = await reference.send.readIdentity()
+    expect(await worker.runOnce()).toBe(1)
+    expect(await identity.result()).toEqual({ activation: 1, count: 0 })
+    await worker.stop()
+  })
+
+  it("releases an activation after its idle timeout", async () => {
+    runtime = configuredRuntime({ idleDeactivationTimeoutMilliseconds: 0 })
+    runtime.register(CachedActor)
+    await runtime.install()
+    const worker = runtime.worker()
+    await CachedActor.ref("idle").send.increment()
+
+    expect(await worker.runOnce()).toBe(1)
+    expect(await worker.runOnce()).toBe(0)
+
+    const instance = await runtime.settings.database.connection((connection) =>
+      connection.get<{ activation_owner_id: string | null }>(
+        `SELECT activation_owner_id FROM ${runtime?.repository.table("instances")}
+         WHERE actor_type = ? AND actor_id = ?`,
+        [CachedActor.actorType, "idle"],
+      ),
+    )
+    expect(instance?.activation_owner_id).toBeNull()
+    expect(CachedActor.deactivations).toBe(1)
+  })
+
+  it("renews an idle cached activation before its lease expires", async () => {
+    runtime = configuredRuntime({
+      leaseDurationMilliseconds: 40,
+      leaseRenewalIntervalMilliseconds: 10,
+      idleDeactivationTimeoutMilliseconds: 100,
+    })
+    runtime.register(CachedActor)
+    await runtime.install()
+    const worker = runtime.worker()
+    const reference = CachedActor.ref("renewed")
+    await reference.send.increment()
+    expect(await worker.runOnce()).toBe(1)
+    await new Promise((resolve) => setTimeout(resolve, 20))
+
+    expect(await worker.runOnce()).toBe(0)
+    await new Promise((resolve) => setTimeout(resolve, 25))
+    const message = await reference.send.increment()
+    expect(await worker.runOnce()).toBe(1)
+
+    expect(await message.result()).toEqual({ activation: 1, count: 2 })
+    await worker.stop()
+  })
+
+  it("wakes a polling worker in time to renew an idle activation", async () => {
+    runtime = configuredRuntime({
+      pollingIntervalMilliseconds: 1_000,
+      leaseDurationMilliseconds: 40,
+      leaseRenewalIntervalMilliseconds: 10,
+      idleDeactivationTimeoutMilliseconds: 100,
+    })
+    runtime.register(CachedActor)
+    await runtime.install()
+    const reference = CachedActor.ref("polling")
+    const controller = new AbortController()
+    const running = runtime.run(controller.signal)
+
+    expect(await reference.increment()).toEqual({ activation: 1, count: 1 })
+    await new Promise((resolve) => setTimeout(resolve, 55))
+    expect(await reference.increment()).toEqual({ activation: 1, count: 2 })
+
+    controller.abort()
+    await running
+  })
+
+  it("releases leases when lifecycle hooks fail", async () => {
+    const logger = { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() }
+    runtime = configuredRuntime({ logger, maxAttempts: 1 })
+    runtime.register(FailingLifecycleActor)
+    await runtime.install()
+    FailingLifecycleActor.activationFailure = true
+    const activationFailure = await FailingLifecycleActor.ref("activate").send.work()
+
+    expect(await runtime.worker().runUntilIdle()).toBe(1)
+    await expect(activationFailure.result()).rejects.toThrow("activation failed")
+
+    FailingLifecycleActor.activationFailure = false
+    expect(await FailingLifecycleActor.ref("deactivate").work()).toBe("done")
+    const owners = await runtime.settings.database.connection((connection) =>
+      connection.all<{ activation_owner_id: string | null }>(
+        `SELECT activation_owner_id FROM ${runtime?.repository.table("instances")}
+         WHERE actor_type = ?`,
+        [FailingLifecycleActor.actorType],
+      ),
+    )
+    expect(owners.every(({ activation_owner_id }) => activation_owner_id === null)).toBe(true)
+    expect(logger.error).toHaveBeenCalledWith(
+      expect.objectContaining({ event: "solid_objects.activation.deactivation_failed" }),
+    )
   })
 
   it("recovers an expired claimed message", async () => {

@@ -55,6 +55,15 @@ moves only that actor's already-due ready memberships to current database time.
 Actors with older ready work therefore win the next global claim; delayed work
 keeps its original future availability.
 
+When a pass becomes idle, a long-running worker keeps the hydrated actor and
+continues renewing the same fenced lease until its idle timeout. A later turn
+on that actor reuses both its persisted public fields and process-local private
+fields. Failed and rejected turns restore public fields to their pre-turn
+values before reuse. Fairness yield, timeout, lease loss, and shutdown run the
+best-effort deactivation hook and conditionally release the matching lease.
+One-shot drain helpers release immediately because they will not remain alive
+to renew.
+
 Realtime delivery is transport-neutral. A host-authenticated session authorizes
 actor subscriptions, replays a committed observable projection, and follows
 the durable broadcast outbox in revision order. The browser client applies the

@@ -21,6 +21,20 @@ when a few actor identities stay continuously busy; higher values reduce claim
 overhead for isolated backlogs. `solid_objects.activation.yielded` reports the
 actor identity, turns processed, and remaining due membership count.
 
+Workers retain a hydrated actor and its fenced lease for
+`idleDeactivationTimeoutMilliseconds`, which defaults to 30 seconds. Idle
+leases renew at `leaseRenewalIntervalMilliseconds`; the worker polling cadence
+is capped at that interval while any activation may be cached. Fairness yield,
+lease loss, timeout, and shutdown release the lease. `runUntilIdle()` and the
+runtime's synchronous caller release before returning because they are no
+longer polling.
+
+Actors can override protected `onActivate()` and `onDeactivate()` methods for
+nondurable, process-local resources. Either hook may be asynchronous. Hook code
+runs under the application-write guard, and `onDeactivate()` is best effort:
+it may not run after a crash, cannot establish a correctness guarantee, and a
+failure is logged without preventing lease release.
+
 `runtime.processes.all()` returns administration-authorized immutable process
 metadata with a current `stale` flag. `cleanup()` reauthorizes separately and
 atomically fences stale processes out of every owned role claim before waking

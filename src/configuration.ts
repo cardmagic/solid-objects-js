@@ -43,6 +43,7 @@ export interface SolidObjectsConfiguration {
   syncPollingIntervalMilliseconds?: number
   leaseDurationMilliseconds?: number
   leaseRenewalIntervalMilliseconds?: number
+  idleDeactivationTimeoutMilliseconds?: number
   maxMailboxLength?: number
   maxPayloadBytes?: number
   maxStateBytes?: number
@@ -107,6 +108,8 @@ export function buildSettings(configuration: SolidObjectsConfiguration): Runtime
     syncPollingIntervalMilliseconds: configuration.syncPollingIntervalMilliseconds ?? 50,
     leaseDurationMilliseconds: configuration.leaseDurationMilliseconds ?? 30_000,
     leaseRenewalIntervalMilliseconds: configuration.leaseRenewalIntervalMilliseconds ?? 10_000,
+    idleDeactivationTimeoutMilliseconds:
+      configuration.idleDeactivationTimeoutMilliseconds ?? 30_000,
     maxMailboxLength: configuration.maxMailboxLength ?? 10_000,
     maxPayloadBytes: configuration.maxPayloadBytes ?? 1_048_576,
     maxStateBytes: configuration.maxStateBytes ?? 5_242_880,
@@ -211,6 +214,12 @@ function validateSettings(settings: RuntimeSettings): void {
 
   if (settings.leaseDurationMilliseconds <= settings.leaseRenewalIntervalMilliseconds) {
     throw new TypeError("leaseDurationMilliseconds must exceed leaseRenewalIntervalMilliseconds")
+  }
+  if (
+    !Number.isFinite(settings.idleDeactivationTimeoutMilliseconds) ||
+    settings.idleDeactivationTimeoutMilliseconds < 0
+  ) {
+    throw new TypeError("idleDeactivationTimeoutMilliseconds must be non-negative")
   }
   if (
     settings.supervisorMaximumRestartDelayMilliseconds < settings.supervisorRestartDelayMilliseconds

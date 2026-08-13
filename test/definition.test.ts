@@ -206,6 +206,9 @@ describe("runtime configuration", () => {
         leaseRenewalIntervalMilliseconds: 10,
       }),
     ).toThrow("must exceed")
+    expect(() => buildSettings({ database, idleDeactivationTimeoutMilliseconds: -1 })).toThrow(
+      "must be non-negative",
+    )
     expect(() => buildSettings({ database, workerCount: -1 })).toThrow("non-negative integer")
     expect(() =>
       buildSettings({

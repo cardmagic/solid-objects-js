@@ -360,7 +360,7 @@ export class SolidObjectsRuntime {
         return readonlyCopy(parseResult(message.result)) as DeepReadonly<Result>
       if (status === "dead")
         throw new Error(JSON.parse(message.error ?? "{}")?.message ?? "actor message failed")
-      const processed = await this.callerWorker.runOnce()
+      const processed = await this.callerWorker.runOnce({ activationRetention: "release" })
       if (processed === 0)
         await new Promise((resolve) =>
           setTimeout(resolve, this.settings.syncPollingIntervalMilliseconds),
@@ -762,7 +762,10 @@ export class SolidObjectsRuntime {
     return reminderRecord(result.reminder)
   }
 
-  async executeTurn(turn: ClaimedTurn): Promise<void> {
+  async executeTurn(
+    turn: ClaimedTurn,
+    cachedActor?: Actor,
+  ): Promise<{ actor: Actor; retainActivation: boolean; activated: boolean }> {
     const startedAt = Date.now()
     this.emitInstrumentation("message.started", messageInstrumentation(turn.message))
     const registered = this.fetchActor(turn.message.actor_type)
@@ -772,11 +775,14 @@ export class SolidObjectsRuntime {
       storedVersion: Number(turn.instance.state_version),
       storedState: jsonObject(JSON.parse(turn.instance.state)),
     })
-    const actor = hydrateActor({
-      definition,
-      actorId: turn.message.actor_id,
-      state: deepCopy(state),
-    })
+    const actor =
+      cachedActor ??
+      hydrateActor({
+        definition,
+        actorId: turn.message.actor_id,
+        state: deepCopy(state),
+      })
+    let activated = cachedActor !== undefined
     const messageContext = {
       id: turn.message.id,
       requestId: turn.message.request_id,
@@ -790,10 +796,22 @@ export class SolidObjectsRuntime {
     const renewal = this.renewLease(turn, renewalController.signal).catch((error: unknown) => {
       renewalError = error
     })
+    let stateBefore: JsonObject | undefined
 
     try {
+      if (!activated) {
+        await withApplicationWritesForbidden(() => actor.activate())
+        activated = true
+        this.emitInstrumentation("activation.started", {
+          actorType: turn.message.actor_type,
+          actorId: turn.message.actor_id,
+          instanceId: turn.instance.id,
+          generation: String(turn.activationGeneration),
+        })
+      }
       const oldObservables = this.readObservables(actor, definition)
-      const before = stableJson(actorState(actor, definition.stateKeys))
+      stateBefore = deepCopy(actorState(actor, definition.stateKeys))
+      const before = stableJson(stateBefore)
       const query = this.isQuery(definition, turn.message.operation)
       const argumentsValue = jsonObject(JSON.parse(turn.message.arguments))
       const rawResult = await withActorContext({ actor, message: messageContext }, async () => {
@@ -881,16 +899,18 @@ export class SolidObjectsRuntime {
         ...messageInstrumentation(turn.message),
         durationMilliseconds: Date.now() - startedAt,
       })
+      return { actor, retainActivation: true, activated }
     } catch (error) {
       renewalController.abort()
       await renewal
       actor.discardIntents()
+      if (stateBefore) restoreActorState({ actor, definition, state: stateBefore })
       if (error instanceof LostActivation) {
         this.emitInstrumentation("activation.lost", {
           ...messageInstrumentation(turn.message),
           durationMilliseconds: Date.now() - startedAt,
         })
-        return
+        return { actor, retainActivation: false, activated }
       }
       if (error instanceof Rejected) {
         await this.repository.reject(turn, {
@@ -903,7 +923,7 @@ export class SolidObjectsRuntime {
           code: error.code,
           durationMilliseconds: Date.now() - startedAt,
         })
-        return
+        return { actor, retainActivation: activated, activated }
       }
       const retryable = !(error instanceof NonRetryableError)
       const outcome = await this.repository.fail(turn, {
@@ -920,6 +940,42 @@ export class SolidObjectsRuntime {
       if (outcome === "dead") {
         this.emitInstrumentation("dead_letter.created", messageInstrumentation(turn.message))
       }
+      return { actor, retainActivation: activated, activated }
+    }
+  }
+
+  async deactivateActor(options: {
+    turn: ClaimedTurn
+    actor?: Actor
+    lifecycle: "activated" | "unactivated"
+  }): Promise<void> {
+    const { turn, actor } = options
+    try {
+      if (actor && options.lifecycle === "activated") {
+        await withApplicationWritesForbidden(() => actor.deactivate())
+      }
+    } catch (error) {
+      this.emitInstrumentation("activation.deactivation_failed", {
+        actorType: turn.message.actor_type,
+        actorId: turn.message.actor_id,
+        instanceId: turn.instance.id,
+        generation: String(turn.activationGeneration),
+        errorName: error instanceof Error ? error.name : "Error",
+      })
+      this.settings.logger.error({
+        event: "solid_objects.activation.deactivation_failed",
+        actorType: turn.message.actor_type,
+        actorId: turn.message.actor_id,
+        errorName: error instanceof Error ? error.name : "Error",
+      })
+    } finally {
+      actor?.discardIntents()
+      await this.repository.releaseActivation({
+        instanceId: turn.instance.id,
+        processId: turn.processId,
+        activationToken: turn.activationToken,
+        activationGeneration: turn.activationGeneration,
+      })
     }
   }
 
@@ -1450,6 +1506,15 @@ function messageInstrumentation(message: MessageRow): JsonObject {
     deliveryMode: message.delivery_mode,
     attempt: Number(message.attempt_count),
   }
+}
+
+function restoreActorState(options: {
+  actor: Actor
+  definition: ValidatedActorDefinition
+  state: JsonObject
+}): void {
+  const target = options.actor as unknown as Record<string, unknown>
+  for (const key of options.definition.stateKeys) target[key] = deepCopy(options.state[key])
 }
 
 function effectInstrumentation(effect: EffectRow): JsonObject {
