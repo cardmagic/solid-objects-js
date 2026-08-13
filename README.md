@@ -950,6 +950,8 @@ interoperability are not part of the compatibility contract.
   transport-neutral realtime protocol.
 - The [`Ruby parity ledger`](docs/parity.md) tracks native equivalents and
   explicit scope boundaries against Ruby Solid Objects 0.12.0.
+- [`docs/releasing.md`](docs/releasing.md) documents the tag-driven npm release
+  workflow for maintainers.
 
 ## License
 

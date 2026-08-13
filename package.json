@@ -7,14 +7,14 @@
   "author": "Lucas Carlson",
   "repository": {
     "type": "git",
-    "url": "git+ssh://git@github.com/cardmagic/solid-objects-js.git"
+    "url": "git+https://github.com/cardmagic/solid-objects-js.git"
   },
   "engines": {
     "node": ">=24.15.0"
   },
   "packageManager": "pnpm@11.11.0",
   "bin": {
-    "solid-objects": "./dist/executable.js"
+    "solid-objects": "dist/executable.js"
   },
   "files": [
     "dist",
@@ -50,7 +50,7 @@
     }
   },
   "scripts": {
-    "build": "pnpm run clean && tsc -p tsconfig.build.json",
+    "build": "pnpm run clean && tsc -p tsconfig.build.json && node scripts/prepare-executable.mjs",
     "check": "pnpm run check:parameters && pnpm run check:documentation && tsc -p tsconfig.json --noEmit",
     "check:documentation": "node scripts/check-documentation.mjs",
     "check:parameters": "node scripts/check-parameter-style.mjs",
@@ -64,7 +64,7 @@
     "test:mysql": "vitest run test/mysql.test.ts",
     "test:redis": "vitest run test/redis-wake-up.test.ts",
     "test:watch": "vitest",
-    "pack:check": "pnpm pack --dry-run",
+    "pack:check": "pnpm pack --dry-run && node scripts/check-package.mjs",
     "prepack": "pnpm run build"
   },
   "devDependencies": {
