@@ -38,6 +38,20 @@ class ReliableCounter extends Actor {
   resultObject(): { nested: { count: number } } {
     return { nested: { count: this.count } }
   }
+
+  messageMetadata(): {
+    requestId: string
+    idempotencyKey: string | null
+    enqueuedAt: string
+  } {
+    const message = this.currentMessage
+    if (!message) throw new Error("message context is unavailable")
+    return {
+      requestId: message.requestId,
+      idempotencyKey: message.idempotencyKey,
+      enqueuedAt: message.enqueuedAt.toISOString(),
+    }
+  }
 }
 
 class MutatingQuery extends Actor {
@@ -136,9 +150,26 @@ describe("durable invocation correctness", () => {
       .increment({ amount: 2 })
 
     expect(duplicate.id).toBe(first.id)
+    expect(first.requestId).not.toBe("request-1")
     await expect(
       counter.send.with({ idempotencyKey: "request-1" }).increment({ amount: 3 }),
     ).rejects.toBeInstanceOf(IdempotencyConflict)
+    await expect(
+      counter.with({ idempotencyKey: "request-1" }).increment({ amount: 2 }),
+    ).rejects.toBeInstanceOf(IdempotencyConflict)
+  })
+
+  it("exposes request identity and idempotency separately in actor context", async () => {
+    runtime = configuredRuntime()
+    await runtime.install()
+
+    const result = await ReliableCounter.ref("metadata")
+      .with({ idempotencyKey: "metadata-once" })
+      .messageMetadata()
+
+    expect(result.requestId).toMatch(/^[0-9a-f-]{36}$/)
+    expect(result.idempotencyKey).toBe("metadata-once")
+    expect(new Date(result.enqueuedAt).getTime()).not.toBeNaN()
   })
 
   it("deduplicates an idempotent request even when the mailbox is full", async () => {

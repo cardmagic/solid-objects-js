@@ -148,8 +148,45 @@ describe("schema migrations", () => {
     const columns = await runtime.settings.database.connection((connection) =>
       connection.all<{ name: string }>("PRAGMA table_info(solid_objects_dead_letters)"),
     )
-    expect(versions.map(({ version }) => Number(version))).toEqual([1, 2])
+    expect(versions.map(({ version }) => Number(version))).toEqual([1, 2, 3])
     expect(columns.map(({ name }) => name)).toContain("retried_message_id")
+  })
+
+  it("preserves version-two request IDs as legacy idempotency keys", async () => {
+    const directory = mkdtempSync(join(tmpdir(), "solid-objects-schema-"))
+    temporaryDirectories.push(directory)
+    const path = join(directory, "database.sqlite3")
+    const database = sqlite({ path })
+    runtime = configuredRuntime({ database })
+    await runtime.install()
+    const message = await PoisonActor.ref("legacy")
+      .send.with({ idempotencyKey: "legacy-key" })
+      .run({
+        source: "legacy",
+      })
+    await runtime.close()
+    runtime = undefined
+    const rawDatabase = new DatabaseSync(path)
+    rawDatabase
+      .prepare("UPDATE solid_objects_messages SET request_id = ? WHERE id = ?")
+      .run("legacy-key", message.id)
+    rawDatabase.exec("DELETE FROM solid_objects_schema_migrations WHERE version = 3")
+    rawDatabase.exec("DROP INDEX solid_objects_messages_idempotency")
+    rawDatabase.exec("ALTER TABLE solid_objects_messages DROP COLUMN idempotency_key")
+    rawDatabase.close()
+    runtime = configuredRuntime({ database: sqlite({ path }) })
+
+    await runtime.install()
+
+    const migrated = await runtime.repository.findMessage(message.id)
+    expect(migrated).toMatchObject({
+      request_id: "legacy-key",
+      idempotency_key: "legacy-key",
+    })
+    const duplicate = await PoisonActor.ref("legacy")
+      .send.with({ idempotencyKey: "legacy-key" })
+      .run({ source: "legacy" })
+    expect(duplicate.id).toBe(message.id)
   })
 })
 

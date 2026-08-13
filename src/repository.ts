@@ -221,14 +221,15 @@ export class Repository {
     }
     if (!instance) throw new ActorDestroyed("actor disappeared during enqueue")
 
-    if (input.idempotencyKey) {
+    if (input.idempotencyKey !== undefined) {
       const existing = await connection.get<MessageRow>(
-        `SELECT * FROM ${this.table("messages")} WHERE actor_type = ? AND actor_id = ? AND request_id = ?`,
+        `SELECT * FROM ${this.table("messages")} WHERE actor_type = ? AND actor_id = ? AND idempotency_key = ?`,
         [input.actorType, input.actorId, input.idempotencyKey],
       )
       if (existing) {
         if (
           existing.operation !== input.operation ||
+          existing.delivery_mode !== input.deliveryMode ||
           existing.arguments !== JSON.stringify(input.arguments)
         ) {
           throw new IdempotencyConflict("idempotency key identifies a different invocation")
@@ -253,7 +254,7 @@ export class Repository {
 
     const sequence = BigInt(instance.next_message_sequence)
     const messageId = randomUUID()
-    const requestId = input.idempotencyKey ?? randomUUID()
+    const requestId = randomUUID()
     await connection.run(
       `UPDATE ${this.table("instances")} SET next_message_sequence = next_message_sequence + 1,
        updated_at_ms = ? WHERE id = ?`,
@@ -261,12 +262,13 @@ export class Repository {
     )
     await connection.run(
       `INSERT INTO ${this.table("messages")}
-       (id, request_id, instance_id, actor_type, actor_id, sequence, operation, delivery_mode,
-        arguments, max_attempts, created_at_ms, updated_at_ms)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       (id, request_id, idempotency_key, instance_id, actor_type, actor_id, sequence, operation,
+        delivery_mode, arguments, max_attempts, created_at_ms, updated_at_ms)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         messageId,
         requestId,
+        input.idempotencyKey ?? null,
         instance.id,
         input.actorType,
         input.actorId,

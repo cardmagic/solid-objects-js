@@ -37,12 +37,14 @@ export interface AdministrationOptions<AuthorizationContext = unknown> {
 }
 
 export interface MessageContext {
-  id: string
-  requestId: string
-  actorType: string
-  actorId: string
-  sequence: bigint
-  attempt: number
+  readonly id: string
+  readonly requestId: string
+  readonly idempotencyKey: string | null
+  readonly enqueuedAt: Date
+  readonly actorType: string
+  readonly actorId: string
+  readonly sequence: bigint
+  readonly attempt: number
 }
 
 export interface EffectContext {

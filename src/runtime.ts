@@ -1783,14 +1783,16 @@ function messageInstrumentation(message: MessageRow): JsonObject {
 }
 
 function actorMessageContext(message: MessageRow): MessageContext {
-  return {
+  return Object.freeze({
     id: message.id,
     requestId: message.request_id,
+    idempotencyKey: message.idempotency_key,
+    enqueuedAt: new Date(Number(message.created_at_ms)),
     actorType: message.actor_type,
     actorId: message.actor_id,
     sequence: BigInt(message.sequence),
     attempt: Number(message.attempt_count),
-  }
+  })
 }
 
 function restoreActorState(options: {

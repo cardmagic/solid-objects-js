@@ -207,7 +207,8 @@ describe("typed actor references", () => {
       })
       .increment({ amount: 2 })
 
-    expect(message.requestId).toBe("increment-later")
+    expect(message.requestId).toMatch(/^[0-9a-f-]{36}$/)
+    expect(message.requestId).not.toBe("increment-later")
     expect(await message.status()).toBe("ready")
     const row = await runtime.settings.database.connection((connection) =>
       connection.get<{
@@ -255,16 +256,18 @@ describe("actor-owned delivery", () => {
     const row = await runtime.settings.database.connection((connection) =>
       connection.get<{
         request_id: string
+        idempotency_key: string | null
         available_at_ms: number | bigint
       }>(
-        `SELECT messages.request_id, ready.available_at_ms
+        `SELECT messages.request_id, messages.idempotency_key, ready.available_at_ms
        FROM ${runtime?.repository.table("messages")} messages
        JOIN ${runtime?.repository.table("ready_messages")} ready ON ready.message_id = messages.id
        WHERE messages.actor_type = ?`,
         [AuditLog.actorType],
       ),
     )
-    expect(row?.request_id).toBe("account-disabled")
+    expect(row?.request_id).toMatch(/^[0-9a-f-]{36}$/)
+    expect(row?.idempotency_key).toBe("account-disabled")
     expect(Number(row?.available_at_ms)).toBe(new Date("2030-01-02T03:04:05.000Z").getTime())
   })
 })

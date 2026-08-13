@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Separate generated request identity from caller-supplied idempotency keys and
+  expose both with enqueue time through immutable actor message context.
 - Preserve isolated runtime ownership across operation, lifecycle, observable,
   and payload callbacks while keeping lifecycle callbacks message-free.
 - Retry transient SQLite writer acquisition with bounded capped backoff without

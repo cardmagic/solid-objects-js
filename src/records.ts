@@ -29,6 +29,7 @@ export interface InstanceRow {
 export interface MessageRow {
   id: string
   request_id: string
+  idempotency_key: string | null
   instance_id: string
   actor_type: string
   actor_id: string
@@ -42,6 +43,8 @@ export interface MessageRow {
   attempt_count: number | bigint
   max_attempts: number | bigint
   completed_at_ms: number | bigint | null
+  created_at_ms: number | bigint
+  updated_at_ms: number | bigint
 }
 
 export interface DeadLetterRow {

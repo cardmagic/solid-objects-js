@@ -2,7 +2,9 @@ import { UnsupportedDatabase } from "./errors.js"
 import type { DatabaseConnection, DatabaseFamily } from "./database/types.js"
 
 const BASE_VERSION = 1
-const LATEST_VERSION = 2
+const RETRY_LINK_VERSION = 2
+const MESSAGE_IDENTITY_VERSION = 3
+const LATEST_VERSION = MESSAGE_IDENTITY_VERSION
 
 export async function installSchema(options: {
   connection: DatabaseConnection
@@ -189,27 +191,61 @@ export async function installSchema(options: {
     [BASE_VERSION, schemaIdentity, now],
   )
 
-  const retryLinkMigration = installedMigrations.some(
-    ({ version }) => Number(version) === LATEST_VERSION,
-  )
-  if (retryLinkMigration) return
+  const installedVersions = new Set(installedMigrations.map(({ version }) => Number(version)))
+  if (!installedVersions.has(RETRY_LINK_VERSION)) {
+    await connection.run(
+      `ALTER TABLE ${table("dead_letters")} ADD COLUMN ${family === "postgresql" ? "IF NOT EXISTS " : ""}retried_message_id ${family === "mysql" ? "VARCHAR(255)" : "TEXT"}
+       REFERENCES ${table("messages")}(id) ON DELETE SET NULL`,
+    )
+    await createIndex({
+      connection,
+      family,
+      table: table("dead_letters"),
+      name: `${prefix}dead_letters_retried_message`,
+      columns: "retried_message_id",
+    })
+    await recordMigration({
+      connection,
+      table: table("schema_migrations"),
+      version: RETRY_LINK_VERSION,
+      schemaIdentity,
+    })
+  }
 
+  if (installedVersions.has(MESSAGE_IDENTITY_VERSION)) return
   await connection.run(
-    `ALTER TABLE ${table("dead_letters")} ADD COLUMN ${family === "postgresql" ? "IF NOT EXISTS " : ""}retried_message_id ${family === "mysql" ? "VARCHAR(255)" : "TEXT"}
-     REFERENCES ${table("messages")}(id) ON DELETE SET NULL`,
+    `ALTER TABLE ${table("messages")} ADD COLUMN ${family === "postgresql" ? "IF NOT EXISTS " : ""}idempotency_key ${family === "mysql" ? "VARCHAR(255)" : "TEXT"}`,
+  )
+  await connection.run(
+    `UPDATE ${table("messages")} SET idempotency_key = request_id WHERE idempotency_key IS NULL`,
   )
   await createIndex({
     connection,
     family,
-    table: table("dead_letters"),
-    name: `${prefix}dead_letters_retried_message`,
-    columns: "retried_message_id",
+    table: table("messages"),
+    name: `${prefix}messages_idempotency`,
+    columns: "actor_type, actor_id, idempotency_key",
+    kind: "unique",
   })
-  const migratedAt = await connection.nowMilliseconds()
-  await connection.run(
-    `INSERT INTO ${table("schema_migrations")}(version, schema_identity, installed_at_ms)
+  await recordMigration({
+    connection,
+    table: table("schema_migrations"),
+    version: MESSAGE_IDENTITY_VERSION,
+    schemaIdentity,
+  })
+}
+
+async function recordMigration(options: {
+  connection: DatabaseConnection
+  table: string
+  version: number
+  schemaIdentity: string
+}): Promise<void> {
+  const installedAt = await options.connection.nowMilliseconds()
+  await options.connection.run(
+    `INSERT INTO ${options.table}(version, schema_identity, installed_at_ms)
      VALUES (?, ?, ?) ON CONFLICT(version) DO NOTHING`,
-    [LATEST_VERSION, schemaIdentity, migratedAt],
+    [options.version, options.schemaIdentity, installedAt],
   )
 }
 
@@ -233,10 +269,12 @@ async function createIndex(options: {
   table: string
   name: string
   columns: string
+  kind?: "unique"
 }): Promise<void> {
+  const kind = options.kind === "unique" ? "UNIQUE " : ""
   if (options.family !== "mysql") {
     await options.connection.run(
-      `CREATE INDEX IF NOT EXISTS ${options.name} ON ${options.table}(${options.columns})`,
+      `CREATE ${kind}INDEX IF NOT EXISTS ${options.name} ON ${options.table}(${options.columns})`,
     )
     return
   }
@@ -247,6 +285,6 @@ async function createIndex(options: {
   )
   if (Number(existing?.present ?? 0) > 0) return
   await options.connection.run(
-    `CREATE INDEX ${options.name} ON ${options.table}(${options.columns})`,
+    `CREATE ${kind}INDEX ${options.name} ON ${options.table}(${options.columns})`,
   )
 }

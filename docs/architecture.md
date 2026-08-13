@@ -6,7 +6,10 @@ persists JSON state between activations.
 
 A durable message envelope selects an actor `operation` and records its
 `delivery_mode` as `async`, `sync`, or `internal`. An operation is actor code;
-a message is the durable delivery record that invokes it.
+a message is the durable delivery record that invokes it. Each message has a
+generated request ID independent of its optional caller-supplied idempotency
+key. Matching idempotency keys are scoped to one actor and must identify the
+same operation, delivery mode, and arguments.
 
 The correctness contract is:
 

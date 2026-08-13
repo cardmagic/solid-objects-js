@@ -265,6 +265,10 @@ await counter
 
 Invocation options stay separate from actor arguments, so an actor may safely
 use argument names such as `timeoutMilliseconds` or `authorizationContext`.
+Every invocation receives a generated `requestId`; `idempotencyKey` remains the
+caller's deduplication key and is never reused as request identity. During an
+operation, `this.currentMessage` exposes both values along with `id`,
+`enqueuedAt`, `actorType`, `actorId`, `sequence`, and `attempt`.
 
 Do not make a committed actor call or wait on a message from inside
 `database.transaction(...)` on the Solid Objects database. The runtime raises
