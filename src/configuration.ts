@@ -42,6 +42,11 @@ export interface SolidObjectsConfiguration {
   effectWorkerCount?: number
   broadcastWorkerCount?: number
   reminderSchedulerCount?: number
+  messageRetentionMilliseconds?: number
+  messageRetentionByActorType?: Readonly<Record<string, number>>
+  instanceRetentionByActorType?: Readonly<Record<string, number>>
+  processRetentionMilliseconds?: number
+  pruneBatchSize?: number
   logger?: Logger
   authorizeMessage?: (input: AuthorizationInput) => boolean | Promise<boolean>
   authorizeQuery?: (input: AuthorizationInput) => boolean | Promise<boolean>
@@ -95,6 +100,15 @@ export function buildSettings(configuration: SolidObjectsConfiguration): Runtime
     effectWorkerCount: configuration.effectWorkerCount ?? 1,
     broadcastWorkerCount: configuration.broadcastWorkerCount ?? 1,
     reminderSchedulerCount: configuration.reminderSchedulerCount ?? 1,
+    messageRetentionMilliseconds: configuration.messageRetentionMilliseconds ?? 30 * 86_400_000,
+    messageRetentionByActorType: Object.freeze({
+      ...(configuration.messageRetentionByActorType ?? {}),
+    }),
+    instanceRetentionByActorType: Object.freeze({
+      ...(configuration.instanceRetentionByActorType ?? {}),
+    }),
+    processRetentionMilliseconds: configuration.processRetentionMilliseconds ?? 7 * 86_400_000,
+    pruneBatchSize: configuration.pruneBatchSize ?? 1_000,
     logger: configuration.logger ?? consoleLogger,
     authorizeMessage: configuration.authorizeMessage ?? (() => false),
     authorizeQuery: configuration.authorizeQuery ?? (() => false),
@@ -137,6 +151,8 @@ function validateSettings(settings: RuntimeSettings): void {
     maxAttempts: settings.maxAttempts,
     processHeartbeatIntervalMilliseconds: settings.processHeartbeatIntervalMilliseconds,
     processAliveThresholdMilliseconds: settings.processAliveThresholdMilliseconds,
+    messageRetentionMilliseconds: settings.messageRetentionMilliseconds,
+    processRetentionMilliseconds: settings.processRetentionMilliseconds,
   }
   for (const [name, value] of Object.entries(positive)) {
     if (!Number.isFinite(value) || value <= 0) throw new TypeError(`${name} must be positive`)
@@ -157,10 +173,28 @@ function validateSettings(settings: RuntimeSettings): void {
       throw new TypeError(`${name} must be a non-negative integer`)
   }
 
+  if (!Number.isSafeInteger(settings.pruneBatchSize) || settings.pruneBatchSize < 1) {
+    throw new TypeError("pruneBatchSize must be a positive safe integer")
+  }
+  validateRetentionOverrides("messageRetentionByActorType", settings.messageRetentionByActorType)
+  validateRetentionOverrides("instanceRetentionByActorType", settings.instanceRetentionByActorType)
+
   const roleCount =
     settings.workerCount +
     settings.effectWorkerCount +
     settings.reminderSchedulerCount +
     (settings.broadcast ? settings.broadcastWorkerCount : 0)
   if (roleCount === 0) throw new TypeError("at least one runtime role must be configured")
+}
+
+function validateRetentionOverrides(
+  name: string,
+  overrides: Readonly<Record<string, number>>,
+): void {
+  for (const [actorType, retention] of Object.entries(overrides)) {
+    if (actorType.length === 0) throw new TypeError(`${name} actor types must not be empty`)
+    if (!Number.isFinite(retention) || retention <= 0) {
+      throw new TypeError(`${name} values must be positive`)
+    }
+  }
 }

@@ -319,6 +319,42 @@ views. State batches are migrated to the registered actor's current version
 before they are returned. Reconciliation never writes actor state directly;
 repairs enter the ordinary durable mailbox.
 
+## Retain history deliberately
+
+Message history defaults to 30 days, stopped process history to 7 days, and
+actor instances never expire unless their actor type opts in:
+
+```typescript
+const runtime = configureSolidObjects({
+  database,
+  messageRetentionMilliseconds: 30 * 24 * 60 * 60 * 1_000,
+  messageRetentionByActorType: {
+    [AuditEvent.actorType]: 365 * 24 * 60 * 60 * 1_000,
+  },
+  instanceRetentionByActorType: {
+    [EphemeralSession.actorType]: 7 * 24 * 60 * 60 * 1_000,
+  },
+})
+```
+
+Preview each resource before pruning it:
+
+```typescript
+await runtime.retention.preview({
+  target: "messages",
+  authorizationContext: currentUser,
+})
+
+await runtime.retention.prune({
+  target: "messages",
+  authorizationContext: currentUser,
+})
+```
+
+Pruning rechecks every candidate in bounded transactions. Live mailbox work,
+unfinished outboxes, scheduled reminders, dead letters, retry links, active
+leases, and running processes are retained.
+
 ## Add realtime updates without exposing all state
 
 Configure `broadcast` to forward explicit observable changes to the transport

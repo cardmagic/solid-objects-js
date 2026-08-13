@@ -6,6 +6,8 @@
 - Add sequential schema migrations and upgrade version-one SQLite databases.
 - Add bounded, authorization-gated reconciliation reads for actor lifecycle
   repair.
+- Add previewable bounded retention for messages, stopped processes, and
+  opt-in actor instances.
 
 ## 0.1.0 - 2026-08-13
 

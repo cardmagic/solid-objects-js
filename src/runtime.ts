@@ -59,6 +59,7 @@ import type {
   ReminderRow,
 } from "./records.js"
 import { ReminderScheduler } from "./reminder-scheduler.js"
+import { RetentionManager, type RetentionOptions, type RetentionResult } from "./retention.js"
 import { deepCopy, jsonObject, normalizeJson, readonlyCopy, stableJson } from "./serialization.js"
 import { installSchema } from "./schema.js"
 import type {
@@ -100,6 +101,7 @@ export class SolidObjectsRuntime {
   readonly repository
   readonly deadLetters
   readonly reconciliation
+  readonly retention
   private readonly registry = new Map<string, RegisteredActor>()
   private readonly effects = new Map<string, EffectHandler>()
   private readonly commitActions = new Map<string, CommitActionHandler>()
@@ -112,6 +114,7 @@ export class SolidObjectsRuntime {
     this.repository = new Repository(this.settings)
     this.deadLetters = new DeadLetterManager(this)
     this.reconciliation = new ReconciliationManager(this)
+    this.retention = new RetentionManager(this)
   }
 
   async install(): Promise<void> {
@@ -501,6 +504,32 @@ export class SolidObjectsRuntime {
       ...(options.cursor === undefined ? {} : { cursor: options.cursor }),
     })
     return reconciliationPage(rows, limit)
+  }
+
+  async previewRetention(options: RetentionOptions): Promise<RetentionResult> {
+    assertRetentionTarget(options.target)
+    await this.authorizeAdministration({
+      action: "inspect",
+      resource: options.target,
+      authorizationContext: options.authorizationContext,
+    })
+    return Object.freeze({
+      target: options.target,
+      count: await this.repository.previewRetention(options.target),
+    })
+  }
+
+  async pruneRetention(options: RetentionOptions): Promise<RetentionResult> {
+    assertRetentionTarget(options.target)
+    await this.authorizeAdministration({
+      action: "prune",
+      resource: options.target,
+      authorizationContext: options.authorizationContext,
+    })
+    return Object.freeze({
+      target: options.target,
+      count: await this.repository.pruneRetention(options.target),
+    })
   }
 
   async executeTurn(turn: ClaimedTurn): Promise<void> {
@@ -893,4 +922,9 @@ function reconciliationInstanceFromRow(row: InstanceRow): ReconciliationInstance
     createdAt: new Date(Number(row.created_at_ms)),
     updatedAt: new Date(Number(row.updated_at_ms)),
   })
+}
+
+function assertRetentionTarget(value: string): void {
+  if (value === "messages" || value === "instances" || value === "processes") return
+  throw new TypeError(`unknown retention target ${JSON.stringify(value)}`)
 }

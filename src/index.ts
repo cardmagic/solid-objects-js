@@ -25,6 +25,12 @@ export {
   type ReconciliationStatesOptions,
 } from "./reconciliation.js"
 export {
+  RetentionManager,
+  type RetentionOptions,
+  type RetentionResult,
+  type RetentionTarget,
+} from "./retention.js"
+export {
   MessageReference,
   type ActorOperationNames,
   type ActorMessageSender,

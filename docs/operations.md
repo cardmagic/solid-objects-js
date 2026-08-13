@@ -22,3 +22,17 @@ Node applications do not share an Active Record relation abstraction. Send
 every repair through the actor's typed `send` dispatcher, optionally with a
 future `availableAt` to spread large repairs. Never update persisted actor
 state from reconciliation code.
+
+Retention is explicit through `runtime.retention.preview()` and
+`runtime.retention.prune()`. Both calls require administration authorization;
+use preview first and alert on an unexpected count before executing deletion.
+Message history defaults to 30 days with optional per-actor overrides. Stopped
+process history defaults to 7 days. Instance expiration is disabled unless an
+actor type appears in `instanceRetentionByActorType`.
+
+Pruning selects and rechecks at most `pruneBatchSize` rows per transaction. It
+preserves ready and claimed messages, dead-letter originals and replacements,
+unfinished effects and broadcasts, scheduled reminders, leased or paused
+instances, and processes that still own a claim or activation. Instance
+expiration removes the entire actor incarnation and all of its retained
+history, so use it only for actor types whose state is safely disposable.

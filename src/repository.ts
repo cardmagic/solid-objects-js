@@ -20,6 +20,7 @@ import type {
   ReminderRow,
 } from "./records.js"
 import { jsonObject, normalizeJson } from "./serialization.js"
+import type { RetentionTarget } from "./retention.js"
 import type { JsonObject, JsonValue } from "./types.js"
 
 export class Repository {
@@ -695,6 +696,147 @@ export class Repository {
     )
   }
 
+  async previewRetention(target: RetentionTarget): Promise<number> {
+    return this.settings.database.connection(async (connection) => {
+      const now = await connection.nowMilliseconds()
+      const predicate = this.retentionPredicate({ target, now })
+      const row = await connection.get<{ count: number | bigint }>(
+        `SELECT COUNT(*) AS count FROM ${this.table(target)} WHERE ${predicate.sql}`,
+        predicate.parameters,
+      )
+      return Number(row?.count ?? 0)
+    })
+  }
+
+  async pruneRetention(target: RetentionTarget): Promise<number> {
+    let count = 0
+    while (true) {
+      const deleted = await this.settings.database.transaction(async (connection) => {
+        const now = await connection.nowMilliseconds()
+        const predicate = this.retentionPredicate({ target, now })
+        const candidates = await connection.all<{ id: string }>(
+          `SELECT id FROM ${this.table(target)} WHERE ${predicate.sql}
+           ORDER BY id LIMIT ?`,
+          [...predicate.parameters, this.settings.pruneBatchSize],
+        )
+        if (candidates.length === 0) return 0
+        const candidateIds = JSON.stringify(candidates.map(({ id }) => id))
+        const result = await connection.run(
+          `DELETE FROM ${this.table(target)}
+           WHERE id IN (SELECT CAST(value AS TEXT) FROM json_each(?))
+             AND ${predicate.sql}`,
+          [candidateIds, ...predicate.parameters],
+        )
+        return result.changes
+      })
+      if (deleted === 0) return count
+      count += deleted
+    }
+  }
+
+  private retentionPredicate(options: { target: RetentionTarget; now: number }): {
+    sql: string
+    parameters: unknown[]
+  } {
+    if (options.target === "messages") return this.messageRetentionPredicate(options.now)
+    if (options.target === "instances") return this.instanceRetentionPredicate(options.now)
+    return this.processRetentionPredicate(options.now)
+  }
+
+  private messageRetentionPredicate(now: number): { sql: string; parameters: unknown[] } {
+    const table = this.table("messages")
+    const retention = retentionPolicy({
+      table,
+      timestampColumn: "completed_at_ms",
+      defaultRetention: this.settings.messageRetentionMilliseconds,
+      overrides: this.settings.messageRetentionByActorType,
+      now,
+    })
+    return {
+      sql: `${retention.sql}
+        AND ${table}.completed_at_ms IS NOT NULL
+        AND NOT EXISTS (
+          SELECT 1 FROM ${this.table("ready_messages")} ready
+          WHERE ready.message_id = ${table}.id
+        )
+        AND NOT EXISTS (
+          SELECT 1 FROM ${this.table("claimed_messages")} claimed
+          WHERE claimed.message_id = ${table}.id
+        )
+        AND NOT EXISTS (
+          SELECT 1 FROM ${this.table("dead_letters")} dead
+          WHERE dead.message_id = ${table}.id OR dead.retried_message_id = ${table}.id
+        )
+        AND NOT EXISTS (
+          SELECT 1 FROM ${this.table("effects")} effects
+          WHERE effects.message_id = ${table}.id AND effects.status != 'completed'
+        )
+        AND NOT EXISTS (
+          SELECT 1 FROM ${this.table("broadcasts")} broadcasts
+          WHERE broadcasts.message_id = ${table}.id AND broadcasts.status != 'delivered'
+        )`,
+      parameters: retention.parameters,
+    }
+  }
+
+  private instanceRetentionPredicate(now: number): { sql: string; parameters: unknown[] } {
+    const table = this.table("instances")
+    const retention = retentionPolicy({
+      table,
+      timestampColumn: "updated_at_ms",
+      overrides: this.settings.instanceRetentionByActorType,
+      now,
+    })
+    return {
+      sql: `${retention.sql}
+        AND ${table}.activation_owner_id IS NULL
+        AND ${table}.paused = 0
+        AND NOT EXISTS (
+          SELECT 1 FROM ${this.table("ready_messages")} ready
+          WHERE ready.instance_id = ${table}.id
+        )
+        AND NOT EXISTS (
+          SELECT 1 FROM ${this.table("claimed_messages")} claimed
+          WHERE claimed.instance_id = ${table}.id
+        )
+        AND NOT EXISTS (
+          SELECT 1 FROM ${this.table("reminders")} reminders
+          WHERE reminders.instance_id = ${table}.id AND reminders.status = 'scheduled'
+        )
+        AND NOT EXISTS (
+          SELECT 1 FROM ${this.table("effects")} effects
+          WHERE effects.instance_id = ${table}.id AND effects.status != 'completed'
+        )
+        AND NOT EXISTS (
+          SELECT 1 FROM ${this.table("broadcasts")} broadcasts
+          WHERE broadcasts.instance_id = ${table}.id AND broadcasts.status != 'delivered'
+        )
+        AND NOT EXISTS (
+          SELECT 1 FROM ${this.table("dead_letters")} dead
+          WHERE dead.instance_id = ${table}.id
+        )`,
+      parameters: retention.parameters,
+    }
+  }
+
+  private processRetentionPredicate(now: number): { sql: string; parameters: unknown[] } {
+    const table = this.table("processes")
+    return {
+      sql: `${table}.shutdown_state = 'stopped'
+        AND ${table}.stopped_at_ms IS NOT NULL
+        AND ${table}.stopped_at_ms < ?
+        AND NOT EXISTS (
+          SELECT 1 FROM ${this.table("claimed_messages")} claimed
+          WHERE claimed.process_id = ${table}.id
+        )
+        AND NOT EXISTS (
+          SELECT 1 FROM ${this.table("instances")} instances
+          WHERE instances.activation_owner_id = ${table}.id
+        )`,
+      parameters: [now - this.settings.processRetentionMilliseconds],
+    }
+  }
+
   private async findDeadLetterInConnection(
     connection: DatabaseConnection,
     id: string,
@@ -1094,4 +1236,34 @@ function safeError(error: unknown): Record<string, JsonValue> {
     return jsonObject({ name: error.name, message: error.message })
   }
   return jsonObject({ name: "Error", message: String(normalizeJson(error)) })
+}
+
+function retentionPolicy(options: {
+  table: string
+  timestampColumn: string
+  defaultRetention?: number
+  overrides: Readonly<Record<string, number>>
+  now: number
+}): { sql: string; parameters: unknown[] } {
+  const entries = Object.entries(options.overrides)
+  const conditions: string[] = []
+  const parameters: unknown[] = []
+  for (const [actorType, retention] of entries) {
+    conditions.push(
+      `(${options.table}.actor_type = ? AND ${options.table}.${options.timestampColumn} < ?)`,
+    )
+    parameters.push(actorType, options.now - retention)
+  }
+  if (options.defaultRetention !== undefined) {
+    const exclusion = entries.length
+      ? `${options.table}.actor_type NOT IN (SELECT CAST(value AS TEXT) FROM json_each(?)) AND `
+      : ""
+    conditions.push(`(${exclusion}${options.table}.${options.timestampColumn} < ?)`)
+    if (entries.length) parameters.push(JSON.stringify(entries.map(([actorType]) => actorType)))
+    parameters.push(options.now - options.defaultRetention)
+  }
+  return {
+    sql: conditions.length === 0 ? "0 = 1" : `(${conditions.join(" OR ")})`,
+    parameters,
+  }
 }
