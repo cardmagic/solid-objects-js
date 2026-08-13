@@ -327,6 +327,8 @@ export class SolidObjectsRuntime {
       argumentsValue: argumentsObject,
       authorizationContext: invocationOptions.authorizationContext,
     })
+    const timeout = invocationTimeout(invocationOptions)
+    const deadline = performance.now() + timeout
     const messageReference = await this.enqueue<Result>({
       reference,
       operation,
@@ -334,25 +336,25 @@ export class SolidObjectsRuntime {
       argumentsValue: argumentsObject,
       options: invocationOptions,
     })
-    return this.waitForResult(messageReference, invocationOptions)
+    return this.waitForResult(messageReference, { timeout, deadline })
   }
 
   async wait<Result>(
     messageReference: MessageReference<Result>,
     options: InvocationOptions = {},
   ): Promise<DeepReadonly<Result>> {
+    const timeout = invocationTimeout(options)
+    const deadline = performance.now() + timeout
     await this.authorizeMessageReference(messageReference, options.authorizationContext)
-    return this.waitForResult(messageReference, options)
+    return this.waitForResult(messageReference, { timeout, deadline })
   }
 
   private async waitForResult<Result>(
     messageReference: MessageReference<Result>,
-    options: InvocationOptions,
+    options: { timeout: number; deadline: number },
   ): Promise<DeepReadonly<Result>> {
-    const timeoutMilliseconds = options.timeoutMilliseconds ?? 5_000
-    const deadline = Date.now() + timeoutMilliseconds
     this.callerWorker ??= new Worker(this)
-    while (Date.now() <= deadline) {
+    while (performance.now() <= options.deadline) {
       const message = await this.repository.findMessage(messageReference.id)
       if (!message || message.request_id !== messageReference.requestId) {
         throw new Error("message reference no longer identifies this invocation")
@@ -364,22 +366,104 @@ export class SolidObjectsRuntime {
       if (status === "dead")
         throw new Error(JSON.parse(message.error ?? "{}")?.message ?? "actor message failed")
       const processed = await this.callerWorker.runOnce({ activationRetention: "release" })
-      if (processed === 0)
+      const remaining = options.deadline - performance.now()
+      if (processed === 0 && remaining > 0)
         await new Promise((resolve) =>
-          setTimeout(resolve, this.settings.syncPollingIntervalMilliseconds),
+          setTimeout(resolve, Math.min(this.settings.syncPollingIntervalMilliseconds, remaining)),
         )
     }
 
-    throw new SyncTimeout({
-      timeoutMilliseconds,
-      actorType: messageReference.actorType,
-      actorId: messageReference.actorId,
-      operation: (await this.repository.findMessage(messageReference.id))?.operation ?? "unknown",
-      messageId: messageReference.id,
-      requestId: messageReference.requestId,
-      sequence: messageReference.sequence,
-      status: await this.repository.messageStatus(messageReference.id),
+    const finalMessage = await this.repository.findMessage(messageReference.id)
+    if (!finalMessage || finalMessage.request_id !== messageReference.requestId) {
+      throw new Error("message reference no longer identifies this invocation")
+    }
+    if (finalMessage.rejection !== null) throw rejectionFromMessage(finalMessage)
+    const finalStatus = await this.repository.messageStatus(finalMessage.id)
+    if (finalStatus === "completed") {
+      return readonlyCopy(parseResult(finalMessage.result)) as DeepReadonly<Result>
+    }
+    if (finalStatus === "dead") {
+      throw new Error(JSON.parse(finalMessage.error ?? "{}")?.message ?? "actor message failed")
+    }
+    throw await this.syncTimeout(messageReference, options.timeout)
+  }
+
+  private async syncTimeout(
+    messageReference: MessageReference,
+    timeoutMilliseconds: number,
+  ): Promise<SyncTimeout> {
+    const diagnostics = await this.repository.syncDiagnostics(messageReference.id)
+    if (!diagnostics || diagnostics.message.request_id !== messageReference.requestId) {
+      throw new Error("message reference no longer identifies this invocation")
+    }
+    const { instance, message, process, blocker } = diagnostics
+    const activationLive =
+      instance.activation_owner_id !== null &&
+      instance.activation_expires_at_ms !== null &&
+      Number(instance.activation_expires_at_ms) > diagnostics.nowMilliseconds
+    const waitingOn = instance.paused
+      ? ("actorPaused" as const)
+      : activationLive
+        ? ("activationHeld" as const)
+        : blocker
+          ? ("earlierMessage" as const)
+          : diagnostics.status === "claimed"
+            ? ("messageClaimed" as const)
+            : diagnostics.readyAvailableAtMilliseconds !== undefined &&
+                diagnostics.readyAvailableAtMilliseconds > diagnostics.nowMilliseconds
+              ? ("notYetAvailable" as const)
+              : diagnostics.status === "ready"
+                ? ("readyUnclaimed" as const)
+                : ("unknown" as const)
+    const error = new SyncTimeout({
+      details: {
+        timeoutMilliseconds,
+        actorType: message.actor_type,
+        actorId: message.actor_id,
+        operation: message.operation,
+        messageId: message.id,
+        requestId: message.request_id,
+        sequence: BigInt(message.sequence),
+        status: diagnostics.status,
+        waitingOn,
+        activation: Object.freeze({
+          ownerId: instance.activation_owner_id,
+          generation: BigInt(instance.activation_generation),
+          expiresAt:
+            instance.activation_expires_at_ms === null
+              ? null
+              : new Date(Number(instance.activation_expires_at_ms)),
+          process: process
+            ? Object.freeze({
+                kind: process.kind,
+                heartbeatAt: new Date(Number(process.heartbeat_at_ms)),
+                shutdownState: process.shutdown_state,
+              })
+            : null,
+        }),
+        blocker: blocker
+          ? Object.freeze({
+              messageId: blocker.id,
+              sequence: BigInt(blocker.sequence),
+              operation: blocker.operation,
+              status: blocker.membership_status,
+            })
+          : null,
+      },
+      messageReference,
     })
+    this.emitInstrumentation("sync.timeout", {
+      messageId: message.id,
+      requestId: message.request_id,
+      actorType: message.actor_type,
+      actorId: message.actor_id,
+      sequence: String(message.sequence),
+      status: diagnostics.status,
+      waitingOn,
+      activationOwnerId: instance.activation_owner_id,
+      activationGeneration: String(instance.activation_generation),
+    })
+    return error
   }
 
   async messageStatus(
@@ -1519,6 +1603,14 @@ export function configureSolidObjects(
 function parseResult(value: string | null): JsonValue {
   if (value === null) return null
   return normalizeJson(JSON.parse(value))
+}
+
+function invocationTimeout(options: InvocationOptions): number {
+  const timeout = options.timeoutMilliseconds ?? 5_000
+  if (!Number.isFinite(timeout) || timeout < 0) {
+    throw new TypeError("timeoutMilliseconds must be a non-negative number")
+  }
+  return timeout
 }
 
 function rejectionFromMessage(message: ClaimedTurn["message"]): Rejected {

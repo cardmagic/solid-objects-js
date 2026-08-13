@@ -27,6 +27,20 @@ import { jsonObject, normalizeJson } from "./serialization.js"
 import type { RetentionTarget } from "./retention.js"
 import type { JsonObject, JsonValue } from "./types.js"
 
+export interface SyncDiagnosticsRecord {
+  message: MessageRow
+  instance: InstanceRow
+  process: ProcessRow | undefined
+  status: "ready" | "claimed" | "completed" | "rejected" | "dead" | "unknown"
+  readyAvailableAtMilliseconds: number | undefined
+  blocker:
+    | (MessageRow & {
+        membership_status: "ready" | "claimed"
+      })
+    | undefined
+  nowMilliseconds: number
+}
+
 export class Repository {
   constructor(private readonly settings: RuntimeSettings) {}
 
@@ -795,6 +809,74 @@ export class Repository {
         [id],
       )
       return ready ? "ready" : "unknown"
+    })
+  }
+
+  async syncDiagnostics(messageId: string): Promise<SyncDiagnosticsRecord | undefined> {
+    return this.settings.database.connection(async (connection) => {
+      const message = await connection.get<MessageRow>(
+        `SELECT * FROM ${this.table("messages")} WHERE id = ?`,
+        [messageId],
+      )
+      if (!message) return undefined
+      const instance = await connection.get<InstanceRow>(
+        `SELECT * FROM ${this.table("instances")} WHERE id = ?`,
+        [message.instance_id],
+      )
+      if (!instance) return undefined
+      const process = instance.activation_owner_id
+        ? await connection.get<ProcessRow>(
+            `SELECT * FROM ${this.table("processes")} WHERE id = ?`,
+            [instance.activation_owner_id],
+          )
+        : undefined
+      const claimed = await connection.get<{ found: number | bigint }>(
+        `SELECT 1 AS found FROM ${this.table("claimed_messages")} WHERE message_id = ?`,
+        [message.id],
+      )
+      const ready = await connection.get<{ available_at_ms: number | bigint }>(
+        `SELECT available_at_ms FROM ${this.table("ready_messages")} WHERE message_id = ?`,
+        [message.id],
+      )
+      const dead =
+        message.completed_at_ms === null
+          ? undefined
+          : await connection.get<{ found: number | bigint }>(
+              `SELECT 1 AS found FROM ${this.table("dead_letters")} WHERE message_id = ?`,
+              [message.id],
+            )
+      const blocker = await connection.get<MessageRow & { membership_status: "ready" | "claimed" }>(
+        `SELECT messages.*,
+           CASE WHEN claimed.message_id IS NOT NULL THEN 'claimed' ELSE 'ready' END AS membership_status
+         FROM ${this.table("messages")} messages
+         LEFT JOIN ${this.table("ready_messages")} ready ON ready.message_id = messages.id
+         LEFT JOIN ${this.table("claimed_messages")} claimed ON claimed.message_id = messages.id
+         WHERE messages.instance_id = ? AND messages.sequence < ?
+           AND (ready.message_id IS NOT NULL OR claimed.message_id IS NOT NULL)
+         ORDER BY messages.sequence LIMIT 1`,
+        [message.instance_id, message.sequence],
+      )
+      const status = message.rejection
+        ? "rejected"
+        : message.completed_at_ms !== null
+          ? dead
+            ? "dead"
+            : "completed"
+          : claimed
+            ? "claimed"
+            : ready
+              ? "ready"
+              : "unknown"
+      return {
+        message,
+        instance,
+        process,
+        status,
+        readyAvailableAtMilliseconds:
+          ready === undefined ? undefined : Number(ready.available_at_ms),
+        blocker,
+        nowMilliseconds: await connection.nowMilliseconds(),
+      }
     })
   }
 

@@ -9,6 +9,7 @@ import {
 } from "../src/database/postgresql.js"
 import { configureSolidObjects, type SolidObjectsRuntime } from "../src/runtime.js"
 import type { RealtimeEnvelope } from "../src/browser/index.js"
+import { SyncTimeout } from "../src/errors.js"
 
 const connectionString = process.env.SOLID_OBJECTS_DATABASE_URL
 const describePostgreSQL = connectionString?.startsWith("postgresql:") ? describe : describe.skip
@@ -211,6 +212,12 @@ describePostgreSQL("PostgreSQL adapter", () => {
     runtime.register(PostgreSQLCounter)
     await runtime.install()
 
+    const scheduled = await PostgreSQLCounter.ref("scheduled-timeout")
+      .send.with({ availableAt: new Date(Date.now() + 60_000) })
+      .increment()
+    const timeout = await captureSyncTimeout(() => scheduled.wait({ timeoutMilliseconds: 1 }))
+    expect(timeout.details).toMatchObject({ status: "ready", waitingOn: "notYetAvailable" })
+
     const integer = await database.connection((connection) =>
       connection.get<{ value: bigint }>("SELECT 9223372036854775807::bigint AS value"),
     )
@@ -315,3 +322,13 @@ describePostgreSQL("PostgreSQL adapter", () => {
     await expect(runtime.retention.prune({ target: "messages" })).resolves.toEqual(preview)
   })
 })
+
+async function captureSyncTimeout(operation: () => Promise<unknown>): Promise<SyncTimeout> {
+  try {
+    await operation()
+  } catch (error) {
+    expect(error).toBeInstanceOf(SyncTimeout)
+    return error as SyncTimeout
+  }
+  throw new Error("expected invocation to time out")
+}

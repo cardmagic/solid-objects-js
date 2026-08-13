@@ -130,6 +130,8 @@ export {
   SolidObjectsError,
   StateMigrationError,
   SyncTimeout,
+  type SyncTimeoutDetails,
+  type SyncTimeoutWaitingOn,
   Unauthorized,
   UnknownActorType,
   UnknownCommitAction,

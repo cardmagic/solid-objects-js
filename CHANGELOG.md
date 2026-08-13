@@ -50,6 +50,8 @@
 - Add independent supervised schedulers for expired message and process
   retention and stale process recovery, with disable switches and bounded
   failure backoff.
+- Apply synchronous deadlines before durable enqueue and add structured wait,
+  activation, blocker, and recoverable message-reference diagnostics.
 
 ## 0.1.0 - 2026-08-13
 

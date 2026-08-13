@@ -1,3 +1,5 @@
+import type { MessageReference } from "./reference.js"
+
 export class SolidObjectsError extends Error {
   constructor(message?: string, options?: ErrorOptions) {
     super(message, options)
@@ -45,21 +47,55 @@ export class Rejected extends SolidObjectsError {
 }
 
 export class SyncTimeout extends SolidObjectsError {
-  constructor(
-    readonly details: {
-      timeoutMilliseconds: number
-      actorType: string
-      actorId: string
-      operation: string
-      messageId: string
-      requestId: string
-      sequence: bigint
-      status: string
-    },
-  ) {
+  readonly details: SyncTimeoutDetails
+  readonly messageReference: MessageReference
+
+  constructor(options: { details: SyncTimeoutDetails; messageReference: MessageReference }) {
+    const { details } = options
     super(
       `actor invocation timed out after ${details.timeoutMilliseconds}ms for ` +
-        `${details.actorType}(${JSON.stringify(details.actorId)}).${details.operation}`,
+        `${details.actorType}(${JSON.stringify(details.actorId)}).${details.operation} ` +
+        `messageId=${details.messageId} sequence=${details.sequence} ` +
+        `status=${details.status} waitingOn=${details.waitingOn}`,
     )
+    this.details = Object.freeze(details)
+    this.messageReference = options.messageReference
   }
+}
+
+export type SyncTimeoutWaitingOn =
+  | "actorPaused"
+  | "activationHeld"
+  | "earlierMessage"
+  | "messageClaimed"
+  | "notYetAvailable"
+  | "readyUnclaimed"
+  | "unknown"
+
+export interface SyncTimeoutDetails {
+  readonly timeoutMilliseconds: number
+  readonly actorType: string
+  readonly actorId: string
+  readonly operation: string
+  readonly messageId: string
+  readonly requestId: string
+  readonly sequence: bigint
+  readonly status: string
+  readonly waitingOn: SyncTimeoutWaitingOn
+  readonly activation: Readonly<{
+    ownerId: string | null
+    generation: bigint
+    expiresAt: Date | null
+    process: Readonly<{
+      kind: string
+      heartbeatAt: Date
+      shutdownState: string
+    }> | null
+  }>
+  readonly blocker: Readonly<{
+    messageId: string
+    sequence: bigint
+    operation: string
+    status: string
+  }> | null
 }

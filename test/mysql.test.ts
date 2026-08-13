@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it } from "vitest"
 import { Actor } from "../src/actor.js"
 import { mysql, mysqlSql, type MySQLDatabase } from "../src/database/mysql.js"
 import { configureSolidObjects, type SolidObjectsRuntime } from "../src/runtime.js"
+import { SyncTimeout } from "../src/errors.js"
 
 const connectionString = process.env.SOLID_OBJECTS_DATABASE_URL
 const describeMySQL = connectionString?.startsWith("mysql:") ? describe : describe.skip
@@ -107,6 +108,12 @@ describeMySQL("MySQL adapter", () => {
     await runtime.install()
     await runtime.install()
 
+    const scheduled = await MySQLWorkflow.ref("scheduled-timeout")
+      .send.with({ availableAt: new Date(Date.now() + 60_000) })
+      .increment()
+    const timeout = await captureSyncTimeout(() => scheduled.wait({ timeoutMilliseconds: 1 }))
+    expect(timeout.details).toMatchObject({ status: "ready", waitingOn: "notYetAvailable" })
+
     await Promise.all(
       Array.from({ length: 25 }, () => MySQLWorkflow.ref("shared").send.increment()),
     )
@@ -157,3 +164,13 @@ describeMySQL("MySQL adapter", () => {
     )
   }, 15_000)
 })
+
+async function captureSyncTimeout(operation: () => Promise<unknown>): Promise<SyncTimeout> {
+  try {
+    await operation()
+  } catch (error) {
+    expect(error).toBeInstanceOf(SyncTimeout)
+    return error as SyncTimeout
+  }
+  throw new Error("expected invocation to time out")
+}

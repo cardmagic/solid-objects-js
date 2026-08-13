@@ -43,6 +43,14 @@ atomically fences stale processes out of every owned role claim before waking
 the affected runtime roles. The cleanup count is instrumented; process IDs and
 application payloads are not.
 
+Committed calls and `message.wait()` apply `timeoutMilliseconds` to the entire
+durable wait, beginning before enqueue or message lookup. A `SyncTimeout`
+includes `waitingOn`, activation and process metadata, an earlier blocking
+message when present, and the original `messageReference`. The durable message
+continues after an ordinary wait timeout, so callers can store that reference
+or await `error.messageReference.wait()` later. Timeout instrumentation excludes
+actor arguments, results, and error messages.
+
 Authorized operators can inspect terminal actor failures with
 `runtime.deadLetters.all()` and retry one with `runtime.deadLetters.retry()`.
 Retry is idempotent per dead letter: the record retains the replacement message
