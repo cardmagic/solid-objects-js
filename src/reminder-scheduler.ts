@@ -50,7 +50,7 @@ export class ReminderScheduler {
   async run(signal: AbortSignal): Promise<void> {
     await this.ensureRegistered()
     while (!signal.aborted && !this.stopping) {
-      const wakeUp = this.runtime.settings.wakeUp.watch("reminders")
+      const wakeUp = await this.runtime.settings.wakeUp.watch("reminders")
       const processed = await this.runOnce()
       if (processed === 0) {
         await wakeUp.wait({

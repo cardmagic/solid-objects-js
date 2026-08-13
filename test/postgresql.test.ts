@@ -1,7 +1,12 @@
 import { afterEach, describe, expect, it } from "vitest"
 import { Actor } from "../src/actor.js"
 import { postgresqlSql } from "../src/database/postgresql-sql.js"
-import { postgresql, type PostgreSQLDatabase } from "../src/database/postgresql.js"
+import {
+  PostgreSQLWakeUpAdapter,
+  postgresql,
+  postgresqlWakeUp,
+  type PostgreSQLDatabase,
+} from "../src/database/postgresql.js"
 import { configureSolidObjects, type SolidObjectsRuntime } from "../src/runtime.js"
 import type { RealtimeEnvelope } from "../src/browser/index.js"
 
@@ -53,14 +58,18 @@ class PostgreSQLWorkflow extends Actor {
 
 let runtime: SolidObjectsRuntime | undefined
 let database: PostgreSQLDatabase | undefined
+let wakeUps: PostgreSQLWakeUpAdapter[] = []
 
 afterEach(async () => {
   try {
     await runtime?.testing.reset()
   } finally {
     await runtime?.close()
+    await database?.close()
+    await Promise.all(wakeUps.map((wakeUp) => wakeUp.close()))
     runtime = undefined
     database = undefined
+    wakeUps = []
   }
 })
 
@@ -79,9 +88,102 @@ describe("PostgreSQL SQL parameters", () => {
       postgresql({ connectionString: "postgresql:///example", maximumConnections: 0 }),
     ).toThrow("must be a positive safe integer")
   })
+
+  it("rejects invalid notification channels before connecting", () => {
+    expect(() =>
+      postgresqlWakeUp({
+        connectionString: "postgresql:///example",
+        channelPrefix: "not-valid",
+      }),
+    ).toThrow("channelPrefix must contain only letters, digits, and underscores")
+  })
+
+  it("creates its matching wake-up adapter", async () => {
+    const standaloneDatabase = postgresql({ connectionString: "postgresql:///example" })
+    const wakeUp = standaloneDatabase.wakeUp()
+
+    expect(wakeUp).toBeInstanceOf(PostgreSQLWakeUpAdapter)
+
+    await wakeUp.close()
+    await standaloneDatabase.close()
+  })
 })
 
 describePostgreSQL("PostgreSQL adapter", () => {
+  it("wakes every role waiter through another PostgreSQL client", async () => {
+    if (!connectionString) throw new Error("PostgreSQL connection string is required")
+    const listener = postgresqlWakeUp({
+      connectionString,
+      channelPrefix: "postgresql_test_wake_up",
+    })
+    const notifier = postgresqlWakeUp({
+      connectionString,
+      channelPrefix: "postgresql_test_wake_up",
+    })
+    wakeUps.push(listener, notifier)
+    const actorWatches = await Promise.all([
+      listener.watch("actors"),
+      listener.watch("actors"),
+      listener.watch("actors"),
+    ])
+    const effectWatch = await listener.watch("effects")
+    const actorWaits = actorWatches
+      .slice(0, 2)
+      .map((watch) => watch.wait({ timeoutMilliseconds: 10_000 }))
+    let effectResolved = false
+    void effectWatch.wait({ timeoutMilliseconds: 10_000 }).then(() => {
+      effectResolved = true
+    })
+    const startedAt = performance.now()
+
+    await notifier.notify("actors")
+    await Promise.all([...actorWaits, actorWatches[2]!.wait({ timeoutMilliseconds: 10_000 })])
+
+    expect(performance.now() - startedAt).toBeLessThan(1_000)
+    expect(effectResolved).toBe(false)
+    await listener.close()
+    await new Promise<void>((resolve) => setImmediate(resolve))
+    expect(effectResolved).toBe(true)
+  })
+
+  it("reconnects a listener after PostgreSQL closes its session", async () => {
+    if (!connectionString) throw new Error("PostgreSQL connection string is required")
+    const failures: string[] = []
+    const applicationName = `solid-objects-wake-up-reconnect-${process.pid}`
+    const listener = postgresqlWakeUp({
+      connectionString,
+      applicationName,
+      channelPrefix: "postgresql_test_reconnect",
+      onListenerError: ({ operation }) => failures.push(operation),
+    })
+    const notifier = postgresqlWakeUp({
+      connectionString,
+      channelPrefix: "postgresql_test_reconnect",
+    })
+    wakeUps.push(listener, notifier)
+    database = postgresql({ connectionString })
+    const interruptedWatch = await listener.watch("actors")
+    const interruptedWait = interruptedWatch.wait({ timeoutMilliseconds: 10_000 })
+
+    const terminated = await database.connection((connection) =>
+      connection.get<{ terminated: boolean }>(
+        `SELECT pg_terminate_backend(pid) AS terminated
+         FROM pg_stat_activity
+         WHERE application_name = ? AND pid <> pg_backend_pid()`,
+        [applicationName],
+      ),
+    )
+    expect(terminated?.terminated).toBe(true)
+    await interruptedWait
+
+    const reconnectedWatch = await listener.watch("actors")
+    const reconnectedWait = reconnectedWatch.wait({ timeoutMilliseconds: 10_000 })
+    await notifier.notify("actors")
+    await reconnectedWait
+
+    expect(failures).toContain("connection")
+  })
+
   it("installs and allocates ordered sequences under concurrent enqueue", async () => {
     if (!connectionString) throw new Error("PostgreSQL connection string is required")
     database = postgresql({ connectionString, maximumConnections: 10 })

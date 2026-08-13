@@ -140,6 +140,11 @@ const database = postgresql({
   connectionString,
   maximumConnections: 10,
 })
+
+const runtime = configureSolidObjects({
+  database,
+  wakeUp: database.wakeUp(),
+})
 ```
 
 PostgreSQL uses a bounded `pg` pool, 64-bit database timestamps and sequences,
@@ -147,6 +152,13 @@ row-locked sequence allocation, and the same durable polling contract as
 SQLite. Keep `pg` at 8.23 or newer within the supported major. Portable
 `DatabaseConnection` SQL uses `?` parameters; write `??` when a PostgreSQL query
 needs the literal JSON existence operator.
+
+`database.wakeUp()` is opt-in. It uses one event-driven PostgreSQL client per
+runtime to listen on role-specific channels and wake every matching local
+waiter. Create it in every process that should send or receive notifications.
+Polling remains the fallback if a notification is missed or the listener
+reconnects. Because `LISTEN` is session-scoped, use a direct connection or
+session pooling rather than transaction pooling for this client.
 
 Authorization is deny-by-default. Actor IDs identify actors; they are not
 capabilities.
@@ -158,9 +170,10 @@ instances to finish, so no replacement can outlive the runtime.
 
 The default in-process wake-up adapter interrupts role polling as soon as this
 runtime commits new work. Polling remains the correctness fallback, so a missed
-or failed signal costs latency rather than losing work. Multi-process hosts can
-provide a `WakeUpAdapter` backed by their existing notification system without
-adding a required broker to the default SQLite stack.
+or failed signal costs latency rather than losing work. Multi-process hosts not
+using PostgreSQL notifications can provide a `WakeUpAdapter` backed by their
+existing notification system without adding a required broker to the default
+SQLite stack.
 
 ## Call it like a local object
 

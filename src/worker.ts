@@ -52,7 +52,7 @@ export class Worker {
   async run(signal: AbortSignal): Promise<void> {
     await this.ensureRegistered()
     while (!signal.aborted && !this.stopping) {
-      const wakeUp = this.runtime.settings.wakeUp.watch("actors")
+      const wakeUp = await this.runtime.settings.wakeUp.watch("actors")
       const processed = await this.runOnce()
       if (processed === 0) {
         await wakeUp.wait({

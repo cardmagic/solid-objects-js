@@ -35,6 +35,13 @@ transaction on one checked-out client, stores timestamps and sequences as
 64-bit integers, and locks an actor's instance row while allocating mailbox
 sequences. Both adapters use database time and the same fencing predicates.
 
+PostgreSQL notifications are an opt-in latency layer. One event-driven client
+per runtime listens on role-specific channels before the worker checks durable
+state, which closes the listener-startup race without Ruby's connection per
+blocking thread. A notification advances a process-local role generation and
+wakes every matching waiter. Reconnection and notification loss fall back to
+the ordinary polling interval.
+
 A worker claims one actor globally, then preferentially drains up to
 `maxMessagesPerActivationPass` ready turns for that instance. Reaching the cap
 moves only that actor's already-due ready memberships to current database time.

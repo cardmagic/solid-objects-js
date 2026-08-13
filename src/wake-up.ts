@@ -10,7 +10,7 @@ export interface WakeUpWatch {
 }
 
 export interface WakeUpAdapter {
-  watch(role: WakeUpRole): WakeUpWatch
+  watch(role: WakeUpRole): WakeUpWatch | Promise<WakeUpWatch>
   notify(role: WakeUpRole): void | Promise<void>
   close(): void | Promise<void>
 }

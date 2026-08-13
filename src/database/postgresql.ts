@@ -1,6 +1,14 @@
 import { Pool, TypeOverrides, types, type PoolClient, type PoolConfig } from "pg"
 import { postgresqlSql } from "./postgresql-sql.js"
 import type { Database, DatabaseConnection, RunResult } from "./types.js"
+import { PostgreSQLWakeUpAdapter, type PostgreSQLWakeUpFailure } from "../wake-up/postgresql.js"
+
+export {
+  PostgreSQLWakeUpAdapter,
+  postgresqlWakeUp,
+  type PostgreSQLWakeUpFailure,
+  type PostgreSQLWakeUpOptions,
+} from "../wake-up/postgresql.js"
 
 export interface PostgreSQLDatabaseOptions {
   connectionString: string
@@ -9,6 +17,12 @@ export interface PostgreSQLDatabaseOptions {
   connectionTimeoutMilliseconds?: number
   applicationName?: string
   onPoolError?: (error: Error) => void
+}
+
+export interface PostgreSQLDatabaseWakeUpOptions {
+  channelPrefix?: string
+  applicationName?: string
+  onListenerError?: (failure: PostgreSQLWakeUpFailure) => void
 }
 
 class PostgreSQLConnection implements DatabaseConnection {
@@ -46,12 +60,14 @@ export class PostgreSQLDatabase implements Database {
   readonly family = "postgresql" as const
   readonly schemaIdentity = "solid-objects-node-v1"
   private readonly pool: Pool
+  private readonly connectionString: string
   private closed = false
 
   constructor(options: PostgreSQLDatabaseOptions) {
     if (options.connectionString.length === 0) {
       throw new TypeError("PostgreSQL connectionString must not be empty")
     }
+    this.connectionString = options.connectionString
     if (
       options.maximumConnections !== undefined &&
       (!Number.isSafeInteger(options.maximumConnections) || options.maximumConnections < 1)
@@ -124,6 +140,13 @@ export class PostgreSQLDatabase implements Database {
     if (this.closed) return
     this.closed = true
     await this.pool.end()
+  }
+
+  wakeUp(options: PostgreSQLDatabaseWakeUpOptions = {}): PostgreSQLWakeUpAdapter {
+    return new PostgreSQLWakeUpAdapter({
+      connectionString: this.connectionString,
+      ...options,
+    })
   }
 }
 

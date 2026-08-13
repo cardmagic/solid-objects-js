@@ -31,6 +31,8 @@
 - Add PostgreSQL 14+ through the optional `pg` driver with pooled transactions,
   row-locked sequence allocation, portable schema and set queries, diagnostics,
   and real-server integration coverage.
+- Add opt-in role-specific PostgreSQL wake-ups with one event-driven listener
+  per runtime and polling as the correctness fallback.
 
 ## 0.1.0 - 2026-08-13
 

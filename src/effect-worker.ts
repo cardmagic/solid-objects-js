@@ -37,7 +37,7 @@ export class EffectWorker {
   async run(signal: AbortSignal): Promise<void> {
     await this.ensureRegistered()
     while (!signal.aborted && !this.stopping) {
-      const wakeUp = this.runtime.settings.wakeUp.watch("effects")
+      const wakeUp = await this.runtime.settings.wakeUp.watch("effects")
       const processed = await this.runOnce()
       if (processed === 0) {
         await wakeUp.wait({
