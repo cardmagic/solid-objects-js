@@ -42,13 +42,35 @@ describe("database deadlines", () => {
 
     await expect(
       withDatabaseDeadline({ timeoutMilliseconds: 10 }, () =>
-        acquireBeforeDatabaseDeadline(acquisition, (resource) => released.push(resource)),
+        acquireBeforeDatabaseDeadline(
+          () => acquisition,
+          (resource) => released.push(resource),
+        ),
       ),
     ).rejects.toBeInstanceOf(DatabaseDeadlineExceeded)
     completeAcquisition?.("late connection")
     await eventually(() => released.length === 1)
 
     expect(released).toEqual(["late connection"])
+  })
+
+  it("does not start an acquisition after the deadline has expired", async () => {
+    let acquisitions = 0
+
+    await expect(
+      withDatabaseDeadline({ timeoutMilliseconds: 0 }, () =>
+        acquireBeforeDatabaseDeadline(
+          () =>
+            Promise.resolve().then(() => {
+              acquisitions += 1
+              return "connection"
+            }),
+          () => undefined,
+        ),
+      ),
+    ).rejects.toBeInstanceOf(DatabaseDeadlineExceeded)
+
+    expect(acquisitions).toBe(0)
   })
 
   it("applies and restores the remaining SQLite busy timeout", async () => {

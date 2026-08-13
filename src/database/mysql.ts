@@ -129,7 +129,7 @@ export class MySQLDatabase implements Database {
   ): Promise<Result> {
     const deadlineActive = databaseDeadlineRemainingMilliseconds() !== undefined
     const connection = await acquireBeforeDatabaseDeadline(
-      this.pool.getConnection(),
+      () => this.pool.getConnection(),
       (lateConnection) => lateConnection.release(),
     )
     let discardConnection = false
@@ -155,7 +155,7 @@ export class MySQLDatabase implements Database {
     return withDatabaseTransaction(this, async () => {
       const deadlineActive = databaseDeadlineRemainingMilliseconds() !== undefined
       const connection = await acquireBeforeDatabaseDeadline(
-        this.pool.getConnection(),
+        () => this.pool.getConnection(),
         (lateConnection) => lateConnection.release(),
       )
       try {

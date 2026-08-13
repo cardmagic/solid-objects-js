@@ -32,18 +32,19 @@ export function databaseDeadlineError(error: unknown): DatabaseDeadlineExceeded 
 }
 
 export async function acquireBeforeDatabaseDeadline<Resource>(
-  acquire: Promise<Resource>,
+  acquire: () => Promise<Resource>,
   release: (resource: Resource) => void,
 ): Promise<Resource> {
   const remaining = requireDatabaseDeadlineRemaining()
-  if (remaining === undefined) return acquire
+  const acquisition = acquire()
+  if (remaining === undefined) return acquisition
   return new Promise<Resource>((resolve, reject) => {
     let expired = false
     const timeout = setTimeout(() => {
       expired = true
       reject(new DatabaseDeadlineExceeded("database deadline exceeded"))
     }, remaining)
-    void acquire.then(
+    void acquisition.then(
       (resource) => {
         clearTimeout(timeout)
         if (expired) {

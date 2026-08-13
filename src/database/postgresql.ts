@@ -124,8 +124,9 @@ export class PostgreSQLDatabase implements Database {
     callback: (connection: DatabaseConnection) => Promise<Result>,
   ): Promise<Result> {
     const deadlineActive = databaseDeadlineRemainingMilliseconds() !== undefined
-    const client = await acquireBeforeDatabaseDeadline(this.pool.connect(), (lateClient) =>
-      lateClient.release(),
+    const client = await acquireBeforeDatabaseDeadline(
+      () => this.pool.connect(),
+      (lateClient) => lateClient.release(),
     )
     let discardConnection = false
     try {
@@ -155,8 +156,9 @@ export class PostgreSQLDatabase implements Database {
   ): Promise<Result> {
     return withDatabaseTransaction(this, async () => {
       const deadlineActive = databaseDeadlineRemainingMilliseconds() !== undefined
-      const client = await acquireBeforeDatabaseDeadline(this.pool.connect(), (lateClient) =>
-        lateClient.release(),
+      const client = await acquireBeforeDatabaseDeadline(
+        () => this.pool.connect(),
+        (lateClient) => lateClient.release(),
       )
       try {
         await client.query("BEGIN")
