@@ -51,6 +51,8 @@ export interface SolidObjectsConfiguration {
   retryDelayMilliseconds?: (attempt: number) => number
   processHeartbeatIntervalMilliseconds?: number
   processAliveThresholdMilliseconds?: number
+  supervisorRestartDelayMilliseconds?: number
+  supervisorMaximumRestartDelayMilliseconds?: number
   workerCount?: number
   effectWorkerCount?: number
   broadcastWorkerCount?: number
@@ -115,6 +117,9 @@ export function buildSettings(configuration: SolidObjectsConfiguration): Runtime
     processHeartbeatIntervalMilliseconds:
       configuration.processHeartbeatIntervalMilliseconds ?? 15_000,
     processAliveThresholdMilliseconds: configuration.processAliveThresholdMilliseconds ?? 60_000,
+    supervisorRestartDelayMilliseconds: configuration.supervisorRestartDelayMilliseconds ?? 100,
+    supervisorMaximumRestartDelayMilliseconds:
+      configuration.supervisorMaximumRestartDelayMilliseconds ?? 10_000,
     workerCount: configuration.workerCount ?? 1,
     effectWorkerCount: configuration.effectWorkerCount ?? 1,
     broadcastWorkerCount: configuration.broadcastWorkerCount ?? 1,
@@ -187,6 +192,8 @@ function validateSettings(settings: RuntimeSettings): void {
     maxAttempts: settings.maxAttempts,
     processHeartbeatIntervalMilliseconds: settings.processHeartbeatIntervalMilliseconds,
     processAliveThresholdMilliseconds: settings.processAliveThresholdMilliseconds,
+    supervisorRestartDelayMilliseconds: settings.supervisorRestartDelayMilliseconds,
+    supervisorMaximumRestartDelayMilliseconds: settings.supervisorMaximumRestartDelayMilliseconds,
     messageRetentionMilliseconds: settings.messageRetentionMilliseconds,
     processRetentionMilliseconds: settings.processRetentionMilliseconds,
   }
@@ -196,6 +203,13 @@ function validateSettings(settings: RuntimeSettings): void {
 
   if (settings.leaseDurationMilliseconds <= settings.leaseRenewalIntervalMilliseconds) {
     throw new TypeError("leaseDurationMilliseconds must exceed leaseRenewalIntervalMilliseconds")
+  }
+  if (
+    settings.supervisorMaximumRestartDelayMilliseconds < settings.supervisorRestartDelayMilliseconds
+  ) {
+    throw new TypeError(
+      "supervisorMaximumRestartDelayMilliseconds must be at least supervisorRestartDelayMilliseconds",
+    )
   }
 
   const roleCounts: Record<string, number> = {

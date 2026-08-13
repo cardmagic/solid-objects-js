@@ -126,6 +126,11 @@ await runtime.run(shutdown.signal)
 Authorization is deny-by-default. Actor IDs identify actors; they are not
 capabilities.
 
+`runtime.run()` supervises every built-in role and registered component. An
+unexpected exit is cleaned up and rebuilt through its original factory with
+capped exponential backoff. Shutdown stops replacement before asking the live
+instances to finish, so no replacement can outlive the runtime.
+
 The default in-process wake-up adapter interrupts role polling as soon as this
 runtime commits new work. Polling remains the correctness fallback, so a missed
 or failed signal costs latency rather than losing work. Multi-process hosts can

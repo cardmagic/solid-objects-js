@@ -104,6 +104,109 @@ describe("runtime lifecycle", () => {
     )
   })
 
+  it("rebuilds a component through its factory after an unexpected exit", async () => {
+    const events: string[] = []
+    let builds = 0
+    let runs = 0
+    runtime = configuredRuntime({
+      supervisorRestartDelayMilliseconds: 1,
+      instrumentation: ({ name }) => events.push(name),
+    })
+    runtime.registerComponent(() => {
+      builds += 1
+      let stopping = false
+      return {
+        run: async (signal) => {
+          runs += 1
+          if (runs === 1) throw new Error("component crashed")
+          await aborted(signal)
+          stopping = true
+        },
+        requestShutdown: () => {
+          stopping = true
+        },
+        stopped: () => stopping,
+        stop: () => {
+          stopping = true
+        },
+      }
+    })
+    await runtime.install()
+    const controller = new AbortController()
+    const running = runtime.run(controller.signal)
+
+    await eventually(() => builds >= 2 && runs >= 2)
+    controller.abort()
+    await running
+
+    expect(events).toContain("solid_objects.supervisor.role_replaced")
+  })
+
+  it("paces a component factory that keeps failing", async () => {
+    let builds = 0
+    const buildTimes: number[] = []
+    let fourthBuild: (() => void) | undefined
+    const builtFourTimes = new Promise<void>((resolve) => {
+      fourthBuild = resolve
+    })
+    runtime = configuredRuntime({
+      supervisorRestartDelayMilliseconds: 10,
+      supervisorMaximumRestartDelayMilliseconds: 20,
+    })
+    runtime.registerComponent(() => {
+      builds += 1
+      buildTimes.push(performance.now())
+      if (builds === 4) fourthBuild?.()
+      if (builds > 1) throw new Error("factory unavailable")
+      return {
+        run: async () => {
+          throw new Error("component unavailable")
+        },
+        requestShutdown: () => {},
+        stopped: () => true,
+        stop: () => {},
+      }
+    })
+    await runtime.install()
+    const controller = new AbortController()
+    const running = runtime.run(controller.signal)
+
+    await builtFourTimes
+    controller.abort()
+    await running
+
+    expect(builds).toBe(4)
+    expect((buildTimes[3] ?? 0) - (buildTimes[0] ?? 0)).toBeGreaterThanOrEqual(40)
+  })
+
+  it("does not replace a failed component after shutdown", async () => {
+    let builds = 0
+    let fail: (() => void) | undefined
+    runtime = configuredRuntime({ supervisorRestartDelayMilliseconds: 1 })
+    runtime.registerComponent(() => {
+      builds += 1
+      return {
+        run: () =>
+          new Promise<void>((_resolve, reject) => {
+            fail = () => reject(new Error("late failure"))
+          }),
+        requestShutdown: () => fail?.(),
+        stopped: () => false,
+        stop: () => {},
+      }
+    })
+    await runtime.install()
+    const controller = new AbortController()
+    const running = runtime.run(controller.signal)
+    await eventually(() => fail !== undefined)
+
+    controller.abort()
+    await running
+    const buildsAtShutdown = builds
+
+    expect(builds).toBe(buildsAtShutdown)
+  })
+
   it("renews the activation lease while a long message is running", async () => {
     runtime = configuredRuntime({
       leaseDurationMilliseconds: 30,
@@ -167,4 +270,9 @@ async function eventually(condition: () => boolean | Promise<boolean>): Promise<
     await new Promise<void>((resolve) => setImmediate(resolve))
   }
   throw new Error("condition was not met")
+}
+
+function aborted(signal: AbortSignal): Promise<void> {
+  if (signal.aborted) return Promise.resolve()
+  return new Promise((resolve) => signal.addEventListener("abort", () => resolve(), { once: true }))
 }

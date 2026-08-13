@@ -23,6 +23,12 @@ worker's wait. The default adapter broadcasts within one process; polling
 remains active as the durable fallback and custom adapters can bridge process
 boundaries.
 
+Each runtime role occupies a supervised factory slot. An unexpected promise
+resolution or rejection cleans up that instance, waits with capped exponential
+backoff, and builds the replacement through the same factory. Supervision stops
+at the shutdown boundary; database leases and fencing remain the correctness
+mechanism if a failed role was still executing actor code.
+
 Realtime delivery is transport-neutral. A host-authenticated session authorizes
 actor subscriptions, replays a committed observable projection, and follows
 the durable broadcast outbox in revision order. The browser client applies the

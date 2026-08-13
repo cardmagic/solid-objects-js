@@ -9,6 +9,13 @@ finish. Operators should monitor oldest ready work, claimed work, dead letters,
 effect failures, reminder lag, lease loss, process heartbeats, and database
 contention.
 
+`runtime.run()` replaces built-in roles and registered application components
+that return or reject before shutdown. `supervisorRestartDelayMilliseconds`
+defaults to 100 ms and doubles after consecutive run or construction failures,
+capped by `supervisorMaximumRestartDelayMilliseconds` at 10 seconds. Replacement
+and replacement-failure events contain the role class, failure count, and error
+class only. Repeated failure messages are excluded from instrumentation.
+
 Authorized operators can inspect terminal actor failures with
 `runtime.deadLetters.all()` and retry one with `runtime.deadLetters.retry()`.
 Retry is idempotent per dead letter: the record retains the replacement message

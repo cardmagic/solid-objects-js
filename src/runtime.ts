@@ -100,6 +100,11 @@ interface RegisteredActor {
   queries: ReadonlySet<string>
 }
 
+interface ComponentSlot {
+  readonly factory: () => LongRunningComponent
+  component: LongRunningComponent
+}
+
 type EffectHandler = (
   argumentsValue: JsonObject,
   context: EffectContext,
@@ -231,15 +236,14 @@ export class SolidObjectsRuntime {
     const controller = new AbortController()
     const abort = () => controller.abort(signal.reason)
     signal.addEventListener("abort", abort, { once: true })
-    let components: LongRunningComponent[] = []
+    let slots: ComponentSlot[] = []
 
     try {
-      components = await this.buildComponents()
-      await Promise.all(components.map((component) => component.run(controller.signal)))
+      slots = await this.buildComponentSlots()
+      await Promise.all(slots.map((slot) => this.supervise(slot, controller.signal)))
     } finally {
       controller.abort()
-      for (const component of components) component.requestShutdown()
-      await Promise.allSettled(components.map((component) => component.stop()))
+      await Promise.allSettled(slots.map(({ component }) => this.stopComponent(component)))
       signal.removeEventListener("abort", abort)
       this.running = false
       this.emitInstrumentation("runtime.stopped", {})
@@ -988,32 +992,124 @@ export class SolidObjectsRuntime {
     }
   }
 
-  private async buildComponents(): Promise<LongRunningComponent[]> {
-    const components: LongRunningComponent[] = [
-      ...Array.from({ length: this.settings.workerCount }, () => this.worker()),
-      ...Array.from({ length: this.settings.effectWorkerCount }, () => this.effectWorker()),
-      ...Array.from({ length: this.settings.reminderSchedulerCount }, () =>
-        this.reminderScheduler(),
+  private async buildComponentSlots(): Promise<ComponentSlot[]> {
+    const factories: Array<() => LongRunningComponent> = [
+      ...Array.from({ length: this.settings.workerCount }, () => () => this.worker()),
+      ...Array.from({ length: this.settings.effectWorkerCount }, () => () => this.effectWorker()),
+      ...Array.from(
+        { length: this.settings.reminderSchedulerCount },
+        () => () => this.reminderScheduler(),
       ),
       ...(broadcastsEnabled(this.settings)
-        ? Array.from({ length: this.settings.broadcastWorkerCount }, () => this.broadcastWorker())
+        ? Array.from(
+            { length: this.settings.broadcastWorkerCount },
+            () => () => this.broadcastWorker(),
+          )
         : []),
     ]
 
+    for (const { count, factory } of this.additionalComponents) {
+      for (let index = 0; index < count; index += 1) factories.push(factory)
+    }
+
+    const slots: ComponentSlot[] = []
+
     try {
-      for (const { count, factory } of this.additionalComponents) {
-        for (let index = 0; index < count; index += 1) {
-          const component = factory()
-          validateComponent(component)
-          components.push(component)
-        }
+      for (const factory of factories) {
+        const component = factory()
+        slots.push({ factory, component })
+        validateComponent(component)
       }
-      return components
+      return slots
     } catch (error) {
-      for (const component of components) component.requestShutdown()
-      await Promise.allSettled(components.map((component) => component.stop()))
+      await Promise.allSettled(slots.map(({ component }) => this.stopComponent(component)))
       throw error
     }
+  }
+
+  private async supervise(slot: ComponentSlot, signal: AbortSignal): Promise<void> {
+    let failureCount = 0
+    let replacementErrorName: string | null = null
+
+    while (!signal.aborted) {
+      const component = slot.component
+      const requestShutdown = () => {
+        try {
+          component.requestShutdown()
+        } catch (error) {
+          this.emitInstrumentation("supervisor.component_cleanup_failed", {
+            role: component.constructor.name,
+            errorName: error instanceof Error ? error.name : "Error",
+          })
+        }
+      }
+      signal.addEventListener("abort", requestShutdown, { once: true })
+      try {
+        await component.run(signal)
+        replacementErrorName = null
+      } catch (error) {
+        replacementErrorName = error instanceof Error ? error.name : "Error"
+      } finally {
+        signal.removeEventListener("abort", requestShutdown)
+        await this.stopComponent(component)
+      }
+      if (signal.aborted) return
+
+      while (!signal.aborted) {
+        failureCount += 1
+        await waitFor(this.supervisorRestartDelay(failureCount), signal)
+        if (signal.aborted) return
+
+        let replacement: LongRunningComponent | undefined
+        try {
+          replacement = slot.factory()
+          validateComponent(replacement)
+          slot.component = replacement
+          this.emitInstrumentation("supervisor.role_replaced", {
+            role: component.constructor.name,
+            errorName: replacementErrorName,
+            failureCount,
+          })
+          break
+        } catch (error) {
+          if (replacement) await this.stopComponent(replacement)
+          replacementErrorName = error instanceof Error ? error.name : "Error"
+          this.emitInstrumentation("supervisor.role_replacement_failed", {
+            role: component.constructor.name,
+            errorName: replacementErrorName,
+            failureCount,
+          })
+        }
+      }
+    }
+  }
+
+  private async stopComponent(component: LongRunningComponent): Promise<void> {
+    try {
+      component.requestShutdown()
+    } catch (error) {
+      this.reportComponentCleanupFailure(component, error)
+    }
+    try {
+      await component.stop()
+    } catch (error) {
+      this.reportComponentCleanupFailure(component, error)
+    }
+  }
+
+  private reportComponentCleanupFailure(component: LongRunningComponent, error: unknown): void {
+    this.emitInstrumentation("supervisor.component_cleanup_failed", {
+      role: component.constructor.name,
+      errorName: error instanceof Error ? error.name : "Error",
+    })
+  }
+
+  private supervisorRestartDelay(failureCount: number): number {
+    const exponent = Math.min(failureCount - 1, 16)
+    return Math.min(
+      this.settings.supervisorRestartDelayMilliseconds * 2 ** exponent,
+      this.settings.supervisorMaximumRestartDelayMilliseconds,
+    )
   }
 
   private readObservables(actor: Actor, definition: ValidatedActorDefinition): JsonObject {

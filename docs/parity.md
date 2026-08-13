@@ -38,18 +38,18 @@ Reference: Ruby `solid_objects` 0.12.0 at commit `4cf22c1`.
 
 ## Operations
 
-| Capability                                                                    | Status  | TypeScript shape or remaining work                                                                                                  |
-| ----------------------------------------------------------------------------- | ------- | ----------------------------------------------------------------------------------------------------------------------------------- |
-| Process registration, heartbeats, stale claim recovery, and graceful shutdown | Native  | Runtime roles persist process state and release ownership on shutdown.                                                              |
-| Failed-role replacement                                                       | Partial | A role failure currently stops the runtime. Add supervised replacement with bounded backoff and explicit terminal shutdown.         |
-| Additional supervised components                                              | Native  | `registerComponent()` builds, validates, runs, and stops application components with the runtime.                                   |
-| Dead-letter inspection and retry                                              | Native  | `runtime.deadLetters` provides deny-by-default immutable inspection and idempotent durable retry linkage.                           |
-| Reconciliation reads                                                          | Native  | Authorized cursor pages cover active, quiet, and orphaned instances; bounded state batches are migrated and deeply frozen.          |
-| Message, process, and opt-in instance retention                               | Native  | Authorized preview and bounded prune APIs preserve live work and support default, per-actor, and opt-in policies.                   |
-| Doctor and schema verification                                                | Native  | Structured checks cover configuration, schema/version shape, SQLite version, policy posture, live roles, and a targeted round trip. |
-| CLI                                                                           | Planned | Add Node commands for run, status, cleanup, doctor, dead letters, retry, and preview/execute pruning.                               |
-| Structured instrumentation                                                    | Native  | An isolated transport-neutral sink emits immutable lifecycle metadata and structurally excludes application payloads.               |
-| Public test helper                                                            | Native  | `runtime.testing` provides role-selective deterministic draining and dependency-ordered reset without relying on cascades.          |
+| Capability                                                                    | Status  | TypeScript shape or remaining work                                                                                                    |
+| ----------------------------------------------------------------------------- | ------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| Process registration, heartbeats, stale claim recovery, and graceful shutdown | Native  | Runtime roles persist process state and release ownership on shutdown.                                                                |
+| Failed-role replacement                                                       | Native  | Built-in and registered roles are rebuilt through their factories with capped backoff; shutdown is the terminal replacement boundary. |
+| Additional supervised components                                              | Native  | `registerComponent()` builds, validates, runs, and stops application components with the runtime.                                     |
+| Dead-letter inspection and retry                                              | Native  | `runtime.deadLetters` provides deny-by-default immutable inspection and idempotent durable retry linkage.                             |
+| Reconciliation reads                                                          | Native  | Authorized cursor pages cover active, quiet, and orphaned instances; bounded state batches are migrated and deeply frozen.            |
+| Message, process, and opt-in instance retention                               | Native  | Authorized preview and bounded prune APIs preserve live work and support default, per-actor, and opt-in policies.                     |
+| Doctor and schema verification                                                | Native  | Structured checks cover configuration, schema/version shape, SQLite version, policy posture, live roles, and a targeted round trip.   |
+| CLI                                                                           | Planned | Add Node commands for run, status, cleanup, doctor, dead letters, retry, and preview/execute pruning.                                 |
+| Structured instrumentation                                                    | Native  | An isolated transport-neutral sink emits immutable lifecycle metadata and structurally excludes application payloads.                 |
+| Public test helper                                                            | Native  | `runtime.testing` provides role-selective deterministic draining and dependency-ordered reset without relying on cascades.            |
 
 ## Databases and wake-up
 
