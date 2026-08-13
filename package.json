@@ -35,6 +35,10 @@
       "types": "./dist/database/postgresql.d.ts",
       "import": "./dist/database/postgresql.js"
     },
+    "./wake-up/redis": {
+      "types": "./dist/wake-up/redis.d.ts",
+      "import": "./dist/wake-up/redis.js"
+    },
     "./browser": {
       "types": "./dist/browser/index.d.ts",
       "import": "./dist/browser/index.js"
@@ -51,6 +55,7 @@
     "test:browser": "pnpm run build && playwright test",
     "test:coverage": "vitest run --coverage",
     "test:postgresql": "vitest run test/postgresql.test.ts",
+    "test:redis": "vitest run test/redis-wake-up.test.ts",
     "test:watch": "vitest",
     "pack:check": "pnpm pack --dry-run",
     "prepack": "pnpm run build"
@@ -63,15 +68,20 @@
     "@vitest/coverage-v8": "^4.1.10",
     "pg": "^8.23.0",
     "prettier": "^3.9.6",
+    "redis": "^6.2.1",
     "typescript": "^5.9.0",
     "vitest": "^4.1.10",
     "ws": "^8.21.3"
   },
   "peerDependencies": {
-    "pg": "^8.23.0"
+    "pg": "^8.23.0",
+    "redis": "^6.2.1"
   },
   "peerDependenciesMeta": {
     "pg": {
+      "optional": true
+    },
+    "redis": {
       "optional": true
     }
   }

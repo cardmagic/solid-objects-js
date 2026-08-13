@@ -175,6 +175,27 @@ using PostgreSQL notifications can provide a `WakeUpAdapter` backed by their
 existing notification system without adding a required broker to the default
 SQLite stack.
 
+Applications that already operate Redis can use its optional Pub/Sub adapter:
+
+```bash
+pnpm add redis
+```
+
+```typescript
+import { redisWakeUp } from "solid-objects/wake-up/redis"
+
+const runtime = configureSolidObjects({
+  database,
+  wakeUp: redisWakeUp({ url: process.env.REDIS_URL ?? "redis://127.0.0.1:6379" }),
+})
+```
+
+The adapter lazily opens separate publisher and subscriber connections because
+a subscribed Redis client cannot issue ordinary commands. Role-specific
+channels wake every matching waiter in the process. Redis Pub/Sub is transient;
+the relational database remains durable truth and bounded polling covers a
+missed notification or unavailable Redis server.
+
 ## Call it like a local object
 
 `await` is the committed call boundary.

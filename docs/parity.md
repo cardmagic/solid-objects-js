@@ -62,7 +62,7 @@ Reference: Ruby `solid_objects` 0.12.0 at commit `a01b6f5`.
 | Durable polling fallback | Native  | Every role progresses without a notification service.                                                                                                                  |
 | In-process wake-up       | Native  | A generation-based default adapter prevents claim-to-wait signal loss; commits wake role-specific waiters and polling remains the fallback.                            |
 | PostgreSQL wake-up       | Native  | `database.wakeUp()` uses one dedicated event-driven client, role-specific `LISTEN/NOTIFY`, generation fencing, reconnectable listeners, and durable polling fallback.  |
-| Redis wake-up            | Planned | Add an optional Pub/Sub adapter without making Redis a hidden required dependency.                                                                                     |
+| Redis wake-up            | Native  | An optional `redis` peer provides role-specific Pub/Sub over separate lazy publisher/subscriber connections, with bounded failures and durable polling fallback.       |
 
 ## Realtime and browser behavior
 

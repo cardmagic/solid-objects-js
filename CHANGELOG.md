@@ -37,6 +37,8 @@
   strategies, batch coalescing, cancellation, and per-target revision fencing.
 - Add Chromium QA for native WebSocket subscription replay, realtime fences,
   personalized payloads, component batching, and request cancellation.
+- Add optional Redis Pub/Sub wake-ups with role-specific channels, separate
+  lazy connections, bounded failure handling, and real-server integration QA.
 
 ## 0.1.0 - 2026-08-13
 

@@ -42,6 +42,11 @@ blocking thread. A notification advances a process-local role generation and
 wakes every matching waiter. Reconnection and notification loss fall back to
 the ordinary polling interval.
 
+The optional Redis adapter provides the same role generations through Pub/Sub
+for deployments that already operate Redis. It keeps commands and subscriptions
+on separate lazy connections. Connect, subscribe, and publish failures are
+bounded and isolated; durable polling continues independently.
+
 A worker claims one actor globally, then preferentially drains up to
 `maxMessagesPerActivationPass` ready turns for that instance. Reaching the cap
 moves only that actor's already-due ready memberships to current database time.
