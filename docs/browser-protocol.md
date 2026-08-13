@@ -62,6 +62,25 @@ incarnation and resets revision comparison. The runtime preserves revision
 order per actor; server sessions and browser clients also reject duplicates and
 stale revisions within an incarnation.
 
+## Component refresh registry
+
+`SolidObjectsComponentRegistry` maps changed observable names to keyed UI
+registrations. The browser supplies an asynchronous `refresh` function and a
+synchronous `apply` function, so HTML, virtual DOM, and framework-native render
+results use the same coordination contract without importing Turbo.
+
+Components may share a batch name. A microtask unions affected components in
+the same actor, batch, incarnation, and revision into one refresh request.
+Unbatched components refresh independently. A strictly newer request aborts an
+older request for the same group; same-revision requests do not cancel each
+other. Results are accepted only for requested, still-registered targets, and
+each target has its own incarnation/revision fence.
+
+The registry never treats actor identity, component name, key, dependency, or
+target as authorization. The application-owned refresh endpoint authenticates
+the browser and reauthorizes every requested component before returning render
+results.
+
 `runtime.realtime` delivers directly to sessions in its own Node process. For
 several WebSocket processes, the configured `broadcast` callback publishes the
 committed envelope through a shared transport and each process passes received

@@ -33,6 +33,8 @@
   and real-server integration coverage.
 - Add opt-in role-specific PostgreSQL wake-ups with one event-driven listener
   per runtime and polling as the correctness fallback.
+- Add a typed browser component registry with keyed dependencies, replace/morph
+  strategies, batch coalescing, cancellation, and per-target revision fencing.
 
 ## 0.1.0 - 2026-08-13
 

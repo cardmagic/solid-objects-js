@@ -1,5 +1,17 @@
 import type { DeepReadonly, JsonObject, JsonValue } from "../types.js"
 
+export {
+  SolidObjectsComponentRegistry,
+  type ComponentApplication,
+  type ComponentRefreshFailure,
+  type ComponentRefreshRequest,
+  type ComponentRefreshResult,
+  type ComponentRefreshStrategy,
+  type ComponentRegistration,
+  type ComponentRegistryOptions,
+  type RegisteredComponent,
+} from "./components.js"
+
 const MAXIMUM_PAYLOADS_PER_SUBSCRIPTION = 50
 
 interface ActorIdentity {

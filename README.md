@@ -602,6 +602,53 @@ client.subscribe({ actorType: "Counter", actorId: "primary" })
 client.connect()
 ```
 
+For server-rendered or framework-owned UI fragments, register their observable
+dependencies and let one invalidation refresh only the affected targets:
+
+```typescript
+import { SolidObjectsBrowserClient, SolidObjectsComponentRegistry } from "solid-objects/browser"
+
+const componentRegistry = new SolidObjectsComponentRegistry<string>({
+  refresh: async ({ actorType, actorId, instanceId, revision, batch, components, signal }) => {
+    const response = await fetch("/components/refresh", {
+      method: "POST",
+      signal,
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ actorType, actorId, instanceId, revision, batch, components }),
+    })
+    if (!response.ok) throw new Error(`component refresh failed with ${response.status}`)
+    return response.json()
+  },
+  apply: ({ component, rendered }) => {
+    updateComponent(component.target, rendered, { strategy: component.strategy })
+  },
+})
+
+componentRegistry.register({
+  actorType: "GameRoom",
+  actorId: "table-1",
+  target: "player-one",
+  name: "player",
+  key: 1,
+  observes: ["playerOne"],
+  batch: "playmat",
+  strategy: "morph",
+})
+
+const client = new SolidObjectsBrowserClient({
+  url: new URL("/solid-objects", window.location.href),
+  onInvalidation: (envelope) => componentRegistry.invalidate(envelope),
+})
+```
+
+Registrations sharing a batch are refreshed in one request. Same-revision
+invalidations merge in a microtask, a strictly newer request aborts the older
+one, and per-target incarnation/revision fences prevent a late response from
+overwriting current UI. `replace` and `morph` are strategies passed to the
+application's synchronous `apply` callback; the library does not assume a DOM
+framework. The refresh endpoint must authenticate the request and reauthorize
+every requested component and dependency.
+
 For subscriber-specific views, declare a static payload map with a TypeScript
 `satisfies` check:
 
