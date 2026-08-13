@@ -872,7 +872,7 @@ export class SolidObjectsRuntime {
           metadata: processMetadata(row.metadata),
           shutdownState: row.shutdown_state,
           stale:
-            row.shutdown_state === "running" &&
+            row.shutdown_state !== "stopped" &&
             Number(row.heartbeat_at_ms) <= result.staleAtMilliseconds,
           startedAt: new Date(Number(row.started_at_ms)),
           heartbeatAt: new Date(Number(row.heartbeat_at_ms)),

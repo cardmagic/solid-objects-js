@@ -60,59 +60,41 @@ describe("process administration", () => {
   it("atomically releases every claim owned by a stale process", async () => {
     runtime = configuredRuntime()
     await runtime.install()
-    const message = await ProcessActor.ref("claimed").send.run()
-    await runtime.repository.registerProcess("stale", "worker")
-    const turn = await runtime.repository.claim("stale")
-    expect(turn?.message.id).toBe(message.id)
-    await runtime.settings.database.connection(async (connection) => {
-      await connection.run(
-        `INSERT INTO ${runtime?.repository.table("effects")}
-         (id, message_id, instance_id, name, arguments, status, max_attempts, available_at_ms, claimed_by)
-         VALUES ('effect', ?, ?, 'test', '{}', 'processing', 1, 0, 'stale')`,
-        [message.id, turn?.instance.id],
-      )
-      await connection.run(
-        `INSERT INTO ${runtime?.repository.table("reminders")}
-         (id, instance_id, operation, run_at_ms, arguments, missed_policy, status, claimed_by, claimed_at_ms)
-         VALUES ('reminder', ?, 'run', 0, '{}', 'latest', 'scheduled', 'stale', 0)`,
-        [turn?.instance.id],
-      )
-      await connection.run(
-        `INSERT INTO ${runtime?.repository.table("broadcasts")}
-         (id, message_id, instance_id, actor_type, actor_id, state_revision, observables,
-          status, available_at_ms, claimed_by)
-         VALUES ('broadcast', ?, ?, ?, 'claimed', 1, '{}', 'processing', 0, 'stale')`,
-        [message.id, turn?.instance.id, ProcessActor.actorType],
-      )
-    })
+    const message = await claimEveryRole("stale")
     await staleProcess("stale")
 
     const result = await runtime.processes.cleanup()
 
     expect(result.cleaned).toBe(1)
-    expect(await message.status()).toBe("ready")
-    const rows = await runtime.settings.database.connection(async (connection) => ({
-      process: await connection.get<{ shutdown_state: string }>(
-        `SELECT shutdown_state FROM ${runtime?.repository.table("processes")} WHERE id = 'stale'`,
+    await expectOwnershipReleased("stale", message)
+  })
+
+  it("atomically releases every claim during graceful shutdown", async () => {
+    runtime = configuredRuntime()
+    await runtime.install()
+    const message = await claimEveryRole("stopping")
+
+    await runtime.repository.stopProcess("stopping")
+
+    await expectOwnershipReleased("stopping", message)
+  })
+
+  it("recovers a stale draining process", async () => {
+    runtime = configuredRuntime()
+    await runtime.install()
+    const message = await claimEveryRole("draining")
+    await runtime.settings.database.connection((connection) =>
+      connection.run(
+        `UPDATE ${runtime?.repository.table("processes")}
+         SET shutdown_state = 'draining', heartbeat_at_ms = 0 WHERE id = 'draining'`,
       ),
-      instance: await connection.get<{ activation_owner_id: string | null }>(
-        `SELECT activation_owner_id FROM ${runtime?.repository.table("instances")}`,
-      ),
-      effect: await connection.get<{ status: string; claimed_by: string | null }>(
-        `SELECT status, claimed_by FROM ${runtime?.repository.table("effects")}`,
-      ),
-      reminder: await connection.get<{ claimed_by: string | null }>(
-        `SELECT claimed_by FROM ${runtime?.repository.table("reminders")}`,
-      ),
-      broadcast: await connection.get<{ status: string; claimed_by: string | null }>(
-        `SELECT status, claimed_by FROM ${runtime?.repository.table("broadcasts")}`,
-      ),
-    }))
-    expect(rows.process?.shutdown_state).toBe("stopped")
-    expect(rows.instance?.activation_owner_id).toBeNull()
-    expect(rows.effect).toEqual({ status: "pending", claimed_by: null })
-    expect(rows.reminder?.claimed_by).toBeNull()
-    expect(rows.broadcast).toEqual({ status: "pending", claimed_by: null })
+    )
+
+    expect(await runtime.processes.all()).toEqual([
+      expect.objectContaining({ id: "draining", shutdownState: "draining", stale: true }),
+    ])
+    expect(await runtime.processes.cleanup()).toEqual({ cleaned: 1 })
+    await expectOwnershipReleased("draining", message)
   })
 
   it("leaves live process ownership unchanged", async () => {
@@ -150,4 +132,68 @@ async function staleProcess(id: string): Promise<void> {
       [id],
     ),
   )
+}
+
+async function claimEveryRole(processId: string) {
+  const message = await ProcessActor.ref(`claimed-${processId}`).send.run()
+  await runtime?.repository.registerProcess(processId, "worker")
+  const turn = await runtime?.repository.claim(processId)
+  expect(turn?.message.id).toBe(message.id)
+  await runtime?.settings.database.connection(async (connection) => {
+    await connection.run(
+      `INSERT INTO ${runtime?.repository.table("effects")}
+       (id, message_id, instance_id, name, arguments, status, max_attempts, available_at_ms, claimed_by)
+       VALUES (?, ?, ?, 'test', '{}', 'processing', 1, 0, ?)`,
+      [`effect-${processId}`, message.id, turn?.instance.id, processId],
+    )
+    await connection.run(
+      `INSERT INTO ${runtime?.repository.table("reminders")}
+       (id, instance_id, operation, run_at_ms, arguments, missed_policy, status, claimed_by,
+        claimed_at_ms)
+       VALUES (?, ?, 'run', 0, '{}', 'latest', 'scheduled', ?, 0)`,
+      [`reminder-${processId}`, turn?.instance.id, processId],
+    )
+    await connection.run(
+      `INSERT INTO ${runtime?.repository.table("broadcasts")}
+       (id, message_id, instance_id, actor_type, actor_id, state_revision, observables,
+        status, available_at_ms, claimed_by)
+       VALUES (?, ?, ?, ?, 'claimed', 1, '{}', 'processing', 0, ?)`,
+      [`broadcast-${processId}`, message.id, turn?.instance.id, ProcessActor.actorType, processId],
+    )
+  })
+  return message
+}
+
+async function expectOwnershipReleased(
+  processId: string,
+  message: Awaited<ReturnType<typeof claimEveryRole>>,
+) {
+  expect(await message.status()).toBe("ready")
+  const rows = await runtime?.settings.database.connection(async (connection) => ({
+    process: await connection.get<{ shutdown_state: string }>(
+      `SELECT shutdown_state FROM ${runtime?.repository.table("processes")} WHERE id = ?`,
+      [processId],
+    ),
+    instance: await connection.get<{ activation_owner_id: string | null }>(
+      `SELECT activation_owner_id FROM ${runtime?.repository.table("instances")} WHERE actor_id = ?`,
+      [`claimed-${processId}`],
+    ),
+    effect: await connection.get<{ status: string; claimed_by: string | null }>(
+      `SELECT status, claimed_by FROM ${runtime?.repository.table("effects")} WHERE id = ?`,
+      [`effect-${processId}`],
+    ),
+    reminder: await connection.get<{ claimed_by: string | null }>(
+      `SELECT claimed_by FROM ${runtime?.repository.table("reminders")} WHERE id = ?`,
+      [`reminder-${processId}`],
+    ),
+    broadcast: await connection.get<{ status: string; claimed_by: string | null }>(
+      `SELECT status, claimed_by FROM ${runtime?.repository.table("broadcasts")} WHERE id = ?`,
+      [`broadcast-${processId}`],
+    ),
+  }))
+  expect(rows?.process?.shutdown_state).toBe("stopped")
+  expect(rows?.instance?.activation_owner_id).toBeNull()
+  expect(rows?.effect).toEqual({ status: "pending", claimed_by: null })
+  expect(rows?.reminder?.claimed_by).toBeNull()
+  expect(rows?.broadcast).toEqual({ status: "pending", claimed_by: null })
 }

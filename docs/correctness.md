@@ -9,6 +9,11 @@
 - Destruction creates an incarnation boundary; old leases cannot address a
   recreated actor. A caller authorized before destruction receives
   `ActorDestroyed`; an unknown or forged reference remains unauthorized.
+- Graceful process shutdown and stale-process cleanup use the same atomic
+  ownership release: claimed messages return to ready membership, activations
+  are unfenced, and processing effect, reminder, and broadcast claims become
+  available again. A stale draining process is recoverable like a stale running
+  process.
 - Permanent operation failure raises `MessageFailed` with the durable message
   ID and persisted error details instead of treating actor code text as the
   public exception contract.

@@ -77,15 +77,7 @@ export class Repository {
   async stopProcess(processId: string): Promise<void> {
     await this.settings.database.transaction(async (connection) => {
       const now = await connection.nowMilliseconds()
-      await connection.run(
-        `UPDATE ${this.table("processes")} SET shutdown_state = 'stopped', stopped_at_ms = ?, heartbeat_at_ms = ? WHERE id = ?`,
-        [now, now, processId],
-      )
-      await connection.run(
-        `UPDATE ${this.table("instances")} SET activation_owner_id = NULL, activation_token = NULL,
-         activation_expires_at_ms = NULL WHERE activation_owner_id = ?`,
-        [processId],
-      )
+      await this.releaseProcessOwnership({ connection, processId, now })
     })
   }
 
@@ -119,63 +111,71 @@ export class Repository {
       const staleAt = now - this.settings.processAliveThresholdMilliseconds
       const processes = await connection.all<{ id: string }>(
         `SELECT id FROM ${this.table("processes")}
-         WHERE shutdown_state = 'running' AND heartbeat_at_ms <= ?
+         WHERE shutdown_state <> 'stopped' AND heartbeat_at_ms <= ?
          ORDER BY id`,
         [staleAt],
       )
       for (const process of processes) {
-        const claims = await connection.all<{
-          message_id: string
-          instance_id: string
-          sequence: number | bigint
-        }>(
-          `SELECT message_id, instance_id, sequence
-           FROM ${this.table("claimed_messages")} WHERE process_id = ?`,
-          [process.id],
-        )
-        for (const claim of claims) {
-          await connection.run(
-            `DELETE FROM ${this.table("claimed_messages")} WHERE message_id = ?`,
-            [claim.message_id],
-          )
-          await connection.run(
-            `INSERT INTO ${this.table("ready_messages")}
-             (message_id, instance_id, sequence, available_at_ms)
-             VALUES (?, ?, ?, ?) ON CONFLICT(message_id) DO NOTHING`,
-            [claim.message_id, claim.instance_id, claim.sequence, now],
-          )
-        }
-        await connection.run(
-          `UPDATE ${this.table("instances")}
-           SET activation_owner_id = NULL, activation_token = NULL,
-             activation_expires_at_ms = NULL, updated_at_ms = ?
-           WHERE activation_owner_id = ?`,
-          [now, process.id],
-        )
-        await connection.run(
-          `UPDATE ${this.table("effects")} SET status = 'pending', claimed_by = NULL
-           WHERE status = 'processing' AND claimed_by = ?`,
-          [process.id],
-        )
-        await connection.run(
-          `UPDATE ${this.table("reminders")} SET claimed_by = NULL, claimed_at_ms = NULL
-           WHERE claimed_by = ?`,
-          [process.id],
-        )
-        await connection.run(
-          `UPDATE ${this.table("broadcasts")} SET status = 'pending', claimed_by = NULL
-           WHERE status = 'processing' AND claimed_by = ?`,
-          [process.id],
-        )
-        await connection.run(
-          `UPDATE ${this.table("processes")}
-           SET shutdown_state = 'stopped', stopped_at_ms = ?, heartbeat_at_ms = ?
-           WHERE id = ? AND shutdown_state = 'running'`,
-          [now, now, process.id],
-        )
+        await this.releaseProcessOwnership({ connection, processId: process.id, now })
       }
       return processes.length
     })
+  }
+
+  private async releaseProcessOwnership(options: {
+    connection: DatabaseConnection
+    processId: string
+    now: number
+  }): Promise<void> {
+    const { connection, processId, now } = options
+    const claims = await connection.all<{
+      message_id: string
+      instance_id: string
+      sequence: number | bigint
+    }>(
+      `SELECT message_id, instance_id, sequence
+       FROM ${this.table("claimed_messages")} WHERE process_id = ?`,
+      [processId],
+    )
+    for (const claim of claims) {
+      await connection.run(`DELETE FROM ${this.table("claimed_messages")} WHERE message_id = ?`, [
+        claim.message_id,
+      ])
+      await connection.run(
+        `INSERT INTO ${this.table("ready_messages")}
+         (message_id, instance_id, sequence, available_at_ms)
+         VALUES (?, ?, ?, ?) ON CONFLICT(message_id) DO NOTHING`,
+        [claim.message_id, claim.instance_id, claim.sequence, now],
+      )
+    }
+    await connection.run(
+      `UPDATE ${this.table("instances")}
+       SET activation_owner_id = NULL, activation_token = NULL,
+         activation_expires_at_ms = NULL, updated_at_ms = ?
+       WHERE activation_owner_id = ?`,
+      [now, processId],
+    )
+    await connection.run(
+      `UPDATE ${this.table("effects")} SET status = 'pending', claimed_by = NULL
+       WHERE status = 'processing' AND claimed_by = ?`,
+      [processId],
+    )
+    await connection.run(
+      `UPDATE ${this.table("reminders")} SET claimed_by = NULL, claimed_at_ms = NULL
+       WHERE claimed_by = ?`,
+      [processId],
+    )
+    await connection.run(
+      `UPDATE ${this.table("broadcasts")} SET status = 'pending', claimed_by = NULL
+       WHERE status = 'processing' AND claimed_by = ?`,
+      [processId],
+    )
+    await connection.run(
+      `UPDATE ${this.table("processes")}
+       SET shutdown_state = 'stopped', stopped_at_ms = ?, heartbeat_at_ms = ?
+       WHERE id = ? AND shutdown_state <> 'stopped'`,
+      [now, now, processId],
+    )
   }
 
   async enqueue(input: EnqueueInput): Promise<MessageRow> {

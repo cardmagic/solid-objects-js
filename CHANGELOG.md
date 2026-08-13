@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Release actor, message, effect, reminder, and broadcast ownership atomically
+  during graceful shutdown and recover stale draining processes as well.
 - Persist hostname, host PID, Node version, and Solid Objects version for every
   runtime role and expose them through immutable process administration reads.
 - Make typed snapshots return persisted fields and getter values from one
