@@ -1,6 +1,7 @@
 import { InvalidActor } from "./errors.js"
 import type { Database } from "./database/types.js"
 import type { DeepReadonly, JsonObject, JsonValue, Logger, LongRunningComponent } from "./types.js"
+import { InProcessWakeUpAdapter, type WakeUpAdapter } from "./wake-up.js"
 
 export interface AuthorizationInput {
   actorType: string
@@ -67,6 +68,7 @@ export interface SolidObjectsConfiguration {
   authorizeSubscription?: (input: SubscriptionAuthorizationInput) => boolean | Promise<boolean>
   instrumentation?: (event: InstrumentationEvent) => void
   broadcast?: (event: BroadcastEvent) => Promise<void>
+  wakeUp?: WakeUpAdapter
 }
 
 export interface BroadcastEvent {
@@ -78,11 +80,12 @@ export interface BroadcastEvent {
 }
 
 export interface RuntimeSettings extends Required<
-  Omit<SolidObjectsConfiguration, "logger" | "broadcast" | "instrumentation">
+  Omit<SolidObjectsConfiguration, "logger" | "broadcast" | "instrumentation" | "wakeUp">
 > {
   logger: Logger
   broadcast?: (event: BroadcastEvent) => Promise<void>
   instrumentation?: (event: InstrumentationEvent) => void
+  wakeUp: WakeUpAdapter
   authorizationPoliciesConfigured: Readonly<Record<string, boolean>>
 }
 
@@ -126,6 +129,7 @@ export function buildSettings(configuration: SolidObjectsConfiguration): Runtime
     processRetentionMilliseconds: configuration.processRetentionMilliseconds ?? 7 * 86_400_000,
     pruneBatchSize: configuration.pruneBatchSize ?? 1_000,
     logger: configuration.logger ?? consoleLogger,
+    wakeUp: configuration.wakeUp ?? new InProcessWakeUpAdapter(),
     authorizeMessage: configuration.authorizeMessage ?? (() => false),
     authorizeQuery: configuration.authorizeQuery ?? (() => false),
     authorizeDestroy: configuration.authorizeDestroy ?? (() => false),
@@ -162,6 +166,11 @@ export function validateComponent(component: LongRunningComponent): void {
 }
 
 function validateSettings(settings: RuntimeSettings): void {
+  for (const name of ["watch", "notify", "close"] as const) {
+    if (typeof settings.wakeUp[name] !== "function") {
+      throw new TypeError(`wakeUp must implement ${name}`)
+    }
+  }
   if (!/^[a-z][a-z0-9_]*$/.test(settings.tableNamePrefix)) {
     throw new TypeError("tableNamePrefix must contain lowercase letters, digits, and underscores")
   }

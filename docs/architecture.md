@@ -17,6 +17,12 @@ Actor code runs outside the database transaction. A short transaction guarded
 by the activation owner, token, generation, expiration, and claimed-message
 membership commits state, completion, and staged outboxes together.
 
+Each role takes a generation watch before checking for work. A post-commit
+wake-up therefore cannot fall into the gap between an empty claim and the
+worker's wait. The default adapter broadcasts within one process; polling
+remains active as the durable fallback and custom adapters can bridge process
+boundaries.
+
 Realtime delivery is transport-neutral. A host-authenticated session authorizes
 actor subscriptions, replays a committed observable projection, and follows
 the durable broadcast outbox in revision order. The browser client applies the

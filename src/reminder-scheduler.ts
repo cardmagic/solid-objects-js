@@ -1,7 +1,6 @@
 import { randomUUID } from "node:crypto"
 import { UnknownOperation } from "./errors.js"
 import type { SolidObjectsRuntime } from "./runtime.js"
-import { waitFor } from "./worker.js"
 
 export class ReminderScheduler {
   readonly processId = randomUUID()
@@ -51,8 +50,14 @@ export class ReminderScheduler {
   async run(signal: AbortSignal): Promise<void> {
     await this.ensureRegistered()
     while (!signal.aborted && !this.stopping) {
+      const wakeUp = this.runtime.settings.wakeUp.watch("reminders")
       const processed = await this.runOnce()
-      if (processed === 0) await waitFor(this.runtime.settings.pollingIntervalMilliseconds, signal)
+      if (processed === 0) {
+        await wakeUp.wait({
+          timeoutMilliseconds: this.runtime.settings.pollingIntervalMilliseconds,
+          signal,
+        })
+      }
     }
     await this.stop()
   }

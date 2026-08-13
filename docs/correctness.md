@@ -11,3 +11,6 @@
 - Observable outbox rows are claimed in actor revision order. Subscription
   sessions and browser clients reject duplicate or stale revisions within an
   incarnation, while a recreated actor starts a new revision sequence.
+- Wake-up notifications happen only after commit and never replace polling.
+  Workers watch before claiming, so an in-process notification between an empty
+  claim and the following wait is retained.

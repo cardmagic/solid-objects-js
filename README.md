@@ -126,6 +126,12 @@ await runtime.run(shutdown.signal)
 Authorization is deny-by-default. Actor IDs identify actors; they are not
 capabilities.
 
+The default in-process wake-up adapter interrupts role polling as soon as this
+runtime commits new work. Polling remains the correctness fallback, so a missed
+or failed signal costs latency rather than losing work. Multi-process hosts can
+provide a `WakeUpAdapter` backed by their existing notification system without
+adding a required broker to the default SQLite stack.
+
 ## Call it like a local object
 
 `await` is the committed call boundary.

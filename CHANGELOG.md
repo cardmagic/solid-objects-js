@@ -15,6 +15,7 @@
 - Add reminder replacement events and authorized inspection and resume APIs.
 - Add deny-by-default transport-neutral realtime subscriptions with committed
   replay and revision fencing.
+- Add injectable generation-based wake-up signals with a process-local default.
 
 ## 0.1.0 - 2026-08-13
 

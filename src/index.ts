@@ -23,6 +23,13 @@ export {
 } from "./reminder-administration.js"
 export { BroadcastWorker } from "./broadcast-worker.js"
 export {
+  InProcessWakeUpAdapter,
+  type WakeUpAdapter,
+  type WakeUpRole,
+  type WakeUpWaitOptions,
+  type WakeUpWatch,
+} from "./wake-up.js"
+export {
   parseSubscriptionRequest,
   RealtimeManager,
   type RealtimeConnectionOptions,

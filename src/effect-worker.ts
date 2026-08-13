@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto"
 import type { SolidObjectsRuntime } from "./runtime.js"
-import { waitFor, withProcessHeartbeat } from "./worker.js"
+import { withProcessHeartbeat } from "./worker.js"
 
 export class EffectWorker {
   readonly processId = randomUUID()
@@ -37,8 +37,14 @@ export class EffectWorker {
   async run(signal: AbortSignal): Promise<void> {
     await this.ensureRegistered()
     while (!signal.aborted && !this.stopping) {
+      const wakeUp = this.runtime.settings.wakeUp.watch("effects")
       const processed = await this.runOnce()
-      if (processed === 0) await waitFor(this.runtime.settings.pollingIntervalMilliseconds, signal)
+      if (processed === 0) {
+        await wakeUp.wait({
+          timeoutMilliseconds: this.runtime.settings.pollingIntervalMilliseconds,
+          signal,
+        })
+      }
     }
     await this.stop()
   }

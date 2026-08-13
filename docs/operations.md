@@ -1,9 +1,13 @@
 # Operations
 
-Runtime roles use durable polling as the correctness fallback. Graceful shutdown
-stops new claims and allows active turns to finish. Operators should monitor
-oldest ready work, claimed work, dead letters, effect failures, reminder lag,
-lease loss, process heartbeats, and database contention.
+Runtime roles use durable polling as the correctness fallback. The default
+generation-based wake-up adapter interrupts waits for new actor messages,
+effects, reminders, and broadcasts in the same Node process. Notification
+errors are isolated and logged by role and error class without failing the
+committed work. Graceful shutdown stops new claims and allows active turns to
+finish. Operators should monitor oldest ready work, claimed work, dead letters,
+effect failures, reminder lag, lease loss, process heartbeats, and database
+contention.
 
 Authorized operators can inspect terminal actor failures with
 `runtime.deadLetters.all()` and retry one with `runtime.deadLetters.retry()`.

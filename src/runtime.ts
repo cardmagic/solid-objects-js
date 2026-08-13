@@ -91,6 +91,7 @@ import type {
 import { SolidObjectsTestHelper } from "./test-helper.js"
 import { waitFor, Worker } from "./worker.js"
 import { EffectWorker } from "./effect-worker.js"
+import type { WakeUpRole } from "./wake-up.js"
 
 interface RegisteredActor {
   actorClass: ActorClass
@@ -503,6 +504,7 @@ export class SolidObjectsRuntime {
       actorId: message.actor_id,
       operation: message.operation,
     })
+    this.wakeUp("actors")
     return this.messageReferenceFromRow(message)
   }
 
@@ -660,6 +662,7 @@ export class SolidObjectsRuntime {
         operation: result.reminder.operation,
         runAt: new Date(Number(result.reminder.run_at_ms)).toISOString(),
       })
+      this.wakeUp("reminders")
     }
     return reminderRecord(result.reminder)
   }
@@ -725,12 +728,13 @@ export class SolidObjectsRuntime {
       renewalController.abort()
       await renewal
       if (renewalError) throw renewalError
+      const intents = actor.drainIntents()
       const completion = await this.repository.complete(turn, {
         state: committedState,
         stateVersion: definition.stateVersion,
         result,
         changedObservables,
-        intents: actor.drainIntents(),
+        intents,
         executeCommitAction: async (intent, connection) => {
           const handler = this.commitActions.get(intent.name)
           if (!handler)
@@ -759,6 +763,10 @@ export class SolidObjectsRuntime {
           }
         },
       })
+      if (intents.outboundMessages.length > 0) this.wakeUp("actors")
+      if (intents.effects.length > 0) this.wakeUp("effects")
+      if (intents.reminders.length > 0) this.wakeUp("reminders")
+      if (Object.keys(changedObservables).length > 0) this.wakeUp("broadcasts")
       for (const replacement of completion.reminderReplacements) {
         this.emitInstrumentation("reminder.replaced", {
           reminderId: replacement.reminderId,
@@ -820,6 +828,7 @@ export class SolidObjectsRuntime {
       throw new Error("abort runtime.run() and wait for it before closing the runtime")
     await this.callerWorker?.stop()
     this.realtime.close()
+    await this.settings.wakeUp.close()
     await this.settings.database.close()
     clearDefaultRuntime(this)
   }
@@ -867,6 +876,7 @@ export class SolidObjectsRuntime {
         { maxBytes: this.settings.maxResultBytes },
       )
       await this.repository.completeEffect(effect, result)
+      if (effect.success_operation) this.wakeUp("actors")
       this.emitInstrumentation("effect.completed", effectInstrumentation(effect))
     } catch (error) {
       await this.repository.failEffect({
@@ -874,6 +884,10 @@ export class SolidObjectsRuntime {
         error,
         retryable: !(error instanceof NonRetryableError),
       })
+      const exhausted =
+        error instanceof NonRetryableError ||
+        Number(effect.attempt_count) >= Number(effect.max_attempts)
+      if (exhausted && effect.failure_operation) this.wakeUp("actors")
       this.emitInstrumentation("effect.failed", {
         ...effectInstrumentation(effect),
         errorName: error instanceof Error ? error.name : "Error",
@@ -887,6 +901,7 @@ export class SolidObjectsRuntime {
       throw new UnknownOperation(`unknown reminder operation ${JSON.stringify(reminder.operation)}`)
     }
     await this.repository.enqueueReminder(reminder)
+    this.wakeUp("actors")
     this.emitInstrumentation("reminder.enqueued", {
       reminderId: reminder.id,
       actorType: reminder.actor_type,
@@ -950,6 +965,7 @@ export class SolidObjectsRuntime {
         : {}),
     })
     this.emitInstrumentation("message.enqueued", messageInstrumentation(message))
+    this.wakeUp("actors")
     return this.messageReferenceFromRow<Result>(message)
   }
 
@@ -1021,6 +1037,24 @@ export class SolidObjectsRuntime {
 
   private isQuery(definition: ValidatedActorDefinition, name: string): boolean {
     return definition.queries.includes(name)
+  }
+
+  private wakeUp(role: WakeUpRole): void {
+    try {
+      Promise.resolve(this.settings.wakeUp.notify(role)).catch((error: unknown) => {
+        this.logWakeUpFailure(role, error)
+      })
+    } catch (error) {
+      this.logWakeUpFailure(role, error)
+    }
+  }
+
+  private logWakeUpFailure(role: WakeUpRole, error: unknown): void {
+    this.settings.logger.error({
+      event: "solid_objects.wake_up.failed",
+      role,
+      errorName: error instanceof Error ? error.name : "Error",
+    })
   }
 
   private async authorize(options: {

@@ -59,7 +59,7 @@ Reference: Ruby `solid_objects` 0.12.0 at commit `4cf22c1`.
 | PostgreSQL                   | Planned | Add a driver-neutral pool interface, PostgreSQL schema, locking behavior, integration suite, and server checks.                                |
 | MySQL                        | Planned | Add a driver-neutral pool interface, MySQL schema, locking behavior, integration suite, engine/version checks, and client compatibility tests. |
 | Durable polling fallback     | Native  | Every role progresses without a notification service.                                                                                          |
-| In-process wake-up           | Planned | Add injectable wake signals so commits can interrupt polling waits.                                                                            |
+| In-process wake-up           | Native  | A generation-based default adapter prevents claim-to-wait signal loss; commits wake role-specific waiters and polling remains the fallback.    |
 | PostgreSQL and Redis wake-up | Planned | Add optional adapters; neither may become a hidden required dependency.                                                                        |
 
 ## Realtime and browser behavior
