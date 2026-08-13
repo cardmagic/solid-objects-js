@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Bound runtime shutdown with a configurable deadline and report components
+  that do not cooperate with cancellation or stop before it expires.
 - Separate generated request identity from caller-supplied idempotency keys and
   expose both with enqueue time through immutable actor message context.
 - Preserve isolated runtime ownership across operation, lifecycle, observable,

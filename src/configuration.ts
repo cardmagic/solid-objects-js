@@ -55,6 +55,7 @@ export interface SolidObjectsConfiguration {
   retryDelayMilliseconds?: (attempt: number) => number
   processHeartbeatIntervalMilliseconds?: number
   processAliveThresholdMilliseconds?: number
+  shutdownTimeoutMilliseconds?: number
   supervisorRestartDelayMilliseconds?: number
   supervisorMaximumRestartDelayMilliseconds?: number
   workerCount?: number
@@ -128,6 +129,7 @@ export function buildSettings(configuration: SolidObjectsConfiguration): Runtime
     processHeartbeatIntervalMilliseconds:
       configuration.processHeartbeatIntervalMilliseconds ?? 15_000,
     processAliveThresholdMilliseconds: configuration.processAliveThresholdMilliseconds ?? 60_000,
+    shutdownTimeoutMilliseconds: configuration.shutdownTimeoutMilliseconds ?? 15_000,
     supervisorRestartDelayMilliseconds: configuration.supervisorRestartDelayMilliseconds ?? 100,
     supervisorMaximumRestartDelayMilliseconds:
       configuration.supervisorMaximumRestartDelayMilliseconds ?? 10_000,
@@ -207,6 +209,7 @@ function validateSettings(settings: RuntimeSettings): void {
     maxActivationDurationMilliseconds: settings.maxActivationDurationMilliseconds,
     processHeartbeatIntervalMilliseconds: settings.processHeartbeatIntervalMilliseconds,
     processAliveThresholdMilliseconds: settings.processAliveThresholdMilliseconds,
+    shutdownTimeoutMilliseconds: settings.shutdownTimeoutMilliseconds,
     supervisorRestartDelayMilliseconds: settings.supervisorRestartDelayMilliseconds,
     supervisorMaximumRestartDelayMilliseconds: settings.supervisorMaximumRestartDelayMilliseconds,
     messageRetentionMilliseconds: settings.messageRetentionMilliseconds,

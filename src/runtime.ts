@@ -125,7 +125,11 @@ interface PayloadProjectionSnapshot {
 interface ComponentSlot {
   readonly factory: () => LongRunningComponent
   component: LongRunningComponent
+  cleanupAttempted: boolean
 }
+
+type ComponentRunOutcome =
+  { status: "fulfilled" } | { status: "rejected"; error: unknown } | { status: "timeout" }
 
 type EffectHandler = (
   argumentsValue: JsonObject,
@@ -260,16 +264,39 @@ export class SolidObjectsRuntime {
       deadProcessCleanupEnabled: this.settings.deadProcessCleanupIntervalMilliseconds > 0,
     })
     const controller = new AbortController()
-    const abort = () => controller.abort(signal.reason)
+    let shutdownDeadline: number | undefined
+    const abort = () => {
+      shutdownDeadline ??= performance.now() + this.settings.shutdownTimeoutMilliseconds
+      controller.abort(signal.reason)
+    }
     signal.addEventListener("abort", abort, { once: true })
     let slots: ComponentSlot[] = []
 
     try {
       slots = await this.buildComponentSlots()
-      await Promise.all(slots.map((slot) => this.supervise(slot, controller.signal)))
+      await Promise.all(
+        slots.map((slot) =>
+          this.supervise({
+            slot,
+            signal: controller.signal,
+            shutdownDeadline: () => shutdownDeadline,
+          }),
+        ),
+      )
     } finally {
-      controller.abort()
-      await Promise.allSettled(slots.map(({ component }) => this.stopComponent(component)))
+      abort()
+      await Promise.allSettled(
+        slots
+          .filter(({ cleanupAttempted }) => !cleanupAttempted)
+          .map(({ component }) =>
+            this.stopComponent(component, {
+              shutdown: {
+                signal: controller.signal,
+                deadline: () => shutdownDeadline,
+              },
+            }),
+          ),
+      )
       signal.removeEventListener("abort", abort)
       this.running = false
       this.emitInstrumentation("runtime.stopped", {})
@@ -1421,7 +1448,7 @@ export class SolidObjectsRuntime {
     try {
       for (const factory of factories) {
         const component = factory()
-        slots.push({ factory, component })
+        slots.push({ factory, component, cleanupAttempted: false })
         validateComponent(component)
       }
       return slots
@@ -1438,7 +1465,12 @@ export class SolidObjectsRuntime {
     }
   }
 
-  private async supervise(slot: ComponentSlot, signal: AbortSignal): Promise<void> {
+  private async supervise(options: {
+    slot: ComponentSlot
+    signal: AbortSignal
+    shutdownDeadline: () => number | undefined
+  }): Promise<void> {
+    const { slot, signal, shutdownDeadline } = options
     let failureCount = 0
     let replacementErrorName: string | null = null
 
@@ -1455,14 +1487,24 @@ export class SolidObjectsRuntime {
         }
       }
       signal.addEventListener("abort", requestShutdown, { once: true })
-      try {
-        await component.run(signal)
+      const outcome = await this.waitForComponent({ component, signal, shutdownDeadline })
+      signal.removeEventListener("abort", requestShutdown)
+      if (outcome.status === "timeout") {
+        this.emitInstrumentation("supervisor.component_shutdown_timeout", {
+          role: component.constructor.name,
+          phase: "run",
+          timeoutMilliseconds: this.settings.shutdownTimeoutMilliseconds,
+        })
+        return
+      }
+      await this.stopComponent(component, {
+        shutdown: { signal, deadline: shutdownDeadline },
+      })
+      slot.cleanupAttempted = true
+      if (outcome.status === "fulfilled") {
         replacementErrorName = null
-      } catch (error) {
-        replacementErrorName = error instanceof Error ? error.name : "Error"
-      } finally {
-        signal.removeEventListener("abort", requestShutdown)
-        await this.stopComponent(component)
+      } else {
+        replacementErrorName = outcome.error instanceof Error ? outcome.error.name : "Error"
       }
       if (signal.aborted) return
 
@@ -1476,6 +1518,7 @@ export class SolidObjectsRuntime {
           replacement = slot.factory()
           validateComponent(replacement)
           slot.component = replacement
+          slot.cleanupAttempted = false
           this.emitInstrumentation("supervisor.role_replaced", {
             role: component.constructor.name,
             errorName: replacementErrorName,
@@ -1495,14 +1538,65 @@ export class SolidObjectsRuntime {
     }
   }
 
-  private async stopComponent(component: LongRunningComponent): Promise<void> {
+  private waitForComponent(options: {
+    component: LongRunningComponent
+    signal: AbortSignal
+    shutdownDeadline: () => number | undefined
+  }): Promise<ComponentRunOutcome> {
+    const { component, signal, shutdownDeadline } = options
+    return new Promise((resolve) => {
+      let settled = false
+      let timeout: ReturnType<typeof setTimeout> | undefined
+      const finish = (outcome: ComponentRunOutcome) => {
+        if (settled) return
+        settled = true
+        if (timeout) clearTimeout(timeout)
+        signal.removeEventListener("abort", beginShutdown)
+        resolve(outcome)
+      }
+      const beginShutdown = () => {
+        const deadline = shutdownDeadline()
+        if (deadline === undefined) return
+        timeout = setTimeout(
+          () => finish({ status: "timeout" }),
+          Math.max(deadline - performance.now(), 0),
+        )
+      }
+      signal.addEventListener("abort", beginShutdown, { once: true })
+      if (signal.aborted) beginShutdown()
+      void Promise.resolve()
+        .then(() => component.run(signal))
+        .then(
+          () => finish({ status: "fulfilled" }),
+          (error: unknown) => finish({ status: "rejected", error }),
+        )
+    })
+  }
+
+  private async stopComponent(
+    component: LongRunningComponent,
+    options: {
+      shutdown?: { signal: AbortSignal; deadline: () => number | undefined }
+    } = {},
+  ): Promise<void> {
     try {
       component.requestShutdown()
     } catch (error) {
       this.reportComponentCleanupFailure(component, error)
     }
     try {
-      await component.stop()
+      const stopping = Promise.resolve().then(() => component.stop())
+      if (options.shutdown === undefined) {
+        await stopping
+        return
+      }
+      const stopped = await promiseBeforeShutdownDeadline(stopping, options.shutdown)
+      if (stopped) return
+      this.emitInstrumentation("supervisor.component_shutdown_timeout", {
+        role: component.constructor.name,
+        phase: "stop",
+        timeoutMilliseconds: this.settings.shutdownTimeoutMilliseconds,
+      })
     } catch (error) {
       this.reportComponentCleanupFailure(component, error)
     }
@@ -1910,4 +2004,36 @@ function reconciliationInstanceFromRow(row: InstanceRow): ReconciliationInstance
 function assertRetentionTarget(value: string): void {
   if (value === "messages" || value === "instances" || value === "processes") return
   throw new TypeError(`unknown retention target ${JSON.stringify(value)}`)
+}
+
+async function promiseBeforeShutdownDeadline(
+  promise: Promise<unknown>,
+  shutdown: { signal: AbortSignal; deadline: () => number | undefined },
+): Promise<boolean> {
+  return new Promise((resolve, reject) => {
+    let settled = false
+    let timeout: ReturnType<typeof setTimeout> | undefined
+    const finish = (result: boolean) => {
+      if (settled) return
+      settled = true
+      if (timeout) clearTimeout(timeout)
+      shutdown.signal.removeEventListener("abort", beginShutdown)
+      resolve(result)
+    }
+    const fail = (error: unknown) => {
+      if (settled) return
+      settled = true
+      if (timeout) clearTimeout(timeout)
+      shutdown.signal.removeEventListener("abort", beginShutdown)
+      reject(error)
+    }
+    const beginShutdown = () => {
+      const deadline = shutdown.deadline()
+      if (deadline === undefined) return
+      timeout = setTimeout(() => finish(false), Math.max(deadline - performance.now(), 0))
+    }
+    shutdown.signal.addEventListener("abort", beginShutdown, { once: true })
+    if (shutdown.signal.aborted) beginShutdown()
+    void promise.then(() => finish(true), fail)
+  })
 }

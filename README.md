@@ -204,7 +204,11 @@ capabilities.
 `runtime.run()` supervises every built-in role and registered component. An
 unexpected exit is cleaned up and rebuilt through its original factory with
 capped exponential backoff. Shutdown stops replacement before asking the live
-instances to finish, so no replacement can outlive the runtime.
+instances to finish, so no replacement can outlive the runtime. The shared
+shutdown budget defaults to 15 seconds and can be changed with
+`shutdownTimeoutMilliseconds`. Components and actor operations must cooperate
+with cancellation where they receive an `AbortSignal`; actor operations and
+other JavaScript code already running cannot be forcibly terminated.
 
 The default in-process wake-up adapter interrupts role polling as soon as this
 runtime commits new work. Polling remains the correctness fallback, so a missed

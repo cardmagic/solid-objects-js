@@ -274,6 +274,82 @@ describe("runtime lifecycle", () => {
     expect(builds).toBe(buildsAtShutdown)
   })
 
+  it("bounds shutdown when a component ignores cancellation", async () => {
+    const events: Array<{ name: string; attributes: Record<string, unknown> }> = []
+    let releaseRun: (() => void) | undefined
+    let componentStarted: (() => void) | undefined
+    const stop = vi.fn()
+    const started = new Promise<void>((resolve) => {
+      componentStarted = resolve
+    })
+    runtime = configuredRuntime({
+      shutdownTimeoutMilliseconds: 20,
+      instrumentation: (event) => events.push(event),
+    })
+    runtime.registerComponent(() => ({
+      run: () =>
+        new Promise<void>((resolve) => {
+          releaseRun = resolve
+          componentStarted?.()
+        }),
+      requestShutdown: () => {},
+      stopped: () => false,
+      stop,
+    }))
+    await runtime.install()
+    const controller = new AbortController()
+    const running = runtime.run(controller.signal)
+    await started
+
+    controller.abort()
+    const outcome = await Promise.race([
+      running.then(() => "stopped"),
+      new Promise<"hung">((resolve) => setTimeout(() => resolve("hung"), 200)),
+    ])
+    releaseRun?.()
+    await running
+
+    expect(outcome).toBe("stopped")
+    expect(stop).toHaveBeenCalledOnce()
+    expect(events).toContainEqual(
+      expect.objectContaining({
+        name: "solid_objects.supervisor.component_shutdown_timeout",
+        attributes: expect.objectContaining({ phase: "run" }),
+      }),
+    )
+  })
+
+  it("bounds a component stop that never settles", async () => {
+    const events: Array<{ name: string; attributes: Record<string, unknown> }> = []
+    runtime = configuredRuntime({
+      shutdownTimeoutMilliseconds: 20,
+      instrumentation: (event) => events.push(event),
+    })
+    runtime.registerComponent(() => ({
+      run: (signal) => aborted(signal),
+      requestShutdown: () => {},
+      stopped: () => false,
+      stop: () => new Promise<void>(() => {}),
+    }))
+    await runtime.install()
+    const controller = new AbortController()
+    const running = runtime.run(controller.signal)
+    controller.abort()
+
+    const outcome = await Promise.race([
+      running.then(() => "stopped"),
+      new Promise<"hung">((resolve) => setTimeout(() => resolve("hung"), 200)),
+    ])
+
+    expect(outcome).toBe("stopped")
+    expect(events).toContainEqual(
+      expect.objectContaining({
+        name: "solid_objects.supervisor.component_shutdown_timeout",
+        attributes: expect.objectContaining({ phase: "stop" }),
+      }),
+    )
+  })
+
   it("renews the activation lease while a long message is running", async () => {
     runtime = configuredRuntime({
       leaseDurationMilliseconds: 30,

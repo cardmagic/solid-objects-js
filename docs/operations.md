@@ -5,9 +5,12 @@ generation-based wake-up adapter interrupts waits for new actor messages,
 effects, reminders, and broadcasts in the same Node process. Notification
 errors are isolated and logged by role and error class without failing the
 committed work. Graceful shutdown stops new claims and allows active turns to
-finish. Operators should monitor oldest ready work, claimed work, dead letters,
-effect failures, reminder lag, lease loss, process heartbeats, and database
-contention.
+finish within `shutdownTimeoutMilliseconds`, which defaults to 15 seconds. A
+component still running or stopping at the deadline emits
+`solid_objects.supervisor.component_shutdown_timeout`; the runtime then returns
+without pretending JavaScript code was forcibly terminated. Operators should
+monitor oldest ready work, claimed work, dead letters, effect failures,
+reminder lag, lease loss, process heartbeats, and database contention.
 
 `runtime.run()` replaces built-in roles and registered application components
 that return or reject before shutdown. `supervisorRestartDelayMilliseconds`
