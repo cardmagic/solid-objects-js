@@ -33,6 +33,21 @@ export interface MessageRow {
   completed_at_ms: number | bigint | null
 }
 
+export interface DeadLetterRow {
+  id: string
+  message_id: string
+  instance_id: string
+  actor_type: string
+  actor_id: string
+  operation: string
+  delivery_mode: "async" | "sync" | "internal"
+  arguments: string
+  attempts: number | bigint
+  error: string
+  created_at_ms: number | bigint
+  retried_message_id: string | null
+}
+
 export interface ClaimedTurn {
   instance: InstanceRow
   message: MessageRow

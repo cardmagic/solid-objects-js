@@ -1,7 +1,8 @@
 import { UnsupportedDatabase } from "./errors.js"
 import type { DatabaseConnection, DatabaseFamily } from "./database/types.js"
 
-const VERSION = 1
+const BASE_VERSION = 1
+const LATEST_VERSION = 2
 
 export async function installSchema(options: {
   connection: DatabaseConnection
@@ -21,12 +22,17 @@ export async function installSchema(options: {
     installed_at_ms INTEGER NOT NULL
   ) STRICT`)
 
-  const migration = await connection.get<{ schema_identity: string }>(
-    `SELECT schema_identity FROM ${table("schema_migrations")} WHERE version = ?`,
-    [VERSION],
-  )
-  if (migration && migration.schema_identity !== schemaIdentity) {
-    throw new Error(`incompatible Solid Objects schema ${migration.schema_identity}`)
+  const installedMigrations = await connection.all<{
+    version: number | bigint
+    schema_identity: string
+  }>(`SELECT version, schema_identity FROM ${table("schema_migrations")} ORDER BY version`)
+  for (const migration of installedMigrations) {
+    if (migration.schema_identity !== schemaIdentity) {
+      throw new Error(`incompatible Solid Objects schema ${migration.schema_identity}`)
+    }
+    if (Number(migration.version) > LATEST_VERSION) {
+      throw new Error(`database schema version ${migration.version} is newer than this runtime`)
+    }
   }
 
   await connection.run(`CREATE TABLE IF NOT EXISTS ${table("processes")} (
@@ -173,6 +179,25 @@ export async function installSchema(options: {
   await connection.run(
     `INSERT INTO ${table("schema_migrations")}(version, schema_identity, installed_at_ms)
      VALUES (?, ?, ?) ON CONFLICT(version) DO NOTHING`,
-    [VERSION, schemaIdentity, now],
+    [BASE_VERSION, schemaIdentity, now],
+  )
+
+  const retryLinkMigration = installedMigrations.some(
+    ({ version }) => Number(version) === LATEST_VERSION,
+  )
+  if (retryLinkMigration) return
+
+  await connection.run(
+    `ALTER TABLE ${table("dead_letters")} ADD COLUMN retried_message_id TEXT
+     REFERENCES ${table("messages")}(id) ON DELETE SET NULL`,
+  )
+  await connection.run(
+    `CREATE INDEX ${prefix}dead_letters_retried_message ON ${table("dead_letters")}(retried_message_id)`,
+  )
+  const migratedAt = await connection.nowMilliseconds()
+  await connection.run(
+    `INSERT INTO ${table("schema_migrations")}(version, schema_identity, installed_at_ms)
+     VALUES (?, ?, ?)`,
+    [LATEST_VERSION, schemaIdentity, migratedAt],
   )
 }

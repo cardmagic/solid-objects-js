@@ -21,6 +21,7 @@ export class ActorCallCycle extends NonRetryableError {}
 export class QueryMutatedState extends NonRetryableError {}
 export class UnknownEffect extends NonRetryableError {}
 export class UnknownCommitAction extends NonRetryableError {}
+export class UnknownDeadLetter extends SolidObjectsError {}
 export class InvalidStreamToken extends SolidObjectsError {}
 export class InvalidComponentToken extends SolidObjectsError {}
 export class UnknownComponent extends SolidObjectsError {}

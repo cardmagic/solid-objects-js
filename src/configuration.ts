@@ -16,6 +16,13 @@ export interface DestroyAuthorizationInput {
   authorizationContext: unknown
 }
 
+export interface AdministrationAuthorizationInput {
+  action: string
+  resource: string
+  resourceId?: string
+  authorizationContext: unknown
+}
+
 export interface SolidObjectsConfiguration {
   database: Database
   tableNamePrefix?: string
@@ -39,6 +46,7 @@ export interface SolidObjectsConfiguration {
   authorizeMessage?: (input: AuthorizationInput) => boolean | Promise<boolean>
   authorizeQuery?: (input: AuthorizationInput) => boolean | Promise<boolean>
   authorizeDestroy?: (input: DestroyAuthorizationInput) => boolean | Promise<boolean>
+  authorizeAdministration?: (input: AdministrationAuthorizationInput) => boolean | Promise<boolean>
   broadcast?: (event: BroadcastEvent) => Promise<void>
 }
 
@@ -91,6 +99,7 @@ export function buildSettings(configuration: SolidObjectsConfiguration): Runtime
     authorizeMessage: configuration.authorizeMessage ?? (() => false),
     authorizeQuery: configuration.authorizeQuery ?? (() => false),
     authorizeDestroy: configuration.authorizeDestroy ?? (() => false),
+    authorizeAdministration: configuration.authorizeAdministration ?? (() => false),
   }
 
   if (configuration.broadcast !== undefined) settings.broadcast = configuration.broadcast

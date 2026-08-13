@@ -109,6 +109,7 @@ const runtime = configureSolidObjects({
   authorizeMessage: ({ authorizationContext }) => authorizationContext !== undefined,
   authorizeQuery: ({ authorizationContext }) => authorizationContext !== undefined,
   authorizeDestroy: ({ authorizationContext }) => authorizationContext !== undefined,
+  authorizeAdministration: ({ authorizationContext }) => isOperator(authorizationContext),
 })
 
 runtime.register(Counter)
@@ -269,6 +270,28 @@ runtime.registerCommitAction("completeAttempt", async ({ attemptId }, context) =
 Do not perform network I/O in a commit action. Use an effect when work cannot
 share the Solid Objects database transaction.
 
+## Inspect and retry terminal failures
+
+Messages that exhaust their attempts remain available as dead letters. Access
+is deny-by-default and goes through the administration policy:
+
+```typescript
+const deadLetters = await runtime.deadLetters.all({
+  authorizationContext: currentUser,
+})
+
+const deadLetter = deadLetters[0]
+if (deadLetter) {
+  await runtime.deadLetters.retry(deadLetter.id, {
+    authorizationContext: currentUser,
+  })
+}
+```
+
+Retry creates one durable replacement message and records that link. Repeating
+the retry returns the same `MessageReference` instead of enqueueing duplicate
+work.
+
 ## Add realtime updates without exposing all state
 
 Configure `broadcast` to forward explicit observable changes to the transport
@@ -316,8 +339,8 @@ not authorization.
 
 Version 0.1 supports Node.js 24 and SQLite through the built-in `node:sqlite`
 module. PostgreSQL and MySQL adapters, HTTP/WebSocket server adapters,
-administrative tooling, and Ruby schema interoperability are not part of the
-0.1 compatibility contract.
+administrative command-line tooling, and Ruby schema interoperability are not
+part of the 0.1 compatibility contract.
 
 See [`docs/architecture.md`](docs/architecture.md),
 [`docs/correctness.md`](docs/correctness.md), and

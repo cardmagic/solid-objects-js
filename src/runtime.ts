@@ -7,6 +7,7 @@ import {
   type SolidObjectsConfiguration,
 } from "./configuration.js"
 import { currentActor, withActorContext } from "./context.js"
+import { DeadLetterManager, type DeadLetter } from "./dead-letters.js"
 import { clearDefaultRuntime, setDefaultRuntime } from "./default-runtime.js"
 import {
   actorState,
@@ -26,6 +27,7 @@ import {
   SyncTimeout,
   Unauthorized,
   UnknownCommitAction,
+  UnknownDeadLetter,
   UnknownEffect,
   UnknownActorType,
   UnknownOperation,
@@ -38,12 +40,20 @@ import {
   type ActorSnapshot,
 } from "./reference.js"
 import { Repository } from "./repository.js"
-import type { BroadcastRow, ClaimedTurn, EffectRow, ReminderRow } from "./records.js"
+import type {
+  BroadcastRow,
+  ClaimedTurn,
+  DeadLetterRow,
+  EffectRow,
+  MessageRow,
+  ReminderRow,
+} from "./records.js"
 import { ReminderScheduler } from "./reminder-scheduler.js"
 import { deepCopy, jsonObject, normalizeJson, readonlyCopy, stableJson } from "./serialization.js"
 import { installSchema } from "./schema.js"
 import type {
   ActorIdentifier,
+  AdministrationOptions,
   AsyncInvocationOptions,
   CommitActionContext,
   DeepReadonly,
@@ -78,6 +88,7 @@ type CommitActionHandler = (
 export class SolidObjectsRuntime {
   readonly settings
   readonly repository
+  readonly deadLetters
   private readonly registry = new Map<string, RegisteredActor>()
   private readonly effects = new Map<string, EffectHandler>()
   private readonly commitActions = new Map<string, CommitActionHandler>()
@@ -88,6 +99,7 @@ export class SolidObjectsRuntime {
   constructor(configuration: SolidObjectsConfiguration) {
     this.settings = buildSettings(configuration)
     this.repository = new Repository(this.settings)
+    this.deadLetters = new DeadLetterManager(this)
   }
 
   async install(): Promise<void> {
@@ -364,6 +376,42 @@ export class SolidObjectsRuntime {
     return this.repository.destroy(reference.actorType, reference.actorId)
   }
 
+  async inspectDeadLetters(options: AdministrationOptions = {}): Promise<readonly DeadLetter[]> {
+    await this.authorizeAdministration({
+      action: "inspect",
+      resource: "dead_letters",
+      authorizationContext: options.authorizationContext,
+    })
+    const deadLetters = await this.repository.listDeadLetters()
+    return Object.freeze(deadLetters.map(deadLetterFromRow))
+  }
+
+  async retryDeadLetter(
+    id: string,
+    options: AdministrationOptions = {},
+  ): Promise<MessageReference> {
+    await this.authorizeAdministration({
+      action: "retry",
+      resource: "dead_letters",
+      resourceId: id,
+      authorizationContext: options.authorizationContext,
+    })
+    const deadLetter = await this.repository.findDeadLetter(id)
+    if (!deadLetter) throw new UnknownDeadLetter(`unknown dead letter ${id}`)
+    const actor = this.fetchActor(deadLetter.actor_type)
+    if (!actor.operations.has(deadLetter.operation)) {
+      throw new UnknownOperation(
+        `unknown dead-letter operation ${JSON.stringify(deadLetter.operation)}`,
+      )
+    }
+    const message = await this.repository.retryDeadLetter({
+      id,
+      initialState: initialStateFor(actor.definition),
+      stateVersion: actor.definition.stateVersion,
+    })
+    return this.messageReferenceFromRow(message)
+  }
+
   async executeTurn(turn: ClaimedTurn): Promise<void> {
     const registered = this.fetchActor(turn.message.actor_type)
     const definition = registered.definition
@@ -550,6 +598,10 @@ export class SolidObjectsRuntime {
         ? { availableAtMilliseconds: invocationOptions.availableAt.getTime() }
         : {}),
     })
+    return this.messageReferenceFromRow<Result>(message)
+  }
+
+  private messageReferenceFromRow<Result = unknown>(message: MessageRow): MessageReference<Result> {
     return new MessageReference<Result>({
       runtime: this,
       id: message.id,
@@ -638,6 +690,16 @@ export class SolidObjectsRuntime {
     if (!authorized) throw new Unauthorized(`actor ${kind} is not authorized`)
   }
 
+  private async authorizeAdministration(options: {
+    action: string
+    resource: string
+    resourceId?: string
+    authorizationContext: unknown
+  }): Promise<void> {
+    const authorized = await this.settings.authorizeAdministration(options)
+    if (!authorized) throw new Unauthorized("actor administration is not authorized")
+  }
+
   private async authorizeMessageReference(
     messageReference: MessageReference,
     authorizationContext: unknown,
@@ -693,4 +755,20 @@ function rejectionFromMessage(message: ClaimedTurn["message"]): Rejected {
   const error = new Rejected(rejection)
   error.messageId = message.id
   return error
+}
+
+function deadLetterFromRow(row: DeadLetterRow): DeadLetter {
+  return Object.freeze({
+    id: row.id,
+    messageId: row.message_id,
+    actorType: row.actor_type,
+    actorId: row.actor_id,
+    operation: row.operation,
+    deliveryMode: row.delivery_mode,
+    arguments: readonlyCopy(jsonObject(JSON.parse(row.arguments))),
+    attempts: Number(row.attempts),
+    error: readonlyCopy(jsonObject(JSON.parse(row.error))),
+    createdAt: new Date(Number(row.created_at_ms)),
+    retriedMessageId: row.retried_message_id,
+  })
 }

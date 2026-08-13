@@ -32,6 +32,10 @@ export interface SnapshotOptions<AuthorizationContext = unknown> {
   authorizationContext?: AuthorizationContext
 }
 
+export interface AdministrationOptions<AuthorizationContext = unknown> {
+  authorizationContext?: AuthorizationContext
+}
+
 export interface MessageContext {
   id: string
   requestId: string

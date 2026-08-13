@@ -1,11 +1,18 @@
 import { randomUUID } from "node:crypto"
-import { ActorDestroyed, IdempotencyConflict, LostActivation, MailboxFull } from "./errors.js"
+import {
+  ActorDestroyed,
+  IdempotencyConflict,
+  LostActivation,
+  MailboxFull,
+  UnknownDeadLetter,
+} from "./errors.js"
 import type { ActorIntents } from "./actor.js"
 import type { RuntimeSettings } from "./configuration.js"
 import type { DatabaseConnection } from "./database/types.js"
 import type {
   BroadcastRow,
   ClaimedTurn,
+  DeadLetterRow,
   EffectRow,
   EnqueueInput,
   InstanceRow,
@@ -13,7 +20,7 @@ import type {
   ReminderRow,
 } from "./records.js"
 import { jsonObject, normalizeJson } from "./serialization.js"
-import type { JsonValue } from "./types.js"
+import type { JsonObject, JsonValue } from "./types.js"
 
 export class Repository {
   constructor(private readonly settings: RuntimeSettings) {}
@@ -514,12 +521,81 @@ export class Repository {
     })
   }
 
+  async listDeadLetters(): Promise<DeadLetterRow[]> {
+    return this.settings.database.connection((connection) =>
+      connection.all<DeadLetterRow>(
+        `SELECT dead_letters.*, messages.actor_type, messages.actor_id, messages.operation,
+          messages.delivery_mode, messages.arguments
+         FROM ${this.table("dead_letters")} dead_letters
+         JOIN ${this.table("messages")} messages ON messages.id = dead_letters.message_id
+         ORDER BY dead_letters.created_at_ms DESC, dead_letters.id DESC`,
+      ),
+    )
+  }
+
+  async findDeadLetter(id: string): Promise<DeadLetterRow | undefined> {
+    return this.settings.database.connection((connection) =>
+      this.findDeadLetterInConnection(connection, id),
+    )
+  }
+
+  async retryDeadLetter(options: {
+    id: string
+    initialState: JsonObject
+    stateVersion: number
+  }): Promise<MessageRow> {
+    return this.settings.database.transaction(async (connection) => {
+      const deadLetter = await this.findDeadLetterInConnection(connection, options.id)
+      if (!deadLetter) throw new UnknownDeadLetter(`unknown dead letter ${options.id}`)
+      if (deadLetter.retried_message_id) {
+        const retriedMessage = await connection.get<MessageRow>(
+          `SELECT * FROM ${this.table("messages")} WHERE id = ?`,
+          [deadLetter.retried_message_id],
+        )
+        if (!retriedMessage) {
+          throw new Error(`retried message ${deadLetter.retried_message_id} is missing`)
+        }
+        return retriedMessage
+      }
+
+      const retriedMessage = await this.enqueueInTransaction(connection, {
+        actorType: deadLetter.actor_type,
+        actorId: deadLetter.actor_id,
+        operation: deadLetter.operation,
+        deliveryMode: deadLetter.delivery_mode,
+        arguments: jsonObject(JSON.parse(deadLetter.arguments)),
+        initialState: options.initialState,
+        stateVersion: options.stateVersion,
+        idempotencyKey: `dead-letter:${deadLetter.id}`,
+      })
+      await connection.run(
+        `UPDATE ${this.table("dead_letters")} SET retried_message_id = ? WHERE id = ?`,
+        [retriedMessage.id, deadLetter.id],
+      )
+      return retriedMessage
+    })
+  }
+
   async findInstanceByIdentity(
     actorType: string,
     actorId: string,
   ): Promise<InstanceRow | undefined> {
     return this.settings.database.connection((connection) =>
       this.findInstance({ connection, actorType, actorId }),
+    )
+  }
+
+  private async findDeadLetterInConnection(
+    connection: DatabaseConnection,
+    id: string,
+  ): Promise<DeadLetterRow | undefined> {
+    return connection.get<DeadLetterRow>(
+      `SELECT dead_letters.*, messages.actor_type, messages.actor_id, messages.operation,
+        messages.delivery_mode, messages.arguments
+       FROM ${this.table("dead_letters")} dead_letters
+       JOIN ${this.table("messages")} messages ON messages.id = dead_letters.message_id
+       WHERE dead_letters.id = ?`,
+      [id],
     )
   }
 

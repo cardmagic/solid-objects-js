@@ -14,6 +14,7 @@ export { Worker } from "./worker.js"
 export { EffectWorker } from "./effect-worker.js"
 export { ReminderScheduler } from "./reminder-scheduler.js"
 export { BroadcastWorker } from "./broadcast-worker.js"
+export { DeadLetterManager, type DeadLetter } from "./dead-letters.js"
 export {
   MessageReference,
   type ActorOperationNames,
@@ -25,12 +26,14 @@ export {
   type StagedOperations,
 } from "./reference.js"
 export type {
+  AdministrationAuthorizationInput,
   AuthorizationInput,
   BroadcastEvent,
   DestroyAuthorizationInput,
   SolidObjectsConfiguration,
 } from "./configuration.js"
 export type {
+  AdministrationOptions,
   ActorIdentifier,
   AsyncInvocationOptions,
   CommitActionContext,
@@ -65,6 +68,7 @@ export {
   Unauthorized,
   UnknownActorType,
   UnknownCommitAction,
+  UnknownDeadLetter,
   UnknownEffect,
   UnknownOperation,
   UnsupportedDatabase,
