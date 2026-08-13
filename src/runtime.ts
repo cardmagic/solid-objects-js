@@ -204,6 +204,12 @@ export class SolidObjectsRuntime {
     if (this.running) throw new Error("Solid Objects runtime is already running")
     if (signal.aborted) return
     this.running = true
+    this.emitInstrumentation("runtime.started", {
+      workerCount: this.settings.workerCount,
+      effectWorkerCount: this.settings.effectWorkerCount,
+      reminderSchedulerCount: this.settings.reminderSchedulerCount,
+      broadcastWorkerCount: this.settings.broadcast ? this.settings.broadcastWorkerCount : 0,
+    })
     const controller = new AbortController()
     const abort = () => controller.abort(signal.reason)
     signal.addEventListener("abort", abort, { once: true })
@@ -218,6 +224,7 @@ export class SolidObjectsRuntime {
       await Promise.allSettled(components.map((component) => component.stop()))
       signal.removeEventListener("abort", abort)
       this.running = false
+      this.emitInstrumentation("runtime.stopped", {})
     }
   }
 
@@ -394,7 +401,14 @@ export class SolidObjectsRuntime {
       authorizationContext: options.authorizationContext,
     })
     if (!authorized) throw new Unauthorized("actor destruction is not authorized")
-    return this.repository.destroy(reference.actorType, reference.actorId)
+    const destroyed = await this.repository.destroy(reference.actorType, reference.actorId)
+    if (destroyed) {
+      this.emitInstrumentation("actor.destroyed", {
+        actorType: reference.actorType,
+        actorId: reference.actorId,
+      })
+    }
+    return destroyed
   }
 
   async inspectDeadLetters(options: AdministrationOptions = {}): Promise<readonly DeadLetter[]> {
@@ -429,6 +443,13 @@ export class SolidObjectsRuntime {
       id,
       initialState: initialStateFor(actor.definition),
       stateVersion: actor.definition.stateVersion,
+    })
+    this.emitInstrumentation("dead_letter.retried", {
+      deadLetterId: id,
+      messageId: message.id,
+      actorType: message.actor_type,
+      actorId: message.actor_id,
+      operation: message.operation,
     })
     return this.messageReferenceFromRow(message)
   }
@@ -532,13 +553,17 @@ export class SolidObjectsRuntime {
       resource: options.target,
       authorizationContext: options.authorizationContext,
     })
-    return Object.freeze({
+    const result = Object.freeze({
       target: options.target,
       count: await this.repository.pruneRetention(options.target),
     })
+    this.emitInstrumentation(`${options.target}.pruned`, { count: result.count })
+    return result
   }
 
   async executeTurn(turn: ClaimedTurn): Promise<void> {
+    const startedAt = Date.now()
+    this.emitInstrumentation("message.started", messageInstrumentation(turn.message))
     const registered = this.fetchActor(turn.message.actor_type)
     const definition = registered.definition
     const state = migrateState({
@@ -607,33 +632,73 @@ export class SolidObjectsRuntime {
           const handler = this.commitActions.get(intent.name)
           if (!handler)
             throw new UnknownCommitAction(`unknown commit action ${JSON.stringify(intent.name)}`)
-          await handler(intent.arguments, {
-            actorType: turn.message.actor_type,
-            actorId: turn.message.actor_id,
-            messageId: turn.message.id,
-            requestId: turn.message.request_id,
-            sequence: BigInt(turn.message.sequence),
-            connection,
-          })
+          const attributes = {
+            commitAction: intent.name,
+            ...messageInstrumentation(turn.message),
+          }
+          this.emitInstrumentation("commit_action.started", attributes)
+          try {
+            await handler(intent.arguments, {
+              actorType: turn.message.actor_type,
+              actorId: turn.message.actor_id,
+              messageId: turn.message.id,
+              requestId: turn.message.request_id,
+              sequence: BigInt(turn.message.sequence),
+              connection,
+            })
+            this.emitInstrumentation("commit_action.completed", attributes)
+          } catch (error) {
+            this.emitInstrumentation("commit_action.failed", {
+              ...attributes,
+              errorName: error instanceof Error ? error.name : "Error",
+            })
+            throw error
+          }
         },
+      })
+      this.emitInstrumentation("message.completed", {
+        ...messageInstrumentation(turn.message),
+        durationMilliseconds: Date.now() - startedAt,
       })
     } catch (error) {
       renewalController.abort()
       await renewal
       actor.discardIntents()
-      if (error instanceof LostActivation) return
+      if (error instanceof LostActivation) {
+        this.emitInstrumentation("activation.lost", {
+          ...messageInstrumentation(turn.message),
+          durationMilliseconds: Date.now() - startedAt,
+        })
+        return
+      }
       if (error instanceof Rejected) {
         await this.repository.reject(turn, {
           code: error.code,
           message: error.message,
           details: error.details,
         })
+        this.emitInstrumentation("message.rejected", {
+          ...messageInstrumentation(turn.message),
+          code: error.code,
+          durationMilliseconds: Date.now() - startedAt,
+        })
         return
       }
-      await this.repository.fail(turn, {
+      const retryable = !(error instanceof NonRetryableError)
+      const outcome = await this.repository.fail(turn, {
         error,
-        retryable: !(error instanceof NonRetryableError),
+        retryable,
       })
+      this.emitInstrumentation("message.failed", {
+        ...messageInstrumentation(turn.message),
+        retryable,
+        errorName: error instanceof Error ? error.name : "Error",
+        durationMilliseconds: Date.now() - startedAt,
+        outcome,
+      })
+      if (outcome === "dead") {
+        this.emitInstrumentation("dead_letter.created", messageInstrumentation(turn.message))
+      }
     }
   }
 
@@ -652,6 +717,26 @@ export class SolidObjectsRuntime {
     await this.repository.resetForTesting()
   }
 
+  emitInstrumentation(name: string, attributes: JsonObject): void {
+    const instrumentation = this.settings.instrumentation
+    if (!instrumentation) return
+    try {
+      instrumentation(
+        Object.freeze({
+          name: `solid_objects.${name}`,
+          occurredAt: new Date().toISOString(),
+          attributes: readonlyCopy(attributes),
+        }),
+      )
+    } catch (error) {
+      this.settings.logger.error({
+        event: "solid_objects.instrumentation.failed",
+        instrumentationEvent: `solid_objects.${name}`,
+        errorName: error instanceof Error ? error.name : "Error",
+      })
+    }
+  }
+
   async executeEffect(effect: EffectRow): Promise<void> {
     try {
       const handler = this.effects.get(effect.name)
@@ -667,11 +752,16 @@ export class SolidObjectsRuntime {
         { maxBytes: this.settings.maxResultBytes },
       )
       await this.repository.completeEffect(effect, result)
+      this.emitInstrumentation("effect.completed", effectInstrumentation(effect))
     } catch (error) {
       await this.repository.failEffect({
         effect,
         error,
         retryable: !(error instanceof NonRetryableError),
+      })
+      this.emitInstrumentation("effect.failed", {
+        ...effectInstrumentation(effect),
+        errorName: error instanceof Error ? error.name : "Error",
       })
     }
   }
@@ -682,6 +772,13 @@ export class SolidObjectsRuntime {
       throw new UnknownOperation(`unknown reminder operation ${JSON.stringify(reminder.operation)}`)
     }
     await this.repository.enqueueReminder(reminder)
+    this.emitInstrumentation("reminder.enqueued", {
+      reminderId: reminder.id,
+      actorType: reminder.actor_type,
+      actorId: reminder.actor_id,
+      operation: reminder.operation,
+      occurrence: Number(reminder.occurrence),
+    })
   }
 
   async executeBroadcast(broadcast: BroadcastRow): Promise<void> {
@@ -696,8 +793,13 @@ export class SolidObjectsRuntime {
         observables: jsonObject(JSON.parse(broadcast.observables)),
       })
       await this.repository.completeBroadcast(broadcast)
+      this.emitInstrumentation("broadcast.delivered", broadcastInstrumentation(broadcast))
     } catch (error) {
       await this.repository.failBroadcast(broadcast, error)
+      this.emitInstrumentation("broadcast.failed", {
+        ...broadcastInstrumentation(broadcast),
+        errorName: error instanceof Error ? error.name : "Error",
+      })
     }
   }
 
@@ -731,6 +833,7 @@ export class SolidObjectsRuntime {
         ? { availableAtMilliseconds: invocationOptions.availableAt.getTime() }
         : {}),
     })
+    this.emitInstrumentation("message.enqueued", messageInstrumentation(message))
     return this.messageReferenceFromRow<Result>(message)
   }
 
@@ -888,6 +991,41 @@ function rejectionFromMessage(message: ClaimedTurn["message"]): Rejected {
   const error = new Rejected(rejection)
   error.messageId = message.id
   return error
+}
+
+function messageInstrumentation(message: MessageRow): JsonObject {
+  return {
+    messageId: message.id,
+    requestId: message.request_id,
+    actorType: message.actor_type,
+    actorId: message.actor_id,
+    sequence: String(message.sequence),
+    operation: message.operation,
+    deliveryMode: message.delivery_mode,
+    attempt: Number(message.attempt_count),
+  }
+}
+
+function effectInstrumentation(effect: EffectRow): JsonObject {
+  return {
+    effectId: effect.id,
+    effectName: effect.name,
+    messageId: effect.message_id,
+    actorType: effect.actor_type,
+    actorId: effect.actor_id,
+    attempt: Number(effect.attempt_count),
+  }
+}
+
+function broadcastInstrumentation(broadcast: BroadcastRow): JsonObject {
+  return {
+    broadcastId: broadcast.id,
+    messageId: broadcast.message_id,
+    actorType: broadcast.actor_type,
+    actorId: broadcast.actor_id,
+    revision: String(broadcast.state_revision),
+    attempt: Number(broadcast.attempt_count),
+  }
 }
 
 function deadLetterFromRow(row: DeadLetterRow): DeadLetter {

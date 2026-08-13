@@ -48,7 +48,7 @@ Reference: Ruby `solid_objects` 0.12.0 at commit `4cf22c1`.
 | Message, process, and opt-in instance retention                               | Native  | Authorized preview and bounded prune APIs preserve live work and support default, per-actor, and opt-in policies.                   |
 | Doctor and schema verification                                                | Native  | Structured checks cover configuration, schema/version shape, SQLite version, policy posture, live roles, and a targeted round trip. |
 | CLI                                                                           | Planned | Add Node commands for run, status, cleanup, doctor, dead letters, retry, and preview/execute pruning.                               |
-| Structured instrumentation                                                    | Planned | Add transport-neutral events with safe metadata and no arguments, state, results, or outbox payloads.                               |
+| Structured instrumentation                                                    | Native  | An isolated transport-neutral sink emits immutable lifecycle metadata and structurally excludes application payloads.               |
 | Public test helper                                                            | Native  | `runtime.testing` provides role-selective deterministic draining and dependency-ordered reset without relying on cascades.          |
 
 ## Databases and wake-up

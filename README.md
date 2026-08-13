@@ -394,6 +394,26 @@ deletes every actor-owned table and process row in dependency order. Use it in
 test setup and teardown; it does not rely on transactional tests or foreign-key
 cascades.
 
+## Connect observability without coupling the runtime
+
+Provide a synchronous instrumentation sink and forward events to the
+observability system already used by the application:
+
+```typescript
+const runtime = configureSolidObjects({
+  database,
+  instrumentation: (event) => diagnosticsChannel.publish(event),
+})
+```
+
+Events use names such as `solid_objects.message.enqueued`,
+`solid_objects.message.completed`, `solid_objects.effect.failed`,
+`solid_objects.dead_letter.created`, and `solid_objects.actor.destroyed`.
+Records are immutable and contain operational metadata only. Arguments, actor
+state, results, rejection messages and details, error messages, and broadcast
+payloads never enter the instrumentation API. A sink failure is logged and
+cannot fail durable work.
+
 ## Add realtime updates without exposing all state
 
 Configure `broadcast` to forward explicit observable changes to the transport

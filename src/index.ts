@@ -57,6 +57,7 @@ export type {
   AuthorizationInput,
   BroadcastEvent,
   DestroyAuthorizationInput,
+  InstrumentationEvent,
   SolidObjectsConfiguration,
 } from "./configuration.js"
 export type {

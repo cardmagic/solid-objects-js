@@ -444,8 +444,11 @@ export class Repository {
     })
   }
 
-  async fail(turn: ClaimedTurn, options: { error: unknown; retryable: boolean }): Promise<void> {
-    await this.settings.database.transaction(async (connection) => {
+  async fail(
+    turn: ClaimedTurn,
+    options: { error: unknown; retryable: boolean },
+  ): Promise<"dead" | "retrying"> {
+    return this.settings.database.transaction(async (connection) => {
       const now = await this.assertFence(connection, turn)
       const errorRecord = safeError(options.error)
       const exhausted =
@@ -469,7 +472,7 @@ export class Repository {
           ],
         )
         await this.releaseClaim({ connection, turn, now })
-        return
+        return "dead" as const
       }
 
       const availableAt =
@@ -491,6 +494,7 @@ export class Repository {
          activation_expires_at_ms = NULL, updated_at_ms = ? WHERE id = ?`,
         [now, turn.instance.id],
       )
+      return "retrying" as const
     })
   }
 

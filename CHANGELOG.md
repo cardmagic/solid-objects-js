@@ -11,6 +11,7 @@
 - Add structured installation diagnostics and a targeted durable round trip.
 - Add deterministic runtime draining and explicit database reset helpers for
   tests.
+- Add isolated structured lifecycle instrumentation with metadata-only events.
 
 ## 0.1.0 - 2026-08-13
 

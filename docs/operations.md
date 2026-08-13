@@ -53,3 +53,12 @@ effects, actor callbacks, and broadcasts in deterministic passes. The helper
 stops every temporary runner even when a handler raises. `reset()` must only run
 while the supervised runtime is stopped; it explicitly clears child tables,
 instances, and process records and replaces the cached synchronous caller.
+
+The optional `instrumentation` callback receives immutable events with the
+`solid_objects.` prefix. Core events cover runtime lifecycle, message
+enqueue/start/completion/rejection/failure, activation loss, commit actions,
+effects, reminders, broadcasts, dead letters, actor destruction, and retention
+pruning. Event attributes are restricted to identities, operation or handler
+names, delivery mode, sequence, attempt, outcome, counts, durations, and error
+class names. The runtime catches sink exceptions and reports only the failed
+event name and sink error class through the configured logger.

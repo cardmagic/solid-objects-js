@@ -1,6 +1,6 @@
 import { InvalidActor } from "./errors.js"
 import type { Database } from "./database/types.js"
-import type { JsonValue, Logger, LongRunningComponent } from "./types.js"
+import type { DeepReadonly, JsonObject, JsonValue, Logger, LongRunningComponent } from "./types.js"
 
 export interface AuthorizationInput {
   actorType: string
@@ -21,6 +21,12 @@ export interface AdministrationAuthorizationInput {
   resource: string
   resourceId?: string
   authorizationContext: unknown
+}
+
+export interface InstrumentationEvent {
+  readonly name: string
+  readonly occurredAt: string
+  readonly attributes: DeepReadonly<JsonObject>
 }
 
 export interface SolidObjectsConfiguration {
@@ -52,6 +58,7 @@ export interface SolidObjectsConfiguration {
   authorizeQuery?: (input: AuthorizationInput) => boolean | Promise<boolean>
   authorizeDestroy?: (input: DestroyAuthorizationInput) => boolean | Promise<boolean>
   authorizeAdministration?: (input: AdministrationAuthorizationInput) => boolean | Promise<boolean>
+  instrumentation?: (event: InstrumentationEvent) => void
   broadcast?: (event: BroadcastEvent) => Promise<void>
 }
 
@@ -64,10 +71,11 @@ export interface BroadcastEvent {
 }
 
 export interface RuntimeSettings extends Required<
-  Omit<SolidObjectsConfiguration, "logger" | "broadcast">
+  Omit<SolidObjectsConfiguration, "logger" | "broadcast" | "instrumentation">
 > {
   logger: Logger
   broadcast?: (event: BroadcastEvent) => Promise<void>
+  instrumentation?: (event: InstrumentationEvent) => void
   authorizationPoliciesConfigured: Readonly<Record<string, boolean>>
 }
 
@@ -124,6 +132,9 @@ export function buildSettings(configuration: SolidObjectsConfiguration): Runtime
   }
 
   if (configuration.broadcast !== undefined) settings.broadcast = configuration.broadcast
+  if (configuration.instrumentation !== undefined) {
+    settings.instrumentation = configuration.instrumentation
+  }
   validateSettings(settings)
   return settings
 }
