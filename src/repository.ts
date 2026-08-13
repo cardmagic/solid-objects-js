@@ -585,6 +585,116 @@ export class Repository {
     )
   }
 
+  async activeInstances(options: {
+    actorType?: string
+    cursor?: string
+    limit: number
+  }): Promise<InstanceRow[]> {
+    const conditions = ["paused = 0"]
+    const parameters: unknown[] = []
+    if (options.actorType !== undefined) {
+      conditions.push("actor_type = ?")
+      parameters.push(options.actorType)
+    }
+    if (options.cursor !== undefined) {
+      conditions.push("id > ?")
+      parameters.push(options.cursor)
+    }
+    parameters.push(options.limit + 1)
+    return this.settings.database.connection((connection) =>
+      connection.all<InstanceRow>(
+        `SELECT * FROM ${this.table("instances")}
+         WHERE ${conditions.join(" AND ")}
+         ORDER BY id LIMIT ?`,
+        parameters,
+      ),
+    )
+  }
+
+  async instancesWithoutPendingWork(options: {
+    actorType?: string
+    cursor?: string
+    limit: number
+    quietForMilliseconds: number
+  }): Promise<InstanceRow[]> {
+    return this.settings.database.connection(async (connection) => {
+      const now = await connection.nowMilliseconds()
+      const conditions = [
+        "instances.paused = 0",
+        "instances.updated_at_ms <= ?",
+        `NOT EXISTS (
+          SELECT 1 FROM ${this.table("ready_messages")} ready
+          WHERE ready.instance_id = instances.id
+        )`,
+        `NOT EXISTS (
+          SELECT 1 FROM ${this.table("claimed_messages")} claimed
+          WHERE claimed.instance_id = instances.id
+        )`,
+        `NOT EXISTS (
+          SELECT 1 FROM ${this.table("reminders")} reminders
+          WHERE reminders.instance_id = instances.id AND reminders.status = 'scheduled'
+        )`,
+      ]
+      const parameters: unknown[] = [now - options.quietForMilliseconds]
+      if (options.actorType !== undefined) {
+        conditions.push("instances.actor_type = ?")
+        parameters.push(options.actorType)
+      }
+      if (options.cursor !== undefined) {
+        conditions.push("instances.id > ?")
+        parameters.push(options.cursor)
+      }
+      parameters.push(options.limit + 1)
+      return connection.all<InstanceRow>(
+        `SELECT instances.* FROM ${this.table("instances")} instances
+         WHERE ${conditions.join(" AND ")}
+         ORDER BY instances.id LIMIT ?`,
+        parameters,
+      )
+    })
+  }
+
+  async instanceStatesFor(options: {
+    actorType: string
+    actorIds: readonly string[]
+  }): Promise<InstanceRow[]> {
+    if (options.actorIds.length === 0) return []
+    return this.settings.database.connection((connection) =>
+      connection.all<InstanceRow>(
+        `SELECT * FROM ${this.table("instances")}
+         WHERE actor_type = ?
+           AND actor_id IN (SELECT CAST(value AS TEXT) FROM json_each(?))`,
+        [options.actorType, JSON.stringify(options.actorIds)],
+      ),
+    )
+  }
+
+  async orphanedInstances(options: {
+    actorType: string
+    ownerIds: readonly string[]
+    cursor?: string
+    limit: number
+  }): Promise<InstanceRow[]> {
+    const conditions = [
+      "actor_type = ?",
+      "actor_id NOT IN (SELECT CAST(value AS TEXT) FROM json_each(?))",
+    ]
+    const parameters: unknown[] = [options.actorType, JSON.stringify(options.ownerIds)]
+    if (options.cursor !== undefined) {
+      conditions.push("id > ?")
+      parameters.push(options.cursor)
+    }
+    parameters.push(options.limit + 1)
+    return this.settings.database.connection((connection) =>
+      connection.all<InstanceRow>(
+        `SELECT * FROM ${this.table("instances")}
+         WHERE ${conditions.join(" AND ")}
+         ORDER BY id LIMIT ?`,
+        parameters,
+      ),
+    )
+  }
+
   private async findDeadLetterInConnection(
     connection: DatabaseConnection,
     id: string,

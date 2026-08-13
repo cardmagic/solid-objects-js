@@ -207,6 +207,10 @@ class Trial extends Actor {
     this.schedule({ at: new Date(Date.now() + 86_400_000) }).expire!()
   }
 
+  reconcile(): void {
+    if (!this.expired) this.armExpiration()
+  }
+
   expire(): void {
     this.expired = true
   }
@@ -291,6 +295,29 @@ if (deadLetter) {
 Retry creates one durable replacement message and records that link. Repeating
 the retry returns the same `MessageReference` instead of enqueueing duplicate
 work.
+
+## Reconcile application-owned actors
+
+Self-scheduling actors should have a low-frequency application reconciler for
+lost alarms and lifecycle drift. The read side is bounded, immutable, and
+administration-authorized:
+
+```typescript
+const page = await runtime.reconciliation.withoutPendingWork({
+  actorType: Trial.actorType,
+  quietForMilliseconds: 24 * 60 * 60 * 1_000,
+  authorizationContext: currentUser,
+})
+
+for (const instance of page.items) {
+  await Trial.ref(instance.actorId).send.reconcile()
+}
+```
+
+`active()`, `statesFor()`, and `orphaned()` cover the other reconciliation
+views. State batches are migrated to the registered actor's current version
+before they are returned. Reconciliation never writes actor state directly;
+repairs enter the ordinary durable mailbox.
 
 ## Add realtime updates without exposing all state
 

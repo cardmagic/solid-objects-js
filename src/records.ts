@@ -13,6 +13,8 @@ export interface InstanceRow {
   activation_expires_at_ms: number | bigint | null
   activation_generation: number | bigint
   paused: number | bigint
+  created_at_ms: number | bigint
+  updated_at_ms: number | bigint
 }
 
 export interface MessageRow {

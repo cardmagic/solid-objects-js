@@ -4,6 +4,8 @@
 
 - Add deny-by-default dead-letter inspection and idempotent durable retry.
 - Add sequential schema migrations and upgrade version-one SQLite databases.
+- Add bounded, authorization-gated reconciliation reads for actor lifecycle
+  repair.
 
 ## 0.1.0 - 2026-08-13
 

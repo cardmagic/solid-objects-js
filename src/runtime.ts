@@ -39,12 +39,22 @@ import {
   type ActorReference,
   type ActorSnapshot,
 } from "./reference.js"
+import {
+  ReconciliationManager,
+  type OrphanedReconciliationOptions,
+  type QuietReconciliationOptions,
+  type ReconciliationInstance,
+  type ReconciliationPage,
+  type ReconciliationPageOptions,
+  type ReconciliationStatesOptions,
+} from "./reconciliation.js"
 import { Repository } from "./repository.js"
 import type {
   BroadcastRow,
   ClaimedTurn,
   DeadLetterRow,
   EffectRow,
+  InstanceRow,
   MessageRow,
   ReminderRow,
 } from "./records.js"
@@ -89,6 +99,7 @@ export class SolidObjectsRuntime {
   readonly settings
   readonly repository
   readonly deadLetters
+  readonly reconciliation
   private readonly registry = new Map<string, RegisteredActor>()
   private readonly effects = new Map<string, EffectHandler>()
   private readonly commitActions = new Map<string, CommitActionHandler>()
@@ -100,6 +111,7 @@ export class SolidObjectsRuntime {
     this.settings = buildSettings(configuration)
     this.repository = new Repository(this.settings)
     this.deadLetters = new DeadLetterManager(this)
+    this.reconciliation = new ReconciliationManager(this)
   }
 
   async install(): Promise<void> {
@@ -410,6 +422,85 @@ export class SolidObjectsRuntime {
       stateVersion: actor.definition.stateVersion,
     })
     return this.messageReferenceFromRow(message)
+  }
+
+  async activeInstances(options: ReconciliationPageOptions = {}): Promise<ReconciliationPage> {
+    await this.authorizeAdministration({
+      action: "active",
+      resource: "instances",
+      authorizationContext: options.authorizationContext,
+    })
+    const limit = reconciliationLimit(options.limit)
+    const rows = await this.repository.activeInstances({
+      limit,
+      ...(options.actorType === undefined ? {} : { actorType: options.actorType }),
+      ...(options.cursor === undefined ? {} : { cursor: options.cursor }),
+    })
+    return reconciliationPage(rows, limit)
+  }
+
+  async instancesWithoutPendingWork(
+    options: QuietReconciliationOptions,
+  ): Promise<ReconciliationPage> {
+    await this.authorizeAdministration({
+      action: "withoutPendingWork",
+      resource: "instances",
+      authorizationContext: options.authorizationContext,
+    })
+    if (!Number.isFinite(options.quietForMilliseconds) || options.quietForMilliseconds < 0) {
+      throw new TypeError("quietForMilliseconds must be a non-negative number")
+    }
+    const limit = reconciliationLimit(options.limit)
+    const rows = await this.repository.instancesWithoutPendingWork({
+      limit,
+      quietForMilliseconds: options.quietForMilliseconds,
+      ...(options.actorType === undefined ? {} : { actorType: options.actorType }),
+      ...(options.cursor === undefined ? {} : { cursor: options.cursor }),
+    })
+    return reconciliationPage(rows, limit)
+  }
+
+  async instanceStatesFor(
+    options: ReconciliationStatesOptions,
+  ): Promise<DeepReadonly<Record<string, JsonObject>>> {
+    await this.authorizeAdministration({
+      action: "statesFor",
+      resource: "instances",
+      authorizationContext: options.authorizationContext,
+    })
+    const actorIds = [...new Set(options.actorIds.map(String))]
+    if (actorIds.length > 1_000) {
+      throw new TypeError("statesFor accepts at most 1000 actor IDs per batch")
+    }
+    const actor = this.fetchActor(options.actorType)
+    const rows = await this.repository.instanceStatesFor({ actorType: options.actorType, actorIds })
+    const states = Object.fromEntries(
+      rows.map((row) => [
+        row.actor_id,
+        migrateState({
+          definition: actor.definition,
+          storedVersion: Number(row.state_version),
+          storedState: jsonObject(JSON.parse(row.state)),
+        }),
+      ]),
+    )
+    return readonlyCopy(states)
+  }
+
+  async orphanedInstances(options: OrphanedReconciliationOptions): Promise<ReconciliationPage> {
+    await this.authorizeAdministration({
+      action: "orphaned",
+      resource: "instances",
+      authorizationContext: options.authorizationContext,
+    })
+    const limit = reconciliationLimit(options.limit)
+    const rows = await this.repository.orphanedInstances({
+      actorType: options.actorType,
+      ownerIds: [...new Set(options.ownerIds.map(String))],
+      limit,
+      ...(options.cursor === undefined ? {} : { cursor: options.cursor }),
+    })
+    return reconciliationPage(rows, limit)
   }
 
   async executeTurn(turn: ClaimedTurn): Promise<void> {
@@ -770,5 +861,36 @@ function deadLetterFromRow(row: DeadLetterRow): DeadLetter {
     error: readonlyCopy(jsonObject(JSON.parse(row.error))),
     createdAt: new Date(Number(row.created_at_ms)),
     retriedMessageId: row.retried_message_id,
+  })
+}
+
+function reconciliationLimit(value: number | undefined): number {
+  const limit = value ?? 100
+  if (!Number.isSafeInteger(limit) || limit < 1 || limit > 1_000) {
+    throw new TypeError("reconciliation limit must be an integer between 1 and 1000")
+  }
+  return limit
+}
+
+function reconciliationPage(rows: InstanceRow[], limit: number): ReconciliationPage {
+  const pageRows = rows.slice(0, limit)
+  const items = Object.freeze(pageRows.map(reconciliationInstanceFromRow))
+  const last = pageRows.at(-1)
+  return Object.freeze({
+    items,
+    nextCursor: rows.length > limit && last ? last.id : null,
+  })
+}
+
+function reconciliationInstanceFromRow(row: InstanceRow): ReconciliationInstance {
+  return Object.freeze({
+    id: row.id,
+    actorType: row.actor_type,
+    actorId: row.actor_id,
+    stateVersion: Number(row.state_version),
+    revision: String(row.state_revision),
+    status: Number(row.paused) === 0 ? "active" : "paused",
+    createdAt: new Date(Number(row.created_at_ms)),
+    updatedAt: new Date(Number(row.updated_at_ms)),
   })
 }

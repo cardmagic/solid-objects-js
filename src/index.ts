@@ -16,6 +16,15 @@ export { ReminderScheduler } from "./reminder-scheduler.js"
 export { BroadcastWorker } from "./broadcast-worker.js"
 export { DeadLetterManager, type DeadLetter } from "./dead-letters.js"
 export {
+  ReconciliationManager,
+  type OrphanedReconciliationOptions,
+  type QuietReconciliationOptions,
+  type ReconciliationInstance,
+  type ReconciliationPage,
+  type ReconciliationPageOptions,
+  type ReconciliationStatesOptions,
+} from "./reconciliation.js"
+export {
   MessageReference,
   type ActorOperationNames,
   type ActorMessageSender,
