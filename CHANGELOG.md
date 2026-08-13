@@ -23,6 +23,8 @@
   retention pruning.
 - Add bounded multi-turn activation passes with database-ordered hot-actor
   fairness.
+- Add an opt-in application-database facade that rejects direct writes during
+  actor execution while keeping registered commit actions writable.
 
 ## 0.1.0 - 2026-08-13
 

@@ -10,6 +10,7 @@ export {
   type ReminderOptions,
 } from "./actor.js"
 export { configureSolidObjects, createSolidObjects, SolidObjectsRuntime } from "./runtime.js"
+export { guardApplicationDatabase } from "./application-database.js"
 export { runCli, type CliRunOptions } from "./cli.js"
 export { Worker } from "./worker.js"
 export { EffectWorker } from "./effect-worker.js"
@@ -108,7 +109,9 @@ export type {
   MessageStatus,
   SnapshotOptions,
 } from "./types.js"
+export type { Database, DatabaseConnection, DatabaseFamily, RunResult } from "./database/types.js"
 export {
+  ApplicationWriteForbidden,
   ActorCallCycle,
   ActorDestroyed,
   IdempotencyConflict,

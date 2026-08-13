@@ -17,3 +17,7 @@
 - Activation passes are bounded. Yielding changes ready-membership polling
   order only; it neither changes durable message sequence nor makes future work
   due early.
+- `guardApplicationDatabase()` rejects direct application writes while actor
+  code is executing. It permits only `SELECT` through row-returning methods;
+  commit actions remain the fenced write path. The guarantee applies only to
+  clients passed through the facade.

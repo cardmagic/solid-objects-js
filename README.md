@@ -308,6 +308,22 @@ runtime.registerCommitAction("completeAttempt", async ({ attemptId }, context) =
 Do not perform network I/O in a commit action. Use an effect when work cannot
 share the Solid Objects database transaction.
 
+When actors also read an application database, wrap that database with the
+guarded facade and use the same facade everywhere:
+
+```typescript
+import { guardApplicationDatabase } from "solid-objects"
+import { sqlite } from "solid-objects/database/sqlite"
+
+const applicationDatabase = guardApplicationDatabase(sqlite({ path: "application.sqlite3" }))
+```
+
+During actor execution, the facade permits `SELECT` through `get()` and `all()`
+and rejects `run()` or row-returning write statements. Registered commit
+actions run outside actor execution and may write through the same facade.
+This boundary is opt-in: Solid Objects cannot intercept a separate ORM pool or
+an unwrapped database client.
+
 ## Inspect and retry terminal failures
 
 Messages that exhaust their attempts remain available as dead letters. Access

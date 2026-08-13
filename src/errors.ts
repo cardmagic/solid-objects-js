@@ -19,6 +19,7 @@ export class ActorDestroyed extends LostActivation {}
 export class StateMigrationError extends NonRetryableError {}
 export class ActorCallCycle extends NonRetryableError {}
 export class QueryMutatedState extends NonRetryableError {}
+export class ApplicationWriteForbidden extends NonRetryableError {}
 export class UnknownEffect extends NonRetryableError {}
 export class UnknownCommitAction extends NonRetryableError {}
 export class UnknownDeadLetter extends SolidObjectsError {}
