@@ -29,6 +29,12 @@ backoff, and builds the replacement through the same factory. Supervision stops
 at the shutdown boundary; database leases and fencing remain the correctness
 mechanism if a failed role was still executing actor code.
 
+SQLite serializes access through one process-local connection and begins write
+transactions immediately. PostgreSQL uses a bounded `pg` pool, keeps each
+transaction on one checked-out client, stores timestamps and sequences as
+64-bit integers, and locks an actor's instance row while allocating mailbox
+sequences. Both adapters use database time and the same fencing predicates.
+
 A worker claims one actor globally, then preferentially drains up to
 `maxMessagesPerActivationPass` ready turns for that instance. Reaching the cap
 moves only that actor's already-due ready memberships to current database time.

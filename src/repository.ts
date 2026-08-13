@@ -166,6 +166,7 @@ export class Repository {
       connection,
       actorType: input.actorType,
       actorId: input.actorId,
+      ...(this.settings.database.family === "postgresql" ? { lock: "update" } : {}),
     })
     if (!instance) {
       const instanceId = randomUUID()
@@ -188,6 +189,7 @@ export class Repository {
         connection,
         actorType: input.actorType,
         actorId: input.actorId,
+        ...(this.settings.database.family === "postgresql" ? { lock: "update" } : {}),
       })
     }
     if (!instance) throw new ActorDestroyed("actor disappeared during enqueue")
@@ -866,8 +868,8 @@ export class Repository {
       connection.all<InstanceRow>(
         `SELECT * FROM ${this.table("instances")}
          WHERE actor_type = ?
-           AND actor_id IN (SELECT CAST(value AS TEXT) FROM json_each(?))`,
-        [options.actorType, JSON.stringify(options.actorIds)],
+           AND actor_id IN (${parameterList(options.actorIds.length)})`,
+        [options.actorType, ...options.actorIds],
       ),
     )
   }
@@ -878,11 +880,12 @@ export class Repository {
     cursor?: string
     limit: number
   }): Promise<InstanceRow[]> {
-    const conditions = [
-      "actor_type = ?",
-      "actor_id NOT IN (SELECT CAST(value AS TEXT) FROM json_each(?))",
-    ]
-    const parameters: unknown[] = [options.actorType, JSON.stringify(options.ownerIds)]
+    const conditions = ["actor_type = ?"]
+    const parameters: unknown[] = [options.actorType]
+    if (options.ownerIds.length > 0) {
+      conditions.push(`actor_id NOT IN (${parameterList(options.ownerIds.length)})`)
+      parameters.push(...options.ownerIds)
+    }
     if (options.cursor !== undefined) {
       conditions.push("id > ?")
       parameters.push(options.cursor)
@@ -922,12 +925,12 @@ export class Repository {
           [...predicate.parameters, this.settings.pruneBatchSize],
         )
         if (candidates.length === 0) return 0
-        const candidateIds = JSON.stringify(candidates.map(({ id }) => id))
+        const candidateIds = candidates.map(({ id }) => id)
         const result = await connection.run(
           `DELETE FROM ${this.table(target)}
-           WHERE id IN (SELECT CAST(value AS TEXT) FROM json_each(?))
+           WHERE id IN (${parameterList(candidateIds.length)})
              AND ${predicate.sql}`,
-          [candidateIds, ...predicate.parameters],
+          [...candidateIds, ...predicate.parameters],
         )
         return result.changes
       })
@@ -1364,10 +1367,13 @@ export class Repository {
     connection: DatabaseConnection
     actorType: string
     actorId: string
+    lock?: "update"
   }): Promise<InstanceRow | undefined> {
     const { connection, actorType, actorId } = options
     return connection.get<InstanceRow>(
-      `SELECT * FROM ${this.table("instances")} WHERE actor_type = ? AND actor_id = ?`,
+      `SELECT * FROM ${this.table("instances")} WHERE actor_type = ? AND actor_id = ?${
+        options.lock === "update" ? " FOR UPDATE" : ""
+      }`,
       [actorType, actorId],
     )
   }
@@ -1481,14 +1487,18 @@ function retentionPolicy(options: {
   }
   if (options.defaultRetention !== undefined) {
     const exclusion = entries.length
-      ? `${options.table}.actor_type NOT IN (SELECT CAST(value AS TEXT) FROM json_each(?)) AND `
+      ? `${options.table}.actor_type NOT IN (${parameterList(entries.length)}) AND `
       : ""
     conditions.push(`(${exclusion}${options.table}.${options.timestampColumn} < ?)`)
-    if (entries.length) parameters.push(JSON.stringify(entries.map(([actorType]) => actorType)))
+    if (entries.length) parameters.push(...entries.map(([actorType]) => actorType))
     parameters.push(options.now - options.defaultRetention)
   }
   return {
     sql: conditions.length === 0 ? "0 = 1" : `(${conditions.join(" OR ")})`,
     parameters,
   }
+}
+
+function parameterList(length: number): string {
+  return Array.from({ length }, () => "?").join(", ")
 }

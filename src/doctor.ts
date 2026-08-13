@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto"
 import { Actor } from "./actor.js"
+import type { DatabaseConnection } from "./database/types.js"
 import { initialStateFor, validateDefinition } from "./definition.js"
 import type { SolidObjectsRuntime } from "./runtime.js"
 import { jsonObject, readonlyCopy } from "./serialization.js"
@@ -133,20 +134,19 @@ export class Doctor {
       const missingTables: string[] = []
       const missingColumns: string[] = []
       await this.runtime.settings.database.connection(async (connection) => {
-        const tables = await connection.all<{ name: string }>(
-          "SELECT name FROM sqlite_master WHERE type = 'table'",
-        )
-        const tableNames = new Set(tables.map(({ name }) => name))
+        const schema =
+          this.runtime.settings.database.family === "postgresql"
+            ? await postgresqlSchema(connection)
+            : await sqliteSchema(connection)
         for (const [name, expectedColumns] of Object.entries(EXPECTED_COLUMNS)) {
           const table = this.runtime.repository.table(name)
-          if (!tableNames.has(table)) {
+          const columns = schema.get(table)
+          if (!columns) {
             missingTables.push(table)
             continue
           }
-          const columns = await connection.all<{ name: string }>(`PRAGMA table_info(${table})`)
-          const columnNames = new Set(columns.map(({ name: columnName }) => columnName))
           for (const column of expectedColumns) {
-            if (!columnNames.has(column)) missingColumns.push(`${table}.${column}`)
+            if (!columns.has(column)) missingColumns.push(`${table}.${column}`)
           }
         }
       })
@@ -223,6 +223,9 @@ export class Doctor {
 
   private async checkDatabase(): Promise<DoctorCheck> {
     try {
+      if (this.runtime.settings.database.family === "postgresql") {
+        return await this.checkPostgreSQL()
+      }
       const row = await this.runtime.settings.database.connection((connection) =>
         connection.get<{ version: string }>("SELECT sqlite_version() AS version"),
       )
@@ -244,6 +247,27 @@ export class Doctor {
     } catch (error) {
       return failedCheck("database", error)
     }
+  }
+
+  private async checkPostgreSQL(): Promise<DoctorCheck> {
+    const row = await this.runtime.settings.database.connection((connection) =>
+      connection.get<{ server_version: string }>("SHOW server_version"),
+    )
+    const version = row?.server_version ?? "unknown"
+    if (version !== "unknown" && compareVersions(version, "14") < 0) {
+      return check({
+        name: "database",
+        status: "warn",
+        message: `PostgreSQL ${version} is older than tested minimum 14`,
+        details: { version },
+      })
+    }
+    return check({
+      name: "database",
+      status: "pass",
+      message: `PostgreSQL ${version} meets the tested minimum`,
+      details: { version },
+    })
   }
 
   private async checkRuntime(): Promise<DoctorCheck> {
@@ -343,6 +367,32 @@ export class Doctor {
       return error instanceof Error ? error.message : String(error)
     }
   }
+}
+
+async function sqliteSchema(connection: DatabaseConnection): Promise<Map<string, Set<string>>> {
+  const tables = await connection.all<{ name: string }>(
+    "SELECT name FROM sqlite_master WHERE type = 'table'",
+  )
+  const schema = new Map<string, Set<string>>()
+  for (const { name } of tables) {
+    const columns = await connection.all<{ name: string }>(`PRAGMA table_info(${name})`)
+    schema.set(name, new Set(columns.map(({ name: columnName }) => columnName)))
+  }
+  return schema
+}
+
+async function postgresqlSchema(connection: DatabaseConnection): Promise<Map<string, Set<string>>> {
+  const rows = await connection.all<{ table_name: string; column_name: string }>(
+    `SELECT table_name, column_name FROM information_schema.columns
+     WHERE table_schema = current_schema()`,
+  )
+  const schema = new Map<string, Set<string>>()
+  for (const row of rows) {
+    const columns = schema.get(row.table_name) ?? new Set()
+    columns.add(row.column_name)
+    schema.set(row.table_name, columns)
+  }
+  return schema
 }
 
 function check(options: {

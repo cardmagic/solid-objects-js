@@ -11,9 +11,8 @@ No Redis locks. No separate message broker for actor mailboxes. No proprietary
 state service. The database you already understand provides the transaction,
 lease, fencing, retry, timer, and outbox primitives.
 
-> Version 0.1 supports SQLite through Node's built-in `node:sqlite` module.
-> PostgreSQL and MySQL are not yet supported and are not implied by the current
-> compatibility contract.
+> SQLite uses Node's built-in `node:sqlite` module. PostgreSQL 14 or newer uses
+> the optional `pg` peer dependency. MySQL is not yet supported.
 
 ## The boring stack, with an actor model
 
@@ -57,7 +56,7 @@ TypeScript. The runtimes do not share a database schema or wire protocol.
 
 - Node.js 24.15 or newer
 - TypeScript 5.9 or newer for TypeScript applications
-- SQLite for the 0.1 release
+- SQLite or PostgreSQL 14 or newer
 
 ## Installation
 
@@ -97,7 +96,9 @@ operation arguments, results, and observable values must be JSON-compatible.
 `observables()` is deliberately explicit. State fields and getters do not
 become realtime data automatically.
 
-## Point it at SQLite
+## Point it at SQLite or PostgreSQL
+
+SQLite needs no database driver package:
 
 ```typescript
 import { configureSolidObjects } from "solid-objects"
@@ -122,6 +123,30 @@ process.once("SIGTERM", () => shutdown.abort())
 process.once("SIGINT", () => shutdown.abort())
 await runtime.run(shutdown.signal)
 ```
+
+For PostgreSQL, install the optional driver and replace the database value:
+
+```bash
+pnpm add pg
+```
+
+```typescript
+import { postgresql } from "solid-objects/database/postgresql"
+
+const connectionString = process.env.DATABASE_URL
+if (!connectionString) throw new Error("DATABASE_URL is required")
+
+const database = postgresql({
+  connectionString,
+  maximumConnections: 10,
+})
+```
+
+PostgreSQL uses a bounded `pg` pool, 64-bit database timestamps and sequences,
+row-locked sequence allocation, and the same durable polling contract as
+SQLite. Keep `pg` at 8.23 or newer within the supported major. Portable
+`DatabaseConnection` SQL uses `?` parameters; write `??` when a PostgreSQL query
+needs the literal JSON existence operator.
 
 Authorization is deny-by-default. Actor IDs identify actors; they are not
 capabilities.
@@ -421,11 +446,11 @@ for (const check of report.checks) {
 if (!report.healthy) process.exitCode = 1
 ```
 
-It checks configuration, schema migrations and required columns, SQLite's
-server version, authorization-policy configuration, live runtime roles, and a
-targeted durable actor round trip. The authorization check records which
-policies were explicitly supplied; it never invokes application policies with
-a fabricated subject. Pass `{ roundTrip: "skip" }` for a read-only report.
+It checks configuration, schema migrations and required columns, the SQLite or
+PostgreSQL server version, authorization-policy configuration, live runtime
+roles, and a targeted durable actor round trip. The authorization check records
+which policies were explicitly supplied; it never invokes application policies
+with a fabricated subject. Pass `{ roundTrip: "skip" }` for a read-only report.
 
 Inspect role liveness with `runtime.processes.all()`. A process remains recorded
 as `running` until graceful shutdown or cleanup, so each record also exposes a
@@ -630,9 +655,9 @@ IDs and observable values are not authorization.
 
 ## Current scope
 
-Version 0.1 supports Node.js 24 and SQLite through the built-in `node:sqlite`
-module. PostgreSQL and MySQL adapters, HTTP/WebSocket server adapters,
-and Ruby schema interoperability are not part of the 0.1 compatibility
+The current runtime supports Node.js 24, SQLite through built-in `node:sqlite`,
+and PostgreSQL 14 or newer through `pg` 8.23. MySQL, HTTP/WebSocket server
+adapters, and Ruby schema interoperability are not part of the compatibility
 contract.
 
 See [`docs/architecture.md`](docs/architecture.md),

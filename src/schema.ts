@@ -11,12 +11,15 @@ export async function installSchema(options: {
   schemaIdentity: string
 }): Promise<void> {
   const { connection, family, prefix, schemaIdentity } = options
-  if (family !== "sqlite") {
-    throw new UnsupportedDatabase("schema installation is currently implemented for SQLite only")
+  if (family !== "sqlite" && family !== "postgresql") {
+    throw new UnsupportedDatabase(
+      "schema installation is currently implemented for SQLite and PostgreSQL only",
+    )
   }
 
   const table = (name: string) => `${prefix}${name}`
-  await connection.run(`CREATE TABLE IF NOT EXISTS ${table("schema_migrations")} (
+  const createTable = (sql: string) => connection.run(tableDefinition(sql, family))
+  await createTable(`CREATE TABLE IF NOT EXISTS ${table("schema_migrations")} (
     version INTEGER PRIMARY KEY,
     schema_identity TEXT NOT NULL,
     installed_at_ms INTEGER NOT NULL
@@ -35,7 +38,7 @@ export async function installSchema(options: {
     }
   }
 
-  await connection.run(`CREATE TABLE IF NOT EXISTS ${table("processes")} (
+  await createTable(`CREATE TABLE IF NOT EXISTS ${table("processes")} (
     id TEXT PRIMARY KEY,
     kind TEXT NOT NULL,
     started_at_ms INTEGER NOT NULL,
@@ -44,7 +47,7 @@ export async function installSchema(options: {
     shutdown_state TEXT NOT NULL CHECK (shutdown_state IN ('running', 'draining', 'stopped'))
   ) STRICT`)
 
-  await connection.run(`CREATE TABLE IF NOT EXISTS ${table("instances")} (
+  await createTable(`CREATE TABLE IF NOT EXISTS ${table("instances")} (
     id TEXT PRIMARY KEY,
     actor_type TEXT NOT NULL,
     actor_id TEXT NOT NULL,
@@ -63,7 +66,7 @@ export async function installSchema(options: {
     FOREIGN KEY (activation_owner_id) REFERENCES ${table("processes")}(id) ON DELETE SET NULL
   ) STRICT`)
 
-  await connection.run(`CREATE TABLE IF NOT EXISTS ${table("messages")} (
+  await createTable(`CREATE TABLE IF NOT EXISTS ${table("messages")} (
     id TEXT PRIMARY KEY,
     request_id TEXT NOT NULL,
     instance_id TEXT NOT NULL,
@@ -86,7 +89,7 @@ export async function installSchema(options: {
     FOREIGN KEY (instance_id) REFERENCES ${table("instances")}(id) ON DELETE CASCADE
   ) STRICT`)
 
-  await connection.run(`CREATE TABLE IF NOT EXISTS ${table("ready_messages")} (
+  await createTable(`CREATE TABLE IF NOT EXISTS ${table("ready_messages")} (
     message_id TEXT PRIMARY KEY,
     instance_id TEXT NOT NULL,
     sequence INTEGER NOT NULL CHECK (sequence > 0),
@@ -98,7 +101,7 @@ export async function installSchema(options: {
     `CREATE INDEX IF NOT EXISTS ${prefix}ready_poll ON ${table("ready_messages")}(available_at_ms, instance_id, sequence)`,
   )
 
-  await connection.run(`CREATE TABLE IF NOT EXISTS ${table("claimed_messages")} (
+  await createTable(`CREATE TABLE IF NOT EXISTS ${table("claimed_messages")} (
     message_id TEXT PRIMARY KEY,
     instance_id TEXT NOT NULL,
     sequence INTEGER NOT NULL,
@@ -111,7 +114,7 @@ export async function installSchema(options: {
     FOREIGN KEY (process_id) REFERENCES ${table("processes")}(id) ON DELETE CASCADE
   ) STRICT`)
 
-  await connection.run(`CREATE TABLE IF NOT EXISTS ${table("reminders")} (
+  await createTable(`CREATE TABLE IF NOT EXISTS ${table("reminders")} (
     id TEXT PRIMARY KEY,
     instance_id TEXT NOT NULL,
     operation TEXT NOT NULL,
@@ -128,7 +131,7 @@ export async function installSchema(options: {
     FOREIGN KEY (instance_id) REFERENCES ${table("instances")}(id) ON DELETE CASCADE
   ) STRICT`)
 
-  await connection.run(`CREATE TABLE IF NOT EXISTS ${table("effects")} (
+  await createTable(`CREATE TABLE IF NOT EXISTS ${table("effects")} (
     id TEXT PRIMARY KEY,
     message_id TEXT NOT NULL,
     instance_id TEXT NOT NULL,
@@ -147,7 +150,7 @@ export async function installSchema(options: {
     FOREIGN KEY (instance_id) REFERENCES ${table("instances")}(id) ON DELETE CASCADE
   ) STRICT`)
 
-  await connection.run(`CREATE TABLE IF NOT EXISTS ${table("broadcasts")} (
+  await createTable(`CREATE TABLE IF NOT EXISTS ${table("broadcasts")} (
     id TEXT PRIMARY KEY,
     message_id TEXT NOT NULL,
     instance_id TEXT NOT NULL,
@@ -164,7 +167,7 @@ export async function installSchema(options: {
     FOREIGN KEY (instance_id) REFERENCES ${table("instances")}(id) ON DELETE CASCADE
   ) STRICT`)
 
-  await connection.run(`CREATE TABLE IF NOT EXISTS ${table("dead_letters")} (
+  await createTable(`CREATE TABLE IF NOT EXISTS ${table("dead_letters")} (
     id TEXT PRIMARY KEY,
     message_id TEXT NOT NULL UNIQUE,
     instance_id TEXT NOT NULL,
@@ -188,16 +191,21 @@ export async function installSchema(options: {
   if (retryLinkMigration) return
 
   await connection.run(
-    `ALTER TABLE ${table("dead_letters")} ADD COLUMN retried_message_id TEXT
+    `ALTER TABLE ${table("dead_letters")} ADD COLUMN ${family === "postgresql" ? "IF NOT EXISTS " : ""}retried_message_id TEXT
      REFERENCES ${table("messages")}(id) ON DELETE SET NULL`,
   )
   await connection.run(
-    `CREATE INDEX ${prefix}dead_letters_retried_message ON ${table("dead_letters")}(retried_message_id)`,
+    `CREATE INDEX ${family === "postgresql" ? "IF NOT EXISTS " : ""}${prefix}dead_letters_retried_message ON ${table("dead_letters")}(retried_message_id)`,
   )
   const migratedAt = await connection.nowMilliseconds()
   await connection.run(
     `INSERT INTO ${table("schema_migrations")}(version, schema_identity, installed_at_ms)
-     VALUES (?, ?, ?)`,
+     VALUES (?, ?, ?) ON CONFLICT(version) DO NOTHING`,
     [LATEST_VERSION, schemaIdentity, migratedAt],
   )
+}
+
+function tableDefinition(sql: string, family: DatabaseFamily): string {
+  if (family === "sqlite") return sql
+  return sql.replace(/\bINTEGER\b/g, "BIGINT").replace(/\s+STRICT\s*$/, "")
 }

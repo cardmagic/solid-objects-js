@@ -28,6 +28,9 @@
 - Add typed subscriber-specific realtime payloads with query authorization,
   committed-state projection, failure isolation, and independent revision
   fencing.
+- Add PostgreSQL 14+ through the optional `pg` driver with pooled transactions,
+  row-locked sequence allocation, portable schema and set queries, diagnostics,
+  and real-server integration coverage.
 
 ## 0.1.0 - 2026-08-13
 

@@ -31,6 +31,10 @@
       "types": "./dist/database/sqlite.d.ts",
       "import": "./dist/database/sqlite.js"
     },
+    "./database/postgresql": {
+      "types": "./dist/database/postgresql.d.ts",
+      "import": "./dist/database/postgresql.js"
+    },
     "./browser": {
       "types": "./dist/browser/index.d.ts",
       "import": "./dist/browser/index.js"
@@ -45,15 +49,26 @@
     "format:check": "prettier --check .",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",
+    "test:postgresql": "vitest run test/postgresql.test.ts",
     "test:watch": "vitest",
     "pack:check": "pnpm pack --dry-run",
     "prepack": "pnpm run build"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",
+    "@types/pg": "^8.21.0",
     "@vitest/coverage-v8": "^4.1.10",
+    "pg": "^8.23.0",
     "prettier": "^3.9.6",
     "typescript": "^5.9.0",
     "vitest": "^4.1.10"
+  },
+  "peerDependencies": {
+    "pg": "^8.23.0"
+  },
+  "peerDependenciesMeta": {
+    "pg": {
+      "optional": true
+    }
   }
 }
