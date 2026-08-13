@@ -57,15 +57,17 @@ describe("SolidObjectsBrowserClient", () => {
 
 describe("parseInvalidation", () => {
   it("validates the protocol envelope", () => {
-    expect(
-      parseInvalidation(
-        envelope({
-          instanceId: "instance",
-          revision: "3",
-          count: 3,
-        }),
-      ),
-    ).toMatchObject({ revision: "3", observables: { count: 3 } })
+    const parsed = parseInvalidation(
+      envelope({
+        instanceId: "instance",
+        revision: "3",
+        count: 3,
+      }),
+    )
+
+    expect(parsed).toMatchObject({ revision: "3", observables: { count: 3 } })
+    expect(Object.isFrozen(parsed)).toBe(true)
+    expect(Object.isFrozen(parsed.observables)).toBe(true)
   })
 
   it("rejects non-JSON observable values", () => {

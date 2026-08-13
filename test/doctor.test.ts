@@ -110,6 +110,7 @@ function configuredRuntime(): SolidObjectsRuntime {
     authorizeQuery: () => true,
     authorizeDestroy: () => true,
     authorizeAdministration: () => true,
+    authorizeSubscription: () => true,
     pollingIntervalMilliseconds: 1,
     syncPollingIntervalMilliseconds: 1,
   })

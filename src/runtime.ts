@@ -2,7 +2,9 @@ import type { Actor, ActorClass } from "./actor.js"
 import { BroadcastWorker } from "./broadcast-worker.js"
 import {
   buildSettings,
+  broadcastsEnabled,
   validateComponent,
+  type BroadcastEvent,
   type ComponentRegistration,
   type SolidObjectsConfiguration,
 } from "./configuration.js"
@@ -50,6 +52,7 @@ import {
   type ReconciliationStatesOptions,
 } from "./reconciliation.js"
 import { Repository } from "./repository.js"
+import { RealtimeManager } from "./realtime.js"
 import type {
   BroadcastRow,
   ClaimedTurn,
@@ -114,6 +117,7 @@ export class SolidObjectsRuntime {
   readonly doctor
   readonly testing
   readonly reminders
+  readonly realtime
   private readonly registry = new Map<string, RegisteredActor>()
   private readonly effects = new Map<string, EffectHandler>()
   private readonly commitActions = new Map<string, CommitActionHandler>()
@@ -130,6 +134,7 @@ export class SolidObjectsRuntime {
     this.doctor = new Doctor(this)
     this.testing = new SolidObjectsTestHelper(this)
     this.reminders = new ReminderManager(this)
+    this.realtime = new RealtimeManager(this)
   }
 
   async install(): Promise<void> {
@@ -205,7 +210,8 @@ export class SolidObjectsRuntime {
   }
 
   broadcastWorker(): BroadcastWorker {
-    if (!this.settings.broadcast) throw new TypeError("broadcast is not configured")
+    if (!broadcastsEnabled(this.settings))
+      throw new TypeError("realtime delivery is not configured")
     return new BroadcastWorker(this)
   }
 
@@ -217,7 +223,9 @@ export class SolidObjectsRuntime {
       workerCount: this.settings.workerCount,
       effectWorkerCount: this.settings.effectWorkerCount,
       reminderSchedulerCount: this.settings.reminderSchedulerCount,
-      broadcastWorkerCount: this.settings.broadcast ? this.settings.broadcastWorkerCount : 0,
+      broadcastWorkerCount: broadcastsEnabled(this.settings)
+        ? this.settings.broadcastWorkerCount
+        : 0,
     })
     const controller = new AbortController()
     const abort = () => controller.abort(signal.reason)
@@ -396,6 +404,41 @@ export class SolidObjectsRuntime {
         })
       : initialStateFor(registered.definition)
     return readonlyCopy(state) as ActorSnapshot<ActorType>
+  }
+
+  async subscriptionSnapshot(options: {
+    actorType: string
+    actorId: string
+    authorizationContext: unknown
+    onAuthorized?: () => void
+  }): Promise<BroadcastEvent> {
+    const authorized = await this.settings.authorizeSubscription(options)
+    if (!authorized) throw new Unauthorized("actor subscription is not authorized")
+    options.onAuthorized?.()
+    const registered = this.fetchActor(options.actorType)
+    const instance = await this.repository.findInstanceByIdentity(
+      options.actorType,
+      options.actorId,
+    )
+    const state = instance
+      ? migrateState({
+          definition: registered.definition,
+          storedVersion: Number(instance.state_version),
+          storedState: jsonObject(JSON.parse(instance.state)),
+        })
+      : initialStateFor(registered.definition)
+    const actor = hydrateActor({
+      definition: registered.definition,
+      actorId: options.actorId,
+      state,
+    })
+    return readonlyCopy({
+      actorType: options.actorType,
+      actorId: options.actorId,
+      instanceId: instance?.id ?? "0",
+      revision: String(instance?.state_revision ?? 0),
+      observables: this.readObservables(actor, registered.definition),
+    })
   }
 
   async destroy(
@@ -776,6 +819,7 @@ export class SolidObjectsRuntime {
     if (this.running)
       throw new Error("abort runtime.run() and wait for it before closing the runtime")
     await this.callerWorker?.stop()
+    this.realtime.close()
     await this.settings.database.close()
     clearDefaultRuntime(this)
   }
@@ -784,6 +828,7 @@ export class SolidObjectsRuntime {
     if (this.running) throw new Error("abort runtime.run() before resetting test state")
     await this.callerWorker?.stop()
     this.callerWorker = undefined
+    this.realtime.close()
     await this.repository.resetForTesting()
   }
 
@@ -853,15 +898,16 @@ export class SolidObjectsRuntime {
 
   async executeBroadcast(broadcast: BroadcastRow): Promise<void> {
     const deliver = this.settings.broadcast
-    if (!deliver) throw new TypeError("broadcast is not configured")
     try {
-      await deliver({
+      const event = readonlyCopy({
         actorType: broadcast.actor_type,
         actorId: broadcast.actor_id,
         instanceId: broadcast.instance_id,
         revision: String(broadcast.state_revision),
         observables: jsonObject(JSON.parse(broadcast.observables)),
       })
+      await this.realtime.publish(event)
+      await deliver?.(event)
       await this.repository.completeBroadcast(broadcast)
       this.emitInstrumentation("broadcast.delivered", broadcastInstrumentation(broadcast))
     } catch (error) {
@@ -933,7 +979,7 @@ export class SolidObjectsRuntime {
       ...Array.from({ length: this.settings.reminderSchedulerCount }, () =>
         this.reminderScheduler(),
       ),
-      ...(this.settings.broadcast
+      ...(broadcastsEnabled(this.settings)
         ? Array.from({ length: this.settings.broadcastWorkerCount }, () => this.broadcastWorker())
         : []),
     ]

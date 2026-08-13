@@ -58,7 +58,9 @@ The optional `instrumentation` callback receives immutable events with the
 `solid_objects.` prefix. Core events cover runtime lifecycle, message
 enqueue/start/completion/rejection/failure, activation loss, commit actions,
 effects, reminders, broadcasts, dead letters, actor destruction, and retention
-pruning. Event attributes are restricted to identities, operation or handler
+pruning. Failed realtime delivery emits `subscription.delivery_failed` and
+removes that session's actor registration without retrying application socket
+code. Event attributes are restricted to identities, operation or handler
 names, delivery mode, sequence, attempt, outcome, counts, durations, and error
 class names. The runtime catches sink exceptions and reports only the failed
 event name and sink error class through the configured logger.

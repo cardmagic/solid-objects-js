@@ -17,6 +17,17 @@ Actor code runs outside the database transaction. A short transaction guarded
 by the activation owner, token, generation, expiration, and claimed-message
 membership commits state, completion, and staged outboxes together.
 
+Realtime delivery is transport-neutral. A host-authenticated session authorizes
+actor subscriptions, replays a committed observable projection, and follows
+the durable broadcast outbox in revision order. The browser client applies the
+same incarnation and revision fence without importing Node APIs.
+
+Sessions are process-local. A multi-process deployment bridges committed
+broadcast events through an application-owned shared transport and calls
+`runtime.realtime.publish()` in each process that owns connections. This keeps
+another broker optional for a single Node process while making the
+cross-process boundary explicit.
+
 This package ports the Solid Objects programming model. It does not share a
 database schema or runtime protocol with the Ruby gem and does not reproduce
 Cloudflare's placement or edge-runtime guarantees.

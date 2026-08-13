@@ -110,6 +110,8 @@ const runtime = configureSolidObjects({
   authorizeQuery: ({ authorizationContext }) => authorizationContext !== undefined,
   authorizeDestroy: ({ authorizationContext }) => authorizationContext !== undefined,
   authorizeAdministration: ({ authorizationContext }) => isOperator(authorizationContext),
+  authorizeSubscription: ({ actorId, authorizationContext }) =>
+    authorizationContext?.canViewCounter(actorId) === true,
 })
 
 runtime.register(Counter)
@@ -121,8 +123,8 @@ process.once("SIGINT", () => shutdown.abort())
 await runtime.run(shutdown.signal)
 ```
 
-Authorization for messages, queries, and destruction is deny-by-default. Actor
-IDs identify actors; they are not capabilities.
+Authorization is deny-by-default. Actor IDs identify actors; they are not
+capabilities.
 
 ## Call it like a local object
 
@@ -442,15 +444,37 @@ times without reminder arguments.
 
 ## Add realtime updates without exposing all state
 
-Configure `broadcast` to forward explicit observable changes to the transport
-used by the application:
+Connect an authenticated socket to the transport-neutral subscription manager.
+The application owns the WebSocket server and decides what object represents
+the authenticated connection:
 
 ```typescript
-const runtime = configureSolidObjects({
-  database,
-  broadcast: async (event) => websocketHub.publish(event),
+server.on("connection", (socket, request) => {
+  const session = runtime.realtime.connect({
+    authorizationContext: request.user,
+    send: (envelope) => socket.send(JSON.stringify(envelope)),
+  })
+
+  socket.on("message", (data) => {
+    session.receive(data).catch(() => socket.close(1008, "subscription rejected"))
+  })
+  socket.on("close", () => session.close())
 })
 ```
+
+Every subscribe request calls `authorizeSubscription` before actor lookup. An
+accepted subscription immediately receives the latest committed observable
+projection with its actor incarnation and revision, without adding a mailbox
+message. Later invalidations come from the durable outbox in actor revision
+order. Duplicate and stale revisions are fenced, and one broken connection
+cannot interrupt delivery to another.
+
+Direct session delivery is process-local. When WebSocket connections and
+workers run in several Node processes, configure `broadcast` to publish each
+durable event through the application's shared transport, and have every
+process feed received events to `runtime.realtime.publish(event)`. Polling and
+the durable outbox remain the correctness fallback; the shared transport fans
+a committed event out to the processes that own live connections.
 
 The browser entry contains no Node imports. It validates versioned invalidation
 envelopes, tracks actor incarnations and revisions, and ignores stale delivery:
@@ -467,9 +491,9 @@ client.subscribe({ actorType: "Counter", actorId: "primary" })
 client.connect()
 ```
 
-The application owns WebSocket authentication and must authorize every
-subscription server-side. Browser-visible actor IDs and observable values are
-not authorization.
+`broadcast` remains available when an application also needs to forward the
+same durable events through another transport or broker. Browser-visible actor
+IDs and observable values are not authorization.
 
 ## Delivery contract
 

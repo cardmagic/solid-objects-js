@@ -1,4 +1,4 @@
-import type { JsonObject } from "../types.js"
+import type { DeepReadonly, JsonObject, JsonValue } from "../types.js"
 
 export interface ActorSubscription {
   actorType: string
@@ -9,7 +9,7 @@ export interface InvalidationEnvelope extends ActorSubscription {
   version: 1
   instanceId: string
   revision: string
-  observables: JsonObject
+  observables: DeepReadonly<JsonObject>
 }
 
 export interface BrowserClientOptions {
@@ -100,14 +100,14 @@ export function parseInvalidation(value: unknown): InvalidationEnvelope {
     throw new TypeError("invalidation revision must be an integer string")
   if (!isRecord(parsed.observables))
     throw new TypeError("invalidation observables must be an object")
-  return {
+  return Object.freeze({
     version: 1,
     actorType,
     actorId,
     instanceId,
     revision,
     observables: normalizeJsonObject(parsed.observables),
-  }
+  })
 }
 
 function normalizeSubscription(subscription: ActorSubscription): ActorSubscription {
@@ -133,29 +133,33 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return prototype === Object.prototype || prototype === null
 }
 
-function normalizeJsonObject(value: Record<string, unknown>): JsonObject {
-  return Object.fromEntries(
-    Object.entries(value).map(([key, item]) => [
-      key,
-      normalizeJsonValue({ value: item, depth: 1 }),
-    ]),
+function normalizeJsonObject(value: Record<string, unknown>): DeepReadonly<JsonObject> {
+  return Object.freeze(
+    Object.fromEntries(
+      Object.entries(value).map(([key, item]) => [
+        key,
+        normalizeJsonValue({ value: item, depth: 1 }),
+      ]),
+    ),
   )
 }
 
-function normalizeJsonValue(options: { value: unknown; depth: number }): JsonObject[string] {
+function normalizeJsonValue(options: { value: unknown; depth: number }): DeepReadonly<JsonValue> {
   const { value, depth } = options
   if (depth > 100) throw new TypeError("invalidation observables are nested too deeply")
   if (value === null || typeof value === "string" || typeof value === "boolean") return value
   if (typeof value === "number" && Number.isFinite(value)) return value
   if (Array.isArray(value)) {
-    return value.map((item) => normalizeJsonValue({ value: item, depth: depth + 1 }))
+    return Object.freeze(value.map((item) => normalizeJsonValue({ value: item, depth: depth + 1 })))
   }
   if (isRecord(value)) {
-    return Object.fromEntries(
-      Object.entries(value).map(([key, item]) => [
-        key,
-        normalizeJsonValue({ value: item, depth: depth + 1 }),
-      ]),
+    return Object.freeze(
+      Object.fromEntries(
+        Object.entries(value).map(([key, item]) => [
+          key,
+          normalizeJsonValue({ value: item, depth: depth + 1 }),
+        ]),
+      ),
     )
   }
   throw new TypeError("invalidation observables must contain only JSON-compatible values")

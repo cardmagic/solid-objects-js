@@ -13,6 +13,8 @@
   tests.
 - Add isolated structured lifecycle instrumentation with metadata-only events.
 - Add reminder replacement events and authorized inspection and resume APIs.
+- Add deny-by-default transport-neutral realtime subscriptions with committed
+  replay and revision fencing.
 
 ## 0.1.0 - 2026-08-13
 

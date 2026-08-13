@@ -1212,9 +1212,15 @@ export class Repository {
         [staleAt],
       )
       const broadcast = await connection.get<BroadcastRow>(
-        `SELECT * FROM ${this.table("broadcasts")}
-         WHERE status = 'pending' AND available_at_ms <= ?
-         ORDER BY available_at_ms, id
+        `SELECT broadcasts.* FROM ${this.table("broadcasts")} broadcasts
+         WHERE broadcasts.status = 'pending' AND broadcasts.available_at_ms <= ?
+           AND NOT EXISTS (
+             SELECT 1 FROM ${this.table("broadcasts")} earlier
+             WHERE earlier.instance_id = broadcasts.instance_id
+               AND earlier.state_revision < broadcasts.state_revision
+               AND earlier.status IN ('pending', 'processing')
+           )
+         ORDER BY broadcasts.available_at_ms, broadcasts.id
          LIMIT 1`,
         [now],
       )

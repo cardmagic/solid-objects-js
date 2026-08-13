@@ -1,5 +1,6 @@
 import type { SolidObjectsRuntime } from "./runtime.js"
 import type { LongRunningComponent } from "./types.js"
+import { broadcastsEnabled } from "./configuration.js"
 
 export type TestHelperRole = "actors" | "effects" | "reminders" | "broadcasts"
 
@@ -50,7 +51,7 @@ export class SolidObjectsTestHelper {
 
   private defaultRoles(): readonly TestHelperRole[] {
     const roles: TestHelperRole[] = ["reminders", "actors", "effects"]
-    if (this.runtime.settings.broadcast) roles.push("broadcasts")
+    if (broadcastsEnabled(this.runtime.settings)) roles.push("broadcasts")
     return roles
   }
 

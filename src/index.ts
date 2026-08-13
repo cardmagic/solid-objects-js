@@ -22,6 +22,13 @@ export {
   type ResumeReminderOptions,
 } from "./reminder-administration.js"
 export { BroadcastWorker } from "./broadcast-worker.js"
+export {
+  parseSubscriptionRequest,
+  RealtimeManager,
+  type RealtimeConnectionOptions,
+  type RealtimeSession,
+  type SubscriptionRequest,
+} from "./realtime.js"
 export { DeadLetterManager, type DeadLetter } from "./dead-letters.js"
 export {
   Doctor,
@@ -67,6 +74,7 @@ export type {
   DestroyAuthorizationInput,
   InstrumentationEvent,
   SolidObjectsConfiguration,
+  SubscriptionAuthorizationInput,
 } from "./configuration.js"
 export type {
   AdministrationOptions,

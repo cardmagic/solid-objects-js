@@ -23,6 +23,12 @@ export interface AdministrationAuthorizationInput {
   authorizationContext: unknown
 }
 
+export interface SubscriptionAuthorizationInput {
+  actorType: string
+  actorId: string
+  authorizationContext: unknown
+}
+
 export interface InstrumentationEvent {
   readonly name: string
   readonly occurredAt: string
@@ -58,16 +64,17 @@ export interface SolidObjectsConfiguration {
   authorizeQuery?: (input: AuthorizationInput) => boolean | Promise<boolean>
   authorizeDestroy?: (input: DestroyAuthorizationInput) => boolean | Promise<boolean>
   authorizeAdministration?: (input: AdministrationAuthorizationInput) => boolean | Promise<boolean>
+  authorizeSubscription?: (input: SubscriptionAuthorizationInput) => boolean | Promise<boolean>
   instrumentation?: (event: InstrumentationEvent) => void
   broadcast?: (event: BroadcastEvent) => Promise<void>
 }
 
 export interface BroadcastEvent {
-  actorType: string
-  actorId: string
-  instanceId: string
-  revision: string
-  observables: Record<string, JsonValue>
+  readonly actorType: string
+  readonly actorId: string
+  readonly instanceId: string
+  readonly revision: string
+  readonly observables: DeepReadonly<JsonObject>
 }
 
 export interface RuntimeSettings extends Required<
@@ -123,11 +130,13 @@ export function buildSettings(configuration: SolidObjectsConfiguration): Runtime
     authorizeQuery: configuration.authorizeQuery ?? (() => false),
     authorizeDestroy: configuration.authorizeDestroy ?? (() => false),
     authorizeAdministration: configuration.authorizeAdministration ?? (() => false),
+    authorizeSubscription: configuration.authorizeSubscription ?? (() => false),
     authorizationPoliciesConfigured: Object.freeze({
       authorizeMessage: configuration.authorizeMessage !== undefined,
       authorizeQuery: configuration.authorizeQuery !== undefined,
       authorizeDestroy: configuration.authorizeDestroy !== undefined,
       authorizeAdministration: configuration.authorizeAdministration !== undefined,
+      authorizeSubscription: configuration.authorizeSubscription !== undefined,
     }),
   }
 
@@ -201,8 +210,15 @@ function validateSettings(settings: RuntimeSettings): void {
     settings.workerCount +
     settings.effectWorkerCount +
     settings.reminderSchedulerCount +
-    (settings.broadcast ? settings.broadcastWorkerCount : 0)
+    (broadcastsEnabled(settings) ? settings.broadcastWorkerCount : 0)
   if (roleCount === 0) throw new TypeError("at least one runtime role must be configured")
+}
+
+export function broadcastsEnabled(settings: RuntimeSettings): boolean {
+  return (
+    settings.broadcast !== undefined ||
+    settings.authorizationPoliciesConfigured.authorizeSubscription === true
+  )
 }
 
 function validateRetentionOverrides(
