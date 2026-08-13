@@ -376,6 +376,24 @@ targeted durable actor round trip. The authorization check records which
 policies were explicitly supplied; it never invokes application policies with
 a fabricated subject. Pass `{ roundTrip: "skip" }` for a read-only report.
 
+## Test durable workflows without sleeps
+
+`runtime.testing.drain()` runs configured roles in deterministic passes until
+they are idle. Select roles when a test needs a narrower boundary:
+
+```typescript
+const message = await Counter.ref("test").send.increment()
+
+await runtime.testing.drain({ roles: ["actors"] })
+
+expect(await message.status()).toBe("completed")
+```
+
+`runtime.testing.reset()` stops and discards the cached caller worker, then
+deletes every actor-owned table and process row in dependency order. Use it in
+test setup and teardown; it does not rely on transactional tests or foreign-key
+cascades.
+
 ## Add realtime updates without exposing all state
 
 Configure `broadcast` to forward explicit observable changes to the transport

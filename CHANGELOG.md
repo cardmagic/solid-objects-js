@@ -9,6 +9,8 @@
 - Add previewable bounded retention for messages, stopped processes, and
   opt-in actor instances.
 - Add structured installation diagnostics and a targeted durable round trip.
+- Add deterministic runtime draining and explicit database reset helpers for
+  tests.
 
 ## 0.1.0 - 2026-08-13
 

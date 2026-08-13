@@ -869,6 +869,23 @@ export class Repository {
     })
   }
 
+  async resetForTesting(): Promise<void> {
+    const tables = [
+      "dead_letters",
+      "claimed_messages",
+      "ready_messages",
+      "broadcasts",
+      "effects",
+      "reminders",
+      "messages",
+      "instances",
+      "processes",
+    ]
+    await this.settings.database.transaction(async (connection) => {
+      for (const table of tables) await connection.run(`DELETE FROM ${this.table(table)}`)
+    })
+  }
+
   async claimEffect(processId: string): Promise<EffectRow | undefined> {
     return this.settings.database.transaction(async (connection) => {
       const now = await connection.nowMilliseconds()

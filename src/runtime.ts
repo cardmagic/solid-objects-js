@@ -78,6 +78,7 @@ import type {
   MessageStatus,
   SnapshotOptions,
 } from "./types.js"
+import { SolidObjectsTestHelper } from "./test-helper.js"
 import { waitFor, Worker } from "./worker.js"
 import { EffectWorker } from "./effect-worker.js"
 
@@ -104,11 +105,12 @@ export class SolidObjectsRuntime {
   readonly reconciliation
   readonly retention
   readonly doctor
+  readonly testing
   private readonly registry = new Map<string, RegisteredActor>()
   private readonly effects = new Map<string, EffectHandler>()
   private readonly commitActions = new Map<string, CommitActionHandler>()
   private readonly additionalComponents: ComponentRegistration[] = []
-  private callerWorker?: Worker
+  private callerWorker: Worker | undefined
   private running = false
 
   constructor(configuration: SolidObjectsConfiguration) {
@@ -118,6 +120,7 @@ export class SolidObjectsRuntime {
     this.reconciliation = new ReconciliationManager(this)
     this.retention = new RetentionManager(this)
     this.doctor = new Doctor(this)
+    this.testing = new SolidObjectsTestHelper(this)
   }
 
   async install(): Promise<void> {
@@ -640,6 +643,13 @@ export class SolidObjectsRuntime {
     await this.callerWorker?.stop()
     await this.settings.database.close()
     clearDefaultRuntime(this)
+  }
+
+  async resetForTesting(): Promise<void> {
+    if (this.running) throw new Error("abort runtime.run() before resetting test state")
+    await this.callerWorker?.stop()
+    this.callerWorker = undefined
+    await this.repository.resetForTesting()
   }
 
   async executeEffect(effect: EffectRow): Promise<void> {

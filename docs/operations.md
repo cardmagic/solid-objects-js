@@ -47,3 +47,9 @@ diagnostic must not write.
 The doctor reports whether each authorization callback was explicitly
 configured without calling it. Do not expose the report through an HTTP or CLI
 surface without applying the host application's own administration policy.
+
+Tests can use `runtime.testing.drain()` to process reminders, actor turns,
+effects, actor callbacks, and broadcasts in deterministic passes. The helper
+stops every temporary runner even when a handler raises. `reset()` must only run
+while the supervised runtime is stopped; it explicitly clears child tables,
+instances, and process records and replaces the cached synchronous caller.

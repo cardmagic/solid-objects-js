@@ -49,7 +49,7 @@ Reference: Ruby `solid_objects` 0.12.0 at commit `4cf22c1`.
 | Doctor and schema verification                                                | Native  | Structured checks cover configuration, schema/version shape, SQLite version, policy posture, live roles, and a targeted round trip. |
 | CLI                                                                           | Planned | Add Node commands for run, status, cleanup, doctor, dead letters, retry, and preview/execute pruning.                               |
 | Structured instrumentation                                                    | Planned | Add transport-neutral events with safe metadata and no arguments, state, results, or outbox payloads.                               |
-| Public test helper                                                            | Planned | Add isolated draining and explicit actor-table reset without assuming foreign-key cascades.                                         |
+| Public test helper                                                            | Native  | `runtime.testing` provides role-selective deterministic draining and dependency-ordered reset without relying on cascades.          |
 
 ## Databases and wake-up
 

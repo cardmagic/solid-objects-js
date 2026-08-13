@@ -38,6 +38,11 @@ export {
   type RetentionTarget,
 } from "./retention.js"
 export {
+  SolidObjectsTestHelper,
+  type TestDrainOptions,
+  type TestHelperRole,
+} from "./test-helper.js"
+export {
   MessageReference,
   type ActorOperationNames,
   type ActorMessageSender,
