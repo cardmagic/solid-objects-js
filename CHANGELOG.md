@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Refocus the README and package metadata on native Node.js concurrency,
+  realtime state synchronization, and database-backed infrastructure.
+
 ## 0.12.1 - 2026-08-13
 
 - Accept camelCase rejection codes and fail malformed codes immediately with

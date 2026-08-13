@@ -1,8 +1,9 @@
 # Architecture
 
-Solid Objects is a database-backed virtual actor runtime. An actor is addressed
-by `(actor type, actor id)`, processes one durable mailbox turn at a time, and
-persists JSON state between activations.
+Solid Objects coordinates stateful TypeScript objects through database-backed
+mailboxes. Each object, called an actor in the API, is addressed by
+`(actor type, actor id)`, processes one durable turn at a time, and persists
+JSON state between activations.
 
 A durable message envelope selects an actor `operation` and records its
 `delivery_mode` as `async`, `sync`, or `internal`. An operation is actor code;
@@ -59,10 +60,10 @@ than waiting for a connection or serialized SQLite slot it cannot release.
 
 PostgreSQL notifications are an opt-in latency layer. One event-driven client
 per runtime listens on role-specific channels before the worker checks durable
-state, which closes the listener-startup race without Ruby's connection per
-blocking thread. A notification advances a process-local role generation and
-wakes every matching waiter. Reconnection and notification loss fall back to
-the ordinary polling interval.
+state, which closes the listener-startup race without holding a polling
+connection per worker. A notification advances a process-local role generation
+and wakes every matching waiter. Reconnection and notification loss fall back
+to the ordinary polling interval.
 
 The optional Redis adapter provides the same role generations through Pub/Sub
 for deployments that already operate Redis. It keeps commands and subscriptions
@@ -108,6 +109,5 @@ broadcast events through an application-owned shared transport and calls
 another broker optional for a single Node process while making the
 cross-process boundary explicit.
 
-This package ports the Solid Objects programming model. It does not share a
-database schema or runtime protocol with the Ruby gem and does not reproduce
-Cloudflare's placement or edge-runtime guarantees.
+Solid Objects provides database-backed state coordination for Node.js. It does
+not reproduce Cloudflare's placement or edge-runtime guarantees.

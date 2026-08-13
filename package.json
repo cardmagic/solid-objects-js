@@ -1,10 +1,22 @@
 {
   "name": "solid-objects",
   "version": "0.12.1",
-  "description": "Durable, addressable objects for Node.js",
+  "description": "Stateful, realtime TypeScript objects backed by PostgreSQL, SQLite, or MySQL",
   "type": "module",
   "license": "MIT",
   "author": "Lucas Carlson",
+  "keywords": [
+    "actors",
+    "concurrency",
+    "durable-objects",
+    "mysql",
+    "nodejs",
+    "postgresql",
+    "realtime",
+    "sqlite",
+    "state-management",
+    "typescript"
+  ],
   "repository": {
     "type": "git",
     "url": "git+https://github.com/cardmagic/solid-objects-js.git"

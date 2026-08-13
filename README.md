@@ -1,20 +1,86 @@
 # Solid Objects JS
 
-**Stateful virtual actors for Node.js, powered entirely by your relational database.**
+**Stateful, realtime TypeScript objects for Node.js, powered by the relational
+database you already run.**
 
-Get the programming model of Cloudflare Durable Objects without moving your
-state into custom cloud isolates. Write ordinary TypeScript classes; Solid
-Objects gives each instance a durable identity, persisted state, an ordered
-mailbox, and safe one-at-a-time execution.
+Build multiplayer rooms, collaborative tools, carts, account workflows, device
+sessions, and AI agents without assembling Redis locks, a message broker, a
+timer service, and custom recovery code. Solid Objects serializes concurrent
+changes to the same object, persists the result, and sends ordered realtime
+updates from your existing SQLite, PostgreSQL, or MySQL database.
 
-No Redis locks. No separate message broker for actor mailboxes. No proprietary
-state service. The database you already understand provides the transaction,
-lease, fencing, retry, timer, and outbox primitives.
+Keep the stack boring: ordinary TypeScript classes, ordinary SQL, and the Node
+server and WebSocket transport you already use. Redis is optional, not a source
+of truth.
 
 > SQLite uses Node's built-in `node:sqlite` module. PostgreSQL 14 or newer and
 > MySQL 8.0 or newer use optional driver peer dependencies.
 
-## The boring stack, with an actor model
+## Installation
+
+```bash
+pnpm add solid-objects
+```
+
+## Stop race conditions at the object boundary
+
+Define the state and the operations allowed to change it:
+
+```typescript
+import { Actor } from "solid-objects"
+
+export class ClickerRoom extends Actor {
+  static override readonly actorType = "ClickerRoom"
+
+  clicks = 0
+
+  click(): number {
+    this.clicks += 1
+    return this.clicks
+  }
+
+  override observables(): Record<string, unknown> {
+    return { clicks: this.clicks }
+  }
+}
+```
+
+Call it like an ordinary async object:
+
+```typescript
+const room = ClickerRoom.ref("launch-party")
+
+await Promise.all([room.click(), room.click(), room.click()])
+
+console.log(await room.clicks) // 3
+```
+
+Those calls may arrive from different requests or, with PostgreSQL or MySQL,
+different Node processes. They enter one durable mailbox for `launch-party`,
+execute one at a time, and commit without a Redlock or application-level retry
+loop. Calls to different room IDs can execute concurrently.
+
+The same committed change can update connected browsers:
+
+```typescript
+import { SolidObjectsBrowserClient } from "solid-objects/browser"
+
+const client = new SolidObjectsBrowserClient({
+  url: new URL("/solid-objects", window.location.href),
+  onInvalidation: ({ observables }) => renderClickCount(observables.clicks),
+})
+
+client.subscribe({ actorType: "ClickerRoom", actorId: "launch-party" })
+client.connect()
+```
+
+You provide the authenticated WebSocket handler and rendering function. Solid
+Objects handles committed-state replay, ordered invalidations, resubscription
+after your application reconnects, and stale-update fencing. Typed
+per-subscriber payloads and a component registry cover private views and
+targeted server-rendered fragment refreshes.
+
+## The boring stack for stateful applications
 
 Most stateful features eventually need the same machinery: load one entity,
 serialize concurrent changes, persist the result, schedule follow-up work, and
@@ -48,21 +114,11 @@ replaces a recurring layer of infrastructure and application code:
 This is not an in-memory actor library. A call is complete only after its state
 and durable consequences commit to the database.
 
-Solid Objects JS ports the programming model of the Ruby
-[`solid_objects`](https://github.com/cardmagic/solid_objects) gem to idiomatic
-TypeScript. The runtimes do not share a database schema or wire protocol.
-
 ## Requirements
 
 - Node.js 24.15 or newer
 - TypeScript 5.9 or newer for TypeScript applications
 - SQLite, PostgreSQL 14 or newer, or MySQL 8.0 or newer with InnoDB
-
-## Installation
-
-```bash
-pnpm add solid-objects
-```
 
 ## Write an ordinary TypeScript class
 
@@ -966,8 +1022,8 @@ cannot write through a guarded application database, and are nondurable;
 
 The current runtime supports Node.js 24, SQLite through built-in `node:sqlite`,
 PostgreSQL 14 or newer through `pg` 8.23, and MySQL 8.0 or newer through
-`mysql2` 3.23 with InnoDB. HTTP/WebSocket server adapters and Ruby schema
-interoperability are not part of the compatibility contract.
+`mysql2` 3.23 with InnoDB. Applications own their HTTP server, WebSocket
+authentication, and rendering integration.
 
 ## Documentation
 
@@ -987,8 +1043,6 @@ interoperability are not part of the compatibility contract.
 - [`docs/authorization.md`](docs/authorization.md) and
   [`docs/browser-protocol.md`](docs/browser-protocol.md) cover security and the
   transport-neutral realtime protocol.
-- The [`Ruby parity ledger`](docs/parity.md) tracks native equivalents and
-  explicit scope boundaries against Ruby Solid Objects 0.12.0.
 - [`docs/releasing.md`](docs/releasing.md) documents the tag-driven npm release
   workflow for maintainers.
 
