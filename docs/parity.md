@@ -6,7 +6,7 @@ not copying a Rails API into Node.
 
 Reference: Ruby `solid_objects` 0.12.0 at commit `a01b6f5`.
 
-The Node `0.1.0` implementation has spiritual parity with that reference. Its
+The Node `0.12.0` implementation has spiritual parity with that reference. Its
 relational runtime, correctness boundaries, administration, diagnostics,
 realtime projections, browser behavior, and supported adapters have native
 equivalents. Rails engine and rendering surfaces are intentionally replaced by

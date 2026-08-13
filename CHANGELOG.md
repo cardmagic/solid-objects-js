@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.12.0 - 2026-08-13
+
 - Complete the Ruby 0.12.0 spiritual-parity pass with Node-native runtime,
   administration, realtime, browser, and multi-adapter equivalents.
 - Return claimed messages to ready membership without consuming an attempt when
@@ -89,8 +91,6 @@
 - Scan a bounded set of ready actor candidates so a lost lease race does not
   make a worker report idle while other actors are ready.
 
-## 0.1.0 - 2026-08-13
-
 - Add ordinary TypeScript actor classes with inferred, typed references.
 - Add committed calls, asynchronous sends, actor-to-actor delivery, reminders,
   effects, commit actions, snapshots, destruction, and explicit observables.
@@ -104,4 +104,5 @@
   convention during type checking.
 - Name invoked actor methods `operation` throughout the API and persistence,
   and name message submission semantics `delivery_mode`.
-- Publish SQLite as the only database adapter supported by the initial release.
+- Support SQLite, PostgreSQL, and MySQL database adapters in the initial
+  release.
