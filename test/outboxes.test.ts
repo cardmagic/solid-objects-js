@@ -80,9 +80,19 @@ afterEach(async () => {
 describe("durable effects", () => {
   it("runs an effect and delivers its success message", async () => {
     runtime = configuredRuntime()
-    runtime.registerEffect("charge_payment", ({ paymentId }, context) => ({
-      receipt: `${paymentId}:${context.id}`,
-    }))
+    let effectContext:
+      | {
+          id: string
+          attempt: number
+          sourceMessageId: string
+          actorType: string
+          actorId: string
+        }
+      | undefined
+    runtime.registerEffect("charge_payment", ({ paymentId }, context) => {
+      effectContext = context
+      return { receipt: `${paymentId}:${context.id}` }
+    })
     await runtime.install()
     const checkout = Checkout.ref("order-1")
 
@@ -92,6 +102,12 @@ describe("durable effects", () => {
 
     expect(await checkout.status).toBe("paid")
     expect(await checkout.effectResult).toMatch(/^payment-1:/)
+    expect(effectContext).toMatchObject({
+      attempt: 1,
+      sourceMessageId: expect.any(String),
+      actorType: Checkout.actorType,
+      actorId: "order-1",
+    })
   })
 
   it("marks unknown effects dead and delivers the failure message", async () => {
@@ -140,7 +156,9 @@ describe("commit actions", () => {
     await runtime.settings.database.connection((connection) =>
       connection.run("CREATE TABLE application_records(id TEXT PRIMARY KEY) STRICT"),
     )
+    let activationGeneration: bigint | undefined
     runtime.registerCommitAction("write_record", async ({ recordId }, context) => {
+      activationGeneration = context.activationGeneration
       await context.connection.run("INSERT INTO application_records(id) VALUES (?)", [recordId])
     })
     const writer = DatabaseWriter.ref("writer")
@@ -154,6 +172,7 @@ describe("commit actions", () => {
       }>("SELECT id FROM application_records"),
     )
     expect(record?.id).toBe("record-1")
+    expect(activationGeneration).toBeGreaterThan(0n)
   })
 
   it("rolls actor state back when a commit action fails", async () => {

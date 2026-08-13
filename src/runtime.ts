@@ -1124,6 +1124,7 @@ export class SolidObjectsRuntime {
               messageId: turn.message.id,
               requestId: turn.message.request_id,
               sequence: BigInt(turn.message.sequence),
+              activationGeneration: turn.activationGeneration,
               connection,
             })
             this.emitInstrumentation("commit_action.completed", attributes)
@@ -1282,7 +1283,7 @@ export class SolidObjectsRuntime {
           attempt: Number(effect.attempt_count),
           actorType: effect.actor_type,
           actorId: effect.actor_id,
-          messageId: effect.message_id,
+          sourceMessageId: effect.message_id,
         })) ?? null,
         { maxBytes: this.settings.maxResultBytes },
       )

@@ -53,7 +53,7 @@ describe("public test helper", () => {
       },
     })
     runtime.registerEffect("recordHelperEffect", async (_arguments, context) => {
-      effects.push(context.messageId)
+      effects.push(context.sourceMessageId)
     })
     await runtime.install()
     const message = await HelperActor.ref("workflow").send.startWork()

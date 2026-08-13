@@ -48,20 +48,21 @@ export interface MessageContext {
 }
 
 export interface EffectContext {
-  id: string
-  attempt: number
-  actorType: string
-  actorId: string
-  messageId: string
+  readonly id: string
+  readonly attempt: number
+  readonly sourceMessageId: string
+  readonly actorType: string
+  readonly actorId: string
 }
 
 export interface CommitActionContext {
-  actorType: string
-  actorId: string
-  messageId: string
-  requestId: string
-  sequence: bigint
-  connection: DatabaseConnection
+  readonly actorType: string
+  readonly actorId: string
+  readonly messageId: string
+  readonly requestId: string
+  readonly sequence: bigint
+  readonly activationGeneration: bigint
+  readonly connection: DatabaseConnection
 }
 
 export type MessageStatus = "ready" | "claimed" | "completed" | "rejected" | "dead" | "unknown"

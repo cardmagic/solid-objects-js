@@ -405,6 +405,10 @@ runtime.registerEffect("chargePayment", async ({ paymentId }, context) => {
 })
 ```
 
+Effect context also exposes `attempt`, `sourceMessageId`, `actorType`, and
+`actorId`. The effect `id` is stable across retries and remains the external
+idempotency key.
+
 Success callbacks receive `{ effectId, result }`. Failure callbacks receive
 `{ effectId, error }`.
 
@@ -418,6 +422,10 @@ runtime.registerCommitAction("completeAttempt", async ({ attemptId }, context) =
   await context.connection.run("UPDATE attempts SET completed = 1 WHERE id = ?", [attemptId])
 })
 ```
+
+Commit-action context includes the source message and request IDs, actor
+identity, mailbox sequence, activation generation, and the active transaction
+connection.
 
 Do not perform network I/O in a commit action. Use an effect when work cannot
 share the Solid Objects database transaction.

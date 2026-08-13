@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Align effect and commit-action context with their durable source message and
+  activation fence, using immutable TypeScript contracts.
 - Bound runtime shutdown with a configurable deadline and report components
   that do not cooperate with cancellation or stop before it expires.
 - Separate generated request identity from caller-supplied idempotency keys and
