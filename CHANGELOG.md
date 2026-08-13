@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Probe configured authorization policies with a neutral context in the doctor
+  and warn when sensitive access is open or a policy cannot evaluate safely.
 - Align effect and commit-action context with their durable source message and
   activation fence, using immutable TypeScript contracts.
 - Bound runtime shutdown with a configurable deadline and report components

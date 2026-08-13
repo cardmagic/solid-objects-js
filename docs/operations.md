@@ -123,8 +123,12 @@ instance and process records afterward. Use `{ roundTrip: "skip" }` when the
 diagnostic must not write.
 
 The doctor reports whether each authorization callback was explicitly
-configured without calling it. Do not expose the report through an HTTP or CLI
-surface without applying the host application's own administration policy.
+configured and probes all configured policies with a neutral context. It warns
+when every policy denies the probe, a policy needs unavailable application
+context, or destruction, subscription, or administration allows it. The probe
+does not replace application-specific authorization tests. Do not expose the
+report through an HTTP or CLI surface without applying the host application's
+own administration policy.
 
 The packaged `solid-objects` executable loads a configured runtime exported as
 default or `runtime` from `solid-objects.config.js`, or from `--config PATH`.

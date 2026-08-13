@@ -88,7 +88,7 @@ export class Doctor {
     const checks: DoctorCheck[] = [
       configuration,
       schema,
-      this.checkAuthorization(),
+      await this.checkAuthorization(),
       await this.checkDatabase(),
     ]
     checks.push(
@@ -201,7 +201,7 @@ export class Doctor {
     }
   }
 
-  private checkAuthorization(): DoctorCheck {
+  private async checkAuthorization(): Promise<DoctorCheck> {
     const configured = this.runtime.settings.authorizationPoliciesConfigured
     const missing = Object.entries(configured)
       .filter(([_name, present]) => !present)
@@ -214,12 +214,84 @@ export class Doctor {
         details: { configured },
       })
     }
+
+    const neutralContext: Record<string, "allow" | "deny" | "unknown"> = {}
+    for (const [name, probe] of Object.entries(this.authorizationProbes())) {
+      try {
+        neutralContext[name] = (await probe()) ? "allow" : "deny"
+      } catch {
+        neutralContext[name] = "unknown"
+      }
+    }
+    const allowed = Object.entries(neutralContext)
+      .filter(([_name, outcome]) => outcome === "allow")
+      .map(([name]) => name)
+    const unknown = Object.entries(neutralContext)
+      .filter(([_name, outcome]) => outcome === "unknown")
+      .map(([name]) => name)
+    const sensitiveAllowed = allowed.filter((name) =>
+      ["authorizeDestroy", "authorizeSubscription", "authorizeAdministration"].includes(name),
+    )
+    if (allowed.length === 0 && unknown.length === 0) {
+      return check({
+        name: "authorization",
+        status: "warn",
+        message: "all five policies denied a neutral context; review them before use",
+        details: { configured, neutralContext },
+      })
+    }
+    if (sensitiveAllowed.length > 0) {
+      return check({
+        name: "authorization",
+        status: "warn",
+        message: `sensitive policies allowed a neutral context: ${sensitiveAllowed.join(", ")}`,
+        details: { configured, neutralContext },
+      })
+    }
+    if (unknown.length > 0) {
+      return check({
+        name: "authorization",
+        status: "warn",
+        message: `${unknown.join(", ")} could not evaluate without application context`,
+        details: { configured, neutralContext },
+      })
+    }
     return check({
       name: "authorization",
       status: "pass",
-      message: "all authorization policies are configured",
-      details: { configured },
+      message: `${allowed.length} of 5 policies allowed a neutral context`,
+      details: { configured, neutralContext },
     })
+  }
+
+  private authorizationProbes(): Record<string, () => boolean | Promise<boolean>> {
+    const actor = {
+      actorType: DoctorProbe.actorType,
+      actorId: "doctor",
+      authorizationContext: undefined,
+    }
+    return {
+      authorizeMessage: () =>
+        this.runtime.settings.authorizeMessage({
+          ...actor,
+          operation: "ping",
+          arguments: { value: "doctor" },
+        }),
+      authorizeQuery: () =>
+        this.runtime.settings.authorizeQuery({
+          ...actor,
+          operation: "value",
+          arguments: {},
+        }),
+      authorizeDestroy: () => this.runtime.settings.authorizeDestroy(actor),
+      authorizeSubscription: () => this.runtime.settings.authorizeSubscription(actor),
+      authorizeAdministration: () =>
+        this.runtime.settings.authorizeAdministration({
+          action: "doctor",
+          resource: "runtime",
+          authorizationContext: undefined,
+        }),
+    }
   }
 
   private async checkDatabase(): Promise<DoctorCheck> {

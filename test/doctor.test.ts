@@ -57,6 +57,77 @@ describe("runtime doctor", () => {
     expect(check(report, "roundTrip").status).toBe("skip")
   })
 
+  it("warns when sensitive policies allow a neutral context", async () => {
+    runtime = configure({
+      database: sqlite({ path: ":memory:" }),
+      authorizeMessage: () => true,
+      authorizeQuery: () => true,
+      authorizeDestroy: () => true,
+      authorizeAdministration: () => true,
+      authorizeSubscription: () => true,
+    })
+    await runtime.install()
+
+    const report = await runtime.doctor.run({ roundTrip: "skip" })
+
+    expect(check(report, "authorization")).toMatchObject({
+      status: "warn",
+      message: expect.stringContaining("authorizeDestroy"),
+      details: {
+        configured: expect.any(Object),
+        neutralContext: expect.objectContaining({
+          authorizeDestroy: "allow",
+          authorizeSubscription: "allow",
+          authorizeAdministration: "allow",
+        }),
+      },
+    })
+  })
+
+  it("warns when every policy denies a neutral context", async () => {
+    runtime = configure({
+      database: sqlite({ path: ":memory:" }),
+      authorizeMessage: () => false,
+      authorizeQuery: () => false,
+      authorizeDestroy: () => false,
+      authorizeAdministration: () => false,
+      authorizeSubscription: () => false,
+    })
+    await runtime.install()
+
+    const report = await runtime.doctor.run({ roundTrip: "skip" })
+
+    expect(check(report, "authorization")).toMatchObject({
+      status: "warn",
+      message: expect.stringContaining("all five policies denied"),
+    })
+  })
+
+  it("confines policies that need application context", async () => {
+    runtime = configure({
+      database: sqlite({ path: ":memory:" }),
+      authorizeMessage: () => {
+        throw new Error("request context required")
+      },
+      authorizeQuery: () => false,
+      authorizeDestroy: () => false,
+      authorizeAdministration: () => false,
+      authorizeSubscription: () => false,
+    })
+    await runtime.install()
+
+    const report = await runtime.doctor.run({ roundTrip: "skip" })
+
+    expect(check(report, "authorization")).toMatchObject({
+      status: "warn",
+      message: expect.stringContaining("authorizeMessage"),
+      details: {
+        configured: expect.any(Object),
+        neutralContext: expect.objectContaining({ authorizeMessage: "unknown" }),
+      },
+    })
+  })
+
   it("fails schema verification and skips dependent checks when tables are missing", async () => {
     runtime = configuredRuntime()
 
@@ -108,9 +179,9 @@ function configuredRuntime(): SolidObjectsRuntime {
     database: sqlite({ path: ":memory:" }),
     authorizeMessage: () => true,
     authorizeQuery: () => true,
-    authorizeDestroy: () => true,
-    authorizeAdministration: () => true,
-    authorizeSubscription: () => true,
+    authorizeDestroy: () => false,
+    authorizeAdministration: () => false,
+    authorizeSubscription: () => false,
     pollingIntervalMilliseconds: 1,
     syncPollingIntervalMilliseconds: 1,
   })
