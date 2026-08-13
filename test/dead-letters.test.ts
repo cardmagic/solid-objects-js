@@ -148,7 +148,7 @@ describe("schema migrations", () => {
     const columns = await runtime.settings.database.connection((connection) =>
       connection.all<{ name: string }>("PRAGMA table_info(solid_objects_dead_letters)"),
     )
-    expect(versions.map(({ version }) => Number(version))).toEqual([1, 2, 3, 4])
+    expect(versions.map(({ version }) => Number(version))).toEqual([1, 2, 3, 4, 5])
     expect(columns.map(({ name }) => name)).toContain("retried_message_id")
   })
 

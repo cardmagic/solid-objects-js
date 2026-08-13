@@ -15,6 +15,7 @@ export interface ProcessRecord {
   readonly hostProcessId: number
   readonly metadata: ProcessMetadata
   readonly shutdownState: ProcessShutdownState
+  readonly shutdownRequestedAt: Date | null
   readonly stale: boolean
   readonly startedAt: Date
   readonly heartbeatAt: Date

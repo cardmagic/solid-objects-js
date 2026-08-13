@@ -84,6 +84,19 @@ class FailingLifecycleActor extends Actor {
   }
 }
 
+class SlowDeactivationActor extends Actor {
+  static override readonly actorType = "SlowDeactivationActor"
+  static deactivationStarted: () => void = () => {}
+  static deactivationFinished: Promise<void> = Promise.resolve()
+
+  run(): void {}
+
+  protected override async onDeactivate(): Promise<void> {
+    SlowDeactivationActor.deactivationStarted()
+    await SlowDeactivationActor.deactivationFinished
+  }
+}
+
 let runtime: SolidObjectsRuntime | undefined
 
 afterEach(async () => {
@@ -93,6 +106,8 @@ afterEach(async () => {
   CachedActor.activations = 0
   CachedActor.deactivations = 0
   FailingLifecycleActor.activationFailure = false
+  SlowDeactivationActor.deactivationStarted = () => {}
+  SlowDeactivationActor.deactivationFinished = Promise.resolve()
 })
 
 describe("runtime lifecycle", () => {
@@ -120,6 +135,42 @@ describe("runtime lifecycle", () => {
     )
     expect(processes).toHaveLength(2)
     expect(processes.every((process) => process.shutdown_state === "stopped")).toBe(true)
+  })
+
+  it("records draining while a worker finishes graceful shutdown", async () => {
+    runtime = configuredRuntime({ authorizeAdministration: () => true })
+    runtime.register(SlowDeactivationActor)
+    await runtime.install()
+    const worker = runtime.worker()
+    await SlowDeactivationActor.ref("slow-stop").send.run()
+    expect(await worker.runOnce()).toBe(1)
+    let reportDeactivationStarted: () => void = () => {}
+    const deactivationStarted = new Promise<void>((resolve) => {
+      reportDeactivationStarted = resolve
+    })
+    let finishDeactivation: () => void = () => {}
+    SlowDeactivationActor.deactivationStarted = reportDeactivationStarted
+    SlowDeactivationActor.deactivationFinished = new Promise<void>((resolve) => {
+      finishDeactivation = resolve
+    })
+
+    const stopping = worker.stop()
+    await deactivationStarted
+
+    const draining = await runtime.processes.all()
+    expect(draining).toEqual([
+      expect.objectContaining({
+        id: worker.processId,
+        shutdownState: "draining",
+        shutdownRequestedAt: expect.any(Date),
+      }),
+    ])
+
+    finishDeactivation()
+    await stopping
+    expect(await runtime.processes.all()).toEqual([
+      expect.objectContaining({ id: worker.processId, shutdownState: "stopped" }),
+    ])
   })
 
   it("does not start workers for an already-aborted signal", async () => {

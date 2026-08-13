@@ -27,7 +27,7 @@ describe("runtime doctor", () => {
     expect(check(report, "configuration").status).toBe("pass")
     expect(check(report, "schema")).toMatchObject({
       status: "pass",
-      details: { versions: [1, 2, 3, 4] },
+      details: { versions: [1, 2, 3, 4, 5] },
     })
     expect(check(report, "authorization").status).toBe("pass")
     expect(check(report, "database").status).toBe("pass")

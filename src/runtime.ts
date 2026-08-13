@@ -871,6 +871,10 @@ export class SolidObjectsRuntime {
           hostProcessId: Number(row.host_process_id),
           metadata: processMetadata(row.metadata),
           shutdownState: row.shutdown_state,
+          shutdownRequestedAt:
+            row.shutdown_requested_at_ms === null
+              ? null
+              : new Date(Number(row.shutdown_requested_at_ms)),
           stale:
             row.shutdown_state !== "stopped" &&
             Number(row.heartbeat_at_ms) <= result.staleAtMilliseconds,

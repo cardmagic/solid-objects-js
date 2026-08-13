@@ -45,6 +45,7 @@ describe("process administration", () => {
         solidObjectsVersion: "0.1.0",
       },
       shutdownState: "running",
+      shutdownRequestedAt: null,
       stale: false,
     })
     expect(processes.find(({ id }) => id === "stale")).toMatchObject({
@@ -83,15 +84,16 @@ describe("process administration", () => {
     runtime = configuredRuntime()
     await runtime.install()
     const message = await claimEveryRole("draining")
-    await runtime.settings.database.connection((connection) =>
-      connection.run(
-        `UPDATE ${runtime?.repository.table("processes")}
-         SET shutdown_state = 'draining', heartbeat_at_ms = 0 WHERE id = 'draining'`,
-      ),
-    )
+    await runtime.repository.startDrainingProcess("draining")
+    await staleProcess("draining")
 
     expect(await runtime.processes.all()).toEqual([
-      expect.objectContaining({ id: "draining", shutdownState: "draining", stale: true }),
+      expect.objectContaining({
+        id: "draining",
+        shutdownState: "draining",
+        shutdownRequestedAt: expect.any(Date),
+        stale: true,
+      }),
     ])
     expect(await runtime.processes.cleanup()).toEqual({ cleaned: 1 })
     await expectOwnershipReleased("draining", message)

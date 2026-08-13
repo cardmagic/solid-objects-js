@@ -8,6 +8,7 @@ export interface ProcessRow {
   metadata: string
   started_at_ms: number | bigint
   heartbeat_at_ms: number | bigint
+  shutdown_requested_at_ms: number | bigint | null
   stopped_at_ms: number | bigint | null
   shutdown_state: "running" | "draining" | "stopped"
 }

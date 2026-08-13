@@ -126,6 +126,7 @@ export class Worker {
   async stop(): Promise<void> {
     if (this.stopping && !this.registered) return
     this.stopping = true
+    if (this.registered) await this.runtime.repository.startDrainingProcess(this.processId)
     await this.releaseCachedActivations()
     if (this.registered) {
       await this.runtime.repository.stopProcess(this.processId)

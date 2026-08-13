@@ -34,6 +34,7 @@ const EXPECTED_COLUMNS: Readonly<Record<string, readonly string[]>> = {
     "metadata",
     "heartbeat_at_ms",
     "shutdown_state",
+    "shutdown_requested_at_ms",
     "stopped_at_ms",
   ],
   instances: [
@@ -192,11 +193,11 @@ export class Doctor {
           message: `incompatible schema identity ${wrongIdentity.schema_identity}`,
         })
       }
-      if (versions.join(",") !== "1,2,3,4") {
+      if (versions.join(",") !== "1,2,3,4,5") {
         return check({
           name: "schema",
           status: "fail",
-          message: `expected schema migrations 1, 2, 3, 4; found ${versions.join(", ")}`,
+          message: `expected schema migrations 1, 2, 3, 4, 5; found ${versions.join(", ")}`,
         })
       }
       return check({

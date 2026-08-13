@@ -46,11 +46,11 @@ failure is logged without preventing lease release.
 
 `runtime.processes.all()` returns administration-authorized immutable process
 metadata with hostname, host process ID, Node and Solid Objects versions, and a
-current `stale` flag. `cleanup()` reauthorizes separately and atomically fences
-stale processes out of every owned role claim before waking the affected
-runtime roles. Graceful role shutdown performs the same atomic release instead
-of leaving claims to wait for lease expiry. Stale `draining` records are also
-recovered. The cleanup count is instrumented; application payloads are not.
+current `stale` flag. Graceful shutdown first persists `draining` with a
+`shutdownRequestedAt` timestamp, then deactivates owned actors and atomically
+releases every role claim before persisting `stopped`. `cleanup()` reauthorizes
+separately and performs the same release for stale running or draining
+processes. The cleanup count is instrumented; application payloads are not.
 
 Committed calls and `message.wait()` apply `timeoutMilliseconds` to the entire
 durable wait, beginning before enqueue or message lookup. Adapter deadlines

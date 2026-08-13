@@ -61,6 +61,7 @@ export class BroadcastWorker {
     if (this.stopping && !this.registered) return
     this.stopping = true
     if (!this.registered) return
+    await this.runtime.repository.startDrainingProcess(this.processId)
     await this.runtime.repository.stopProcess(this.processId)
     this.registered = false
   }

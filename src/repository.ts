@@ -60,7 +60,8 @@ export class Repository {
          VALUES (?, ?, ?, ?, ?, ?, ?, 'running')
          ON CONFLICT(id) DO UPDATE SET heartbeat_at_ms = excluded.heartbeat_at_ms,
            hostname = excluded.hostname, host_process_id = excluded.host_process_id,
-           metadata = excluded.metadata, stopped_at_ms = NULL, shutdown_state = 'running'`,
+           metadata = excluded.metadata, shutdown_requested_at_ms = NULL,
+           stopped_at_ms = NULL, shutdown_state = 'running'`,
         [
           processId,
           kind,
@@ -70,6 +71,18 @@ export class Repository {
           now,
           now,
         ],
+      )
+    })
+  }
+
+  async startDrainingProcess(processId: string): Promise<void> {
+    await this.settings.database.transaction(async (connection) => {
+      const now = await connection.nowMilliseconds()
+      await connection.run(
+        `UPDATE ${this.table("processes")}
+         SET shutdown_state = 'draining', shutdown_requested_at_ms = ?
+         WHERE id = ? AND shutdown_state = 'running'`,
+        [now, processId],
       )
     })
   }
