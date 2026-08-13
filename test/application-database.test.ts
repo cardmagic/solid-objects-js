@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
 import { Actor, type PayloadBroadcasts } from "../src/actor.js"
 import { guardApplicationDatabase } from "../src/application-database.js"
+import { ApplicationWriteForbidden } from "../src/errors.js"
 import { sqlite, type SQLiteDatabase } from "../src/database/sqlite.js"
 import type { Database } from "../src/database/types.js"
 import { configure, type SolidObjectsRuntime } from "../src/runtime.js"
@@ -40,6 +41,18 @@ class DatabaseActor extends Actor {
   writeOutsideFence(): void {
     this.commitAction("writeExternalRecord", { value: "escaped" })
   }
+}
+
+class ActivatingDatabaseActor extends Actor {
+  static override readonly actorType = "ActivatingDatabaseActor"
+
+  protected override async onActivate(): Promise<void> {
+    await applicationDatabase.connection((connection) =>
+      connection.run("UPDATE records SET value = 'unsafe' WHERE id = 1"),
+    )
+  }
+
+  run(): void {}
 }
 
 afterEach(async () => {
@@ -132,6 +145,20 @@ describe("guarded application database", () => {
 
     await expect(DatabaseActor.ref("projected").read()).resolves.toBe("initial")
     expect(send).toHaveBeenCalledOnce()
+  })
+
+  it("returns the message to ready when activation writes outside actor state", async () => {
+    await configureDatabases()
+    runtime?.register(ActivatingDatabaseActor)
+    const message = await ActivatingDatabaseActor.ref("activation").send.run()
+
+    await expect(message.wait()).rejects.toBeInstanceOf(ApplicationWriteForbidden)
+
+    expect(await message.status()).toBe("ready")
+    const record = await applicationDatabase.connection((connection) =>
+      connection.get<{ value: string }>("SELECT value FROM records WHERE id = 1"),
+    )
+    expect(record?.value).toBe("initial")
   })
 })
 

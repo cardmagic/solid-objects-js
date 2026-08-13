@@ -33,6 +33,10 @@
   never bypasses claim membership or the commit fence, failed turns restore
   their public fields before reuse, and conditional release cannot clear a
   newer owner or generation.
+- Actor setup completes before an attempt begins. A hydration, migration, or
+  activation failure atomically restores ready membership, releases its
+  activation fence, and restores the attempt count; an awaiting caller receives
+  the setup error.
 - `guardApplicationDatabase()` rejects direct application writes during actor
   operations, observable and payload projections, and state migrations. It
   permits only `SELECT` through row-returning methods. Commit actions remain in

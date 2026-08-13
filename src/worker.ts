@@ -1,6 +1,11 @@
 import { randomUUID } from "node:crypto"
 import type { Actor } from "./actor.js"
-import { LostActivation } from "./errors.js"
+import {
+  ActorSetupFailed,
+  ApplicationWriteForbidden,
+  LostActivation,
+  StateMigrationError,
+} from "./errors.js"
 import type { ActivationLease, ClaimedTurn } from "./records.js"
 import type { SolidObjectsRuntime } from "./runtime.js"
 
@@ -17,7 +22,10 @@ export class Worker {
   private stopping = false
   private readonly activations = new Map<string, CachedActivation>()
 
-  constructor(private readonly runtime: SolidObjectsRuntime) {}
+  constructor(
+    private readonly runtime: SolidObjectsRuntime,
+    private readonly options: { setupFailure?: "report" | "throw" } = {},
+  ) {}
 
   async runOnce(options: { activationRetention?: "retain" | "release" } = {}): Promise<number> {
     try {
@@ -32,7 +40,17 @@ export class Worker {
       const passStartedAt = performance.now()
       let passExhausted = false
       while (turn) {
-        const execution = await this.runtime.executeTurn(turn, cached?.actor)
+        let execution
+        try {
+          execution = await this.runtime.executeTurn(turn, cached?.actor)
+        } catch (error) {
+          if (!(error instanceof ActorSetupFailed)) throw error
+          await this.releaseFailedSetup(turn)
+          if (this.options.setupFailure === "throw") throw error.setupError
+          if (!isControlledSetupFailure(error.setupError)) throw error.setupError
+          this.reportSetupFailure(turn, error.setupError)
+          return processed
+        }
         processed += 1
         if (!execution.retainActivation || !execution.actor) {
           await this.releaseActivation({
@@ -197,6 +215,39 @@ export class Worker {
     this.activations.delete(options.turn.instance.id)
     await this.runtime.deactivateActor(options)
   }
+
+  private async releaseFailedSetup(turn: ClaimedTurn): Promise<void> {
+    try {
+      await this.runtime.repository.releaseFailedTurnSetup(turn)
+    } catch (error) {
+      if (!(error instanceof LostActivation)) throw error
+    }
+  }
+
+  private reportSetupFailure(turn: ClaimedTurn, error: unknown): void {
+    const errorName = error instanceof Error ? error.name : "Error"
+    this.runtime.emitInstrumentation("worker.setup_failed", {
+      actorType: turn.message.actor_type,
+      actorId: turn.message.actor_id,
+      operation: turn.message.operation,
+      errorName,
+    })
+    this.runtime.settings.logger.error({
+      event: "solid_objects.worker.setup_failed",
+      actorType: turn.message.actor_type,
+      actorId: turn.message.actor_id,
+      operation: turn.message.operation,
+      errorName,
+    })
+  }
+}
+
+function isControlledSetupFailure(error: unknown): boolean {
+  return (
+    error instanceof StateMigrationError ||
+    error instanceof ApplicationWriteForbidden ||
+    error instanceof LostActivation
+  )
 }
 
 function activationLease(turn: ClaimedTurn): ActivationLease {

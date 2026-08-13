@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Return claimed messages to ready membership without consuming an attempt when
+  actor hydration, state migration, or activation fails before execution begins.
 - Keep guarded application databases read-only during commit actions so the
   supplied fenced transaction connection is the only atomic write path.
 - Persist the start of graceful runtime-role shutdown and expose its timestamp

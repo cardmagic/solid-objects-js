@@ -61,6 +61,11 @@ export class MessageFailed extends SolidObjectsError {
   }
 }
 export class StateMigrationError extends NonRetryableError {}
+export class ActorSetupFailed extends SolidObjectsError {
+  constructor(readonly setupError: unknown) {
+    super("actor setup failed", { cause: setupError })
+  }
+}
 export class ActorCallCycle extends NonRetryableError {}
 export class QueryMutatedState extends NonRetryableError {}
 export class ApplicationWriteForbidden extends NonRetryableError {}

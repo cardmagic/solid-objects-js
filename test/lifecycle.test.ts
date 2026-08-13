@@ -1,6 +1,8 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
 import { Actor } from "../src/actor.js"
 import type { SolidObjectsConfiguration } from "../src/configuration.js"
+import { StateMigrationError } from "../src/errors.js"
+import type { JsonObject } from "../src/types.js"
 import { configure, type SolidObjectsRuntime } from "../src/runtime.js"
 import { sqlite } from "../src/database/sqlite.js"
 
@@ -97,6 +99,29 @@ class SlowDeactivationActor extends Actor {
   }
 }
 
+class MigratingActor extends Actor {
+  static override readonly actorType = "MigratingActor"
+  static override readonly stateVersion = 2
+  static migrationFails = true
+  static override readonly migrations = [
+    {
+      from: 1,
+      to: 2,
+      migrate: (state: JsonObject): JsonObject => {
+        if (MigratingActor.migrationFails) throw new Error("broken migration")
+        return state
+      },
+    },
+  ]
+
+  count = 0
+
+  increment(): number {
+    this.count += 1
+    return this.count
+  }
+}
+
 let runtime: SolidObjectsRuntime | undefined
 
 afterEach(async () => {
@@ -108,6 +133,7 @@ afterEach(async () => {
   FailingLifecycleActor.activationFailure = false
   SlowDeactivationActor.deactivationStarted = () => {}
   SlowDeactivationActor.deactivationFinished = Promise.resolve()
+  MigratingActor.migrationFails = true
 })
 
 describe("runtime lifecycle", () => {
@@ -171,6 +197,70 @@ describe("runtime lifecycle", () => {
     expect(await runtime.processes.all()).toEqual([
       expect.objectContaining({ id: worker.processId, shutdownState: "stopped" }),
     ])
+  })
+
+  it("returns a message to ready when actor hydration fails", async () => {
+    const logger = { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() }
+    runtime = configuredRuntime({ logger })
+    runtime.register(MigratingActor)
+    await runtime.install()
+    const message = await MigratingActor.ref("migration").send.increment()
+    await runtime.settings.database.connection((connection) =>
+      connection.run(
+        `UPDATE ${runtime?.repository.table("instances")} SET state_version = 1
+         WHERE actor_type = ? AND actor_id = ?`,
+        [MigratingActor.actorType, "migration"],
+      ),
+    )
+    const worker = runtime.worker()
+
+    expect(await worker.runOnce()).toBe(0)
+
+    expect(await message.status()).toBe("ready")
+    const failedSetup = await runtime.settings.database.connection(async (connection) => ({
+      instance: await connection.get<{ activation_owner_id: string | null }>(
+        `SELECT activation_owner_id FROM ${runtime?.repository.table("instances")}
+         WHERE actor_type = ? AND actor_id = ?`,
+        [MigratingActor.actorType, "migration"],
+      ),
+      message: await connection.get<{ attempt_count: number | bigint }>(
+        `SELECT attempt_count FROM ${runtime?.repository.table("messages")} WHERE id = ?`,
+        [message.id],
+      ),
+    }))
+    expect(failedSetup.instance?.activation_owner_id).toBeNull()
+    expect(Number(failedSetup.message?.attempt_count)).toBe(0)
+    expect(logger.error).toHaveBeenCalledWith(
+      expect.objectContaining({
+        event: "solid_objects.worker.setup_failed",
+        errorName: "StateMigrationError",
+      }),
+    )
+
+    MigratingActor.migrationFails = false
+    expect(await worker.runOnce()).toBe(1)
+    await expect(message.result()).resolves.toBe(1)
+    await worker.stop()
+  })
+
+  it("surfaces actor hydration failure to a waiting caller without consuming an attempt", async () => {
+    runtime = configuredRuntime()
+    runtime.register(MigratingActor)
+    await runtime.install()
+    const message = await MigratingActor.ref("caller-migration").send.increment()
+    await runtime.settings.database.connection((connection) =>
+      connection.run(
+        `UPDATE ${runtime?.repository.table("instances")} SET state_version = 1
+         WHERE actor_type = ? AND actor_id = ?`,
+        [MigratingActor.actorType, "caller-migration"],
+      ),
+    )
+
+    await expect(message.wait()).rejects.toThrow(StateMigrationError)
+
+    expect(await message.status()).toBe("ready")
+    const stored = await runtime.repository.findMessage(message.id)
+    expect(Number(stored?.attempt_count)).toBe(0)
   })
 
   it("does not start workers for an already-aborted signal", async () => {
@@ -566,13 +656,13 @@ describe("runtime lifecycle", () => {
     FailingLifecycleActor.activationFailure = true
     const activationFailure = await FailingLifecycleActor.ref("activate").send.work()
 
-    expect(await runtime.worker().runUntilIdle()).toBe(1)
-    await expect(activationFailure.result()).rejects.toMatchObject({
-      details: { message: "activation failed" },
-    })
+    await expect(runtime.worker().runUntilIdle()).rejects.toThrow("activation failed")
+    expect(await activationFailure.status()).toBe("ready")
+    const stored = await runtime.repository.findMessage(activationFailure.id)
+    expect(Number(stored?.attempt_count)).toBe(0)
 
     FailingLifecycleActor.activationFailure = false
-    expect(await FailingLifecycleActor.ref("deactivate").work()).toBe("done")
+    await expect(activationFailure.wait()).resolves.toBe("done")
     const owners = await runtime.settings.database.connection((connection) =>
       connection.all<{ activation_owner_id: string | null }>(
         `SELECT activation_owner_id FROM ${runtime?.repository.table("instances")}

@@ -27,6 +27,7 @@ import {
 } from "./definition.js"
 import {
   ActorCallCycle,
+  ActorSetupFailed,
   ActorDestroyed,
   DatabaseDeadlineExceeded,
   InvalidPayloadBroadcast,
@@ -433,7 +434,7 @@ export class SolidObjectsRuntime {
     messageReference: MessageReference<Result>,
     options: { timeout: number; deadline: number },
   ): Promise<DeepReadonly<Result>> {
-    this.callerWorker ??= new Worker(this)
+    this.callerWorker ??= new Worker(this, { setupFailure: "throw" })
     while (performance.now() < options.deadline) {
       let snapshot: { message: MessageRow | undefined; status: MessageStatus }
       try {
@@ -1061,22 +1062,28 @@ export class SolidObjectsRuntime {
     turn: ClaimedTurn,
     cachedActor?: Actor,
   ): Promise<{ actor: Actor; retainActivation: boolean; activated: boolean }> {
-    const startedAt = Date.now()
-    this.emitInstrumentation("message.started", messageInstrumentation(turn.message))
-    const registered = this.fetchActor(turn.message.actor_type)
-    const definition = registered.definition
-    const state = migrateState({
-      definition,
-      storedVersion: Number(turn.instance.state_version),
-      storedState: jsonObject(JSON.parse(turn.instance.state)),
-    })
-    const actor =
-      cachedActor ??
-      hydrateActor({
+    let registered: RegisteredActor
+    let state: JsonObject
+    let actor: Actor
+    try {
+      registered = this.fetchActor(turn.message.actor_type)
+      const definition = registered.definition
+      state = migrateState({
         definition,
-        actorId: turn.message.actor_id,
-        state: deepCopy(state),
+        storedVersion: Number(turn.instance.state_version),
+        storedState: jsonObject(JSON.parse(turn.instance.state)),
       })
+      actor =
+        cachedActor ??
+        hydrateActor({
+          definition,
+          actorId: turn.message.actor_id,
+          state: deepCopy(state),
+        })
+    } catch (error) {
+      throw new ActorSetupFailed(error)
+    }
+    const definition = registered.definition
     let activated = cachedActor !== undefined
     const messageContext = actorMessageContext(turn.message)
     const renewalController = new AbortController()
@@ -1086,8 +1093,8 @@ export class SolidObjectsRuntime {
     })
     let stateBefore: JsonObject | undefined
 
-    try {
-      if (!activated) {
+    if (!activated) {
+      try {
         await withActorContext({ actor, runtime: this }, () => actor.activate())
         activated = true
         this.emitInstrumentation("activation.started", {
@@ -1096,7 +1103,17 @@ export class SolidObjectsRuntime {
           instanceId: turn.instance.id,
           generation: String(turn.activationGeneration),
         })
+      } catch (error) {
+        renewalController.abort()
+        await renewal
+        actor.discardIntents()
+        throw new ActorSetupFailed(renewalError ?? error)
       }
+    }
+
+    const startedAt = Date.now()
+    this.emitInstrumentation("message.started", messageInstrumentation(turn.message))
+    try {
       const oldObservables = this.readObservables(actor, definition)
       stateBefore = deepCopy(actorState(actor, definition.stateKeys))
       const before = stableJson(stateBefore)

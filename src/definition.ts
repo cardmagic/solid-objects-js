@@ -1,6 +1,6 @@
 import { Actor, type ActorClass } from "./actor.js"
 import { withApplicationWritesForbidden } from "./context.js"
-import { InvalidActor, StateMigrationError } from "./errors.js"
+import { ApplicationWriteForbidden, InvalidActor, StateMigrationError } from "./errors.js"
 import { deepCopy, jsonObject, normalizeJson } from "./serialization.js"
 import type { JsonObject } from "./types.js"
 
@@ -152,20 +152,29 @@ export function migrateState(options: {
     )
   }
 
-  let state = deepCopy(storedState)
-  let version = storedVersion
-  while (version < definition.stateVersion) {
-    const migration = definition.migrations.find((candidate) => candidate.from === version)
-    if (!migration) throw new StateMigrationError(`missing state migration from version ${version}`)
-    state = jsonObject(withApplicationWritesForbidden(() => migration.migrate(deepCopy(state))))
-    version = migration.to
-  }
+  try {
+    let state = deepCopy(storedState)
+    let version = storedVersion
+    while (version < definition.stateVersion) {
+      const migration = definition.migrations.find((candidate) => candidate.from === version)
+      if (!migration)
+        throw new StateMigrationError(`missing state migration from version ${version}`)
+      state = jsonObject(withApplicationWritesForbidden(() => migration.migrate(deepCopy(state))))
+      version = migration.to
+    }
 
-  const defaults = initialStateFor(definition)
-  for (const [key, value] of Object.entries(defaults)) {
-    if (!(key in state)) state[key] = normalizeJson(value)
+    const defaults = initialStateFor(definition)
+    for (const [key, value] of Object.entries(defaults)) {
+      if (!(key in state)) state[key] = normalizeJson(value)
+    }
+    return state
+  } catch (error) {
+    if (error instanceof StateMigrationError || error instanceof ApplicationWriteForbidden) {
+      throw error
+    }
+    const message = error instanceof Error ? error.message : String(error)
+    throw new StateMigrationError(`state migration failed: ${message}`, { cause: error })
   }
-  return state
 }
 
 function actorPrototypeNames(): Set<string> {

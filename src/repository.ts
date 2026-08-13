@@ -484,6 +484,46 @@ export class Repository {
     })
   }
 
+  async releaseFailedTurnSetup(turn: ClaimedTurn): Promise<void> {
+    await this.settings.database.transaction(async (connection) => {
+      const now = await connection.nowMilliseconds()
+      const released = await connection.run(
+        `UPDATE ${this.table("instances")}
+         SET activation_owner_id = NULL, activation_token = NULL,
+           activation_expires_at_ms = NULL, updated_at_ms = ?
+         WHERE id = ? AND activation_owner_id = ? AND activation_token = ?
+           AND activation_generation = ?`,
+        [now, turn.instance.id, turn.processId, turn.activationToken, turn.activationGeneration],
+      )
+      if (released.changes !== 1) throw new LostActivation("activation fence no longer matches")
+      const removed = await connection.run(
+        `DELETE FROM ${this.table("claimed_messages")}
+         WHERE message_id = ? AND instance_id = ? AND process_id = ? AND activation_token = ?
+           AND activation_generation = ?`,
+        [
+          turn.message.id,
+          turn.instance.id,
+          turn.processId,
+          turn.activationToken,
+          turn.activationGeneration,
+        ],
+      )
+      if (removed.changes !== 1) throw new LostActivation("message claim no longer matches")
+      const restored = await connection.run(
+        `INSERT INTO ${this.table("ready_messages")}
+         (message_id, instance_id, sequence, available_at_ms)
+         VALUES (?, ?, ?, ?) ON CONFLICT(message_id) DO NOTHING`,
+        [turn.message.id, turn.instance.id, turn.message.sequence, now],
+      )
+      if (restored.changes !== 1) throw new LostActivation("ready membership could not be restored")
+      await connection.run(
+        `UPDATE ${this.table("messages")}
+         SET attempt_count = attempt_count - 1, updated_at_ms = ? WHERE id = ?`,
+        [now, turn.message.id],
+      )
+    })
+  }
+
   async renewActivation(activation: ActivationLease): Promise<void> {
     await this.settings.database.transaction(async (connection) => {
       const now = await connection.nowMilliseconds()

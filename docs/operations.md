@@ -149,8 +149,9 @@ instances, and process records and replaces the cached synchronous caller.
 The optional `instrumentation` callback receives immutable events with the
 `solid_objects.` prefix. Core events cover runtime lifecycle, message
 enqueue/start/completion/rejection/failure, activation loss, commit actions,
-effects, reminders, broadcasts, dead letters, actor destruction, and retention
-pruning. Failed realtime delivery emits `subscription.delivery_failed` and
+effects, reminders, broadcasts, dead letters, worker setup failures, actor
+destruction, and retention pruning. Failed realtime delivery emits
+`subscription.delivery_failed` and
 removes that session's actor registration without retrying application socket
 code. Event attributes are restricted to identities, operation or handler
 names, delivery mode, sequence, attempt, outcome, counts, durations, and error
