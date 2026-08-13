@@ -2,9 +2,9 @@ ruby_repository: https://github.com/cardmagic/solid_objects
 ruby_version: 0.12.0
 ruby_commit: a01b6f5
 npm_version: 0.1.0
-status: partial
+status: spiritual_parity
 releases:
-  "0.1.0": partial
+  "0.1.0": spiritual_parity
   "0.2.0": pending
   "0.2.1": pending
   "0.3.0": pending

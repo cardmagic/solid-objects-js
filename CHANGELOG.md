@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Complete the Ruby 0.12.0 spiritual-parity pass with Node-native runtime,
+  administration, realtime, browser, and multi-adapter equivalents.
 - Return claimed messages to ready membership without consuming an attempt when
   actor hydration, state migration, or activation fails before execution begins.
 - Keep guarded application databases read-only during commit actions so the

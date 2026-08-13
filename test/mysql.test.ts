@@ -5,9 +5,11 @@ import { configure, type SolidObjectsRuntime } from "../src/runtime.js"
 import { SyncTimeout } from "../src/errors.js"
 import { DatabaseDeadlineExceeded } from "../src/errors.js"
 import { withDatabaseDeadline } from "../src/database/deadline.js"
+import type { JsonObject } from "../src/types.js"
 
 const connectionString = process.env.SOLID_OBJECTS_DATABASE_URL
 const describeMySQL = connectionString?.startsWith("mysql:") ? describe : describe.skip
+const quietLogger = { debug: () => {}, info: () => {}, warn: () => {}, error: () => {} }
 
 class MySQLWorkflow extends Actor {
   static override readonly actorType = "MySQLWorkflow"
@@ -52,6 +54,29 @@ class MySQLWorkflow extends Actor {
   }
 }
 
+class MySQLMigratingActor extends Actor {
+  static override readonly actorType = "MySQLMigratingActor"
+  static override readonly stateVersion = 2
+  static migrationFails = true
+  static override readonly migrations = [
+    {
+      from: 1,
+      to: 2,
+      migrate: (state: JsonObject): JsonObject => {
+        if (MySQLMigratingActor.migrationFails) throw new Error("broken migration")
+        return state
+      },
+    },
+  ]
+
+  count = 0
+
+  increment(): number {
+    this.count += 1
+    return this.count
+  }
+}
+
 let runtime: SolidObjectsRuntime | undefined
 let database: MySQLDatabase | undefined
 
@@ -64,6 +89,7 @@ afterEach(async () => {
     runtime = undefined
     database = undefined
     MySQLWorkflow.activations = 0
+    MySQLMigratingActor.migrationFails = true
   }
 })
 
@@ -187,6 +213,40 @@ describeMySQL("MySQL adapter", () => {
       ]),
     )
   }, 15_000)
+
+  it("restores failed actor setup without consuming an attempt", async () => {
+    if (!connectionString) throw new Error("MySQL connection string is required")
+    database = mysql({ connectionString, maximumConnections: 5 })
+    runtime = configure({
+      database,
+      tableNamePrefix: "mysql_test_",
+      authorizeMessage: () => true,
+      authorizeQuery: () => true,
+      authorizeDestroy: () => true,
+      logger: quietLogger,
+    })
+    runtime.register(MySQLMigratingActor)
+    await runtime.install()
+    const message = await MySQLMigratingActor.ref("migration").send.increment()
+    await database.connection((connection) =>
+      connection.run(
+        `UPDATE ${runtime?.repository.table("instances")} SET state_version = 1
+         WHERE actor_type = ? AND actor_id = ?`,
+        [MySQLMigratingActor.actorType, "migration"],
+      ),
+    )
+    const worker = runtime.worker()
+
+    expect(await worker.runOnce()).toBe(0)
+
+    expect(await message.status()).toBe("ready")
+    const stored = await runtime.repository.findMessage(message.id)
+    expect(Number(stored?.attempt_count)).toBe(0)
+    MySQLMigratingActor.migrationFails = false
+    expect(await worker.runOnce()).toBe(1)
+    await expect(message.result()).resolves.toBe(1)
+    await worker.stop()
+  })
 })
 
 function mysqlTimeoutSettings(database: MySQLDatabase) {

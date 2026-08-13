@@ -12,9 +12,11 @@ import type { RealtimeEnvelope } from "../src/browser/index.js"
 import { SyncTimeout } from "../src/errors.js"
 import { DatabaseDeadlineExceeded } from "../src/errors.js"
 import { withDatabaseDeadline } from "../src/database/deadline.js"
+import type { JsonObject } from "../src/types.js"
 
 const connectionString = process.env.SOLID_OBJECTS_DATABASE_URL
 const describePostgreSQL = connectionString?.startsWith("postgresql:") ? describe : describe.skip
+const quietLogger = { debug: () => {}, info: () => {}, warn: () => {}, error: () => {} }
 
 class PostgreSQLCounter extends Actor {
   static override readonly actorType = "PostgreSQLCounter"
@@ -69,6 +71,29 @@ class PostgreSQLWorkflow extends Actor {
   }
 }
 
+class PostgreSQLMigratingActor extends Actor {
+  static override readonly actorType = "PostgreSQLMigratingActor"
+  static override readonly stateVersion = 2
+  static migrationFails = true
+  static override readonly migrations = [
+    {
+      from: 1,
+      to: 2,
+      migrate: (state: JsonObject): JsonObject => {
+        if (PostgreSQLMigratingActor.migrationFails) throw new Error("broken migration")
+        return state
+      },
+    },
+  ]
+
+  count = 0
+
+  increment(): number {
+    this.count += 1
+    return this.count
+  }
+}
+
 let runtime: SolidObjectsRuntime | undefined
 let database: PostgreSQLDatabase | undefined
 let wakeUps: PostgreSQLWakeUpAdapter[] = []
@@ -84,6 +109,7 @@ afterEach(async () => {
     database = undefined
     wakeUps = []
     PostgreSQLCounter.activations = 0
+    PostgreSQLMigratingActor.migrationFails = true
   }
 })
 
@@ -274,6 +300,40 @@ describePostgreSQL("PostgreSQL adapter", () => {
         expect.objectContaining({ name: "roundTrip", status: "pass" }),
       ]),
     )
+  })
+
+  it("restores failed actor setup without consuming an attempt", async () => {
+    if (!connectionString) throw new Error("PostgreSQL connection string is required")
+    database = postgresql({ connectionString, maximumConnections: 5 })
+    runtime = configure({
+      database,
+      tableNamePrefix: "postgresql_test_",
+      authorizeMessage: () => true,
+      authorizeQuery: () => true,
+      authorizeDestroy: () => true,
+      logger: quietLogger,
+    })
+    runtime.register(PostgreSQLMigratingActor)
+    await runtime.install()
+    const message = await PostgreSQLMigratingActor.ref("migration").send.increment()
+    await database.connection((connection) =>
+      connection.run(
+        `UPDATE ${runtime?.repository.table("instances")} SET state_version = 1
+         WHERE actor_type = ? AND actor_id = ?`,
+        [PostgreSQLMigratingActor.actorType, "migration"],
+      ),
+    )
+    const worker = runtime.worker()
+
+    expect(await worker.runOnce()).toBe(0)
+
+    expect(await message.status()).toBe("ready")
+    const stored = await runtime.repository.findMessage(message.id)
+    expect(Number(stored?.attempt_count)).toBe(0)
+    PostgreSQLMigratingActor.migrationFails = false
+    expect(await worker.runOnce()).toBe(1)
+    await expect(message.result()).resolves.toBe(1)
+    await worker.stop()
   })
 
   it("runs outboxes, reconciliation, and retention on PostgreSQL", async () => {

@@ -6,6 +6,14 @@ not copying a Rails API into Node.
 
 Reference: Ruby `solid_objects` 0.12.0 at commit `a01b6f5`.
 
+The Node `0.1.0` implementation has spiritual parity with that reference. Its
+relational runtime, correctness boundaries, administration, diagnostics,
+realtime projections, browser behavior, and supported adapters have native
+equivalents. Rails engine and rendering surfaces are intentionally replaced by
+transport- and framework-neutral JavaScript APIs. The partial guard row and the
+shared planned result-lookup row below are explicit scope boundaries, not
+missing Ruby capabilities.
+
 ## Status vocabulary
 
 - **Native**: the TypeScript runtime provides the capability in a Node-native
