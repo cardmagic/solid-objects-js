@@ -1,12 +1,17 @@
 import { DatabaseSync } from "node:sqlite"
 import type { Database, DatabaseConnection, RunResult } from "./types.js"
-import { databaseDeadlineError, requireDatabaseDeadlineRemaining } from "./deadline.js"
+import {
+  databaseDeadlineError,
+  databaseDeadlineRemainingMilliseconds,
+  requireDatabaseDeadlineRemaining,
+} from "./deadline.js"
 import { DatabaseDeadlineExceeded } from "../errors.js"
 import { databaseTransactionActive, withDatabaseTransaction } from "./transaction-context.js"
 
 export interface SQLiteDatabaseOptions {
   path: string
   timeoutMilliseconds?: number
+  lockRetryAttempts?: number
 }
 
 class SQLiteConnection implements DatabaseConnection {
@@ -50,9 +55,14 @@ export class SQLiteDatabase implements Database {
   private accessTail: Promise<void> = Promise.resolve()
   private closed = false
   private readonly timeoutMilliseconds: number
+  private readonly lockRetryAttempts: number
 
   constructor(options: SQLiteDatabaseOptions) {
     this.timeoutMilliseconds = options.timeoutMilliseconds ?? 5_000
+    this.lockRetryAttempts = options.lockRetryAttempts ?? 10
+    if (!Number.isSafeInteger(this.lockRetryAttempts) || this.lockRetryAttempts < 1) {
+      throw new TypeError("lockRetryAttempts must be a positive safe integer")
+    }
     this.database = new DatabaseSync(options.path, {
       timeout: this.timeoutMilliseconds,
       readBigInts: true,
@@ -70,19 +80,7 @@ export class SQLiteDatabase implements Database {
   async transaction<Result>(
     callback: (connection: DatabaseConnection) => Promise<Result>,
   ): Promise<Result> {
-    return withDatabaseTransaction(this, () =>
-      this.withAccess(async () => {
-        this.database.exec("BEGIN IMMEDIATE")
-        try {
-          const result = await callback(this.databaseConnection)
-          this.database.exec("COMMIT")
-          return result
-        } catch (error) {
-          this.database.exec("ROLLBACK")
-          throw error
-        }
-      }),
-    )
+    return withDatabaseTransaction(this, () => this.withAccess(() => this.runTransaction(callback)))
   }
 
   transactionActive(): boolean {
@@ -135,6 +133,35 @@ export class SQLiteDatabase implements Database {
       this.database.exec(`PRAGMA busy_timeout = ${this.timeoutMilliseconds}`)
     }
   }
+
+  private async runTransaction<Result>(
+    callback: (connection: DatabaseConnection) => Promise<Result>,
+  ): Promise<Result> {
+    await this.beginTransactionWithRetry()
+    try {
+      const result = await callback(this.databaseConnection)
+      this.database.exec("COMMIT")
+      return result
+    } catch (error) {
+      this.database.exec("ROLLBACK")
+      throw error
+    }
+  }
+
+  private async beginTransactionWithRetry(): Promise<void> {
+    let retries = 0
+    while (true) {
+      try {
+        this.database.exec("BEGIN IMMEDIATE")
+        return
+      } catch (error) {
+        if (databaseDeadlineRemainingMilliseconds() !== undefined) throw error
+        if (!sqliteBusyError(error) || retries >= this.lockRetryAttempts) throw error
+        retries += 1
+        await waitForRetry(retries)
+      }
+    }
+  }
 }
 
 function waitForAccess(access: Promise<void>, timeoutMilliseconds: number): Promise<void> {
@@ -154,6 +181,11 @@ function waitForAccess(access: Promise<void>, timeoutMilliseconds: number): Prom
       },
     )
   })
+}
+
+function waitForRetry(attempt: number): Promise<void> {
+  const milliseconds = Math.min(2 ** (attempt - 1), 250)
+  return new Promise((resolve) => setTimeout(resolve, milliseconds))
 }
 
 export function sqlite(options: SQLiteDatabaseOptions): SQLiteDatabase {

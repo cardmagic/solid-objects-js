@@ -106,7 +106,11 @@ import { sqlite } from "solid-objects/database/sqlite"
 import { Counter } from "./counter.js"
 
 const runtime = configure({
-  database: sqlite({ path: "storage/solid-objects.sqlite3" }),
+  database: sqlite({
+    path: "storage/solid-objects.sqlite3",
+    timeoutMilliseconds: 5_000,
+    lockRetryAttempts: 10,
+  }),
   authorizeMessage: ({ authorizationContext }) => authorizationContext !== undefined,
   authorizeQuery: ({ authorizationContext }) => authorizationContext !== undefined,
   authorizeDestroy: ({ authorizationContext }) => authorizationContext !== undefined,
@@ -123,6 +127,11 @@ process.once("SIGTERM", () => shutdown.abort())
 process.once("SIGINT", () => shutdown.abort())
 await runtime.run(shutdown.signal)
 ```
+
+SQLite serializes access inside one Node process. Across processes, it uses the
+native busy timeout and retries transient `BEGIN IMMEDIATE` contention with
+short capped backoff. `lockRetryAttempts` bounds those retries; synchronous
+invocations remain bounded by their end-to-end `timeoutMilliseconds` deadline.
 
 `configure()` installs this runtime as the default used by `Actor.ref()`. Use
 `createRuntime()` when an application needs an isolated runtime and address its

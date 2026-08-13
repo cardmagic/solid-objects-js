@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Retry transient SQLite writer acquisition with bounded capped backoff without
+  replaying transaction callbacks or extending synchronous deadlines.
 - Expose concise `configure()` and isolated `createRuntime()` entry points;
   isolated actor turns resolve references from their executing runtime.
 - Raise structured `MessageFailed` errors for terminal operations and

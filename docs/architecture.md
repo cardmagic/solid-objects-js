@@ -38,11 +38,13 @@ enqueue transaction when InnoDB chooses it as a deadlock victim. Every adapter
 uses database time and the same fencing predicates.
 
 Synchronous invocation carries a monotonic deadline into adapter operations.
-SQLite bounds its process-local access queue and busy timeout. PostgreSQL bounds
-pool checkout and installs statement and lock timeouts. MySQL bounds pool
-checkout and client queries and installs transaction execution and lock-wait
-limits. A deadline before enqueue commit produces no durable message. After
-commit, timeout diagnostics retain the message reference for later recovery.
+SQLite bounds its process-local access queue and busy timeout. Outside a caller
+deadline, it retries only acquisition of a failed `BEGIN IMMEDIATE`; it never
+replays a transaction callback. PostgreSQL bounds pool checkout and installs
+statement and lock timeouts. MySQL bounds pool checkout and client queries and
+installs transaction execution and lock-wait limits. A deadline before enqueue
+commit produces no durable message. After commit, timeout diagnostics retain
+the message reference for later recovery.
 Already-running JavaScript actor code is cooperative rather than forcefully
 preempted; leases and fenced commits remain authoritative if it outlives the
 caller's wait.
