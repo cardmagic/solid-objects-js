@@ -29,6 +29,7 @@ export interface InvalidationEnvelope extends ActorIdentity {
   instanceId: string
   revision: string
   observables: DeepReadonly<JsonObject>
+  invalidations?: readonly string[]
 }
 
 export interface PayloadEnvelope extends ActorIdentity {
@@ -152,6 +153,7 @@ export function parseInvalidation(value: unknown): InvalidationEnvelope {
     instanceId,
     revision,
     observables: normalizeJsonObject(parsed.observables),
+    invalidations: normalizeInvalidations(parsed.invalidations),
   })
 }
 
@@ -243,6 +245,12 @@ function normalizePayloadNames(values: readonly string[] | undefined): readonly 
   }
   const names = values.map((value) => requiredString(value, "payload name"))
   return Object.freeze([...new Set(names)])
+}
+
+function normalizeInvalidations(value: unknown): readonly string[] {
+  if (value === undefined) return Object.freeze([])
+  if (!Array.isArray(value)) throw new TypeError("invalidation names must be an array")
+  return Object.freeze([...new Set(value.map((name) => requiredString(name, "invalidation name")))])
 }
 
 function normalizeJsonValue(options: { value: unknown; depth: number }): DeepReadonly<JsonValue> {

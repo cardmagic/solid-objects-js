@@ -9,8 +9,28 @@ import {
   type ScheduledOperations,
   type StagedOperations,
 } from "./reference.js"
-import { jsonObject } from "./serialization.js"
+import { jsonObject, normalizeJson } from "./serialization.js"
 import type { ActorIdentifier, JsonObject, JsonValue, MessageContext } from "./types.js"
+
+const observableBroadcastMode = Symbol("solid-objects.observable-broadcast-mode")
+
+export type ObservableBroadcast<Value> = Readonly<{
+  value: Value
+  [observableBroadcastMode]: "invalidation" | "value"
+}>
+
+export interface ObservableProjection {
+  values: JsonObject
+  modes: Readonly<Record<string, "invalidation" | "value">>
+}
+
+export function broadcastInvalidation<Value>(value: Value): ObservableBroadcast<Value> {
+  return Object.freeze({ value, [observableBroadcastMode]: "invalidation" })
+}
+
+export function broadcastValue<Value>(value: Value): ObservableBroadcast<Value> {
+  return Object.freeze({ value, [observableBroadcastMode]: "value" })
+}
 
 export type PayloadBroadcastValue = JsonObject | JsonValue[]
 
@@ -222,8 +242,15 @@ export abstract class Actor {
   }
 
   /** @internal */
-  observableValues(): JsonObject {
-    return jsonObject(this.observables())
+  observableValues(): ObservableProjection {
+    const values: JsonObject = {}
+    const modes: Record<string, "invalidation" | "value"> = {}
+    for (const [name, configured] of Object.entries(this.observables())) {
+      const marked = observableBroadcast(configured)
+      values[name] = normalizeJson(marked.value)
+      modes[name] = marked.mode
+    }
+    return { values, modes: Object.freeze(modes) }
   }
 
   /** @internal */
@@ -250,4 +277,15 @@ export abstract class Actor {
   intentCount(): number {
     return Object.values(this.#intents).reduce((count, intents) => count + intents.length, 0)
   }
+}
+
+function observableBroadcast(value: unknown): {
+  value: unknown
+  mode: "invalidation" | "value"
+} {
+  if (typeof value !== "object" || value === null || !(observableBroadcastMode in value)) {
+    return { value, mode: "value" }
+  }
+  const marked = value as ObservableBroadcast<unknown>
+  return { value: marked.value, mode: marked[observableBroadcastMode] }
 }

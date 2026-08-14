@@ -1,4 +1,4 @@
-import type { Actor, ActorClass } from "./actor.js"
+import type { Actor, ActorClass, ObservableProjection } from "./actor.js"
 import { BroadcastWorker } from "./broadcast-worker.js"
 import {
   buildSettings,
@@ -747,7 +747,7 @@ export class SolidObjectsRuntime {
       actorId: options.actorId,
       instanceId: instance?.id ?? "0",
       revision: String(instance?.state_revision ?? 0),
-      observables: this.readObservables(actor, registered.definition),
+      ...broadcastProjection(this.readObservables(actor, registered.definition)),
     })
   }
 
@@ -1141,15 +1141,16 @@ export class SolidObjectsRuntime {
         maxBytes: this.settings.maxStateBytes,
       })
       const observables = this.readObservables(actor, definition)
-      const changedObservables = Object.fromEntries(
-        Object.entries(observables).filter(
-          ([name, value]) => stableJson(value) !== stableJson(oldObservables[name]),
-        ),
+      const changedObservableNames = Object.keys(observables.values).filter(
+        (name) =>
+          stableJson(observables.values[name]) !== stableJson(oldObservables.values[name]) ||
+          observables.modes[name] !== oldObservables.modes[name],
       )
-      const broadcastObservables =
-        Object.keys(changedObservables).length > 0 ||
+      const changedProjection = selectBroadcastProjection(observables, changedObservableNames)
+      const broadcastProjectionValue =
+        changedObservableNames.length > 0 ||
         (Object.keys(definition.payloads).length > 0 && stableJson(committedState) !== before)
-          ? changedObservables
+          ? changedProjection
           : undefined
       renewalController.abort()
       await renewal
@@ -1159,7 +1160,9 @@ export class SolidObjectsRuntime {
         state: committedState,
         stateVersion: definition.stateVersion,
         result,
-        ...(broadcastObservables === undefined ? {} : { broadcastObservables }),
+        ...(broadcastProjectionValue === undefined
+          ? {}
+          : { broadcastProjection: broadcastProjectionValue }),
         intents,
         executeCommitAction: async (intent, connection) => {
           const handler = this.commitActions.get(intent.name)
@@ -1195,7 +1198,7 @@ export class SolidObjectsRuntime {
       if (intents.outboundMessages.length > 0) this.wakeUp("actors")
       if (intents.effects.length > 0) this.wakeUp("effects")
       if (intents.reminders.length > 0) this.wakeUp("reminders")
-      if (broadcastObservables !== undefined) this.wakeUp("broadcasts")
+      if (broadcastProjectionValue !== undefined) this.wakeUp("broadcasts")
       for (const replacement of completion.reminderReplacements) {
         this.emitInstrumentation("reminder.replaced", {
           reminderId: replacement.reminderId,
@@ -1390,6 +1393,7 @@ export class SolidObjectsRuntime {
         instanceId: broadcast.instance_id,
         revision: String(broadcast.state_revision),
         observables: jsonObject(JSON.parse(broadcast.observables)),
+        invalidations: stringArray(JSON.parse(broadcast.invalidations ?? "[]")),
       })
       await this.realtime.publish(event)
       await deliver?.(event)
@@ -1676,7 +1680,10 @@ export class SolidObjectsRuntime {
     )
   }
 
-  private readObservables(actor: Actor, definition: ValidatedActorDefinition): JsonObject {
+  private readObservables(
+    actor: Actor,
+    definition: ValidatedActorDefinition,
+  ): ObservableProjection {
     const stateBefore = stableJson(actorState(actor, definition.stateKeys))
     const intentCount = actor.intentCount()
     const values = withActorProjection({ actor, runtime: this }, () => actor.observableValues())
@@ -1892,6 +1899,37 @@ export function configure(configuration: SolidObjectsConfiguration): SolidObject
 function parseResult(value: string | null): JsonValue {
   if (value === null) return null
   return normalizeJson(JSON.parse(value))
+}
+
+function selectBroadcastProjection(
+  projection: ObservableProjection,
+  names: readonly string[],
+): { observables: JsonObject; invalidations: string[] } {
+  const observables: JsonObject = {}
+  const invalidations: string[] = []
+  for (const name of names) {
+    if (projection.modes[name] === "invalidation") {
+      invalidations.push(name)
+      continue
+    }
+    const value = projection.values[name]
+    if (value !== undefined) observables[name] = value
+  }
+  return { observables, invalidations }
+}
+
+function broadcastProjection(projection: ObservableProjection): {
+  observables: JsonObject
+  invalidations: string[]
+} {
+  return selectBroadcastProjection(projection, Object.keys(projection.values))
+}
+
+function stringArray(value: unknown): string[] {
+  if (!Array.isArray(value) || value.some((item) => typeof item !== "string")) {
+    throw new TypeError("broadcast invalidations must be an array of strings")
+  }
+  return [...new Set(value)]
 }
 
 function invocationTimeout(options: InvocationOptions): number {

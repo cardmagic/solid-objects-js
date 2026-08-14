@@ -18,9 +18,11 @@ before actor type lookup, so denied callers cannot probe the registry. A new
 connection must use a newly resolved authorization context; do not copy a user
 object from an earlier request or trust an actor ID supplied by the browser.
 
-Successful subscription authorization allows the explicit `observables()`
-projection for that actor, including the immediate committed replay. It does
-not authorize actor state, operations, queries, destruction, or administration.
+Successful subscription authorization allows the value-broadcast portion of
+the explicit `observables()` projection for that actor, including the immediate
+committed replay. Observables marked with `broadcastInvalidation()` disclose
+only their names, not their values. Subscription authorization does not
+authorize actor state, operations, queries, destruction, or administration.
 The runtime removes all registrations when the host calls `session.close()`.
 
 Requested personalized payloads cross both boundaries. The runtime first calls

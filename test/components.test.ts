@@ -63,6 +63,28 @@ describe("SolidObjectsComponentRegistry", () => {
     expect(applications).toEqual(["player-1:rendered:player-1", "controls-1:rendered:controls-1"])
   })
 
+  it("refreshes components from invalidation-only observable names", async () => {
+    const refresh = vi.fn(async () => [])
+    const registry = new SolidObjectsComponentRegistry<string>({ refresh, apply: () => {} })
+    registry.register({
+      actorType: "GameRoom",
+      actorId: "table-1",
+      target: "player-1",
+      name: "player",
+      observes: ["playerOne"],
+    })
+
+    registry.invalidate(
+      invalidation({
+        observables: { version: 2 },
+        invalidations: ["playerOne"],
+      }),
+    )
+    await settle()
+
+    expect(refresh).toHaveBeenCalledOnce()
+  })
+
   it("refreshes unbatched components independently", async () => {
     const refresh = vi.fn(async (request: ComponentRefreshRequest) =>
       request.components.map(({ target }) => ({ target, rendered: target })),
@@ -312,6 +334,7 @@ function invalidation(options: {
   instanceId?: string
   revision?: string
   observables: Record<string, unknown>
+  invalidations?: readonly string[]
 }): InvalidationEnvelope {
   return {
     version: 1,
@@ -321,6 +344,7 @@ function invalidation(options: {
     instanceId: options.instanceId ?? "instance-1",
     revision: options.revision ?? "1",
     observables: options.observables,
+    ...(options.invalidations === undefined ? {} : { invalidations: options.invalidations }),
   } as InvalidationEnvelope
 }
 

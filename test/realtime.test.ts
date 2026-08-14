@@ -1,5 +1,10 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
-import { Actor, type PayloadBroadcasts } from "../src/actor.js"
+import {
+  Actor,
+  broadcastInvalidation,
+  broadcastValue,
+  type PayloadBroadcasts,
+} from "../src/actor.js"
 import type { SolidObjectsConfiguration } from "../src/configuration.js"
 import { sqlite } from "../src/database/sqlite.js"
 import { Unauthorized } from "../src/errors.js"
@@ -21,7 +26,10 @@ class RealtimeCounter extends Actor {
   }
 
   override observables(): Record<string, unknown> {
-    return { count: this.count }
+    return {
+      count: broadcastValue(this.count),
+      privateCount: broadcastInvalidation({ count: this.count, secret: "Black Lotus" }),
+    }
   }
 }
 
@@ -153,7 +161,9 @@ describe("realtime subscriptions", () => {
       actorId: "allowed",
       revision: "1",
       observables: { count: 1 },
+      invalidations: ["privateCount"],
     })
+    expect(JSON.stringify(received[0])).not.toContain("Black Lotus")
     expect(received[0]?.instanceId).toEqual(expect.any(String))
     expect(Object.isFrozen(received[0])).toBe(true)
     expect(Object.isFrozen(received[0]?.observables)).toBe(true)
@@ -183,6 +193,10 @@ describe("realtime subscriptions", () => {
     const received = invalidations(delivered)
     expect(received.map(({ revision }) => revision)).toEqual(["0", "1"])
     expect(received.map(({ observables }) => observables.count)).toEqual([0, 1])
+    expect(received.map(({ invalidations }) => invalidations)).toEqual([
+      ["privateCount"],
+      ["privateCount"],
+    ])
   })
 
   it("stops delivery after unsubscribe or connection close", async () => {

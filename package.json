@@ -1,6 +1,6 @@
 {
   "name": "solid-objects",
-  "version": "0.12.1",
+  "version": "0.12.2",
   "description": "Stateful, realtime TypeScript objects backed by PostgreSQL, SQLite, or MySQL",
   "type": "module",
   "license": "MIT",

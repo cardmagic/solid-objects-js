@@ -16,6 +16,11 @@ generic signatures; this index explains the supported role of every export.
 - `Actor`: base class providing `ref()`, `actorId`, `currentMessage`,
   `observables()`, `reject()`, `emit()`, `commitAction()`, `schedule()`,
   `sendTo()`, and protected lifecycle hooks.
+- `broadcastValue(value)`: mark an observable so its changed value enters the
+  durable invalidation envelope.
+- `broadcastInvalidation(value)`: compare the real observable value but put
+  only its name in the durable envelope when it changes.
+- `ObservableBroadcast`: the immutable marker type returned by either helper.
 - `VERSION`: running package version.
 - `ActorClass`, `ActorReference`, `ActorMessageSender`, `ActorSnapshot`,
   `ActorOperationNames`, `ActorQueryNames`, `StagedOperations`, and
@@ -30,6 +35,25 @@ generic signatures; this index explains the supported role of every export.
 `OutboundMessageIntent`, `ReminderOptions`, `OutboundMessageOptions`,
 `PayloadBroadcasts`, and `PayloadBroadcastValue` describe actor-declared
 transactional work and typed personalized projections.
+
+`observables()` returns a flat object. Unwrapped values broadcast their values
+in 0.12.2 for compatibility. Prefer an explicit marker when wire behavior
+matters:
+
+```typescript
+override observables(): Record<string, unknown> {
+  return {
+    version: broadcastValue(this.document.version),
+    sidebar: broadcastInvalidation(this.sidebarForCurrentState()),
+  }
+}
+```
+
+Both values must be JSON-compatible and are evaluated after each successful
+turn. An invalidation-only value participates in change detection but is never
+written to the broadcast outbox or invalidation envelope. The envelope carries
+its name in `invalidations`, allowing component registries to refresh a
+reauthorized endpoint without exposing the value.
 
 `MessageReference` does not retain an invocation's authorization context.
 Supply `authorizationContext` to each `status()`, `result()`, and `wait()` call;
@@ -123,6 +147,11 @@ rows for `preview()` and rows actually deleted for `prune()`.
 `MessageStatus`, and `Logger` are shared types. `Database`,
 `DatabaseConnection`, `DatabaseFamily`, and `RunResult` support custom database
 and commit-action integration.
+
+`BroadcastEvent.observables` contains changed value-broadcast projections.
+`BroadcastEvent.invalidations` contains changed invalidation-only names. The
+runtime always supplies the array; consumers should treat its absence from an
+older or application-produced event as an empty array.
 
 ### Runtime extensions and manual workers
 
@@ -224,6 +253,10 @@ and `SyncTimeoutWaitingOn` type timeout diagnostics. See
   `ComponentRefreshRequest`, `ComponentRefreshResult`, `ComponentApplication`,
   `ComponentRefreshFailure`, and `ComponentRegistryOptions`: framework-neutral
   refresh contract types.
+
+`InvalidationEnvelope.observables` contains values and
+`InvalidationEnvelope.invalidations` contains names without values. The
+component registry reacts to names in either location.
 
 The wire format, trust boundary, revision rules, and component semantics are in
 [Browser protocol](browser-protocol.md).

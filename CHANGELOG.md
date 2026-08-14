@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+## 0.12.2 - 2026-08-13
+
+- Add `broadcastInvalidation()` so actors can drive granular component refresh
+  without persisting or sending the observable value.
+- Add `broadcastValue()` for an explicit value-bearing observable contract
+  while preserving value broadcasting for unwrapped observables in 0.12.2.
+- Extend durable and browser invalidation envelopes with invalidation-only
+  observable names.
 - Refocus the README and package metadata on native Node.js concurrency,
   realtime state synchronization, and database-backed infrastructure.
 

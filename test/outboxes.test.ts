@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from "vitest"
-import { Actor } from "../src/actor.js"
+import { Actor, broadcastInvalidation, broadcastValue } from "../src/actor.js"
 import type { BroadcastEvent, SolidObjectsConfiguration } from "../src/configuration.js"
 import { NonRetryableError } from "../src/errors.js"
 import { configure, type SolidObjectsRuntime } from "../src/runtime.js"
@@ -100,8 +100,16 @@ class ObservableCounter extends Actor {
     this.privateValue = "changed"
   }
 
+  incrementCount(): void {
+    this.count += 1
+  }
+
   override observables(): Record<string, unknown> {
-    return { count: this.count }
+    return {
+      count: broadcastValue(this.count),
+      defaultCount: this.count,
+      privateValue: broadcastInvalidation(this.privateValue),
+    }
   }
 }
 
@@ -302,7 +310,7 @@ describe("reminders", () => {
 })
 
 describe("observable broadcasts", () => {
-  it("delivers only the explicit observable projection", async () => {
+  it("delivers values and invalidation-only observable names", async () => {
     const events: BroadcastEvent[] = []
     runtime = configuredRuntime({
       broadcast: async (event) => {
@@ -318,9 +326,24 @@ describe("observable broadcasts", () => {
     expect(events[0]).toMatchObject({
       actorType: "ObservableCounter",
       actorId: "counter",
-      observables: { count: 1 },
+      observables: { count: 1, defaultCount: 1 },
+      invalidations: ["privateValue"],
     })
     expect(events[0]?.observables).not.toHaveProperty("privateValue")
+
+    const stored = await runtime.settings.database.connection((connection) =>
+      connection.get<{ observables: string; invalidations: string }>(
+        `SELECT observables, invalidations FROM ${runtime?.repository.table("broadcasts")}`,
+      ),
+    )
+    expect(JSON.stringify(stored)).not.toContain("changed")
+
+    await ObservableCounter.ref("counter").incrementCount()
+    expect(await runtime.broadcastWorker().runUntilIdle()).toBe(1)
+    expect(events[1]).toMatchObject({
+      observables: { count: 2, defaultCount: 2 },
+      invalidations: [],
+    })
   })
 
   it("recovers a broadcast claimed by a stale process", async () => {

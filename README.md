@@ -27,7 +27,7 @@ pnpm add solid-objects
 Define the state and the operations allowed to change it:
 
 ```typescript
-import { Actor } from "solid-objects"
+import { Actor, broadcastValue } from "solid-objects"
 
 export class ClickerRoom extends Actor {
   static override readonly actorType = "ClickerRoom"
@@ -40,7 +40,7 @@ export class ClickerRoom extends Actor {
   }
 
   override observables(): Record<string, unknown> {
-    return { clicks: this.clicks }
+    return { clicks: broadcastValue(this.clicks) }
   }
 }
 ```
@@ -123,7 +123,7 @@ and durable consequences commit to the database.
 ## Write an ordinary TypeScript class
 
 ```typescript
-import { Actor } from "solid-objects"
+import { Actor, broadcastValue } from "solid-objects"
 
 export class Counter extends Actor {
   static override readonly actorType = "Counter"
@@ -140,7 +140,7 @@ export class Counter extends Actor {
   }
 
   override observables(): Record<string, unknown> {
-    return { count: this.count }
+    return { count: broadcastValue(this.count) }
   }
 }
 ```
@@ -150,7 +150,26 @@ No wrapper, state interface, decorator, or operation union is required. Native
 operation arguments, results, and observable values must be JSON-compatible.
 
 `observables()` is deliberately explicit. State fields and getters do not
-become realtime data automatically.
+become realtime data automatically. Use `broadcastValue(value)` when clients
+need the value, or `broadcastInvalidation(value)` when clients only need to
+know that a named dependency changed:
+
+```typescript
+import { broadcastInvalidation, broadcastValue } from "solid-objects"
+
+override observables(): Record<string, unknown> {
+  return {
+    version: broadcastValue(this.room?.version ?? 0),
+    playerOne: broadcastInvalidation(this.playerInSeat(1)),
+  }
+}
+```
+
+Solid Objects still computes and compares the `playerOne` value, but persists
+and sends only its name when it changes. This keeps private component data out
+of shared invalidation envelopes without application-maintained revision
+counters. Unwrapped values continue to use value broadcasting in 0.12.2; the
+markers make the intended wire behavior explicit.
 
 ## Evolve state with explicit migrations
 
@@ -862,10 +881,12 @@ message. Later invalidations come from the durable outbox in actor revision
 order. Duplicate and stale revisions are fenced, and one broken connection
 cannot interrupt delivery to another.
 
-Invalidation envelopes contain the actual `observables()` values and deliver
-the same projection to every authorized subscriber. Never put credentials,
-session identifiers, private cards, or other subscriber-specific data there;
-use a typed payload projection or a reauthorized component endpoint instead.
+Invalidation envelopes deliver value-broadcast observables to every authorized
+subscriber. An observable wrapped in `broadcastInvalidation()` contributes
+only its name to the envelope's `invalidations` array. Use invalidation-only
+observables with reauthorized component endpoints when the underlying value is
+private; use typed payloads when the browser needs subscriber-specific data.
+Never put credentials or secrets in value-broadcast observables.
 
 Direct session delivery is process-local. When WebSocket connections and
 workers run in several Node processes, configure `broadcast` to publish each

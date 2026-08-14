@@ -5,10 +5,13 @@ subscription requests and receives JSON invalidation envelopes over WebSocket.
 The application supplies the rendering callback and authenticated WebSocket
 server; `runtime.realtime` supplies the server-side session protocol.
 
-The `observables` object contains values, not only invalidation names, and every
-subscriber authorized for that actor receives the same projection. Keep secrets
-and subscriber-specific state out of `observables()`; use personalized payloads
-or an application endpoint that reauthorizes the component request.
+The `observables` object contains changed values and every subscriber authorized
+for that actor receives the same projection. The `invalidations` array contains
+changed observable names whose values were deliberately withheld with
+`broadcastInvalidation()`. Use those names to refresh an application endpoint
+that reauthorizes the component request. Use personalized payloads when the
+browser needs subscriber-specific data, and keep secrets out of value-broadcast
+observables.
 
 The 0.1 subscription request is:
 
@@ -37,9 +40,14 @@ The 0.1 envelope is:
   "actorId": "primary",
   "instanceId": "019...",
   "revision": "42",
-  "observables": { "count": 3 }
+  "observables": { "version": 3 },
+  "invalidations": ["playerOne"]
 }
 ```
+
+`invalidations` was added as an optional version-1 field in 0.12.2. Clients
+must treat a missing field as an empty array. A name appears in either
+`observables` or `invalidations`, never both, in runtime-produced envelopes.
 
 Requested personalized projections use a separate envelope:
 
