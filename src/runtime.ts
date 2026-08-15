@@ -1393,7 +1393,7 @@ export class SolidObjectsRuntime {
         instanceId: broadcast.instance_id,
         revision: String(broadcast.state_revision),
         observables: jsonObject(JSON.parse(broadcast.observables)),
-        invalidations: stringArray(JSON.parse(broadcast.invalidations ?? "[]")),
+        invalidations: stringArray(normalizeJson(JSON.parse(broadcast.invalidations ?? "[]"))),
       })
       await this.realtime.publish(event)
       await deliver?.(event)
@@ -1925,11 +1925,15 @@ function broadcastProjection(projection: ObservableProjection): {
   return selectBroadcastProjection(projection, Object.keys(projection.values))
 }
 
-function stringArray(value: unknown): string[] {
-  if (!Array.isArray(value) || value.some((item) => typeof item !== "string")) {
+function stringArray(value: JsonValue): string[] {
+  if (!isStringArray(value)) {
     throw new TypeError("broadcast invalidations must be an array of strings")
   }
   return [...new Set(value)]
+}
+
+function isStringArray(value: JsonValue): value is string[] {
+  return Array.isArray(value) && value.every((item) => typeof item === "string")
 }
 
 function invocationTimeout(options: InvocationOptions): number {

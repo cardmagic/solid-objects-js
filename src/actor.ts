@@ -246,9 +246,17 @@ export abstract class Actor {
     const values: JsonObject = {}
     const modes: Record<string, "invalidation" | "value"> = {}
     for (const [name, configured] of Object.entries(this.observables())) {
-      const marked = observableBroadcast(configured)
-      values[name] = normalizeJson(marked.value)
-      modes[name] = marked.mode
+      if (
+        typeof configured !== "object" ||
+        configured === null ||
+        !isObservableBroadcast(configured)
+      ) {
+        values[name] = normalizeJson(configured)
+        modes[name] = "value"
+        continue
+      }
+      values[name] = normalizeJson(configured.value)
+      modes[name] = configured[observableBroadcastMode]
     }
     return { values, modes: Object.freeze(modes) }
   }
@@ -279,13 +287,6 @@ export abstract class Actor {
   }
 }
 
-function observableBroadcast(value: unknown): {
-  value: unknown
-  mode: "invalidation" | "value"
-} {
-  if (typeof value !== "object" || value === null || !(observableBroadcastMode in value)) {
-    return { value, mode: "value" }
-  }
-  const marked = value as ObservableBroadcast<unknown>
-  return { value: marked.value, mode: marked[observableBroadcastMode] }
+function isObservableBroadcast(value: object): value is ObservableBroadcast<JsonValue> {
+  return observableBroadcastMode in value
 }
