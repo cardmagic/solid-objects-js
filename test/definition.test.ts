@@ -212,6 +212,9 @@ describe("runtime configuration", () => {
     expect(() => buildSettings({ database, maxActivationDurationMilliseconds: 0 })).toThrow(
       "maxActivationDurationMilliseconds must be positive",
     )
+    expect(() => buildSettings({ database, idlePollingIntervalMilliseconds: 0 })).toThrow(
+      "idlePollingIntervalMilliseconds must be positive",
+    )
     expect(() => buildSettings({ database, shutdownTimeoutMilliseconds: 0 })).toThrow(
       "shutdownTimeoutMilliseconds must be positive",
     )

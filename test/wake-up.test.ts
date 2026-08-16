@@ -44,6 +44,13 @@ afterEach(async () => {
 })
 
 describe("in-process wake-up", () => {
+  it("distinguishes a polling timeout from a wake-up", async () => {
+    const wakeUp = new InProcessWakeUpAdapter()
+    const watch = wakeUp.watch("actors")
+
+    await expect(watch.wait({ timeoutMilliseconds: 1 })).resolves.toBe(false)
+  })
+
   it("does not miss a signal sent before waiting", async () => {
     const wakeUp = new InProcessWakeUpAdapter()
     const watch = wakeUp.watch("actors")
@@ -57,7 +64,7 @@ describe("in-process wake-up", () => {
           setTimeout(() => reject(new Error("wake-up was missed")), 100),
         ),
       ]),
-    ).resolves.toBeUndefined()
+    ).resolves.toBe(true)
   })
 
   it("wakes every waiter for a role without waking other roles", async () => {
@@ -121,6 +128,45 @@ describe("in-process wake-up", () => {
     controller.abort()
     await running
     expect(await message.result()).toBeNull()
+  })
+
+  it("processes a local message promptly after the worker reaches its idle ceiling", async () => {
+    runtime = configure({
+      database: sqlite({ path: ":memory:" }),
+      authorizeMessage: () => true,
+      authorizeQuery: () => true,
+      pollingIntervalMilliseconds: 25,
+      idlePollingIntervalMilliseconds: 1_000,
+      workerCount: 1,
+      effectWorkerCount: 0,
+      reminderSchedulerCount: 0,
+      retentionIntervalMilliseconds: 0,
+      deadProcessCleanupIntervalMilliseconds: 0,
+    })
+    runtime.register(WakeTarget)
+    await runtime.install()
+    const worker = runtime.worker()
+    const controller = new AbortController()
+    const running = worker.run(controller.signal)
+    await vi.waitFor(
+      () => {
+        expect(worker.currentPollingIntervalMilliseconds).toBe(1_000)
+      },
+      { timeout: 3_000, interval: 10 },
+    )
+    const startedAt = performance.now()
+
+    const message = await WakeTarget.ref("backed-off").send.receive()
+    await vi.waitFor(
+      async () => {
+        expect(await message.status()).toBe("completed")
+      },
+      { timeout: 400, interval: 5 },
+    )
+
+    expect(performance.now() - startedAt).toBeLessThan(400)
+    controller.abort()
+    await running
   })
 
   it("isolates notification failures from durable work", async () => {

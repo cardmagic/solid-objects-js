@@ -192,20 +192,43 @@ describePostgreSQL("PostgreSQL adapter", () => {
     const actorWaits = actorWatches
       .slice(0, 2)
       .map((watch) => watch.wait({ timeoutMilliseconds: 10_000 }))
-    let effectResolved = false
-    void effectWatch.wait({ timeoutMilliseconds: 10_000 }).then(() => {
-      effectResolved = true
+    let effectResult: boolean | void | undefined
+    void effectWatch.wait({ timeoutMilliseconds: 10_000 }).then((result) => {
+      effectResult = result
     })
     const startedAt = performance.now()
 
     await notifier.notify("actors")
-    await Promise.all([...actorWaits, actorWatches[2]!.wait({ timeoutMilliseconds: 10_000 })])
+    await expect(
+      Promise.all([...actorWaits, actorWatches[2]!.wait({ timeoutMilliseconds: 10_000 })]),
+    ).resolves.toEqual([true, true, true])
 
     expect(performance.now() - startedAt).toBeLessThan(1_000)
-    expect(effectResolved).toBe(false)
+    expect(effectResult).toBeUndefined()
     await listener.close()
     await new Promise<void>((resolve) => setImmediate(resolve))
-    expect(effectResolved).toBe(true)
+    expect(effectResult).toBe(false)
+  })
+
+  it("distinguishes a PostgreSQL wake-up from a polling timeout", async () => {
+    if (!connectionString) throw new Error("PostgreSQL connection string is required")
+    const listener = postgresqlWakeUp({
+      connectionString,
+      channelPrefix: "postgresql_test_wait_result",
+    })
+    const notifier = postgresqlWakeUp({
+      connectionString,
+      channelPrefix: "postgresql_test_wait_result",
+    })
+    wakeUps.push(listener, notifier)
+
+    const timedOutWatch = await listener.watch("actors")
+    await expect(timedOutWatch.wait({ timeoutMilliseconds: 1 })).resolves.toBe(false)
+    const notifiedWatch = await listener.watch("actors")
+    const notified = notifiedWatch.wait({ timeoutMilliseconds: 10_000 })
+    await notifier.notify("actors")
+
+    await expect(notified).resolves.toBe(true)
   })
 
   it("reconnects a listener after PostgreSQL closes its session", async () => {
@@ -236,12 +259,12 @@ describePostgreSQL("PostgreSQL adapter", () => {
       ),
     )
     expect(terminated?.terminated).toBe(true)
-    await interruptedWait
+    await expect(interruptedWait).resolves.toBe(false)
 
     const reconnectedWatch = await listener.watch("actors")
     const reconnectedWait = reconnectedWatch.wait({ timeoutMilliseconds: 10_000 })
     await notifier.notify("actors")
-    await reconnectedWait
+    await expect(reconnectedWait).resolves.toBe(true)
 
     expect(failures).toContain("connection")
   })

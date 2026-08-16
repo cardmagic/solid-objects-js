@@ -57,11 +57,11 @@ processes submit them concurrently.
 
 ## Run it now with SQLite
 
-Node.js 24.15 or newer is required. The `0.13.0` release includes a
+Node.js 24.15 or newer is required. The `0.13.1` release includes a
 packaged quickstart:
 
 ```bash
-npm exec --yes --package=solid-objects@0.13.0 -- solid-objects quickstart
+npm exec --yes --package=solid-objects@0.13.1 -- solid-objects quickstart
 ```
 
 The command needs no repository checkout, database server, Redis, container, or
@@ -156,6 +156,12 @@ and the full [architecture](docs/architecture.md).
 Redis is optional wake-up infrastructure. It can reduce notification latency
 for a multi-process MySQL deployment, but the relational database remains the
 durable source of truth and polling remains the recovery path.
+
+Idle roles back off from the configured 100 ms fast polling interval to one
+second. Processed work and wake-up notifications reset that interval
+immediately. The default wake-up reaches only the current Node process; use the
+PostgreSQL or optional Redis adapter when separate processes need low-latency
+delivery. The runtime warns once when it sees that topology without an adapter.
 
 ## Good and poor fits
 

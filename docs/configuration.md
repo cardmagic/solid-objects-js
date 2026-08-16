@@ -11,6 +11,7 @@ through `runtime.ref(ActorClass, actorId)`. Both validate options immediately.
 | `database`                            |                 required | A `Database` adapter.                                                         |
 | `tableNamePrefix`                     |       `"solid_objects_"` | Lowercase letters, digits, and underscores; must start with a letter.         |
 | `pollingIntervalMilliseconds`         |                    `100` | Positive durable-work polling interval.                                       |
+| `idlePollingIntervalMilliseconds`     |                  `1_000` | Positive ceiling after consecutive empty polling passes.                      |
 | `syncPollingIntervalMilliseconds`     |                     `50` | Positive result-wait polling interval.                                        |
 | `leaseDurationMilliseconds`           |                 `30_000` | Positive activation lease; must exceed renewal interval.                      |
 | `leaseRenewalIntervalMilliseconds`    |                 `10_000` | Positive activation renewal cadence.                                          |
@@ -52,8 +53,16 @@ affected failure path rather than schedule an invalid timestamp.
 
 Counts may be zero, but the complete configuration must leave at least one
 runtime role enabled. Broadcast workers are started only when `broadcast` or
-`authorizeSubscription` is configured. Wake-ups reduce latency; durable polling
-remains the correctness path.
+`authorizeSubscription` is configured.
+
+`pollingIntervalMilliseconds` is the fast interval after work or a wake-up.
+Consecutive empty passes double it up to
+`idlePollingIntervalMilliseconds`. Actor workers never wait longer than
+`leaseRenewalIntervalMilliseconds`. Set the fast and idle values equal for a
+fixed cadence. A custom wake-up adapter should return `true` for a notification
+and `false` for a timeout; an older adapter that returns `void` remains
+compatible and keeps the fast cadence. Wake-ups reduce latency, while database
+polling remains the correctness path.
 
 ## Retention and cleanup
 

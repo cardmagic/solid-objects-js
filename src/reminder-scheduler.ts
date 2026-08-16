@@ -1,13 +1,29 @@
 import { randomUUID } from "node:crypto"
 import { UnknownOperation } from "./errors.js"
 import type { SolidObjectsRuntime } from "./runtime.js"
+import { PollingBackoff } from "./polling-backoff.js"
 
 export class ReminderScheduler {
   readonly processId = randomUUID()
   private registered = false
   private stopping = false
+  private readonly pollingBackoff: PollingBackoff
 
-  constructor(private readonly runtime: SolidObjectsRuntime) {}
+  constructor(private readonly runtime: SolidObjectsRuntime) {
+    this.pollingBackoff = new PollingBackoff({
+      minimumIntervalMilliseconds: runtime.settings.pollingIntervalMilliseconds,
+      maximumIntervalMilliseconds: runtime.settings.idlePollingIntervalMilliseconds,
+      onChange: (transition) =>
+        runtime.emitInstrumentation("polling.interval_changed", {
+          role: "reminders",
+          ...transition,
+        }),
+    })
+  }
+
+  get currentPollingIntervalMilliseconds(): number {
+    return this.pollingBackoff.currentIntervalMilliseconds
+  }
 
   async runOnce(options: { now?: Date } = {}): Promise<number> {
     if (this.stopping) return 0
@@ -57,15 +73,20 @@ export class ReminderScheduler {
 
   async run(signal: AbortSignal): Promise<void> {
     await this.ensureRegistered()
+    await this.runtime.warnIfPollingIsOnlyCrossProcessWakeUp()
     while (!signal.aborted && !this.stopping) {
       const wakeUp = await this.runtime.settings.wakeUp.watch("reminders")
       const processed = await this.runOnce()
-      if (processed === 0) {
-        await wakeUp.wait({
-          timeoutMilliseconds: this.runtime.settings.pollingIntervalMilliseconds,
-          signal,
-        })
+      if (processed > 0) {
+        this.pollingBackoff.reset("work")
+        continue
       }
+      const notified = await wakeUp.wait({
+        timeoutMilliseconds: this.pollingBackoff.currentIntervalMilliseconds,
+        signal,
+      })
+      if (notified === false) this.pollingBackoff.recordIdle()
+      else this.pollingBackoff.reset("wake_up")
     }
     await this.stop()
   }

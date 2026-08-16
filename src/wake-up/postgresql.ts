@@ -25,7 +25,7 @@ export class PostgreSQLWakeUpAdapter implements WakeUpAdapter {
   private readonly channels = new Map<WakeUpRole, string>()
   private readonly rolesByChannel = new Map<string, WakeUpRole>()
   private readonly generations = new Map<WakeUpRole, number>()
-  private readonly waiters = new Map<WakeUpRole, Set<() => void>>()
+  private readonly waiters = new Map<WakeUpRole, Set<(notified: boolean) => void>>()
   private readonly listenedRoles = new Set<WakeUpRole>()
   private readonly listening = new Map<WakeUpRole, Promise<void>>()
   private readonly onListenerError: (failure: PostgreSQLWakeUpFailure) => void
@@ -181,45 +181,46 @@ export class PostgreSQLWakeUpAdapter implements WakeUpAdapter {
     generation: number
     timeoutMilliseconds: number
     signal?: AbortSignal
-  }): Promise<void> {
-    if (this.closed || options.signal?.aborted) return Promise.resolve()
-    if (this.generation(options.role) !== options.generation) return Promise.resolve()
+  }): Promise<boolean> {
+    if (this.closed || options.signal?.aborted) return Promise.resolve(false)
+    if (this.generation(options.role) !== options.generation) return Promise.resolve(true)
     return new Promise((resolve) => {
       let settled = false
       const waiters = this.waiters.get(options.role) ?? new Set()
-      const finish = () => {
+      const finish = (notified: boolean) => {
         if (settled) return
         settled = true
         clearTimeout(timeout)
         waiters.delete(finish)
         if (waiters.size === 0) this.waiters.delete(options.role)
-        options.signal?.removeEventListener("abort", finish)
-        resolve()
+        options.signal?.removeEventListener("abort", abort)
+        resolve(notified)
       }
-      const timeout = setTimeout(finish, options.timeoutMilliseconds)
+      const abort = () => finish(false)
+      const timeout = setTimeout(() => finish(false), options.timeoutMilliseconds)
       waiters.add(finish)
       this.waiters.set(options.role, waiters)
-      options.signal?.addEventListener("abort", finish, { once: true })
+      options.signal?.addEventListener("abort", abort, { once: true })
       if (
         this.closed ||
         options.signal?.aborted ||
         this.generation(options.role) !== options.generation
       ) {
-        finish()
+        finish(!this.closed && !options.signal?.aborted)
       }
     })
   }
 
-  private wake(role: WakeUpRole): void {
+  private wake(role: WakeUpRole, notified = true): void {
     this.generations.set(role, this.generation(role) + 1)
     const waiters = this.waiters.get(role)
     if (!waiters) return
     this.waiters.delete(role)
-    for (const finish of waiters) finish()
+    for (const finish of waiters) finish(notified)
   }
 
   private wakeEveryRole(): void {
-    for (const role of ROLES) this.wake(role)
+    for (const role of ROLES) this.wake(role, false)
   }
 
   private generation(role: WakeUpRole): number {

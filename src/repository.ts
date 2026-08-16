@@ -118,6 +118,20 @@ export class Repository {
     })
   }
 
+  async hasLiveProcessOutsideCurrentHostProcess(): Promise<boolean> {
+    return this.settings.database.connection(async (connection) => {
+      const now = await connection.nowMilliseconds()
+      const row = await connection.get<{ present: number | bigint }>(
+        `SELECT 1 AS present FROM ${this.table("processes")}
+         WHERE shutdown_state <> 'stopped' AND heartbeat_at_ms > ?
+           AND (hostname <> ? OR host_process_id <> ?)
+         LIMIT 1`,
+        [now - this.settings.processAliveThresholdMilliseconds, hostname(), process.pid],
+      )
+      return row !== undefined
+    })
+  }
+
   async cleanupStaleProcesses(): Promise<number> {
     return this.settings.database.transaction(async (connection) => {
       const now = await connection.nowMilliseconds()

@@ -6,7 +6,7 @@ export interface WakeUpWaitOptions {
 }
 
 export interface WakeUpWatch {
-  wait(options: WakeUpWaitOptions): Promise<void>
+  wait(options: WakeUpWaitOptions): Promise<boolean | void>
 }
 
 export interface WakeUpAdapter {
@@ -17,7 +17,7 @@ export interface WakeUpAdapter {
 
 export class InProcessWakeUpAdapter implements WakeUpAdapter {
   private readonly generations = new Map<WakeUpRole, number>()
-  private readonly waiters = new Map<WakeUpRole, Set<() => void>>()
+  private readonly waiters = new Map<WakeUpRole, Set<(notified: boolean) => void>>()
   private closed = false
 
   watch(role: WakeUpRole): WakeUpWatch {
@@ -33,14 +33,14 @@ export class InProcessWakeUpAdapter implements WakeUpAdapter {
     const waiters = this.waiters.get(role)
     if (!waiters) return
     this.waiters.delete(role)
-    for (const wake of waiters) wake()
+    for (const wake of waiters) wake(true)
   }
 
   close(): void {
     if (this.closed) return
     this.closed = true
     for (const waiters of this.waiters.values()) {
-      for (const wake of waiters) wake()
+      for (const wake of waiters) wake(false)
     }
     this.waiters.clear()
   }
@@ -50,32 +50,33 @@ export class InProcessWakeUpAdapter implements WakeUpAdapter {
     generation: number
     timeoutMilliseconds: number
     signal?: AbortSignal
-  }): Promise<void> {
-    if (this.closed || options.signal?.aborted) return Promise.resolve()
-    if (this.generation(options.role) !== options.generation) return Promise.resolve()
+  }): Promise<boolean> {
+    if (this.closed || options.signal?.aborted) return Promise.resolve(false)
+    if (this.generation(options.role) !== options.generation) return Promise.resolve(true)
 
     return new Promise((resolve) => {
       let settled = false
       const waiters = this.waiters.get(options.role) ?? new Set()
-      const finish = () => {
+      const finish = (notified: boolean) => {
         if (settled) return
         settled = true
         clearTimeout(timeout)
         waiters.delete(finish)
         if (waiters.size === 0) this.waiters.delete(options.role)
-        options.signal?.removeEventListener("abort", finish)
-        resolve()
+        options.signal?.removeEventListener("abort", abort)
+        resolve(notified)
       }
-      const timeout = setTimeout(finish, options.timeoutMilliseconds)
+      const abort = () => finish(false)
+      const timeout = setTimeout(() => finish(false), options.timeoutMilliseconds)
       waiters.add(finish)
       this.waiters.set(options.role, waiters)
-      options.signal?.addEventListener("abort", finish, { once: true })
+      options.signal?.addEventListener("abort", abort, { once: true })
       if (
         this.closed ||
         options.signal?.aborted ||
         this.generation(options.role) !== options.generation
       ) {
-        finish()
+        finish(!this.closed && !options.signal?.aborted)
       }
     })
   }

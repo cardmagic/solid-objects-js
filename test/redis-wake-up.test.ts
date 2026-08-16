@@ -32,7 +32,7 @@ describe("Redis wake-up configuration", () => {
     const startedAt = performance.now()
 
     const watch = await adapter.watch("actors")
-    await watch.wait({ timeoutMilliseconds: 1 })
+    await expect(watch.wait({ timeoutMilliseconds: 1 })).resolves.toBe(false)
     await adapter.notify("actors")
 
     expect(performance.now() - startedAt).toBeLessThan(1_000)
@@ -55,19 +55,21 @@ describeRedis("Redis wake-up adapter", () => {
     const actorWaits = actorWatches
       .slice(0, 2)
       .map((watch) => watch.wait({ timeoutMilliseconds: 10_000 }))
-    let effectResolved = false
-    void effectWatch.wait({ timeoutMilliseconds: 10_000 }).then(() => {
-      effectResolved = true
+    let effectResult: boolean | void | undefined
+    void effectWatch.wait({ timeoutMilliseconds: 10_000 }).then((result) => {
+      effectResult = result
     })
     const startedAt = performance.now()
 
     await notifier.notify("actors")
-    await Promise.all([...actorWaits, actorWatches[2]!.wait({ timeoutMilliseconds: 10_000 })])
+    await expect(
+      Promise.all([...actorWaits, actorWatches[2]!.wait({ timeoutMilliseconds: 10_000 })]),
+    ).resolves.toEqual([true, true, true])
 
     expect(performance.now() - startedAt).toBeLessThan(1_000)
-    expect(effectResolved).toBe(false)
+    expect(effectResult).toBeUndefined()
     listener.close()
     await new Promise<void>((resolve) => setImmediate(resolve))
-    expect(effectResolved).toBe(true)
+    expect(effectResult).toBe(false)
   })
 })

@@ -1,12 +1,30 @@
 # Operations
 
-Runtime roles use durable polling as the correctness fallback. The default
-generation-based wake-up adapter interrupts waits for new actor messages,
-effects, reminders, and broadcasts in the same Node process. Notification
-errors are isolated and logged by role and error class without failing the
-committed work. Graceful shutdown stops new claims and allows active turns to
-finish within `shutdownTimeoutMilliseconds`, which defaults to 15 seconds. A
-component still running or stopping at the deadline emits
+Runtime roles use durable polling as the correctness fallback. Consecutive
+empty passes double each role's wait from `pollingIntervalMilliseconds` to
+`idlePollingIntervalMilliseconds`, which defaults to one second. Processed
+work and wake-up notifications reset the role to the fast interval. Actor
+workers clamp the ceiling to `leaseRenewalIntervalMilliseconds` while they may
+hold cached activations.
+
+The default generation-based wake-up adapter interrupts waits for new actor
+messages, effects, reminders, and broadcasts in the same Node process. It does
+not cross a process boundary. When live processes share the database without a
+configured adapter, the runtime logs
+`solid_objects.polling_only_cross_process_wake_up` once. Use PostgreSQL
+notifications or optional Redis Pub/Sub when separate processes need prompt
+delivery; without one, newly committed work can wait up to the current idle
+polling interval. Notification errors are isolated and logged by role and error
+class without failing the committed work.
+
+Each role exposes `currentPollingIntervalMilliseconds`.
+`solid_objects.polling.interval_changed` reports the role, reason, previous
+interval, and current interval. The polling-only warning is also emitted as
+`solid_objects.polling.only_cross_process_wake_up` instrumentation.
+
+Graceful shutdown stops new claims and allows active turns to finish within
+`shutdownTimeoutMilliseconds`, which defaults to 15 seconds. A component still
+running or stopping at the deadline emits
 `solid_objects.supervisor.component_shutdown_timeout`; the runtime then returns
 without pretending JavaScript code was forcibly terminated. Operators should
 monitor oldest ready work, claimed work, dead letters, effect failures,
