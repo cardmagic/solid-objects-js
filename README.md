@@ -57,11 +57,11 @@ processes submit them concurrently.
 
 ## Run it now with SQLite
 
-Node.js 24.15 or newer is required. The `0.13.1` release includes a
+Node.js 24.15 or newer is required. The `0.13.2` release includes a
 packaged quickstart:
 
 ```bash
-npm exec --yes --package=solid-objects@0.13.1 -- solid-objects quickstart
+npm exec --yes --package=solid-objects@0.13.2 -- solid-objects quickstart
 ```
 
 The command needs no repository checkout, database server, Redis, container, or
