@@ -1,5 +1,7 @@
 # Correctness and delivery semantics
 
+## Guarantees
+
 - Delivery is ordered per actor identity and at least once.
 - Different identities may execute concurrently.
 - Sequence allocation and durable enqueue are one transaction.
@@ -51,3 +53,24 @@
   failing projection cannot stop its siblings or observable delivery. A state
   change on an actor declaring payloads creates a revision broadcast even when
   the actor declares no scalar observables.
+
+## Limitations and non-goals
+
+- At-least-once execution means actor code may begin more than once. State and
+  staged intents from a failed turn roll back, but arbitrary external work does
+  not. External systems need stable idempotency keys.
+- The activation fence protects the Solid Objects commit. It cannot revoke or
+  undo network calls, files, emails, payments, or other external effects.
+- One identity processes one write operation at a time. This is the ordering
+  guarantee and also the hot-identity throughput limit.
+- A commit is scoped to one actor turn. There is no transaction spanning two
+  actor identities.
+- Processes with incompatible `stateVersion` definitions cannot safely overlap.
+  Once newer code persists a state version, older code rejects that actor.
+- The application owns HTTP, WebSocket authentication, rendering, process
+  placement, capacity, database backups, and database failover.
+- Redis and PostgreSQL notifications reduce wake-up latency but do not replace
+  durable polling or become a source of truth.
+- Large documents, bulk pipelines, globally placed edge state, and global
+  counters are outside the intended workload. Prefer an ordinary row
+  transaction when it completely enforces the invariant.

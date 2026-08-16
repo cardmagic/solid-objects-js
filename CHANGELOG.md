@@ -2,8 +2,18 @@
 
 ## Unreleased
 
-## 0.13.0 - 2026-08-15
+## 0.13.0 - 2026-08-16
 
+- Replace the exhaustive README with an outcome-first introduction, explicit
+  fit and correctness boundaries, sourced comparisons, and factual design
+  provenance.
+- Add a packaged SQLite quickstart, a clean-install tarball smoke test, and a
+  deterministic multi-process crash and fencing demonstration.
+- Add a reproducible benchmark harness, record locally observed SQLite,
+  PostgreSQL 18, and MySQL 8.4 measurements, and label other configurations as
+  unmeasured.
+- Add support, contribution, and security policies plus stronger local
+  Markdown link validation.
 - **Breaking:** make unwrapped observables invalidation-only by default. They
   continue to detect changes and refresh dependent components without storing
   or sending their values. Wrap a projection in `broadcastValue()` to share

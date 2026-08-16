@@ -11,6 +11,7 @@ export interface CliRunOptions {
 }
 
 const COMMANDS = new Set([
+  "quickstart",
   "start",
   "doctor",
   "status",
@@ -36,10 +37,27 @@ export async function runCli(
   if (!COMMANDS.has(command)) throw new TypeError(`unknown command ${JSON.stringify(command)}`)
 
   const parsed = parseArguments(commandArguments)
+  const write = options.write ?? ((value: string) => process.stdout.write(value))
+  if (command === "quickstart") {
+    assertOptions(parsed, { command })
+    assertNoPositionals(parsed, command)
+    const module = (await import(
+      new URL("./examples/sqlite-quickstart.js", import.meta.url).href
+    )) as {
+      runQuickstart(options: {
+        signal?: AbortSignal
+        write: (value: string) => void
+      }): Promise<void>
+    }
+    await module.runQuickstart({
+      ...(options.signal === undefined ? {} : { signal: options.signal }),
+      write,
+    })
+    return 0
+  }
   const configurationPath = stringOption(parsed, "config") ?? "solid-objects.config.js"
   const loadRuntime = options.loadRuntime ?? loadRuntimeModule
   const runtime = await loadRuntime(configurationPath)
-  const write = options.write ?? ((value: string) => process.stdout.write(value))
   await runtime.install()
 
   try {
@@ -232,6 +250,7 @@ function help(): string {
   return `Usage: solid-objects <command> [options]
 
 Commands:
+  quickstart
   start
   doctor [--skip-round-trip]
   status

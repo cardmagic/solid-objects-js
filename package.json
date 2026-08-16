@@ -1,21 +1,22 @@
 {
   "name": "solid-objects",
   "version": "0.13.0",
-  "description": "Stateful, realtime TypeScript objects backed by PostgreSQL, SQLite, or MySQL",
+  "description": "Race-free realtime state per application identity, backed by your SQL database",
   "type": "module",
   "license": "MIT",
   "author": "Lucas Carlson",
   "keywords": [
-    "actors",
     "concurrency",
-    "durable-objects",
+    "durable-state",
     "mysql",
     "nodejs",
     "postgresql",
     "realtime",
     "sqlite",
     "state-management",
-    "typescript"
+    "typescript",
+    "actors",
+    "durable-objects"
   ],
   "repository": {
     "type": "git",
@@ -31,6 +32,7 @@
   "files": [
     "dist",
     "docs",
+    "examples",
     "README.md",
     "CHANGELOG.md",
     "MIT-LICENSE"
@@ -66,8 +68,8 @@
     }
   },
   "scripts": {
-    "build": "pnpm run clean && tsc -p tsconfig.build.json && node scripts/prepare-executable.mjs",
-    "check": "pnpm run check:parameters && pnpm run check:documentation && tsc -p tsconfig.json --noEmit",
+    "build": "pnpm run clean && tsc -p tsconfig.build.json && tsc -p tsconfig.quickstart-build.json && node scripts/prepare-executable.mjs",
+    "check": "pnpm run check:parameters && pnpm run check:documentation && tsc -p tsconfig.json --noEmit && tsc -p tsconfig.examples.json --noEmit",
     "check:documentation": "node scripts/check-documentation.mjs",
     "check:parameters": "node scripts/check-parameter-style.mjs",
     "clean": "node scripts/clean.mjs",
@@ -78,8 +80,11 @@
     "test:coverage": "vitest run --coverage",
     "test:postgresql": "vitest run test/postgresql.test.ts",
     "test:mysql": "vitest run test/mysql.test.ts",
+    "test:package": "node scripts/release-artifact-smoke.mjs",
+    "test:recovery": "pnpm run build && node examples/failure-recovery/demo.ts",
     "test:redis": "vitest run test/redis-wake-up.test.ts",
     "test:watch": "vitest",
+    "benchmark": "pnpm run build && node benchmarks/run.ts",
     "pack:check": "pnpm pack --dry-run && node scripts/check-package.mjs",
     "prepack": "pnpm run build"
   },

@@ -1,0 +1,12 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "rootDir": "examples",
+    "outDir": "dist/examples",
+    "declaration": false,
+    "declarationMap": false,
+    "sourceMap": true,
+    "noEmit": false
+  },
+  "include": ["examples/sqlite-quickstart.ts"]
+}
