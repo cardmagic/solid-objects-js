@@ -89,6 +89,9 @@ class and result types are also exported for integration typing.
   idempotent paused-alarm `resume()`.
 - `runtime.processes` / `ProcessManager`: immutable role `all()` and stale-owner
   `cleanup()`.
+- `runtime.administration` / `AdministrationManager`: an authorized
+  `processes()` query for inspecting live and stale process rows through the
+  runtime's own database adapter.
 - `runtime.reconciliation` / `ReconciliationManager`: `active()`,
   `withoutPendingWork()`, `statesFor()`, and `orphaned()` bounded reads.
 - `runtime.retention` / `RetentionManager`: `preview()` and authorized `prune()`

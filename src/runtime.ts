@@ -66,6 +66,7 @@ import {
 } from "./reconciliation.js"
 import { Repository } from "./repository.js"
 import {
+  AdministrationManager,
   ProcessManager,
   type ProcessCleanupResult,
   type ProcessMetadata,
@@ -158,6 +159,7 @@ export class SolidObjectsRuntime {
   readonly reminders
   readonly realtime
   readonly processes
+  readonly administration
   private readonly registry = new Map<string, RegisteredActor>()
   private readonly effects = new Map<string, EffectHandler>()
   private readonly commitActions = new Map<string, CommitActionHandler>()
@@ -178,6 +180,7 @@ export class SolidObjectsRuntime {
     this.reminders = new ReminderManager(this)
     this.realtime = new RealtimeManager(this)
     this.processes = new ProcessManager(this)
+    this.administration = new AdministrationManager(this)
   }
 
   async install(): Promise<void> {

@@ -260,6 +260,7 @@ describe("idle polling", () => {
       warn: vi.fn(),
       error: vi.fn(),
     }
+    const events: InstrumentationEvent[] = []
     runtime = createRuntime({
       database: sqlite({ path: ":memory:" }),
       pollingIntervalMilliseconds: 25,
@@ -269,6 +270,7 @@ describe("idle polling", () => {
       retentionIntervalMilliseconds: 0,
       deadProcessCleanupIntervalMilliseconds: 0,
       logger,
+      instrumentation: (event) => events.push(event),
     })
     await runtime.install()
     await runtime.repository.registerProcess("other-process", "worker")
@@ -298,6 +300,39 @@ describe("idle polling", () => {
       pollingIntervalMilliseconds: 25,
       idlePollingIntervalMilliseconds: 1_000,
     })
+    expect(events).toContainEqual(
+      expect.objectContaining({
+        name: "solid_objects.polling.only_cross_process_wake_up",
+        attributes: {
+          pollingIntervalMilliseconds: 25,
+          idlePollingIntervalMilliseconds: 1_000,
+        },
+      }),
+    )
+  })
+
+  it("does not warn when all observed processes share the current host process", async () => {
+    const logger = {
+      debug: vi.fn(),
+      info: vi.fn(),
+      warn: vi.fn(),
+      error: vi.fn(),
+    }
+    runtime = createRuntime({
+      database: sqlite({ path: ":memory:" }),
+      workerCount: 1,
+      effectWorkerCount: 0,
+      reminderSchedulerCount: 0,
+      retentionIntervalMilliseconds: 0,
+      deadProcessCleanupIntervalMilliseconds: 0,
+      logger,
+    })
+    await runtime.install()
+    await runtime.repository.registerProcess("same-process", "worker")
+
+    await runtime.warnIfPollingIsOnlyCrossProcessWakeUp()
+
+    expect(logger.warn).not.toHaveBeenCalled()
   })
 
   it("does not warn when a cross-process wake-up adapter is configured", async () => {
