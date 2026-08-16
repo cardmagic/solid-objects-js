@@ -1,9 +1,11 @@
-import { readFile } from "node:fs/promises"
+import { readFile, stat } from "node:fs/promises"
 import { dirname, resolve } from "node:path"
 
 const repositoryRoot = resolve(import.meta.dirname, "..")
 const documentationPaths = [
   "README.md",
+  "CONTRIBUTING.md",
+  "SECURITY.md",
   "docs/api.md",
   "docs/architecture.md",
   "docs/authorization.md",
@@ -12,23 +14,34 @@ const documentationPaths = [
   "docs/correctness.md",
   "docs/dashboard.md",
   "docs/errors-and-recovery.md",
+  "docs/fit.md",
+  "docs/benchmarks.md",
+  "docs/comparisons.md",
   "docs/operations.md",
   "docs/parity.md",
+  "docs/releasing.md",
   "docs/state-and-lifecycle.md",
+  "docs/support.md",
 ]
 
 for (const documentationPath of documentationPaths) {
   const source = await readFile(resolve(repositoryRoot, documentationPath), "utf8")
-  for (const match of source.matchAll(/\[[^\]]+\]\(([^)]+\.md(?:#[^)]+)?)\)/g)) {
+  for (const match of source.matchAll(/!?\[[^\]]*\]\(([^)\s]+)(?:\s+"[^"]*")?\)/g)) {
     const link = match[1]
-    if (!link) continue
-    const [target, anchor] = link.split("#", 2)
-    if (!target) continue
-    const targetPath = resolve(repositoryRoot, dirname(documentationPath), target)
-    const targetSource = await readFile(targetPath, "utf8").catch(() => {
+    if (!link || /^(?:https?:|mailto:)/.test(link)) continue
+    const [encodedTarget = "", encodedAnchor] = link.split("#", 2)
+    const target = decodeURIComponent(encodedTarget)
+    const anchor = encodedAnchor ? decodeURIComponent(encodedAnchor) : undefined
+    const targetPath = target
+      ? resolve(repositoryRoot, dirname(documentationPath), target)
+      : resolve(repositoryRoot, documentationPath)
+    await stat(targetPath).catch(() => {
       throw new Error(`${documentationPath} links to missing ${link}`)
     })
-    if (anchor && !headingAnchors(targetSource).has(anchor)) {
+    if (!anchor) continue
+    if (target && !target.toLowerCase().endsWith(".md")) continue
+    const targetSource = target ? await readFile(targetPath, "utf8") : source
+    if (!headingAnchors(targetSource).has(anchor)) {
       throw new Error(`${documentationPath} links to missing heading ${link}`)
     }
   }

@@ -114,6 +114,10 @@ The manager types are `DeadLetter`; `ReminderPage`, `ReminderPageOptions`,
 `AdministrationOptions` carries the application-owned authorization context
 for administration calls.
 
+The packaged `solid-objects quickstart` command is config-free and runs the
+SQLite example shipped in the npm artifact. Every other CLI command loads the
+application runtime configured through `--config`.
+
 `ProcessRecord.shutdownState` is `"running"`, `"draining"`, or `"stopped"`;
 there is no separate `running` field. `RetentionResult.count` means eligible
 rows for `preview()` and rows actually deleted for `prune()`.

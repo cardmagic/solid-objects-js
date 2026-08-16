@@ -30,8 +30,10 @@ npm trust github solid-objects \
    lockfile when needed, and move the release notes out of the Unreleased
    section in `CHANGELOG.md`.
 2. Run `pnpm run format:check`, `pnpm run check`, `pnpm run test:coverage`,
-   `pnpm run build`, `pnpm run pack:check`, and
-   `pnpm audit --audit-level=high`.
+   `pnpm run build`, `pnpm run pack:check`, `pnpm run test:package`,
+   `pnpm run test:recovery`, `pnpm run test:browser`, and
+   `pnpm audit --audit-level=high`. Run the PostgreSQL, MySQL, and Redis jobs
+   against the versions in [the support matrix](support.md).
 3. Commit and push `main`.
 4. Create and push an annotated tag matching the package version:
 

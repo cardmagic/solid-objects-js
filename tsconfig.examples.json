@@ -1,0 +1,14 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "allowImportingTsExtensions": true,
+    "baseUrl": ".",
+    "paths": {
+      "solid-objects": ["./src/index.ts"],
+      "solid-objects/database/sqlite": ["./src/database/sqlite.ts"],
+      "solid-objects/database/postgresql": ["./src/database/postgresql.ts"],
+      "solid-objects/database/mysql": ["./src/database/mysql.ts"]
+    }
+  },
+  "include": ["examples/**/*.ts", "benchmarks/**/*.ts"]
+}
