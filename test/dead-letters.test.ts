@@ -145,11 +145,15 @@ describe("schema migrations", () => {
         "SELECT version FROM solid_objects_schema_migrations ORDER BY version",
       ),
     )
-    const columns = await runtime.settings.database.connection((connection) =>
+    const deadLetterColumns = await runtime.settings.database.connection((connection) =>
       connection.all<{ name: string }>("PRAGMA table_info(solid_objects_dead_letters)"),
     )
-    expect(versions.map(({ version }) => Number(version))).toEqual([1, 2, 3, 4, 5])
-    expect(columns.map(({ name }) => name)).toContain("retried_message_id")
+    const broadcastColumns = await runtime.settings.database.connection((connection) =>
+      connection.all<{ name: string }>("PRAGMA table_info(solid_objects_broadcasts)"),
+    )
+    expect(versions.map(({ version }) => Number(version))).toEqual([1, 2, 3, 4, 5, 6])
+    expect(deadLetterColumns.map(({ name }) => name)).toContain("retried_message_id")
+    expect(broadcastColumns.map(({ name }) => name)).toContain("invalidations")
   })
 
   it("preserves version-two request IDs as legacy idempotency keys", async () => {

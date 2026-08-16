@@ -124,6 +124,24 @@ describe("parseInvalidation", () => {
     expect(Object.isFrozen(parsed.observables)).toBe(true)
   })
 
+  it("preserves invalidation-only observable names without values", () => {
+    const parsed = parseInvalidation({
+      version: 1,
+      actorType: "GameRoom",
+      actorId: "one",
+      instanceId: "instance",
+      revision: "3",
+      observables: { version: 3 },
+      invalidations: ["playerOne"],
+    })
+
+    expect(parsed).toMatchObject({
+      observables: { version: 3 },
+      invalidations: ["playerOne"],
+    })
+    expect(Object.isFrozen(parsed.invalidations)).toBe(true)
+  })
+
   it("rejects non-JSON observable values", () => {
     expect(() =>
       parseInvalidation({

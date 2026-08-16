@@ -136,7 +136,10 @@ export class SolidObjectsComponentRegistry<Rendered> {
       this.resetActor(actor)
     }
     this.#received.set(actor, { instanceId: envelope.instanceId, revision })
-    const changed = new Set(Object.keys(envelope.observables))
+    const changed = new Set([
+      ...Object.keys(envelope.observables),
+      ...(envelope.invalidations ?? []),
+    ])
     const identities = this.#componentsByActor.get(actor)
     if (!identities || changed.size === 0) return
     for (const identity of identities) {

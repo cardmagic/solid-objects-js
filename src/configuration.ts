@@ -86,6 +86,7 @@ export interface BroadcastEvent {
   readonly instanceId: string
   readonly revision: string
   readonly observables: DeepReadonly<JsonObject>
+  readonly invalidations?: readonly string[]
 }
 
 export interface RuntimeSettings extends Required<

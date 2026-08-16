@@ -16,6 +16,11 @@ generic signatures; this index explains the supported role of every export.
 - `Actor`: base class providing `ref()`, `actorId`, `currentMessage`,
   `observables()`, `reject()`, `emit()`, `commitAction()`, `schedule()`,
   `sendTo()`, and protected lifecycle hooks.
+- `broadcastValue(value)`: mark an observable so its changed value enters the
+  durable invalidation envelope.
+- `broadcastInvalidation(value)`: compare the real observable value but put
+  only its name in the durable envelope when it changes.
+- `ObservableBroadcast`: the immutable marker type returned by either helper.
 - `VERSION`: running package version.
 - `ActorClass`, `ActorReference`, `ActorMessageSender`, `ActorSnapshot`,
   `ActorOperationNames`, `ActorQueryNames`, `StagedOperations`, and
@@ -30,6 +35,25 @@ generic signatures; this index explains the supported role of every export.
 `OutboundMessageIntent`, `ReminderOptions`, `OutboundMessageOptions`,
 `PayloadBroadcasts`, and `PayloadBroadcastValue` describe actor-declared
 transactional work and typed personalized projections.
+
+`observables()` returns a flat object. Unwrapped values are invalidation-only:
+their real values participate in change detection, but only their names enter
+the durable envelope. Use an explicit marker when wire behavior matters:
+
+```typescript
+override observables(): Record<string, unknown> {
+  return {
+    version: broadcastValue(this.document.version),
+    sidebar: broadcastInvalidation(this.sidebarForCurrentState()),
+  }
+}
+```
+
+Both values must be JSON-compatible and are evaluated after each successful
+turn. An invalidation-only value participates in change detection but is never
+written to the broadcast outbox or invalidation envelope. The envelope carries
+its name in `invalidations`, allowing component registries to refresh a
+reauthorized endpoint without exposing the value.
 
 `MessageReference` does not retain an invocation's authorization context.
 Supply `authorizationContext` to each `status()`, `result()`, and `wait()` call;
@@ -123,6 +147,11 @@ rows for `preview()` and rows actually deleted for `prune()`.
 `MessageStatus`, and `Logger` are shared types. `Database`,
 `DatabaseConnection`, `DatabaseFamily`, and `RunResult` support custom database
 and commit-action integration.
+
+`BroadcastEvent.observables` contains changed value-broadcast projections.
+`BroadcastEvent.invalidations` contains changed invalidation-only names. The
+runtime always supplies the array; consumers should treat its absence from an
+older or application-produced event as an empty array.
 
 ### Runtime extensions and manual workers
 
@@ -225,5 +254,35 @@ and `SyncTimeoutWaitingOn` type timeout diagnostics. See
   `ComponentRefreshFailure`, and `ComponentRegistryOptions`: framework-neutral
   refresh contract types.
 
+`InvalidationEnvelope.observables` contains values and
+`InvalidationEnvelope.invalidations` contains names without values. The
+component registry reacts to names in either location.
+
 The wire format, trust boundary, revision rules, and component semantics are in
 [Browser protocol](browser-protocol.md).
+
+## `solid-objects/web`
+
+- `createDashboard(options)` creates an immutable `SolidObjectsDashboard` with
+  a standard `fetch(request, context)` entry point.
+- `createNodeDashboardHandler(options)` adapts the Fetch entry point to
+  `node:http` and Connect-compatible middleware.
+- `DashboardOptions` selects the runtime, mount path, `DashboardAccess`, chart library,
+  `DashboardExtension` objects, and `DashboardMiddleware` functions.
+- `DashboardRequestContext` supplies the existing administration authorization
+  context and an optional `DashboardSession`. Read/write access requires the
+  session so its `read()` and `write()` methods can hold the masked CSRF token
+  across requests; read-only modes do not create CSRF state.
+- `DashboardRoute`, `DashboardRouteContext`, `DashboardPolicy`, `DashboardPage`,
+  and `DashboardTab` define extension pages. Every route requires a policy.
+- `DashboardRenderer`, `DashboardRenderInput`, and `DashboardMiddlewareInput`
+  define immutable view overrides and middleware inputs.
+- `DashboardChartLibrary` selects the CDN, a self-hosted script, or disabled
+  charts.
+- `NodeDashboardHandler`, `NodeDashboardHandlerOptions`, and
+  `NodeDashboardRequestContextResolver` describe the Node adapter.
+- `SolidObjectsDashboardContract` is the minimal Fetch contract accepted by the
+  Node adapter.
+
+Mounting, authorization actions, CSRF behavior, pages, and extensions are in
+[Operator dashboard](dashboard.md).

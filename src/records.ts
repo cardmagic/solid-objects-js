@@ -138,6 +138,7 @@ export interface BroadcastRow {
   actor_id: string
   state_revision: number | bigint
   observables: string
+  invalidations: string | null
   status: "pending" | "processing" | "delivered" | "dead"
   attempt_count: number | bigint
   available_at_ms: number | bigint

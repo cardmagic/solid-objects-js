@@ -27,7 +27,7 @@ pnpm add solid-objects
 Define the state and the operations allowed to change it:
 
 ```typescript
-import { Actor } from "solid-objects"
+import { Actor, broadcastValue } from "solid-objects"
 
 export class ClickerRoom extends Actor {
   static override readonly actorType = "ClickerRoom"
@@ -40,7 +40,7 @@ export class ClickerRoom extends Actor {
   }
 
   override observables(): Record<string, unknown> {
-    return { clicks: this.clicks }
+    return { clicks: broadcastValue(this.clicks) }
   }
 }
 ```
@@ -123,7 +123,7 @@ and durable consequences commit to the database.
 ## Write an ordinary TypeScript class
 
 ```typescript
-import { Actor } from "solid-objects"
+import { Actor, broadcastValue } from "solid-objects"
 
 export class Counter extends Actor {
   static override readonly actorType = "Counter"
@@ -140,7 +140,7 @@ export class Counter extends Actor {
   }
 
   override observables(): Record<string, unknown> {
-    return { count: this.count }
+    return { count: broadcastValue(this.count) }
   }
 }
 ```
@@ -150,7 +150,27 @@ No wrapper, state interface, decorator, or operation union is required. Native
 operation arguments, results, and observable values must be JSON-compatible.
 
 `observables()` is deliberately explicit. State fields and getters do not
-become realtime data automatically.
+become realtime data automatically. Use `broadcastValue(value)` when clients
+need the value, or `broadcastInvalidation(value)` when clients only need to
+know that a named dependency changed:
+
+```typescript
+import { broadcastInvalidation, broadcastValue } from "solid-objects"
+
+override observables(): Record<string, unknown> {
+  return {
+    version: broadcastValue(this.room?.version ?? 0),
+    playerOne: broadcastInvalidation(this.playerInSeat(1)),
+  }
+}
+```
+
+Solid Objects computes and compares both values. Unwrapped values and values
+wrapped in `broadcastInvalidation()` persist and send only their names when
+they change. This keeps private component data out of shared invalidation
+envelopes without application-maintained revision counters. Use
+`broadcastValue()` only for a scalar deliberately shared with every authorized
+actor subscriber.
 
 ## Evolve state with explicit migrations
 
@@ -781,6 +801,47 @@ scheduled|paused|completed`; `resume-reminder` accepts an ISO `--run-at DATE`;
 and `prune` accepts `--execute`. Run `solid-objects --help` for the command
 summary.
 
+## Mount the operator dashboard
+
+The optional `solid-objects/web` entry point serves runtime statistics,
+instances and committed state, ready and claimed messages, reminders, effects,
+broadcasts, dead letters, and processes. It is not imported by
+`solid-objects`, so workers that do not mount it carry no dashboard code.
+
+```typescript
+import { createDashboard, createNodeDashboardHandler } from "solid-objects/web"
+
+const dashboard = createDashboard({
+  runtime,
+  mountPath: "/solid-objects/dashboard",
+})
+
+const dashboardHandler = createNodeDashboardHandler({
+  dashboard,
+  resolveContext: async (request) => ({
+    authorizationContext: await currentOperator(request),
+    session: dashboardSession(request),
+  }),
+})
+
+server.on("request", (request, response) => dashboardHandler(request, response))
+```
+
+For synthetic demos that intentionally need no authentication or session, use
+`access: "public-read-only"`. It hides mutation controls and rejects every POST,
+but it exposes all dashboard data, so never point it at private production state.
+
+Every data route calls `authorizeAdministration` with its own action and
+resource before reading runtime tables. The policy denies by default. The host
+session adapter stores the dashboard's masked CSRF token; state-changing
+requests without a token from that session receive 403.
+
+The dashboard adds only two actions: instance pause/resume and idempotent
+dead-letter retry. Configure immutable custom tabs, routes, renderer overrides,
+and middleware through `extensions`. See
+[`docs/dashboard.md`](docs/dashboard.md) for mounting, policy, security, and
+extension contracts.
+
 ## Test durable workflows without sleeps
 
 `runtime.testing.drain()` runs configured roles in deterministic passes until
@@ -862,10 +923,12 @@ message. Later invalidations come from the durable outbox in actor revision
 order. Duplicate and stale revisions are fenced, and one broken connection
 cannot interrupt delivery to another.
 
-Invalidation envelopes contain the actual `observables()` values and deliver
-the same projection to every authorized subscriber. Never put credentials,
-session identifiers, private cards, or other subscriber-specific data there;
-use a typed payload projection or a reauthorized component endpoint instead.
+Invalidation envelopes deliver value-broadcast observables to every authorized
+subscriber. An observable wrapped in `broadcastInvalidation()` contributes
+only its name to the envelope's `invalidations` array. Use invalidation-only
+observables with reauthorized component endpoints when the underlying value is
+private; use typed payloads when the browser needs subscriber-specific data.
+Never put credentials or secrets in value-broadcast observables.
 
 Direct session delivery is process-local. When WebSocket connections and
 workers run in several Node processes, configure `broadcast` to publish each
@@ -1043,6 +1106,8 @@ authentication, and rendering integration.
 - [`docs/authorization.md`](docs/authorization.md) and
   [`docs/browser-protocol.md`](docs/browser-protocol.md) cover security and the
   transport-neutral realtime protocol.
+- [`docs/dashboard.md`](docs/dashboard.md) covers the optional operator
+  dashboard, Fetch and Node mounting, policies, CSRF sessions, and extensions.
 - [`docs/releasing.md`](docs/releasing.md) documents the tag-driven npm release
   workflow for maintainers.
 

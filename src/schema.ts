@@ -6,7 +6,8 @@ const RETRY_LINK_VERSION = 2
 const MESSAGE_IDENTITY_VERSION = 3
 const PROCESS_IDENTITY_VERSION = 4
 const PROCESS_DRAINING_VERSION = 5
-const LATEST_VERSION = PROCESS_DRAINING_VERSION
+const OBSERVABLE_INVALIDATIONS_VERSION = 6
+const LATEST_VERSION = OBSERVABLE_INVALIDATIONS_VERSION
 
 export async function installSchema(options: {
   connection: DatabaseConnection
@@ -261,14 +262,30 @@ export async function installSchema(options: {
     })
   }
 
-  if (installedVersions.has(PROCESS_DRAINING_VERSION)) return
+  if (!installedVersions.has(PROCESS_DRAINING_VERSION)) {
+    await connection.run(
+      `ALTER TABLE ${table("processes")} ADD COLUMN ${family === "postgresql" ? "IF NOT EXISTS " : ""}shutdown_requested_at_ms ${family === "sqlite" ? "INTEGER" : "BIGINT"}`,
+    )
+    await recordMigration({
+      connection,
+      table: table("schema_migrations"),
+      version: PROCESS_DRAINING_VERSION,
+      schemaIdentity,
+    })
+  }
+
+  if (installedVersions.has(OBSERVABLE_INVALIDATIONS_VERSION)) return
   await connection.run(
-    `ALTER TABLE ${table("processes")} ADD COLUMN ${family === "postgresql" ? "IF NOT EXISTS " : ""}shutdown_requested_at_ms ${family === "sqlite" ? "INTEGER" : "BIGINT"}`,
+    `ALTER TABLE ${table("broadcasts")} ADD COLUMN ${family === "postgresql" ? "IF NOT EXISTS " : ""}invalidations ${family === "mysql" ? "LONGTEXT" : "TEXT"}`,
+  )
+  await connection.run(
+    `UPDATE ${table("broadcasts")} SET invalidations = ? WHERE invalidations IS NULL`,
+    ["[]"],
   )
   await recordMigration({
     connection,
     table: table("schema_migrations"),
-    version: PROCESS_DRAINING_VERSION,
+    version: OBSERVABLE_INVALIDATIONS_VERSION,
     schemaIdentity,
   })
 }

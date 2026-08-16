@@ -95,6 +95,12 @@ actor subscriptions, replays a committed observable projection, and follows
 the durable broadcast outbox in revision order. The browser client applies the
 same incarnation and revision fence without importing Node APIs.
 
+Each observable is compared using its computed JSON value. Value-broadcast
+observables persist that changed value in the outbox; invalidation-only
+observables persist only the changed name. This lets a component registry
+refresh a reauthorized view at the same dependency granularity without storing
+or sending private projection values.
+
 Actors may also declare static personalized payload projections. Each requested
 name is reauthorized as a query and evaluated against a fresh actor hydrated
 from committed state under that subscriber's session context. Payload names use

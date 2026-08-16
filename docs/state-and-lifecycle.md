@@ -20,6 +20,16 @@ The constructor must establish every persisted field and must not depend on
 external state. Solid Objects invokes it while validating the class, creating
 defaults, hydrating state, and projecting a snapshot.
 
+## Observable broadcast modes
+
+`observables()` defines the named values used for realtime change detection.
+Unwrapped values are invalidation-only: the runtime compares their real values
+but includes only each changed name in committed envelopes. Wrapping a value in
+`broadcastInvalidation()` makes that contract explicit. Wrap it in
+`broadcastValue()` only when every authorized actor subscriber may receive the
+value itself. Every mode evaluates and JSON-validates its real value after a
+successful turn.
+
 ## State migrations
 
 Every actor starts at state version 1. Increase `stateVersion` when existing

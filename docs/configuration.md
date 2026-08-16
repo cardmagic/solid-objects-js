@@ -28,7 +28,9 @@ through `runtime.ref(ActorClass, actorId)`. Both validate options immediately.
 The limits measure normalized JSON encoded as UTF-8. `maxResultBytes` also
 limits each computed snapshot getter and effect-handler result. Explicit
 `observables()` values are validated as JSON but do not currently have a
-separate aggregate byte limit. `retryDelayMilliseconds` should return a
+separate aggregate byte limit. This includes values wrapped in
+`broadcastInvalidation()`: they are compared in memory even though only their
+names enter the broadcast outbox. `retryDelayMilliseconds` should return a
 non-negative finite number; an invalid application callback will fail the
 affected failure path rather than schedule an invalid timestamp.
 

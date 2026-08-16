@@ -6,6 +6,7 @@ import { SyncTimeout } from "../src/errors.js"
 import { DatabaseDeadlineExceeded } from "../src/errors.js"
 import { withDatabaseDeadline } from "../src/database/deadline.js"
 import type { JsonObject } from "../src/types.js"
+import { createDashboard } from "../src/web/index.js"
 
 const connectionString = process.env.SOLID_OBJECTS_DATABASE_URL
 const describeMySQL = connectionString?.startsWith("mysql:") ? describe : describe.skip
@@ -212,6 +213,13 @@ describeMySQL("MySQL adapter", () => {
         expect.objectContaining({ name: "roundTrip", status: "pass" }),
       ]),
     )
+    const dashboard = createDashboard({ runtime, mountPath: "/" })
+    const dashboardResponse = await dashboard.fetch(
+      new Request("http://example.test/instances?actor_id=low"),
+      dashboardContext(),
+    )
+    expect(dashboardResponse.status).toBe(200)
+    expect(await dashboardResponse.text()).toContain("flow")
   }, 15_000)
 
   it("restores failed actor setup without consuming an attempt", async () => {
@@ -248,6 +256,19 @@ describeMySQL("MySQL adapter", () => {
     await worker.stop()
   })
 })
+
+function dashboardContext() {
+  const values = new Map<string, string>()
+  return {
+    authorizationContext: {},
+    session: {
+      read: (key: string) => values.get(key),
+      write: (key: string, value: string) => {
+        values.set(key, value)
+      },
+    },
+  }
+}
 
 function mysqlTimeoutSettings(database: MySQLDatabase) {
   return database.connection((connection) =>

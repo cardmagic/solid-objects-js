@@ -9,8 +9,28 @@ import {
   type ScheduledOperations,
   type StagedOperations,
 } from "./reference.js"
-import { jsonObject } from "./serialization.js"
+import { jsonObject, normalizeJson } from "./serialization.js"
 import type { ActorIdentifier, JsonObject, JsonValue, MessageContext } from "./types.js"
+
+const observableBroadcastMode = Symbol("solid-objects.observable-broadcast-mode")
+
+export type ObservableBroadcast<Value> = Readonly<{
+  value: Value
+  [observableBroadcastMode]: "invalidation" | "value"
+}>
+
+export interface ObservableProjection {
+  values: JsonObject
+  modes: Readonly<Record<string, "invalidation" | "value">>
+}
+
+export function broadcastInvalidation<Value>(value: Value): ObservableBroadcast<Value> {
+  return Object.freeze({ value, [observableBroadcastMode]: "invalidation" })
+}
+
+export function broadcastValue<Value>(value: Value): ObservableBroadcast<Value> {
+  return Object.freeze({ value, [observableBroadcastMode]: "value" })
+}
 
 export type PayloadBroadcastValue = JsonObject | JsonValue[]
 
@@ -222,8 +242,23 @@ export abstract class Actor {
   }
 
   /** @internal */
-  observableValues(): JsonObject {
-    return jsonObject(this.observables())
+  observableValues(): ObservableProjection {
+    const values: JsonObject = {}
+    const modes: Record<string, "invalidation" | "value"> = {}
+    for (const [name, configured] of Object.entries(this.observables())) {
+      if (
+        typeof configured !== "object" ||
+        configured === null ||
+        !isObservableBroadcast(configured)
+      ) {
+        values[name] = normalizeJson(configured)
+        modes[name] = "invalidation"
+        continue
+      }
+      values[name] = normalizeJson(configured.value)
+      modes[name] = configured[observableBroadcastMode]
+    }
+    return { values, modes: Object.freeze(modes) }
   }
 
   /** @internal */
@@ -250,4 +285,8 @@ export abstract class Actor {
   intentCount(): number {
     return Object.values(this.#intents).reduce((count, intents) => count + intents.length, 0)
   }
+}
+
+function isObservableBroadcast(value: object): value is ObservableBroadcast<JsonValue> {
+  return observableBroadcastMode in value
 }

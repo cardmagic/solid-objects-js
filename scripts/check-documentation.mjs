@@ -10,6 +10,7 @@ const documentationPaths = [
   "docs/browser-protocol.md",
   "docs/configuration.md",
   "docs/correctness.md",
+  "docs/dashboard.md",
   "docs/errors-and-recovery.md",
   "docs/operations.md",
   "docs/parity.md",
@@ -45,6 +46,7 @@ const entryPoints = [
   "src/database/mysql.ts",
   "src/wake-up/redis.ts",
   "src/browser/index.ts",
+  "src/web/index.ts",
 ]
 
 const missingExports = []

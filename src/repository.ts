@@ -588,7 +588,10 @@ export class Repository {
       state: Record<string, JsonValue>
       stateVersion: number
       result: JsonValue
-      broadcastObservables?: Record<string, JsonValue>
+      broadcastProjection?: {
+        observables: Record<string, JsonValue>
+        invalidations: readonly string[]
+      }
       intents: ActorIntents
       executeCommitAction(
         intent: ActorIntents["commitActions"][number],
@@ -703,12 +706,12 @@ export class Repository {
         })
       }
 
-      if (input.broadcastObservables !== undefined) {
+      if (input.broadcastProjection !== undefined) {
         await connection.run(
           `INSERT INTO ${this.table("broadcasts")}
            (id, message_id, instance_id, actor_type, actor_id, state_revision, observables,
-            status, available_at_ms)
-           VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', ?)`,
+            invalidations, status, available_at_ms)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?)`,
           [
             randomUUID(),
             turn.message.id,
@@ -716,7 +719,8 @@ export class Repository {
             turn.message.actor_type,
             turn.message.actor_id,
             turn.message.sequence,
-            JSON.stringify(input.broadcastObservables),
+            JSON.stringify(input.broadcastProjection.observables),
+            JSON.stringify(input.broadcastProjection.invalidations),
             now,
           ],
         )
