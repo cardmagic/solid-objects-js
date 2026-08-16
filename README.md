@@ -165,11 +165,12 @@ override observables(): Record<string, unknown> {
 }
 ```
 
-Solid Objects still computes and compares the `playerOne` value, but persists
-and sends only its name when it changes. This keeps private component data out
-of shared invalidation envelopes without application-maintained revision
-counters. Unwrapped values continue to use value broadcasting in 0.12.2; the
-markers make the intended wire behavior explicit.
+Solid Objects computes and compares both values. Unwrapped values and values
+wrapped in `broadcastInvalidation()` persist and send only their names when
+they change. This keeps private component data out of shared invalidation
+envelopes without application-maintained revision counters. Use
+`broadcastValue()` only for a scalar deliberately shared with every authorized
+actor subscriber.
 
 ## Evolve state with explicit migrations
 
@@ -800,6 +801,43 @@ scheduled|paused|completed`; `resume-reminder` accepts an ISO `--run-at DATE`;
 and `prune` accepts `--execute`. Run `solid-objects --help` for the command
 summary.
 
+## Mount the operator dashboard
+
+The optional `solid-objects/web` entry point serves runtime statistics,
+instances and committed state, ready and claimed messages, reminders, effects,
+broadcasts, dead letters, and processes. It is not imported by
+`solid-objects`, so workers that do not mount it carry no dashboard code.
+
+```typescript
+import { createDashboard, createNodeDashboardHandler } from "solid-objects/web"
+
+const dashboard = createDashboard({
+  runtime,
+  mountPath: "/solid-objects/dashboard",
+})
+
+const dashboardHandler = createNodeDashboardHandler({
+  dashboard,
+  resolveContext: async (request) => ({
+    authorizationContext: await currentOperator(request),
+    session: dashboardSession(request),
+  }),
+})
+
+server.on("request", (request, response) => dashboardHandler(request, response))
+```
+
+Every data route calls `authorizeAdministration` with its own action and
+resource before reading runtime tables. The policy denies by default. The host
+session adapter stores the dashboard's masked CSRF token; state-changing
+requests without a token from that session receive 403.
+
+The dashboard adds only two actions: instance pause/resume and idempotent
+dead-letter retry. Configure immutable custom tabs, routes, renderer overrides,
+and middleware through `extensions`. See
+[`docs/dashboard.md`](docs/dashboard.md) for mounting, policy, security, and
+extension contracts.
+
 ## Test durable workflows without sleeps
 
 `runtime.testing.drain()` runs configured roles in deterministic passes until
@@ -1064,6 +1102,8 @@ authentication, and rendering integration.
 - [`docs/authorization.md`](docs/authorization.md) and
   [`docs/browser-protocol.md`](docs/browser-protocol.md) cover security and the
   transport-neutral realtime protocol.
+- [`docs/dashboard.md`](docs/dashboard.md) covers the optional operator
+  dashboard, Fetch and Node mounting, policies, CSRF sessions, and extensions.
 - [`docs/releasing.md`](docs/releasing.md) documents the tag-driven npm release
   workflow for maintainers.
 

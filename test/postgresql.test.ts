@@ -13,6 +13,7 @@ import { SyncTimeout } from "../src/errors.js"
 import { DatabaseDeadlineExceeded } from "../src/errors.js"
 import { withDatabaseDeadline } from "../src/database/deadline.js"
 import type { JsonObject } from "../src/types.js"
+import { createDashboard } from "../src/web/index.js"
 
 const connectionString = process.env.SOLID_OBJECTS_DATABASE_URL
 const describePostgreSQL = connectionString?.startsWith("postgresql:") ? describe : describe.skip
@@ -403,8 +404,28 @@ describePostgreSQL("PostgreSQL adapter", () => {
     const preview = await runtime.retention.preview({ target: "messages" })
     expect(preview.count).toBeGreaterThan(0)
     await expect(runtime.retention.prune({ target: "messages" })).resolves.toEqual(preview)
+    const dashboard = createDashboard({ runtime, mountPath: "/" })
+    const dashboardResponse = await dashboard.fetch(
+      new Request("http://example.test/instances?actor_id=low"),
+      dashboardContext(),
+    )
+    expect(dashboardResponse.status).toBe(200)
+    expect(await dashboardResponse.text()).toContain("flow")
   })
 })
+
+function dashboardContext() {
+  const values = new Map<string, string>()
+  return {
+    authorizationContext: {},
+    session: {
+      read: (key: string) => values.get(key),
+      write: (key: string, value: string) => {
+        values.set(key, value)
+      },
+    },
+  }
+}
 
 async function captureSyncTimeout(operation: () => Promise<unknown>): Promise<SyncTimeout> {
   try {

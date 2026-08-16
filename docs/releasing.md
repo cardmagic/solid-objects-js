@@ -36,8 +36,8 @@ npm trust github solid-objects \
 4. Create and push an annotated tag matching the package version:
 
    ```shell
-   git tag -a v0.12.2 -m "Version 0.12.2"
-   git push origin v0.12.2
+   git tag -a v0.13.0 -m "Version 0.13.0"
+   git push origin v0.13.0
    ```
 
 The tag runs the complete CI matrix. The publish job starts only after every

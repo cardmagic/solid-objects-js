@@ -18,10 +18,11 @@ before actor type lookup, so denied callers cannot probe the registry. A new
 connection must use a newly resolved authorization context; do not copy a user
 object from an earlier request or trust an actor ID supplied by the browser.
 
-Successful subscription authorization allows the value-broadcast portion of
-the explicit `observables()` projection for that actor, including the immediate
-committed replay. Observables marked with `broadcastInvalidation()` disclose
-only their names, not their values. Subscription authorization does not
+Successful subscription authorization allows the `broadcastValue()` portion
+of the explicit `observables()` projection for that actor, including the
+immediate committed replay. Unwrapped observables and values marked with
+`broadcastInvalidation()` disclose only their names, not their values.
+Subscription authorization does not
 authorize actor state, operations, queries, destruction, or administration.
 The runtime removes all registrations when the host calls `session.close()`.
 
@@ -31,3 +32,9 @@ the same fresh session authorization context before every projection. A false
 query decision omits that payload. Projection and authorization failures are
 confined to the payload name and emit metadata-only instrumentation; they do
 not reject observable delivery or expose exception messages.
+
+The optional operator dashboard applies `authorizeAdministration` before every
+data route. Each route supplies its own action, resource, optional resource ID,
+and the host-provided request authorization context. Dashboard authorization
+does not replace host authentication. State-changing routes additionally
+require a masked token backed by the host's `DashboardSession`.

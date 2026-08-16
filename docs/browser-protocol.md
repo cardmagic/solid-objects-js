@@ -45,7 +45,7 @@ The 0.1 envelope is:
 }
 ```
 
-`invalidations` was added as an optional version-1 field in 0.12.2. Clients
+`invalidations` was added as an optional version-1 field in 0.13.0. Clients
 must treat a missing field as an empty array. A name appears in either
 `observables` or `invalidations`, never both, in runtime-produced envelopes.
 

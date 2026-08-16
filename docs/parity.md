@@ -4,15 +4,15 @@ This ledger tracks spiritual feature parity with the Ruby `solid_objects` gem.
 Parity means preserving a capability and its correctness or security boundary,
 not copying a Rails API into Node.
 
-Reference: Ruby `solid_objects` 0.12.0 at commit `a01b6f5`.
+Reference: Ruby `solid_objects` 0.13.0.
 
-The Node `0.12.2` implementation has spiritual parity with that reference. Its
+The Node `0.13.0` implementation has spiritual parity with that reference. Its
 relational runtime, correctness boundaries, administration, diagnostics,
-realtime projections, browser behavior, and supported adapters have native
-equivalents. Rails engine and rendering surfaces are intentionally replaced by
-transport- and framework-neutral JavaScript APIs. The partial guard row and the
-shared planned result-lookup row below are explicit scope boundaries, not
-missing Ruby capabilities.
+operator dashboard, realtime projections, browser behavior, and supported
+adapters have native equivalents. Rails-specific rendering surfaces are
+replaced by transport- and framework-neutral JavaScript APIs. The partial guard
+row and the shared planned result-lookup row below are explicit scope
+boundaries, not missing Ruby capabilities.
 
 ## Status vocabulary
 
@@ -49,18 +49,19 @@ missing Ruby capabilities.
 
 ## Operations
 
-| Capability                                                                    | Status | TypeScript shape or remaining work                                                                                                                                             |
-| ----------------------------------------------------------------------------- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Process registration, heartbeats, stale claim recovery, and graceful shutdown | Native | Runtime roles persist host, PID, runtime versions, draining and stopped transitions, cooperative cancellation, and a bounded shutdown deadline; cleanup recovers stale claims. |
-| Failed-role replacement                                                       | Native | Built-in and registered roles are rebuilt through their factories with capped backoff; shutdown is the terminal replacement boundary.                                          |
-| Additional supervised components                                              | Native | `registerComponent()` builds, validates, runs, and stops application components with the runtime.                                                                              |
-| Dead-letter inspection and retry                                              | Native | `runtime.deadLetters` provides deny-by-default immutable inspection and idempotent durable retry linkage.                                                                      |
-| Reconciliation reads                                                          | Native | Authorized cursor pages cover active, quiet, and orphaned instances; bounded state batches are migrated and deeply frozen.                                                     |
-| Message, process, and opt-in instance retention                               | Native | Supervised scheduling bounds message and process growth; authorized manual APIs add preview and keep destructive instance expiration explicit.                                 |
-| Doctor and schema verification                                                | Native | Structured checks cover configuration, schema/version shape, adapter server versions, neutral-context policy probes, live roles, and a targeted round trip.                    |
-| CLI                                                                           | Native | The packaged executable loads an application runtime and exposes start, diagnostics, processes, dead letters, reminders, and explicit retention pruning as JSON.               |
-| Structured instrumentation                                                    | Native | An isolated transport-neutral sink emits immutable lifecycle metadata and structurally excludes application payloads.                                                          |
-| Public test helper                                                            | Native | `runtime.testing` provides role-selective deterministic draining, explicit-time due-reminder execution, and dependency-ordered reset without relying on cascades.              |
+| Capability                                                                    | Status | TypeScript shape or remaining work                                                                                                                                                                   |
+| ----------------------------------------------------------------------------- | ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Process registration, heartbeats, stale claim recovery, and graceful shutdown | Native | Runtime roles persist host, PID, runtime versions, draining and stopped transitions, cooperative cancellation, and a bounded shutdown deadline; cleanup recovers stale claims.                       |
+| Failed-role replacement                                                       | Native | Built-in and registered roles are rebuilt through their factories with capped backoff; shutdown is the terminal replacement boundary.                                                                |
+| Additional supervised components                                              | Native | `registerComponent()` builds, validates, runs, and stops application components with the runtime.                                                                                                    |
+| Dead-letter inspection and retry                                              | Native | `runtime.deadLetters` provides deny-by-default immutable inspection and idempotent durable retry linkage.                                                                                            |
+| Reconciliation reads                                                          | Native | Authorized cursor pages cover active, quiet, and orphaned instances; bounded state batches are migrated and deeply frozen.                                                                           |
+| Message, process, and opt-in instance retention                               | Native | Supervised scheduling bounds message and process growth; authorized manual APIs add preview and keep destructive instance expiration explicit.                                                       |
+| Doctor and schema verification                                                | Native | Structured checks cover configuration, schema/version shape, adapter server versions, neutral-context policy probes, live roles, and a targeted round trip.                                          |
+| CLI                                                                           | Native | The packaged executable loads an application runtime and exposes start, diagnostics, processes, dead letters, reminders, and explicit retention pruning as JSON.                                     |
+| Operator dashboard                                                            | Native | The opt-in `solid-objects/web` export provides Fetch and Node/Connect mounting, authorized runtime views and actions, session-backed CSRF, filtering, paging, charts, and immutable extension hooks. |
+| Structured instrumentation                                                    | Native | An isolated transport-neutral sink emits immutable lifecycle metadata and structurally excludes application payloads.                                                                                |
+| Public test helper                                                            | Native | `runtime.testing` provides role-selective deterministic draining, explicit-time due-reminder execution, and dependency-ordered reset without relying on cascades.                                    |
 
 ## Databases and wake-up
 
@@ -76,19 +77,19 @@ missing Ruby capabilities.
 
 ## Realtime and browser behavior
 
-| Capability                                                   | Status         | TypeScript shape or remaining work                                                                                                                                                                                                                                                                                                                                               |
-| ------------------------------------------------------------ | -------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Explicit observable projection and durable invalidations     | Native         | `observables()` is opt-in. `broadcastValue()` sends changed values; `broadcastInvalidation()` sends only changed names while comparing the real value. Unwrapped values still broadcast values in 0.12.2, while Ruby can select either mode at declaration time. Private or subscriber-specific values belong behind invalidation-only component endpoints or in typed payloads. |
-| Action Cable channels and signed stream names                | Not applicable | `runtime.realtime` provides authenticated transport-neutral sessions; the host owns its HTTP/WebSocket server and authentication.                                                                                                                                                                                                                                                |
-| Authorized subscriptions                                     | Native         | Each request is denied by default and authorized before actor lookup; sessions replay committed observables and fence ordered durable revisions. Multi-process hosts explicitly bridge their shared transport.                                                                                                                                                                   |
-| Turbo scalar replacement                                     | Not applicable | The browser client exposes invalidations to application rendering code. Framework adapters can be separate packages.                                                                                                                                                                                                                                                             |
-| Keyed component refresh, morph/replace, and batch coalescing | Native         | A typed framework-neutral registry selects explicit dependencies, coalesces batch requests, aborts superseded work, fences each target, and delegates synchronous application strategy to the host.                                                                                                                                                                              |
-| Personalized payload broadcasts                              | Native         | Static typed projections run against committed state under each fresh subscriber context, reauthorize as queries, isolate failures, and carry independent revision fences.                                                                                                                                                                                                       |
-| Real-browser compatibility suite                             | Native         | Playwright exercises subscription replay over native WebSocket, incarnation/revision fences, payload delivery, component batching, and cancellation in Chromium.                                                                                                                                                                                                                 |
+| Capability                                                   | Status         | TypeScript shape or remaining work                                                                                                                                                                                                                                                                                 |
+| ------------------------------------------------------------ | -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Explicit observable projection and durable invalidations     | Native         | `observables()` is opt-in and invalidation-only by default. `broadcastValue()` sends changed values; `broadcastInvalidation()` explicitly sends only changed names while comparing the real value. Private or subscriber-specific values belong behind invalidation-only component endpoints or in typed payloads. |
+| Action Cable channels and signed stream names                | Not applicable | `runtime.realtime` provides authenticated transport-neutral sessions; the host owns its HTTP/WebSocket server and authentication.                                                                                                                                                                                  |
+| Authorized subscriptions                                     | Native         | Each request is denied by default and authorized before actor lookup; sessions replay committed observables and fence ordered durable revisions. Multi-process hosts explicitly bridge their shared transport.                                                                                                     |
+| Turbo scalar replacement                                     | Not applicable | The browser client exposes invalidations to application rendering code. Framework adapters can be separate packages.                                                                                                                                                                                               |
+| Keyed component refresh, morph/replace, and batch coalescing | Native         | A typed framework-neutral registry selects explicit dependencies, coalesces batch requests, aborts superseded work, fences each target, and delegates synchronous application strategy to the host.                                                                                                                |
+| Personalized payload broadcasts                              | Native         | Static typed projections run against committed state under each fresh subscriber context, reauthorize as queries, isolate failures, and carry independent revision fences.                                                                                                                                         |
+| Real-browser compatibility suite                             | Native         | Playwright exercises subscription replay over native WebSocket, incarnation/revision fences, payload delivery, component batching, and cancellation in Chromium.                                                                                                                                                   |
 
 ## Rails-specific surfaces
 
-The Rails engine, generators, Active Record models/controllers, ERB helpers,
-Turbo renderer, and Action Cable channel are not copied into this package.
-Their underlying runtime, administration, authorization, and realtime
-capabilities are represented above by Node-native APIs and protocols.
+Rails generators, Active Record models/controllers, Turbo rendering, and
+Action Cable are not copied into this package. The Rack dashboard is represented
+by the framework-neutral Fetch and Node adapter, renderer callbacks, and the
+same authorization and CSRF boundaries.

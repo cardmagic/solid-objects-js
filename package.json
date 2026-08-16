@@ -1,6 +1,6 @@
 {
   "name": "solid-objects",
-  "version": "0.12.2",
+  "version": "0.13.0",
   "description": "Stateful, realtime TypeScript objects backed by PostgreSQL, SQLite, or MySQL",
   "type": "module",
   "license": "MIT",
@@ -59,6 +59,10 @@
     "./browser": {
       "types": "./dist/browser/index.d.ts",
       "import": "./dist/browser/index.js"
+    },
+    "./web": {
+      "types": "./dist/web/index.d.ts",
+      "import": "./dist/web/index.js"
     }
   },
   "scripts": {

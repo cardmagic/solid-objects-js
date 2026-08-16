@@ -36,9 +36,9 @@ generic signatures; this index explains the supported role of every export.
 `PayloadBroadcasts`, and `PayloadBroadcastValue` describe actor-declared
 transactional work and typed personalized projections.
 
-`observables()` returns a flat object. Unwrapped values broadcast their values
-in 0.12.2 for compatibility. Prefer an explicit marker when wire behavior
-matters:
+`observables()` returns a flat object. Unwrapped values are invalidation-only:
+their real values participate in change detection, but only their names enter
+the durable envelope. Use an explicit marker when wire behavior matters:
 
 ```typescript
 override observables(): Record<string, unknown> {
@@ -260,3 +260,28 @@ component registry reacts to names in either location.
 
 The wire format, trust boundary, revision rules, and component semantics are in
 [Browser protocol](browser-protocol.md).
+
+## `solid-objects/web`
+
+- `createDashboard(options)` creates an immutable `SolidObjectsDashboard` with
+  a standard `fetch(request, context)` entry point.
+- `createNodeDashboardHandler(options)` adapts the Fetch entry point to
+  `node:http` and Connect-compatible middleware.
+- `DashboardOptions` selects the runtime, mount path, chart library,
+  `DashboardExtension` objects, and `DashboardMiddleware` functions.
+- `DashboardRequestContext` supplies the existing administration authorization
+  context and a `DashboardSession`. The session's `read()` and `write()` methods
+  hold the masked CSRF token across requests.
+- `DashboardRoute`, `DashboardRouteContext`, `DashboardPolicy`, `DashboardPage`,
+  and `DashboardTab` define extension pages. Every route requires a policy.
+- `DashboardRenderer`, `DashboardRenderInput`, and `DashboardMiddlewareInput`
+  define immutable view overrides and middleware inputs.
+- `DashboardChartLibrary` selects the CDN, a self-hosted script, or disabled
+  charts.
+- `NodeDashboardHandler`, `NodeDashboardHandlerOptions`, and
+  `NodeDashboardRequestContextResolver` describe the Node adapter.
+- `SolidObjectsDashboardContract` is the minimal Fetch contract accepted by the
+  Node adapter.
+
+Mounting, authorization actions, CSRF behavior, pages, and extensions are in
+[Operator dashboard](dashboard.md).

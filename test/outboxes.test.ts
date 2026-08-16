@@ -326,8 +326,8 @@ describe("observable broadcasts", () => {
     expect(events[0]).toMatchObject({
       actorType: "ObservableCounter",
       actorId: "counter",
-      observables: { count: 1, defaultCount: 1 },
-      invalidations: ["privateValue"],
+      observables: { count: 1 },
+      invalidations: ["defaultCount", "privateValue"],
     })
     expect(events[0]?.observables).not.toHaveProperty("privateValue")
 
@@ -341,8 +341,8 @@ describe("observable broadcasts", () => {
     await ObservableCounter.ref("counter").incrementCount()
     expect(await runtime.broadcastWorker().runUntilIdle()).toBe(1)
     expect(events[1]).toMatchObject({
-      observables: { count: 2, defaultCount: 2 },
-      invalidations: [],
+      observables: { count: 2 },
+      invalidations: ["defaultCount"],
     })
   })
 

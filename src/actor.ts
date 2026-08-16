@@ -252,7 +252,7 @@ export abstract class Actor {
         !isObservableBroadcast(configured)
       ) {
         values[name] = normalizeJson(configured)
-        modes[name] = "value"
+        modes[name] = "invalidation"
         continue
       }
       values[name] = normalizeJson(configured.value)

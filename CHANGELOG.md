@@ -2,14 +2,27 @@
 
 ## Unreleased
 
-## 0.12.2 - 2026-08-13
+## 0.13.0 - 2026-08-15
+
+- **Breaking:** make unwrapped observables invalidation-only by default. They
+  continue to detect changes and refresh dependent components without storing
+  or sending their values. Wrap a projection in `broadcastValue()` to share
+  its scalar value with every authorized actor subscriber.
 
 - Add `broadcastInvalidation()` so actors can drive granular component refresh
   without persisting or sending the observable value.
-- Add `broadcastValue()` for an explicit value-bearing observable contract
-  while preserving value broadcasting for unwrapped observables in 0.12.2.
+- Add `broadcastValue()` for the explicit value-bearing observable contract.
 - Extend durable and browser invalidation envelopes with invalidation-only
   observable names.
+- Add the framework-neutral `solid-objects/web` operator dashboard with Fetch
+  and Node/Connect mounting, runtime statistics, instance and mailbox detail,
+  reminder/effect/broadcast/dead-letter/process views, filtering, paging,
+  instance pause/resume, and idempotent dead-letter retry.
+- Deny dashboard data by default through route-specific administration policy,
+  require session-backed masked CSRF tokens for actions, escape stored values,
+  and serve a strict content security policy.
+- Add immutable dashboard extension routes, tabs, renderer overrides, and
+  middleware, plus configurable Chart.js dashboards and live statistics.
 - Refocus the README and package metadata on native Node.js concurrency,
   realtime state synchronization, and database-backed infrastructure.
 

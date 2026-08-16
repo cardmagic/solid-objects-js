@@ -23,14 +23,12 @@ defaults, hydrating state, and projecting a snapshot.
 ## Observable broadcast modes
 
 `observables()` defines the named values used for realtime change detection.
-Wrap a value in `broadcastValue()` to include the value in committed
-invalidation envelopes. Wrap it in `broadcastInvalidation()` to include only
-the name when the computed value changes. The latter is useful for private
-server-rendered components: the browser learns what to refresh, while the
-component endpoint reauthorizes and renders the underlying value.
-
-Unwrapped observable values retain value-broadcast behavior in 0.12.2. Every
-mode still evaluates and JSON-validates its real value after a successful turn.
+Unwrapped values are invalidation-only: the runtime compares their real values
+but includes only each changed name in committed envelopes. Wrapping a value in
+`broadcastInvalidation()` makes that contract explicit. Wrap it in
+`broadcastValue()` only when every authorized actor subscriber may receive the
+value itself. Every mode evaluates and JSON-validates its real value after a
+successful turn.
 
 ## State migrations
 
