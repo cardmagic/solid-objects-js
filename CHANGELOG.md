@@ -1,6 +1,24 @@
 # Changelog
 
-## Unreleased
+## 0.13.1 - 2026-08-16
+
+- Back idle actor, effect, reminder, and broadcast polling off exponentially
+  from the configured fast interval to a new one-second idle ceiling. Any
+  processed work or wake-up resets the role immediately, and actor polling
+  remains capped by the lease-renewal interval.
+- Expose each role's current polling interval and emit
+  `solid_objects.polling.interval_changed` instrumentation for every idle,
+  work, and wake-up transition.
+- Warn once when live processes share the database without a configured
+  cross-process wake-up adapter.
+- Preserve older custom wake-up adapters that return `void`; return `true` for
+  notifications and `false` for timeouts from the built-in PostgreSQL, Redis,
+  and in-process adapters so adaptive polling can distinguish them.
+- Add a reproducible four-role SQLite idle benchmark.
+- **Behavior change:** `pollingIntervalMilliseconds` is now the fast interval
+  after activity, not a constant idle cadence. Existing explicit values back
+  off to `idlePollingIntervalMilliseconds`, which defaults to `1_000`. Set
+  both options to the same value to preserve a fixed cadence.
 
 ## 0.13.0 - 2026-08-16
 

@@ -5,6 +5,7 @@ import { join, resolve } from "node:path"
 import { spawn } from "node:child_process"
 
 const repositoryRoot = resolve(import.meta.dirname, "..")
+const packageDefinition = JSON.parse(await readFile(join(repositoryRoot, "package.json"), "utf8"))
 const temporaryDirectory = await mkdtemp(join(tmpdir(), "solid-objects-package-"))
 const artifactDirectory = join(temporaryDirectory, "artifact")
 const projectDirectory = join(temporaryDirectory, "project")
@@ -21,7 +22,7 @@ try {
     ),
   )[0]
   assert.equal(packed.name, "solid-objects")
-  assert.equal(packed.version, "0.13.0")
+  assert.equal(packed.version, packageDefinition.version)
 
   const packagedPaths = new Set(packed.files.map((file) => file.path))
   for (const expectedPath of [
@@ -50,7 +51,7 @@ try {
   const installedPackage = JSON.parse(
     await readFile(join(projectDirectory, "node_modules/solid-objects/package.json"), "utf8"),
   )
-  assert.equal(installedPackage.version, "0.13.0")
+  assert.equal(installedPackage.version, packageDefinition.version)
 
   const resolvedModule = (
     await run(

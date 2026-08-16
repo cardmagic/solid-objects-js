@@ -25,7 +25,9 @@ Each role takes a generation watch before checking for work. A post-commit
 wake-up therefore cannot fall into the gap between an empty claim and the
 worker's wait. The default adapter broadcasts within one process; polling
 remains active as the durable fallback and custom adapters can bridge process
-boundaries.
+boundaries. Empty passes double the role's wait up to the configured idle
+ceiling. Work or a notification resets it to the fast interval, and an actor
+worker's ceiling never exceeds its lease-renewal interval.
 
 Each runtime role occupies a supervised factory slot. An unexpected promise
 resolution or rejection cleans up that instance, waits with capped exponential
@@ -63,7 +65,8 @@ per runtime listens on role-specific channels before the worker checks durable
 state, which closes the listener-startup race without holding a polling
 connection per worker. A notification advances a process-local role generation
 and wakes every matching waiter. Reconnection and notification loss fall back
-to the ordinary polling interval.
+to adaptive polling, whose current wait can be as long as the configured idle
+ceiling.
 
 The optional Redis adapter provides the same role generations through Pub/Sub
 for deployments that already operate Redis. It keeps commands and subscriptions

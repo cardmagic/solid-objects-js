@@ -1,13 +1,29 @@
 import { randomUUID } from "node:crypto"
 import type { SolidObjectsRuntime } from "./runtime.js"
 import { withProcessHeartbeat } from "./worker.js"
+import { PollingBackoff } from "./polling-backoff.js"
 
 export class EffectWorker {
   readonly processId = randomUUID()
   private registered = false
   private stopping = false
+  private readonly pollingBackoff: PollingBackoff
 
-  constructor(private readonly runtime: SolidObjectsRuntime) {}
+  constructor(private readonly runtime: SolidObjectsRuntime) {
+    this.pollingBackoff = new PollingBackoff({
+      minimumIntervalMilliseconds: runtime.settings.pollingIntervalMilliseconds,
+      maximumIntervalMilliseconds: runtime.settings.idlePollingIntervalMilliseconds,
+      onChange: (transition) =>
+        runtime.emitInstrumentation("polling.interval_changed", {
+          role: "effects",
+          ...transition,
+        }),
+    })
+  }
+
+  get currentPollingIntervalMilliseconds(): number {
+    return this.pollingBackoff.currentIntervalMilliseconds
+  }
 
   async runOnce(): Promise<number> {
     if (this.stopping) return 0
@@ -36,15 +52,20 @@ export class EffectWorker {
 
   async run(signal: AbortSignal): Promise<void> {
     await this.ensureRegistered()
+    await this.runtime.warnIfPollingIsOnlyCrossProcessWakeUp()
     while (!signal.aborted && !this.stopping) {
       const wakeUp = await this.runtime.settings.wakeUp.watch("effects")
       const processed = await this.runOnce()
-      if (processed === 0) {
-        await wakeUp.wait({
-          timeoutMilliseconds: this.runtime.settings.pollingIntervalMilliseconds,
-          signal,
-        })
+      if (processed > 0) {
+        this.pollingBackoff.reset("work")
+        continue
       }
+      const notified = await wakeUp.wait({
+        timeoutMilliseconds: this.pollingBackoff.currentIntervalMilliseconds,
+        signal,
+      })
+      if (notified === false) this.pollingBackoff.recordIdle()
+      else this.pollingBackoff.reset("wake_up")
     }
     await this.stop()
   }

@@ -164,6 +164,8 @@ export class SolidObjectsRuntime {
   private readonly additionalComponents: ComponentRegistration[] = []
   private callerWorker: Worker | undefined
   private running = false
+  private pollingOnlyWakeUpWarningEmitted = false
+  private pollingOnlyWakeUpWarningCheck: Promise<void> | undefined
 
   constructor(configuration: SolidObjectsConfiguration) {
     this.settings = buildSettings(configuration)
@@ -1301,6 +1303,35 @@ export class SolidObjectsRuntime {
     await this.settings.wakeUp.close()
     await this.settings.database.close()
     clearDefaultRuntime(this)
+  }
+
+  async warnIfPollingIsOnlyCrossProcessWakeUp(): Promise<void> {
+    if (this.settings.wakeUpConfigured || this.pollingOnlyWakeUpWarningEmitted) return
+    if (this.pollingOnlyWakeUpWarningCheck) return this.pollingOnlyWakeUpWarningCheck
+    const check = this.checkPollingOnlyCrossProcessWakeUp()
+    this.pollingOnlyWakeUpWarningCheck = check
+    try {
+      await check
+    } finally {
+      if (this.pollingOnlyWakeUpWarningCheck === check) {
+        this.pollingOnlyWakeUpWarningCheck = undefined
+      }
+    }
+  }
+
+  private async checkPollingOnlyCrossProcessWakeUp(): Promise<void> {
+    if (!(await this.repository.hasLiveProcessOutsideCurrentHostProcess())) return
+    if (this.pollingOnlyWakeUpWarningEmitted) return
+    this.pollingOnlyWakeUpWarningEmitted = true
+    const attributes = {
+      pollingIntervalMilliseconds: this.settings.pollingIntervalMilliseconds,
+      idlePollingIntervalMilliseconds: this.settings.idlePollingIntervalMilliseconds,
+    }
+    this.settings.logger.warn({
+      event: "solid_objects.polling_only_cross_process_wake_up",
+      ...attributes,
+    })
+    this.emitInstrumentation("polling.only_cross_process_wake_up", attributes)
   }
 
   async resetForTesting(): Promise<void> {

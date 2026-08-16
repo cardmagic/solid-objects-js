@@ -179,14 +179,17 @@ Factories should create fresh mutable state and `stop()` should be idempotent.
 exported for test runners and hosts that intentionally operate roles outside
 `runtime.run()`. Runtime factory methods create the same classes. Each provides
 `runOnce()`, bounded `runUntilIdle()`, `run(signal)`, `requestShutdown()`,
-`stopped()`, and `stop()`. Manual roles still register process ownership and
-must be stopped. Prefer `runtime.run()` in production and `runtime.testing` in
-tests.
+`stopped()`, `stop()`, and the inspectable
+`currentPollingIntervalMilliseconds`. Manual roles still register process
+ownership and must be stopped. Prefer `runtime.run()` in production and
+`runtime.testing` in tests.
 
 `InProcessWakeUpAdapter`, `WakeUpAdapter`, `WakeUpRole`, `WakeUpWatch`, and
 `WakeUpWaitOptions` define the notification extension. A watch must be obtained
 before checking durable state so a notification cannot fall between claim and
-wait.
+wait. `WakeUpWatch.wait()` returns `true` for a notification and `false` for a
+timeout or cancellation. A legacy `void` result remains accepted and preserves
+the fast polling cadence.
 
 ### Errors
 

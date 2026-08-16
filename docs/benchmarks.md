@@ -3,6 +3,46 @@
 The benchmark harness measures committed actor operations. It is intended to
 show tradeoffs and catch large regressions, not to predict application capacity.
 
+## Idle polling
+
+The idle harness measures process CPU and empty database passes for the four
+runtime roles:
+
+```bash
+pnpm run benchmark:idle
+```
+
+It warms each interval for three seconds, measures for ten seconds, and reports
+process user plus system CPU time divided by wall time.
+
+Measured on August 16, 2026 on an Apple M5 with Node.js 26.7.0 and in-memory
+SQLite. The before run used 0.13.0; the after run used the prepared 0.13.1 tree.
+Each run started one actor, effect, reminder, and broadcast role.
+
+| Fast interval | Before polls/s | Before CPU | After polls/s | After CPU |
+| ------------: | -------------: | ---------: | ------------: | --------: |
+|         20 ms |         188.78 |     3.254% |         4.000 |    0.129% |
+|        100 ms |         39.596 |     0.906% |         3.999 |    0.121% |
+|        500 ms |          7.999 |     0.251% |         3.999 |    0.104% |
+
+The after run reached the one-second ceiling for all four roles. These are
+developer-laptop measurements, not a CPU guarantee; timer scheduling, JIT,
+database path, and unrelated host activity affect short samples.
+
+Five SQLite samples measured durable enqueue through committed completion after
+2.5 seconds of idleness. The polling-only multi-process harness submits just
+after an empty pass, so it measures approximately the full polling wait rather
+than average arrival latency.
+
+| Topology                        | 0.13.0 p50 | Prepared 0.13.1 p50 |
+| ------------------------------- | ---------: | ------------------: |
+| One process, in-process wake-up |   2.589 ms |            2.662 ms |
+| Two processes, polling only     | 107.945 ms |        1,006.232 ms |
+
+The local wake-up keeps the one-process path prompt after backoff. The
+polling-only row is the explicit tradeoff: use PostgreSQL notifications or
+optional Redis Pub/Sub when separate processes need low-latency delivery.
+
 ## Scenarios
 
 - `warm-hot`: all operations target one previously created identity.

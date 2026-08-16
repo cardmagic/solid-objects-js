@@ -8,6 +8,7 @@ import {
 } from "./errors.js"
 import type { ActivationLease, ClaimedTurn } from "./records.js"
 import type { SolidObjectsRuntime } from "./runtime.js"
+import { PollingBackoff } from "./polling-backoff.js"
 
 interface CachedActivation {
   actor: Actor
@@ -21,11 +22,32 @@ export class Worker {
   private registered = false
   private stopping = false
   private readonly activations = new Map<string, CachedActivation>()
+  private readonly pollingBackoff: PollingBackoff
 
   constructor(
     private readonly runtime: SolidObjectsRuntime,
     private readonly options: { setupFailure?: "report" | "throw" } = {},
-  ) {}
+  ) {
+    this.pollingBackoff = new PollingBackoff({
+      minimumIntervalMilliseconds: Math.min(
+        runtime.settings.pollingIntervalMilliseconds,
+        runtime.settings.leaseRenewalIntervalMilliseconds,
+      ),
+      maximumIntervalMilliseconds: Math.min(
+        runtime.settings.idlePollingIntervalMilliseconds,
+        runtime.settings.leaseRenewalIntervalMilliseconds,
+      ),
+      onChange: (transition) =>
+        runtime.emitInstrumentation("polling.interval_changed", {
+          role: "actors",
+          ...transition,
+        }),
+    })
+  }
+
+  get currentPollingIntervalMilliseconds(): number {
+    return this.pollingBackoff.currentIntervalMilliseconds
+  }
 
   async runOnce(options: { activationRetention?: "retain" | "release" } = {}): Promise<number> {
     try {
@@ -117,18 +139,20 @@ export class Worker {
 
   async run(signal: AbortSignal): Promise<void> {
     await this.ensureRegistered()
+    await this.runtime.warnIfPollingIsOnlyCrossProcessWakeUp()
     while (!signal.aborted && !this.stopping) {
       const wakeUp = await this.runtime.settings.wakeUp.watch("actors")
       const processed = await this.runOnce()
-      if (processed === 0) {
-        await wakeUp.wait({
-          timeoutMilliseconds: Math.min(
-            this.runtime.settings.pollingIntervalMilliseconds,
-            this.runtime.settings.leaseRenewalIntervalMilliseconds,
-          ),
-          signal,
-        })
+      if (processed > 0) {
+        this.pollingBackoff.reset("work")
+        continue
       }
+      const notified = await wakeUp.wait({
+        timeoutMilliseconds: this.pollingBackoff.currentIntervalMilliseconds,
+        signal,
+      })
+      if (notified === false) this.pollingBackoff.recordIdle()
+      else this.pollingBackoff.reset("wake_up")
     }
     await this.stop()
   }

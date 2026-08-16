@@ -40,6 +40,7 @@ export interface SolidObjectsConfiguration {
   database: Database
   tableNamePrefix?: string
   pollingIntervalMilliseconds?: number
+  idlePollingIntervalMilliseconds?: number
   syncPollingIntervalMilliseconds?: number
   leaseDurationMilliseconds?: number
   leaseRenewalIntervalMilliseconds?: number
@@ -96,6 +97,7 @@ export interface RuntimeSettings extends Required<
   broadcast?: (event: BroadcastEvent) => Promise<void>
   instrumentation?: (event: InstrumentationEvent) => void
   wakeUp: WakeUpAdapter
+  wakeUpConfigured: boolean
   authorizationPoliciesConfigured: Readonly<Record<string, boolean>>
 }
 
@@ -111,6 +113,7 @@ export function buildSettings(configuration: SolidObjectsConfiguration): Runtime
     database: configuration.database,
     tableNamePrefix: configuration.tableNamePrefix ?? "solid_objects_",
     pollingIntervalMilliseconds: configuration.pollingIntervalMilliseconds ?? 100,
+    idlePollingIntervalMilliseconds: configuration.idlePollingIntervalMilliseconds ?? 1_000,
     syncPollingIntervalMilliseconds: configuration.syncPollingIntervalMilliseconds ?? 50,
     leaseDurationMilliseconds: configuration.leaseDurationMilliseconds ?? 30_000,
     leaseRenewalIntervalMilliseconds: configuration.leaseRenewalIntervalMilliseconds ?? 10_000,
@@ -152,6 +155,7 @@ export function buildSettings(configuration: SolidObjectsConfiguration): Runtime
     pruneBatchSize: configuration.pruneBatchSize ?? 1_000,
     logger: configuration.logger ?? consoleLogger,
     wakeUp: configuration.wakeUp ?? new InProcessWakeUpAdapter(),
+    wakeUpConfigured: configuration.wakeUp !== undefined,
     authorizeMessage: configuration.authorizeMessage ?? (() => false),
     authorizeQuery: configuration.authorizeQuery ?? (() => false),
     authorizeDestroy: configuration.authorizeDestroy ?? (() => false),
@@ -199,6 +203,7 @@ function validateSettings(settings: RuntimeSettings): void {
 
   const positive: Record<string, number> = {
     pollingIntervalMilliseconds: settings.pollingIntervalMilliseconds,
+    idlePollingIntervalMilliseconds: settings.idlePollingIntervalMilliseconds,
     syncPollingIntervalMilliseconds: settings.syncPollingIntervalMilliseconds,
     leaseDurationMilliseconds: settings.leaseDurationMilliseconds,
     leaseRenewalIntervalMilliseconds: settings.leaseRenewalIntervalMilliseconds,

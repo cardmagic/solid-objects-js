@@ -1,6 +1,6 @@
 {
   "name": "solid-objects",
-  "version": "0.13.0",
+  "version": "0.13.1",
   "description": "Race-free realtime state per application identity, backed by your SQL database",
   "type": "module",
   "license": "MIT",
@@ -85,6 +85,7 @@
     "test:redis": "vitest run test/redis-wake-up.test.ts",
     "test:watch": "vitest",
     "benchmark": "pnpm run build && node benchmarks/run.ts",
+    "benchmark:idle": "pnpm run build && node benchmarks/idle.ts",
     "pack:check": "pnpm pack --dry-run && node scripts/check-package.mjs",
     "prepack": "pnpm run build"
   },
