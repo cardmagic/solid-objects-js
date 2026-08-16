@@ -15,6 +15,18 @@ interface WorkerMessage {
   processed?: number
 }
 
+interface SerializationEvent {
+  event: "start" | "finish"
+  messageId: string
+  at: number
+}
+
+interface ExternalEffectEvent {
+  messageId: string
+  attempt: number
+  processId: number
+}
+
 const directory = await mkdtemp(join(tmpdir(), "solid-objects-recovery-"))
 const databasePath = join(directory, "state.sqlite3")
 const runtime = createRuntime({
@@ -58,7 +70,10 @@ async function proveSerialization(): Promise<{ finalState: number; overlap: fals
   const workers = [spawnWorker(), spawnWorker()]
   await Promise.all(workers.map(({ finished }) => finished))
   await Promise.all(messages.map((message) => message.result()))
-  const events = await jsonLines(join(controlDirectory, "serialization.jsonl"))
+  const events = await readJsonLines(
+    join(controlDirectory, "serialization.jsonl"),
+    parseSerializationEvent,
+  )
   assert.equal(events.length, 4)
   const starts = events.filter((event) => event.event === "start")
   const finishes = events.filter((event) => event.event === "finish")
@@ -121,7 +136,10 @@ async function recoveryResult(options: {
   const stored = await runtime.repository.findMessage(options.message.id)
   const attempts = Number(stored?.attempt_count)
   const snapshot = await options.reference.snapshot()
-  const effects = await jsonLines(join(options.controlDirectory, "external-effects.jsonl"))
+  const effects = await readJsonLines(
+    join(options.controlDirectory, "external-effects.jsonl"),
+    parseExternalEffectEvent,
+  )
   assert.equal(attempts, 2)
   assert.equal(snapshot.count, 1)
   assert.equal(effects.length, 2)
@@ -175,12 +193,39 @@ function spawnWorker(): {
   }
 }
 
-async function jsonLines(path: string): Promise<Array<Record<string, unknown>>> {
-  return (await readFile(path, "utf8"))
-    .trim()
-    .split("\n")
-    .filter(Boolean)
-    .map((line) => JSON.parse(line) as Record<string, unknown>)
+async function readJsonLines<Value>(
+  path: string,
+  parse: (line: string) => Value,
+): Promise<Value[]> {
+  return (await readFile(path, "utf8")).trim().split("\n").filter(Boolean).map(parse)
+}
+
+function parseSerializationEvent(line: string): SerializationEvent {
+  const event = JSON.parse(line) as Partial<SerializationEvent>
+  if (
+    (event.event !== "start" && event.event !== "finish") ||
+    typeof event.messageId !== "string" ||
+    typeof event.at !== "number"
+  ) {
+    throw new TypeError("invalid serialization event")
+  }
+  return { event: event.event, messageId: event.messageId, at: event.at }
+}
+
+function parseExternalEffectEvent(line: string): ExternalEffectEvent {
+  const event = JSON.parse(line) as Partial<ExternalEffectEvent>
+  if (
+    typeof event.messageId !== "string" ||
+    typeof event.attempt !== "number" ||
+    typeof event.processId !== "number"
+  ) {
+    throw new TypeError("invalid external effect event")
+  }
+  return {
+    messageId: event.messageId,
+    attempt: event.attempt,
+    processId: event.processId,
+  }
 }
 
 async function wait(milliseconds: number): Promise<void> {

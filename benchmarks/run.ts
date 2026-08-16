@@ -6,6 +6,7 @@ import { fileURLToPath } from "node:url"
 import { fork, type ChildProcess } from "node:child_process"
 import { performance } from "node:perf_hooks"
 import type { MessageReference } from "solid-objects"
+import { waitForWorkerExit, waitForWorkerReady } from "./processes.ts"
 import { BenchmarkCounter, benchmarkRuntime, type BenchmarkDatabase } from "./shared.ts"
 
 type Shape = "warm-hot" | "warm-many" | "cold-many"
@@ -82,7 +83,7 @@ try {
     } finally {
       shutdown.abort()
       await running
-      const workerExits = workers.map(waitForExit)
+      const workerExits = workers.map(waitForWorkerExit)
       for (const worker of workers) worker.send("stop")
       await Promise.all(workerExits)
       await runtime.testing.reset()
@@ -232,18 +233,17 @@ async function spawnWorkers(options: {
       { stdio: ["ignore", "ignore", "inherit", "ipc"] },
     ),
   )
-  await Promise.all(
-    workers.map(
-      (worker) =>
-        new Promise<void>((resolvePromise, reject) => {
-          worker.once("error", reject)
-          worker.on("message", (message) => {
-            if (message === "ready") resolvePromise()
-          })
-        }),
-    ),
-  )
-  return workers
+  try {
+    await Promise.all(workers.map(waitForWorkerReady))
+    return workers
+  } catch (error) {
+    const workerExits = workers.map(waitForWorkerExit)
+    for (const worker of workers) {
+      if (worker.exitCode === null && worker.signalCode === null) worker.kill()
+    }
+    await Promise.allSettled(workerExits)
+    throw error
+  }
 }
 
 async function readDatabaseVersion(runtime: ReturnType<typeof benchmarkRuntime>): Promise<string> {
@@ -260,24 +260,6 @@ async function readDatabaseVersion(runtime: ReturnType<typeof benchmarkRuntime>)
     }
     const row = await connection.get<{ version: string }>("SELECT VERSION() AS version")
     return row?.version ?? "unknown"
-  })
-}
-
-function waitForExit(child: ChildProcess): Promise<void> {
-  if (child.exitCode !== null) {
-    return child.exitCode === 0
-      ? Promise.resolve()
-      : Promise.reject(new Error(`benchmark worker exited ${child.exitCode}`))
-  }
-  if (child.signalCode !== null) {
-    return Promise.reject(new Error(`benchmark worker exited with ${child.signalCode}`))
-  }
-  return new Promise((resolvePromise, reject) => {
-    child.once("error", reject)
-    child.once("exit", (code) => {
-      if (code === 0) resolvePromise()
-      else reject(new Error(`benchmark worker exited ${code}`))
-    })
   })
 }
 
