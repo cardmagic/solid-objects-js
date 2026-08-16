@@ -10,7 +10,8 @@ interface ViewOptions {
   readonly mountPath: string
   readonly currentPath: string
   readonly nonce: string
-  readonly csrfToken: string
+  readonly csrfToken?: string
+  readonly readOnly: boolean
   readonly tabs: readonly DashboardTab[]
   readonly renderers: Readonly<Record<string, DashboardRenderer>>
   readonly chartLibrary: DashboardChartLibrary
@@ -63,7 +64,7 @@ export class DashboardView {
         return `<a href="${escapeHtml(this.path(tab.path))}"${current ? ' aria-current="page"' : ""}>${escapeHtml(tab.label)}</a>`
       })
       .join("")
-    return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${escapeHtml(options.title)} · Solid Objects</title><link rel="stylesheet" href="${escapeHtml(this.path("/assets/application.css"))}"></head><body data-stats-path="${escapeHtml(this.path("/stats"))}"><header><h1>Solid Objects</h1><p>Operator dashboard</p></header><div class="shell"><nav aria-label="Dashboard">${navigation}</nav><main>${error}<div class="page-heading"><h2>${escapeHtml(options.title)}</h2><button class="live-toggle button-secondary" type="button" data-poll-toggle aria-pressed="false">Live</button></div>${this.summary()}${renderedContent}</main></div><script defer nonce="${escapeHtml(this.options.nonce)}" src="${escapeHtml(this.path("/assets/application.js"))}"></script>${chartTag}</body></html>`
+    return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${escapeHtml(options.title)} · Solid Objects</title><link rel="stylesheet" href="${escapeHtml(this.path("/assets/application.css"))}"></head><body data-stats-path="${escapeHtml(this.path("/stats"))}"><header><h1>Solid Objects</h1><p>Operator dashboard${this.options.readOnly ? " · Read only" : ""}</p></header><div class="shell"><nav aria-label="Dashboard">${navigation}</nav><main>${error}<div class="page-heading"><h2>${escapeHtml(options.title)}</h2><button class="live-toggle button-secondary" type="button" data-poll-toggle aria-pressed="false">Live</button></div>${this.summary()}${renderedContent}</main></div><script defer nonce="${escapeHtml(this.options.nonce)}" src="${escapeHtml(this.path("/assets/application.js"))}"></script>${chartTag}</body></html>`
   }
 
   dashboard(model: DashboardRecord): string {
@@ -108,7 +109,9 @@ export class DashboardView {
     const status = instanceStatus(instance)
     const action = status === "paused" ? "resume" : "pause"
     const actionLabel = status === "paused" ? "Resume instance" : "Pause instance"
-    const form = `<form class="inline" method="post" action="${escapeHtml(this.path(`/instances/${text(instance.id)}/${action}`))}">${this.csrfInput()}<button class="${action === "pause" ? "button-danger" : ""}" type="submit">${actionLabel}</button></form>`
+    const form = this.options.readOnly
+      ? ""
+      : `<form class="inline" method="post" action="${escapeHtml(this.path(`/instances/${text(instance.id)}/${action}`))}">${this.csrfInput()}<button class="${action === "pause" ? "button-danger" : ""}" type="submit">${actionLabel}</button></form>`
     const detailHtml = `<section class="panel"><h3>${escapeHtml(actorLabel(instance))}</h3><div class="panel-body">${form}</div>${details({ Status: status, "State version": instance.state_version, Revision: instance.state_revision, Created: dateValue(instance.created_at_ms), Updated: dateValue(instance.updated_at_ms) })}<div class="panel-body">${jsonBlock(state)}</div></section>${this.tablePanel({ title: "Ready mailbox", records: detail.readyMessages, columns: messageColumns() })}${this.tablePanel({ title: "Claimed mailbox", records: detail.claimedMessages, columns: messageColumns() })}${this.tablePanel({ title: "Recent messages", records: detail.recentMessages, columns: messageColumns() })}${this.tablePanel({ title: "Reminders", records: detail.reminders, columns: reminderColumns() })}${this.tablePanel({ title: "Effects", records: detail.effects, columns: effectColumns() })}${this.tablePanel({ title: "Broadcasts", records: detail.broadcasts, columns: broadcastColumns() })}${this.tablePanel({ title: "Dead letters", records: detail.deadLetters, columns: deadLetterColumns() })}`
     return this.render({ name: "instance", model: { detail }, defaultHtml: detailHtml })
   }
@@ -121,7 +124,9 @@ export class DashboardView {
   deadLetter(record: DashboardRecord, error?: string): string {
     const retry = record.retried_message_id
       ? `<p>Retried as ${escapeHtml(text(record.retried_message_id))}</p>`
-      : `<form class="inline" method="post" action="${escapeHtml(this.path(`/dead-letters/${text(record.id)}/retry`))}">${this.csrfInput()}<button type="submit">Retry dead letter</button></form>`
+      : this.options.readOnly
+        ? ""
+        : `<form class="inline" method="post" action="${escapeHtml(this.path(`/dead-letters/${text(record.id)}/retry`))}">${this.csrfInput()}<button type="submit">Retry dead letter</button></form>`
     const html = `${error ? `<div class="flash-error">${escapeHtml(error)}</div>` : ""}<section class="panel"><h3>${escapeHtml(text(record.operation))}</h3>${details({ ID: record.id, "Message ID": record.message_id, Actor: actorLabel(record), Delivery: record.delivery_mode, Attempts: record.attempts, Created: dateValue(record.created_at_ms) })}<div class="panel-body">${retry}<h3>Arguments</h3>${jsonBlock(jsonValue(record.arguments))}<h3>Error</h3>${jsonBlock(jsonValue(record.error))}</div></section>`
     return this.render({ name: "dead_letter", model: { record, error }, defaultHtml: html })
   }
@@ -197,7 +202,9 @@ export class DashboardView {
   }
 
   private csrfInput(): string {
-    return `<input type="hidden" name="authenticity_token" value="${escapeHtml(this.options.csrfToken)}">`
+    const csrfToken = this.options.csrfToken
+    if (!csrfToken) throw new TypeError("read-write dashboard rendering requires a session")
+    return `<input type="hidden" name="authenticity_token" value="${escapeHtml(csrfToken)}">`
   }
 
   private chart(name: string, values: unknown): string {

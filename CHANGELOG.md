@@ -25,6 +25,8 @@
   middleware, plus configurable Chart.js dashboards and live statistics.
 - Preserve downstream request bodies when the Node/Connect dashboard adapter
   cascades a request outside its mount path.
+- Add authorized and public read-only dashboard access modes that omit mutation
+  controls, reject POST actions, and require no CSRF session for public demos.
 - Refocus the README and package metadata on native Node.js concurrency,
   realtime state synchronization, and database-backed infrastructure.
 

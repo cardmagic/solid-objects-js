@@ -827,6 +827,10 @@ const dashboardHandler = createNodeDashboardHandler({
 server.on("request", (request, response) => dashboardHandler(request, response))
 ```
 
+For synthetic demos that intentionally need no authentication or session, use
+`access: "public-read-only"`. It hides mutation controls and rejects every POST,
+but it exposes all dashboard data, so never point it at private production state.
+
 Every data route calls `authorizeAdministration` with its own action and
 resource before reading runtime tables. The policy denies by default. The host
 session adapter stores the dashboard's masked CSRF token; state-changing

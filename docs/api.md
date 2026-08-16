@@ -267,11 +267,12 @@ The wire format, trust boundary, revision rules, and component semantics are in
   a standard `fetch(request, context)` entry point.
 - `createNodeDashboardHandler(options)` adapts the Fetch entry point to
   `node:http` and Connect-compatible middleware.
-- `DashboardOptions` selects the runtime, mount path, chart library,
+- `DashboardOptions` selects the runtime, mount path, `DashboardAccess`, chart library,
   `DashboardExtension` objects, and `DashboardMiddleware` functions.
 - `DashboardRequestContext` supplies the existing administration authorization
-  context and a `DashboardSession`. The session's `read()` and `write()` methods
-  hold the masked CSRF token across requests.
+  context and an optional `DashboardSession`. Read/write access requires the
+  session so its `read()` and `write()` methods can hold the masked CSRF token
+  across requests; read-only modes do not create CSRF state.
 - `DashboardRoute`, `DashboardRouteContext`, `DashboardPolicy`, `DashboardPage`,
   and `DashboardTab` define extension pages. Every route requires a policy.
 - `DashboardRenderer`, `DashboardRenderInput`, and `DashboardMiddlewareInput`

@@ -7,9 +7,11 @@ export interface DashboardSession {
 }
 
 export interface DashboardRequestContext {
-  readonly authorizationContext: unknown
-  readonly session: DashboardSession
+  readonly authorizationContext?: unknown
+  readonly session?: DashboardSession
 }
+
+export type DashboardAccess = "authorized" | "authorized-read-only" | "public-read-only"
 
 export interface DashboardPolicy {
   readonly action: string
@@ -79,6 +81,7 @@ export interface DashboardChartLibrary {
 export interface DashboardOptions {
   readonly runtime: SolidObjectsRuntime
   readonly mountPath?: string
+  readonly access?: DashboardAccess
   readonly chartLibrary?: DashboardChartLibrary
   readonly extensions?: readonly DashboardExtension[]
   readonly middleware?: readonly DashboardMiddleware[]

@@ -8,6 +8,7 @@ import {
 import { DASHBOARD_COLUMNS, DashboardView, escapeHtml } from "./render.js"
 import { DashboardStore } from "./store.js"
 import type {
+  DashboardAccess,
   DashboardChartLibrary,
   DashboardExtension,
   DashboardMiddleware,
@@ -22,6 +23,7 @@ import type {
 } from "./types.js"
 
 export type {
+  DashboardAccess,
   DashboardChartLibrary,
   DashboardExtension,
   DashboardMiddleware,
@@ -72,6 +74,7 @@ interface InternalDashboardRouteContext extends DashboardRouteContext {
 
 export class SolidObjectsDashboard implements SolidObjectsDashboardContract {
   readonly mountPath: string
+  private readonly access: DashboardAccess
   private readonly store: DashboardStore
   private readonly routes: readonly DashboardRoute[]
   private readonly tabs: readonly DashboardTab[]
@@ -81,6 +84,7 @@ export class SolidObjectsDashboard implements SolidObjectsDashboardContract {
 
   constructor(private readonly options: DashboardOptions) {
     this.mountPath = normalizeMountPath(options.mountPath ?? "/solid-objects/dashboard")
+    this.access = dashboardAccess(options.access)
     this.store = new DashboardStore(options.runtime)
     const extensions = Object.freeze([...(options.extensions ?? [])])
     this.routes = validateRoutes([...this.builtInRoutes(), ...extensions.flatMap(extensionRoutes)])
@@ -131,15 +135,18 @@ export class SolidObjectsDashboard implements SolidObjectsDashboardContract {
       requestPath: relativePath,
     })
     if (!matched) return cascadeResponse()
+    if (this.readOnly() && request.method === "POST") return methodNotAllowedResponse()
     const policy = matched.route.policy
     const resourceId = matched.params.id
-    const authorized = await this.options.runtime.settings.authorizeAdministration({
-      action: policy.action,
-      resource: policy.resource,
-      ...(resourceId === undefined ? {} : { resourceId }),
-      authorizationContext: requestContext.authorizationContext,
-    })
-    if (!authorized) return textResponse("Forbidden", { status: 403 })
+    if (this.access !== "public-read-only") {
+      const authorized = await this.options.runtime.settings.authorizeAdministration({
+        action: policy.action,
+        resource: policy.resource,
+        ...(resourceId === undefined ? {} : { resourceId }),
+        authorizationContext: requestContext.authorizationContext,
+      })
+      if (!authorized) return textResponse("Forbidden", { status: 403 })
+    }
     if (request.method === "POST" && !(await validAuthenticityToken(request, requestContext))) {
       return textResponse("Forbidden", { status: 403 })
     }
@@ -178,13 +185,16 @@ export class SolidObjectsDashboard implements SolidObjectsDashboardContract {
     relativePath: string
   }): Promise<{ view: DashboardView }> {
     const statistics = await this.store.statistics()
-    const csrfToken = await maskedAuthenticityToken(options.requestContext)
+    const csrfToken = this.readOnly()
+      ? undefined
+      : await maskedAuthenticityToken(options.requestContext)
     return {
       view: new DashboardView({
         mountPath: this.mountPath,
         currentPath: options.relativePath,
         nonce: randomBytes(16).toString("base64"),
-        csrfToken,
+        ...(csrfToken === undefined ? {} : { csrfToken }),
+        readOnly: this.readOnly(),
         tabs: this.tabs,
         renderers: this.renderers,
         chartLibrary: this.chartLibrary,
@@ -474,6 +484,10 @@ export class SolidObjectsDashboard implements SolidObjectsDashboardContract {
     if (path === "/") return this.mountPath || "/"
     return `${this.mountPath}${path}`
   }
+
+  private readOnly(): boolean {
+    return this.access !== "authorized"
+  }
 }
 
 export function createDashboard(options: DashboardOptions): SolidObjectsDashboard {
@@ -551,10 +565,12 @@ function extensionTabs(extension: DashboardExtension): readonly DashboardTab[] {
 }
 
 async function maskedAuthenticityToken(context: DashboardRequestContext): Promise<string> {
-  let raw = await context.session.read(CSRF_SESSION_KEY)
+  const session = context.session
+  if (!session) throw new TypeError("read-write dashboard access requires a session")
+  let raw = await session.read(CSRF_SESSION_KEY)
   if (!raw || !validRawToken(raw)) {
     raw = randomBytes(TOKEN_BYTES).toString("base64url")
-    await context.session.write(CSRF_SESSION_KEY, raw)
+    await session.write(CSRF_SESSION_KEY, raw)
   }
   const token = Buffer.from(raw, "base64url")
   const mask = randomBytes(TOKEN_BYTES)
@@ -572,7 +588,7 @@ async function validAuthenticityToken(
   const body = await request.text()
   if (Buffer.byteLength(body) > MAXIMUM_FORM_BYTES) return false
   const submitted = new URLSearchParams(body).get("authenticity_token")
-  const raw = await context.session.read(CSRF_SESSION_KEY)
+  const raw = await context.session?.read(CSRF_SESSION_KEY)
   if (!submitted || !raw || !validRawToken(raw)) return false
   try {
     const encoded = Buffer.from(submitted, "base64url")
@@ -600,6 +616,12 @@ function normalizeMountPath(value: string): string {
   if (value === "/") return ""
   if (!value.startsWith("/")) throw new TypeError("dashboard mountPath must start with /")
   return value.replace(/\/+$/, "")
+}
+
+function dashboardAccess(value: DashboardAccess | undefined): DashboardAccess {
+  if (value === undefined) return "authorized"
+  if (["authorized", "authorized-read-only", "public-read-only"].includes(value)) return value
+  throw new TypeError(`unsupported dashboard access mode ${String(value)}`)
 }
 
 function pageOptions(search: URLSearchParams): {
@@ -696,6 +718,17 @@ function notFoundResponse(): Response {
 
 function redirectResponse(location: string): Response {
   return new Response(null, { status: 303, headers: { location } })
+}
+
+function methodNotAllowedResponse(): Response {
+  return new Response("Method Not Allowed", {
+    status: 405,
+    headers: {
+      allow: "GET, HEAD",
+      "cache-control": "private, no-store",
+      "content-type": "text/plain; charset=utf-8",
+    },
+  })
 }
 
 function text(value: unknown): string {

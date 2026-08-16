@@ -35,6 +35,32 @@ const response = await dashboard.fetch(request, {
 `mountPath` defaults to `/solid-objects/dashboard`. Pass `/` only when the
 dashboard owns the whole origin.
 
+## Access modes
+
+`access` defaults to `authorized`. Every route uses the runtime administration
+policy, pages include mutation controls, and the request context must supply a
+session for CSRF state.
+
+Use `authorized-read-only` to retain the policy while removing mutation forms
+and rejecting every dashboard POST with 405. Use `public-read-only` for an
+explicitly public demo mount:
+
+```typescript
+const demo = createDashboard({
+  runtime,
+  mountPath: "/solid-objects/demo",
+  access: "public-read-only",
+})
+
+await demo.fetch(request, {})
+```
+
+Public read-only mode skips `authorizeAdministration` and requires neither an
+authorization context nor a session. It still exposes committed state,
+arguments, results, errors, actor identifiers, and operational metadata. Only
+use it with synthetic or otherwise public demo data. All extension GET routes
+are public in this mode, while extension POST routes are also rejected.
+
 ## Node and Connect mounting
 
 `createNodeDashboardHandler()` converts `IncomingMessage` and `ServerResponse`
@@ -64,9 +90,9 @@ The adapter caps request bodies at 64 KiB by default. Set
 
 ## Authorization
 
-Every data route declares an `authorizeAdministration` action and resource.
-Authorization runs before the route reads a record, so a denied caller cannot
-probe identifiers.
+In the default and authorized read-only modes, every data route declares an
+`authorizeAdministration` action and resource. Authorization runs before the
+route reads a record, so a denied caller cannot probe identifiers.
 
 | Page or action                             | Action                     | Resource                      |
 | ------------------------------------------ | -------------------------- | ----------------------------- |

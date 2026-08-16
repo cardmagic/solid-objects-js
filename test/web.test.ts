@@ -148,6 +148,56 @@ describe("operator dashboard", () => {
     ).toBe(0)
   })
 
+  it("serves public read-only pages without authorization or a session", async () => {
+    let authorizationCalls = 0
+    runtime = configuredRuntime({
+      authorizeAdministration: () => {
+        authorizationCalls += 1
+        return false
+      },
+    })
+    await runtime.install()
+    await DashboardActor.ref("public-demo").increment()
+    const instance = await runtime.repository.findInstanceByIdentity(
+      DashboardActor.actorType,
+      "public-demo",
+    )
+    expect(instance).toBeDefined()
+    const dashboard = createDashboard({ runtime, mountPath: "/", access: "public-read-only" })
+
+    const page = await dashboard.fetch(request(`/instances/${instance?.id}`), {})
+    const body = await page.text()
+
+    expect(page.status).toBe(200)
+    expect(body).toContain("Read only")
+    expect(body).toContain("public-demo")
+    expect(body).not.toContain("authenticity_token")
+    expect(body).not.toContain("Pause instance")
+    expect(authorizationCalls).toBe(0)
+
+    const mutation = await dashboard.fetch(
+      request(`/instances/${instance?.id}/pause`, { method: "POST" }),
+      {},
+    )
+    expect(mutation.status).toBe(405)
+    expect(
+      Number(
+        (await runtime.repository.findInstanceByIdentity(DashboardActor.actorType, "public-demo"))
+          ?.paused,
+      ),
+    ).toBe(0)
+  })
+
+  it("keeps authorization enabled in authorized read-only mode", async () => {
+    runtime = configuredRuntime({ authorizeAdministration: () => false })
+    await runtime.install()
+    const dashboard = createDashboard({ runtime, mountPath: "/", access: "authorized-read-only" })
+
+    const response = await dashboard.fetch(request("/instances"), {})
+
+    expect(response.status).toBe(403)
+  })
+
   it("escapes stored identifiers and clamps pagination", async () => {
     runtime = configuredRuntime({ authorizeAdministration: () => true })
     await runtime.install()
