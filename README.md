@@ -63,6 +63,41 @@ local run, it verifies that:
 - operations for two different identities overlap in time; and
 - the runtime closes and temporary state is removed.
 
+## Running in a deployed application
+
+[Shuffle Up and Play](https://shuffleupandplay.com/) is a deployed reference
+application where two players create a table, load decks, and move cards while
+realtime updates reach both browsers. Its
+[source](https://github.com/cardmagic/shuffleupandplay) uses Node 24,
+TypeScript, SQLite, `node:http`, and `ws`. Each table code addresses one
+`GameRoom` actor that owns both seats, so mutations share one durable mailbox
+while each player receives a separately authorized projection.
+
+The application and its tests exercise more than a counter-shaped happy path:
+
+| Production concern        | Verifiable application evidence                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| ------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Concurrent mutations      | One [`GameRoom`](https://github.com/cardmagic/shuffleupandplay/blob/519a343e8db0bb6eed961a2ffd374dba80d67cd6/src/actors/game-room.ts#L45-L125) owns a table. [Mailbox tests](https://github.com/cardmagic/shuffleupandplay/blob/519a343e8db0bb6eed961a2ffd374dba80d67cd6/test/durability.test.ts#L39-L94) submit concurrent life, draw, and shuffle operations and assert the final committed state.                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| Controlled restarts       | [Restart tests](https://github.com/cardmagic/shuffleupandplay/blob/519a343e8db0bb6eed961a2ffd374dba80d67cd6/test/restart.test.ts#L38-L136) close and reopen the runtime against the same SQLite file, then assert recovery of committed state, an accepted asynchronous operation, an unfinished effect, and a scheduled reminder.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| Persistent deployment     | The [runtime uses SQLite](https://github.com/cardmagic/shuffleupandplay/blob/519a343e8db0bb6eed961a2ffd374dba80d67cd6/src/runtime.ts#L45-L63); the [container runs as an unprivileged user](https://github.com/cardmagic/shuffleupandplay/blob/519a343e8db0bb6eed961a2ffd374dba80d67cd6/Dockerfile#L20-L37), and [Kamal mounts a persistent volume](https://github.com/cardmagic/shuffleupandplay/blob/519a343e8db0bb6eed961a2ffd374dba80d67cd6/config/deploy.yml#L28-L43).                                                                                                                                                                                                                                                                                                                                                                  |
+| Private realtime state    | [Subscription policy](https://github.com/cardmagic/shuffleupandplay/blob/519a343e8db0bb6eed961a2ffd374dba80d67cd6/src/runtime.ts#L65-L82) and [per-seat projection](https://github.com/cardmagic/shuffleupandplay/blob/519a343e8db0bb6eed961a2ffd374dba80d67cd6/src/game/room-snapshot.ts#L92-L130) run on the server. [HTTP](https://github.com/cardmagic/shuffleupandplay/blob/519a343e8db0bb6eed961a2ffd374dba80d67cd6/test/server.test.ts#L526-L567) and [WebSocket tests](https://github.com/cardmagic/shuffleupandplay/blob/519a343e8db0bb6eed961a2ffd374dba80d67cd6/test/realtime.test.ts#L184-L235) assert that opponent card identities are absent from player payloads and shared invalidation envelopes.                                                                                                                          |
+| External work             | Deck imports run as [durable effects with success and failure callbacks](https://github.com/cardmagic/shuffleupandplay/blob/519a343e8db0bb6eed961a2ffd374dba80d67cd6/src/actors/game-room.ts#L192-L253). [Tests](https://github.com/cardmagic/shuffleupandplay/blob/519a343e8db0bb6eed961a2ffd374dba80d67cd6/test/game-room.test.ts#L209-L331) cover both outcomes and prevent a superseded callback from replacing a newer deck result.                                                                                                                                                                                                                                                                                                                                                                                                     |
+| Transactional staged work | A room operation stages an [actor-to-actor log message](https://github.com/cardmagic/shuffleupandplay/blob/519a343e8db0bb6eed961a2ffd374dba80d67cd6/src/actors/game-room.ts#L339-L349) and a [database commit action](https://github.com/cardmagic/shuffleupandplay/blob/519a343e8db0bb6eed961a2ffd374dba80d67cd6/src/runtime.ts#L96-L113). Tests cover [rollback of staged messages](https://github.com/cardmagic/shuffleupandplay/blob/519a343e8db0bb6eed961a2ffd374dba80d67cd6/test/durability.test.ts#L160-L192) and the [metrics write](https://github.com/cardmagic/shuffleupandplay/blob/519a343e8db0bb6eed961a2ffd374dba80d67cd6/test/server.test.ts#L467-L499).                                                                                                                                                                     |
+| Time and schema changes   | The actor defines [versioned state migrations](https://github.com/cardmagic/shuffleupandplay/blob/519a343e8db0bb6eed961a2ffd374dba80d67cd6/src/actors/game-room.ts#L47-L91) and a [durable reminder](https://github.com/cardmagic/shuffleupandplay/blob/519a343e8db0bb6eed961a2ffd374dba80d67cd6/src/actors/game-room.ts#L276-L310). Tests load [stored version-one state](https://github.com/cardmagic/shuffleupandplay/blob/519a343e8db0bb6eed961a2ffd374dba80d67cd6/test/operations.test.ts#L135-L201) and [run the reminder scheduler](https://github.com/cardmagic/shuffleupandplay/blob/519a343e8db0bb6eed961a2ffd374dba80d67cd6/test/durability.test.ts#L236-L257).                                                                                                                                                                   |
+| Operations and CI         | The [operations tests](https://github.com/cardmagic/shuffleupandplay/blob/519a343e8db0bb6eed961a2ffd374dba80d67cd6/test/operations.test.ts#L39-L202) exercise doctor, process, retention, and reconciliation APIs; server suites cover the [dashboard](https://github.com/cardmagic/shuffleupandplay/blob/519a343e8db0bb6eed961a2ffd374dba80d67cd6/test/server.test.ts#L297-L326), [rate limits](https://github.com/cardmagic/shuffleupandplay/blob/519a343e8db0bb6eed961a2ffd374dba80d67cd6/test/rate-limit.test.ts), and [shutdown](https://github.com/cardmagic/shuffleupandplay/blob/519a343e8db0bb6eed961a2ffd374dba80d67cd6/test/shutdown.test.ts). The [current main CI run](https://github.com/cardmagic/shuffleupandplay/actions/runs/31963000789) passed typechecking, 171 tests, the build, the doctor, and a Docker image build. |
+
+**Scope:** the checked-in deployment configuration runs one Node process using
+SQLite on one Docker host. It demonstrates a real deployed workload, not a
+measured traffic level or every supported topology. Its deck-import effect
+reads an external API; effects that write to an external system still need a
+stable idempotency key because delivery is at least once. The application
+restart tests close the runtime cleanly; abrupt termination, PostgreSQL, MySQL,
+and multi-process lease fencing are verified separately by the library's
+[test matrix](docs/support.md),
+[failure-recovery demonstration](examples/failure-recovery/demo.ts), and
+[correctness contract](docs/correctness.md). Evaluate those guarantees and
+limits against your own workload.
+
 ## What Solid Objects is for
 
 Use Solid Objects when more than one request, job, or process can act on the
@@ -245,8 +280,9 @@ runtime differences.
 The Ruby project first appeared publicly on August 6, 2026, and this TypeScript
 repository on August 13, 2026. Both remain early releases. The
 [`mtg-playmat`](https://github.com/cardmagic/mtg-playmat) application uses the
-Ruby actor and realtime design as current dogfood; that is not evidence of a
-TypeScript deployment.
+Ruby actor and realtime design, while
+[Shuffle Up and Play](https://github.com/cardmagic/shuffleupandplay) uses the
+TypeScript package in the deployed Node and SQLite topology documented above.
 
 ## Documentation
 
@@ -255,15 +291,19 @@ TypeScript deployment.
 - [Choosing Solid Objects](docs/fit.md)
 - [Benchmarks and methodology](docs/benchmarks.md)
 - [Supported versions and test matrix](docs/support.md)
+- [Test suite](https://github.com/cardmagic/solid-objects-js/tree/main/test)
+- [CI workflow](https://github.com/cardmagic/solid-objects-js/actions/workflows/ci.yml)
 - [Public API](docs/api.md)
 - [State and lifecycle](docs/state-and-lifecycle.md)
-- [Operations](docs/operations.md)
+- [Operations, retention, and reconciliation](docs/operations.md)
 - [Configuration](docs/configuration.md)
 - [Authorization](docs/authorization.md)
 - [Browser protocol](docs/browser-protocol.md)
 - [Operator dashboard](docs/dashboard.md)
 - [Errors and recovery](docs/errors-and-recovery.md)
 - [Design parity](docs/parity.md)
+- [Changelog](CHANGELOG.md)
+- [Releases](https://github.com/cardmagic/solid-objects-js/releases)
 - [Contributing](CONTRIBUTING.md)
 - [Security policy](SECURITY.md)
 
