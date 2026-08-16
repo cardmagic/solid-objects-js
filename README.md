@@ -1,4 +1,4 @@
-# Solid Objects JS
+# Solid Objects: Durable Objects without Cloudflare using just your existing database
 
 [![CI](https://github.com/cardmagic/solid-objects-js/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/cardmagic/solid-objects-js/actions/workflows/ci.yml)
 [![npm](https://img.shields.io/npm/v/solid-objects)](https://www.npmjs.com/package/solid-objects)
