@@ -1,12 +1,13 @@
-# Solid Objects: Durable Objects without Cloudflare using just your existing database
+# Durable Objects for Node, backed by your existing SQL database
 
 [![CI](https://github.com/cardmagic/solid-objects-js/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/cardmagic/solid-objects-js/actions/workflows/ci.yml)
 [![npm](https://img.shields.io/npm/v/solid-objects)](https://www.npmjs.com/package/solid-objects)
 
-Solid Objects is a TypeScript actor library for Node.js that gives each
-application-defined identity durable state and a sequential mailbox, backed by
-SQLite, PostgreSQL, or MySQL. Concurrent calls for one identity cannot
-overwrite each other. Calls for different identities can run at the same time.
+Build addressable TypeScript objects with serialized calls and durable state
+using SQLite, PostgreSQL, or MySQL, without deploying to Cloudflare.
+
+Concurrent calls for one identity cannot overwrite each other. Calls for
+different identities can run at the same time.
 
 Define ordinary TypeScript classes and run them in ordinary Node.js processes.
 State, queued operations, retries, reminders, effects, and realtime
