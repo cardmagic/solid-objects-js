@@ -21,7 +21,8 @@ invalidations are stored in the database the application already operates.
 ## The programming model
 
 ```typescript
-import { Actor } from "solid-objects"
+import { Actor, createRuntime } from "solid-objects"
+import { sqlite } from "solid-objects/database/sqlite"
 
 class Cart extends Actor {
   static override readonly actorType = "Cart"
@@ -34,8 +35,20 @@ class Cart extends Actor {
   }
 }
 
-const cart = Cart.ref("cart-123")
-await Promise.all([cart.add({ sku: "blue-shirt" }), cart.add({ sku: "green-hat" })])
+const runtime = createRuntime({
+  database: sqlite({ path: "cart.sqlite3" }),
+  authorizeMessage: () => true,
+  authorizeQuery: () => true,
+})
+
+await runtime.install()
+
+try {
+  const cart = runtime.ref(Cart, "cart-123")
+  await Promise.all([cart.add({ sku: "blue-shirt" }), cart.add({ sku: "green-hat" })])
+} finally {
+  await runtime.close()
+}
 ```
 
 Both calls enter the durable mailbox for `cart-123`. They execute in order and
