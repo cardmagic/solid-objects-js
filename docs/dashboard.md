@@ -40,7 +40,9 @@ dashboard owns the whole origin.
 `createNodeDashboardHandler()` converts `IncomingMessage` and `ServerResponse`
 to the Fetch contract. Register it after the application's authentication and
 session middleware. A Connect-compatible host may pass `next`; paths outside
-the mount and unknown dashboard paths cascade.
+the mount and unknown dashboard paths cascade. Requests outside the mount
+cascade before context resolution or body consumption, so downstream POST
+handlers receive the original stream.
 
 ```typescript
 import { createDashboard, createNodeDashboardHandler } from "solid-objects/web"

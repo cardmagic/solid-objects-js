@@ -23,6 +23,8 @@
   and serve a strict content security policy.
 - Add immutable dashboard extension routes, tabs, renderer overrides, and
   middleware, plus configurable Chart.js dashboards and live statistics.
+- Preserve downstream request bodies when the Node/Connect dashboard adapter
+  cascades a request outside its mount path.
 - Refocus the README and package metadata on native Node.js concurrency,
   realtime state synchronization, and database-backed infrastructure.
 

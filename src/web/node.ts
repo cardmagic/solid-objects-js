@@ -31,6 +31,20 @@ async function dispatchNodeRequest(options: {
 }): Promise<void> {
   const { request, response, next } = options
   try {
+    if (!matchesMountPath(request, options.options.dashboard.mountPath)) {
+      if (next) {
+        next()
+        return
+      }
+      await writeResponse({
+        response,
+        result: new Response("Not Found", {
+          status: 404,
+          headers: { "content-type": "text/plain; charset=utf-8", "x-cascade": "pass" },
+        }),
+      })
+      return
+    }
     const body = await requestBody({ request, maximumBodyBytes: options.maximumBodyBytes })
     if (body === undefined) {
       writeResponse({ response, result: new Response("Payload Too Large", { status: 413 }) })
@@ -102,4 +116,10 @@ async function writeResponse(options: {
 
 function encrypted(request: IncomingMessage): boolean {
   return Boolean((request.socket as IncomingMessage["socket"] & { encrypted?: boolean }).encrypted)
+}
+
+function matchesMountPath(request: IncomingMessage, mountPath: string): boolean {
+  if (mountPath === "") return true
+  const pathname = new URL(request.url ?? "/", "http://localhost").pathname
+  return pathname === mountPath || pathname.startsWith(`${mountPath}/`)
 }

@@ -349,6 +349,46 @@ describe("operator dashboard", () => {
       await once(server, "close")
     }
   })
+
+  it("cascades without consuming non-dashboard request bodies", async () => {
+    runtime = configuredRuntime({ authorizeAdministration: () => true })
+    await runtime.install()
+    const dashboard = createDashboard({ runtime, mountPath: "/dashboard" })
+    let resolvedContexts = 0
+    const handler = createNodeDashboardHandler({
+      dashboard,
+      resolveContext: () => {
+        resolvedContexts += 1
+        return context()
+      },
+    })
+    const server = createServer((incoming, outgoing) => {
+      handler(incoming, outgoing, (error) => {
+        if (error) {
+          outgoing.statusCode = 500
+          outgoing.end(String(error))
+          return
+        }
+        void requestText(incoming).then((body) => outgoing.end(body))
+      })
+    })
+    server.listen(0, "127.0.0.1")
+    await once(server, "listening")
+    const address = server.address()
+    if (!address || typeof address === "string") throw new Error("server did not bind a port")
+
+    try {
+      const response = await fetch(`http://127.0.0.1:${address.port}/application`, {
+        method: "POST",
+        body: "preserved",
+      })
+      expect(await response.text()).toBe("preserved")
+      expect(resolvedContexts).toBe(0)
+    } finally {
+      server.close()
+      await once(server, "close")
+    }
+  })
 })
 
 function configuredRuntime(
@@ -374,4 +414,10 @@ function context(): DashboardRequestContext {
 
 function request(path: string, init: RequestInit = {}): Request {
   return new Request(new URL(path, "http://example.test"), init)
+}
+
+async function requestText(request: AsyncIterable<unknown>): Promise<string> {
+  const chunks: Buffer[] = []
+  for await (const chunk of request) chunks.push(Buffer.from(chunk as Buffer))
+  return Buffer.concat(chunks).toString("utf8")
 }
