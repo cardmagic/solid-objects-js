@@ -3,20 +3,19 @@
 [![CI](https://github.com/cardmagic/solid-objects-js/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/cardmagic/solid-objects-js/actions/workflows/ci.yml)
 [![npm](https://img.shields.io/npm/v/solid-objects)](https://www.npmjs.com/package/solid-objects)
 
-Solid Objects gives each logical application identity—such as a room, cart,
-account, device, document, or agent session—durable state and a sequential
-mailbox. Concurrent calls for one identity cannot overwrite each other. Calls
-for different identities can run at the same time.
+Solid Objects is a TypeScript actor library for Node.js that gives each
+application-defined identity durable state and a sequential mailbox, backed by
+SQLite, PostgreSQL, or MySQL. Concurrent calls for one identity cannot
+overwrite each other. Calls for different identities can run at the same time.
 
 Define ordinary TypeScript classes and run them in ordinary Node.js processes.
 State, queued operations, retries, reminders, effects, and realtime
-invalidations are stored in the SQLite, PostgreSQL, or MySQL database the
-application already operates.
+invalidations are stored in the database the application already operates.
 
 > **Early release:** the correctness core has automated coverage across the
-> supported databases, browsers, process recovery, and packaged artifacts, but
-> the TypeScript implementation is new. Read the [delivery boundaries](#delivery-boundaries)
-> before using it for important data.
+> supported databases, the Chromium browser client, process recovery, and
+> packaged artifacts, but the TypeScript implementation is new. Read the
+> [delivery boundaries](#delivery-boundaries) before using it for important data.
 
 ## The programming model
 
@@ -42,6 +41,30 @@ Both calls enter the durable mailbox for `cart-123`. They execute in order and
 commit one state transition at a time, even when different requests or Node.js
 processes submit them concurrently.
 
+## Run it now with SQLite
+
+Node.js 24.15 or newer is required. The `0.13.0` release includes a
+packaged quickstart:
+
+```bash
+npm exec --yes --package=solid-objects@0.13.0 -- solid-objects quickstart
+```
+
+The command needs no repository checkout, database server, Redis, container, or
+application configuration. It uses Node's built-in SQLite module and removes
+its scoped temporary database before exiting.
+
+The executable asserts rather than merely printing a plausible result. In one
+local run, it verifies that:
+
+- 25 concurrent calls to one identity produce the exact committed state `25`;
+- their return values are the complete sequence from `1` through `25`;
+- operations for two different identities overlap in time; and
+- the runtime closes and temporary state is removed.
+
+Before `0.13.0` reaches the registry, maintainers can run the identical
+executable from a generated package tarball with `pnpm run test:package`.
+
 ## What Solid Objects is for
 
 Use Solid Objects when more than one request, job, or process can act on the
@@ -63,30 +86,6 @@ carts, accounts, or sessions can progress concurrently. A single global rate
 limiter or another very hot identity is a poor fit because it becomes an
 intentional bottleneck. If one ordinary row transaction solves the problem,
 prefer that. See [Choosing Solid Objects](docs/fit.md) for the longer guide.
-
-## Run it now with SQLite
-
-Node.js 24.15 or newer is required. The `0.13.0` release includes a
-packaged quickstart:
-
-```bash
-npm exec --yes --package=solid-objects@0.13.0 -- solid-objects quickstart
-```
-
-The command needs no repository checkout, database server, Redis, container, or
-application configuration. It uses Node's built-in SQLite module and removes
-its scoped temporary database before exiting.
-
-The executable asserts rather than merely printing a plausible result. It
-proves that:
-
-- 25 concurrent calls to one identity produce the exact committed state `25`;
-- their return values are the complete sequence from `1` through `25`;
-- operations for two different identities overlap in time; and
-- the runtime closes and temporary state is removed.
-
-Before `0.13.0` reaches the registry, maintainers can run the identical
-executable from a generated package tarball with `pnpm run test:package`.
 
 ## How it works
 
