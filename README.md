@@ -63,9 +63,6 @@ local run, it verifies that:
 - operations for two different identities overlap in time; and
 - the runtime closes and temporary state is removed.
 
-Before `0.13.0` reaches the registry, maintainers can run the identical
-executable from a generated package tarball with `pnpm run test:package`.
-
 ## What Solid Objects is for
 
 Use Solid Objects when more than one request, job, or process can act on the

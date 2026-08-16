@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-## 0.13.0 - 2026-08-15
+## 0.13.0 - 2026-08-16
 
 - Replace the exhaustive README with an outcome-first introduction, explicit
   fit and correctness boundaries, sourced comparisons, and factual design
