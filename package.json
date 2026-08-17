@@ -1,6 +1,6 @@
 {
   "name": "solid-objects",
-  "version": "0.13.1",
+  "version": "0.13.2",
   "description": "Race-free realtime state per application identity, backed by your SQL database",
   "type": "module",
   "license": "MIT",

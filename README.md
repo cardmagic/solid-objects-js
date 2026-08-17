@@ -60,11 +60,11 @@ processes submit them concurrently.
 
 ## Run it now with SQLite
 
-Node.js 24.15 or newer is required. The `0.13.1` release includes a
+Node.js 24.15 or newer is required. The `0.13.2` release includes a
 packaged quickstart:
 
 ```bash
-npm exec --yes --package=solid-objects@0.13.1 -- solid-objects quickstart
+npm exec --yes --package=solid-objects@0.13.2 -- solid-objects quickstart
 ```
 
 The command needs no repository checkout, database server, Redis, container, or
@@ -78,6 +78,28 @@ local run, it verifies that:
 - their return values are the complete sequence from `1` through `25`;
 - operations for two different identities overlap in time; and
 - the runtime closes and temporary state is removed.
+
+## What Solid Objects is for
+
+Use Solid Objects when more than one request, job, or process can act on the
+same logical thing and the next action must use its latest committed state.
+These are the stateful coordination patterns for which people often reach for
+Durable Objects:
+
+| Pattern                                 | One identity per              | What the object coordinates                                                                 |
+| --------------------------------------- | ----------------------------- | ------------------------------------------------------------------------------------------- |
+| Multiplayer, presence, or collaboration | Room, session, or document    | Joins, moves, and edits commit in order; subscribers refresh from committed state           |
+| Reservations and expiring holds         | Show, resource, or stock item | Availability checks and holds cannot interleave; a durable reminder can release an old hold |
+| Checkout and account workflows          | Cart, order, account, device  | The current step, retries, and effect results return to the same ordered mailbox            |
+| Per-key rate limits                     | API key, account, or device   | Token checks and decrements are serialized; a reminder can refill the bucket                |
+| Stateful agent sessions                 | Agent session                 | Messages and tool results apply in order and pending work survives a worker exit            |
+
+The common shape is one durable coordination boundary with an application
+defined identity. Work for that identity is serialized, while unrelated rooms,
+carts, accounts, or sessions can progress concurrently. A single global rate
+limiter or another very hot identity is a poor fit because it becomes an
+intentional bottleneck. If one ordinary row transaction solves the problem,
+prefer that. See [Choosing Solid Objects](docs/fit.md) for the longer guide.
 
 ## Running in a deployed application
 
@@ -113,28 +135,6 @@ and multi-process lease fencing are verified separately by the library's
 [failure-recovery demonstration](examples/failure-recovery/demo.ts), and
 [correctness contract](docs/correctness.md). Evaluate those guarantees and
 limits against your own workload.
-
-## What Solid Objects is for
-
-Use Solid Objects when more than one request, job, or process can act on the
-same logical thing and the next action must use its latest committed state.
-These are the stateful coordination patterns for which people often reach for
-Durable Objects:
-
-| Pattern                                 | One identity per              | What the object coordinates                                                                 |
-| --------------------------------------- | ----------------------------- | ------------------------------------------------------------------------------------------- |
-| Multiplayer, presence, or collaboration | Room, session, or document    | Joins, moves, and edits commit in order; subscribers refresh from committed state           |
-| Reservations and expiring holds         | Show, resource, or stock item | Availability checks and holds cannot interleave; a durable reminder can release an old hold |
-| Checkout and account workflows          | Cart, order, account, device  | The current step, retries, and effect results return to the same ordered mailbox            |
-| Per-key rate limits                     | API key, account, or device   | Token checks and decrements are serialized; a reminder can refill the bucket                |
-| Stateful agent sessions                 | Agent session                 | Messages and tool results apply in order and pending work survives a worker exit            |
-
-The common shape is one durable coordination boundary with an application
-defined identity. Work for that identity is serialized, while unrelated rooms,
-carts, accounts, or sessions can progress concurrently. A single global rate
-limiter or another very hot identity is a poor fit because it becomes an
-intentional bottleneck. If one ordinary row transaction solves the problem,
-prefer that. See [Choosing Solid Objects](docs/fit.md) for the longer guide.
 
 ## How it works
 

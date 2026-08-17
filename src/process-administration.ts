@@ -26,6 +26,14 @@ export interface ProcessCleanupResult {
   readonly cleaned: number
 }
 
+export class AdministrationManager {
+  constructor(private readonly runtime: SolidObjectsRuntime) {}
+
+  processes(options: AdministrationOptions = {}): Promise<readonly ProcessRecord[]> {
+    return this.runtime.inspectProcesses(options)
+  }
+}
+
 export class ProcessManager {
   constructor(private readonly runtime: SolidObjectsRuntime) {}
 
