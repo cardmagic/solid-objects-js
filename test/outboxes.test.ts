@@ -292,7 +292,7 @@ describe("reminders", () => {
     await Alarm.ref("obsolete-alarm").arm()
     await runtime.settings.database.connection((connection) =>
       connection.run(
-        `UPDATE ${runtime?.repository.table("reminders")} SET operation = 'removedOperation'`,
+        `UPDATE ${runtime?.repository.table("reminders")} SET message_operation = 'removedOperation'`,
       ),
     )
 

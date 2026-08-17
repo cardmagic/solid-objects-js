@@ -49,7 +49,7 @@ export class ReminderScheduler {
           reminderId: reminder.id,
           actorType: reminder.actor_type,
           actorId: reminder.actor_id,
-          operation: reminder.operation,
+          operation: reminder.message_operation ?? reminder.operation,
           error: error.message,
         })
         return 1

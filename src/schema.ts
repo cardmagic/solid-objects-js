@@ -7,7 +7,8 @@ const MESSAGE_IDENTITY_VERSION = 3
 const PROCESS_IDENTITY_VERSION = 4
 const PROCESS_DRAINING_VERSION = 5
 const OBSERVABLE_INVALIDATIONS_VERSION = 6
-const LATEST_VERSION = OBSERVABLE_INVALIDATIONS_VERSION
+const KEYED_REMINDERS_VERSION = 7
+const LATEST_VERSION = KEYED_REMINDERS_VERSION
 
 export async function installSchema(options: {
   connection: DatabaseConnection
@@ -211,6 +212,21 @@ export async function installSchema(options: {
       connection,
       table: table("schema_migrations"),
       version: RETRY_LINK_VERSION,
+      schemaIdentity,
+    })
+  }
+
+  if (!installedVersions.has(KEYED_REMINDERS_VERSION)) {
+    // operation already names the alarm, and a keyed reminder puts the key in
+    // that name. message_operation carries what should actually run. It is left
+    // null on existing rows, where the name is still the operation.
+    await connection.run(
+      `ALTER TABLE ${table("reminders")} ADD COLUMN ${family === "postgresql" ? "IF NOT EXISTS " : ""}message_operation ${family === "mysql" ? "VARCHAR(255)" : "TEXT"}`,
+    )
+    await recordMigration({
+      connection,
+      table: table("schema_migrations"),
+      version: KEYED_REMINDERS_VERSION,
       schemaIdentity,
     })
   }

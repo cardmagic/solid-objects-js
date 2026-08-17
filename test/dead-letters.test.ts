@@ -151,7 +151,7 @@ describe("schema migrations", () => {
     const broadcastColumns = await runtime.settings.database.connection((connection) =>
       connection.all<{ name: string }>("PRAGMA table_info(solid_objects_broadcasts)"),
     )
-    expect(versions.map(({ version }) => Number(version))).toEqual([1, 2, 3, 4, 5, 6])
+    expect(versions.map(({ version }) => Number(version))).toEqual([1, 2, 3, 4, 5, 6, 7])
     expect(deadLetterColumns.map(({ name }) => name)).toContain("retried_message_id")
     expect(broadcastColumns.map(({ name }) => name)).toContain("invalidations")
   })
