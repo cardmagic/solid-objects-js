@@ -108,7 +108,12 @@ add({ entry }: { entry: Entry }): void {
 
 Scheduling the same key again moves that item's alarm and leaves the others
 alone. The operation still decides which handler runs; the key only decides
-which alarm is which. A key must be non-empty and at most 128 characters.
+which alarm is which.
+
+A key must be non-empty, and the name it composes must fit the 255 characters
+MySQL holds it in. That is checked on the composed name rather than the key
+alone, so a long operation with a short key is caught too. A key may hold colons
+of its own, because an actor member name cannot.
 
 An actor that only needs to know "what is next" can still keep one alarm and
 drain everything due when it fires. That costs one row instead of one per item

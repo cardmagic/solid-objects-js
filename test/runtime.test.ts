@@ -45,7 +45,13 @@ class Counter extends Actor {
   }
 
   armOversizedKey(): void {
-    this.schedule({ at: new Date("2030-01-02T03:04:05.000Z"), key: "k".repeat(200) }).increment!({
+    this.schedule({ at: new Date("2030-01-02T03:04:05.000Z"), key: "k".repeat(300) }).increment!({
+      amount: 1,
+    })
+  }
+
+  armSeparatorKey(): void {
+    this.schedule({ at: new Date("2030-01-02T03:04:05.000Z"), key: "group:7" }).increment!({
       amount: 1,
     })
   }
@@ -391,7 +397,22 @@ describe("actor reminders", () => {
     expect(await message.status()).toBe("dead")
   })
 
-  it("refuses a key longer than the name allows", async () => {
+  it("allows a key to hold the separator, since the operation may not", async () => {
+    runtime = configuredRuntime()
+    await runtime.install()
+
+    await Counter.ref("keyed-separator").armSeparatorKey()
+
+    const reminder = await runtime.settings.database.connection((connection) =>
+      connection.get<{ operation: string; message_operation: string | null }>(
+        `SELECT operation, message_operation FROM ${runtime?.repository.table("reminders")}`,
+      ),
+    )
+    expect(reminder?.operation).toBe("increment:group:7")
+    expect(reminder?.message_operation).toBe("increment")
+  })
+
+  it("refuses a composed name longer than the database holds", async () => {
     runtime = configuredRuntime({ maxAttempts: 1 })
     await runtime.install()
     const message = await Counter.ref("keyed-long").send.armOversizedKey()

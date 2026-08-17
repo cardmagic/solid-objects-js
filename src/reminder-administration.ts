@@ -7,9 +7,8 @@ export interface ReminderRecord {
   readonly id: string
   readonly actorType: string
   readonly actorId: string
-  /** Names the alarm. Without a key this is the operation. */
+  /** Without a key this is the operation. */
   readonly name: string
-  /** The message the alarm runs when it comes due. */
   readonly operation: string
   readonly runAt: Date
   readonly intervalMilliseconds: number | null

@@ -57,7 +57,7 @@ export interface CommitActionIntent {
 }
 
 export interface ReminderIntent {
-  /** Names the alarm. Without a key this is the operation. */
+  /** Without a key this is the operation. */
   name: string
   operation: string
   atMilliseconds: number
@@ -94,30 +94,43 @@ export interface ReminderOptions {
   at: Date
   everyMilliseconds?: number
   missed?: "all" | "latest"
-  /**
-   * Your own identifier for the item this alarm is waiting on. Give one when an
-   * actor waits on several things at once, so each gets its own alarm.
-   */
+  /** Your own identifier for the item this alarm waits on, so each item gets one. */
   key?: string | number
 }
 
-/**
- * The key becomes part of the reminder name, which the database holds alongside
- * the operation, so it is bounded here rather than failing on the insert once
- * the turn is already doing work.
- */
-const REMINDER_KEY_LIMIT = 128
+/** MySQL holds the reminder name in a VARCHAR(255); the other families hold more. */
+const REMINDER_NAME_LIMIT = 255
+const REMINDER_KEY_SEPARATOR = ":"
 
 function validatedReminderKey(key: string | number | undefined): string | undefined {
   if (key === undefined) return undefined
 
   const reminderKey = String(key)
   if (reminderKey.length === 0) throw new TypeError("reminder key must not be empty")
-  if (reminderKey.length > REMINDER_KEY_LIMIT) {
-    throw new TypeError(`reminder key must be at most ${REMINDER_KEY_LIMIT} characters`)
-  }
 
   return reminderKey
+}
+
+/**
+ * The name is the operation, a colon, and the key. An operation cannot hold a
+ * colon of its own, so a keyed name never collides with an unkeyed one.
+ *
+ * The length is checked on the composed name rather than the key alone, because
+ * a long operation and a short key overflow the column just as easily as the
+ * reverse, and it is refused here rather than at the insert, once the turn is
+ * already doing work.
+ */
+function reminderName(operation: string, key: string | undefined): string {
+  if (key === undefined) return operation
+
+  const name = `${operation}${REMINDER_KEY_SEPARATOR}${key}`
+  if (name.length > REMINDER_NAME_LIMIT) {
+    throw new TypeError(
+      `reminder name ${name.length} characters exceeds the ${REMINDER_NAME_LIMIT} the database holds`,
+    )
+  }
+
+  return name
 }
 
 export interface OutboundMessageOptions {
@@ -213,13 +226,7 @@ export abstract class Actor {
     this.#intents.commitActions.push({ name, arguments: jsonObject(argumentsValue) })
   }
 
-  /**
-   * A reminder is one alarm per actor and name, and without a key that name is
-   * the operation, so one actor holds one alarm per operation. A key names the
-   * alarm for the item it is waiting on, which is what an actor holding a queue
-   * of scheduled work needs; scheduling the same key again moves that item's
-   * alarm and leaves the others alone.
-   */
+  /** See docs/api.md for when to give a reminder a key. */
   schedule(options: ReminderOptions): ScheduledOperations {
     const atMilliseconds = options.at.getTime()
     if (!Number.isFinite(atMilliseconds)) throw new TypeError("reminder time must be valid")
@@ -230,7 +237,7 @@ export abstract class Actor {
 
     return createStagedOperationMap(this.#operations, (operation, argumentsValue) => {
       this.#intents.reminders.push({
-        name: key === undefined ? operation : `${operation}:${key}`,
+        name: reminderName(operation, key),
         operation,
         atMilliseconds,
         arguments: jsonObject(argumentsValue),

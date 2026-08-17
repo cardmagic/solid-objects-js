@@ -8,6 +8,8 @@
   others alone. Without a key the name is still the operation, so existing
   reminders keep their names and their coalescing behaviour. Adds a nullable
   `message_operation` column to the reminders table, left null on existing rows.
+  The composed name is bounded by the 255 characters MySQL holds it in, checked
+  on the name rather than the key alone.
 
 ## 0.13.2 - 2026-08-16
 
