@@ -79,6 +79,48 @@ function playerForSession<PlayerType extends { sessionId: string }>(options: {
 }
 ```
 
+### Reminders
+
+A reminder is one alarm per actor and name. Scheduling a name that is already
+armed **moves the existing alarm** rather than adding a second one, which is
+what makes a reminder safe to re-arm from a handler that may run more than once.
+
+Without a key that name is the operation, so one actor holds one alarm per
+operation, and arming one per queued item keeps only the last:
+
+```typescript
+// Wrong. Every entry overwrites the previous entry's alarm.
+add({ entry }: { entry: Entry }): void {
+  this.entries = [...this.entries, entry]
+  this.schedule({ at: new Date(entry.waitUntil) }).deliver!()
+}
+```
+
+Pass `key` when an actor is waiting on several things at once. The key is your
+own identifier for the item and names that item's alarm, so each item gets one:
+
+```typescript
+add({ entry }: { entry: Entry }): void {
+  this.entries = [...this.entries, entry]
+  this.schedule({ at: new Date(entry.waitUntil), key: entry.id }).deliver!()
+}
+```
+
+Scheduling the same key again moves that item's alarm and leaves the others
+alone. The operation still decides which handler runs; the key only decides
+which alarm is which.
+
+A key must be non-empty, and the name it composes must fit the 255 characters
+MySQL holds it in. That is checked on the composed name rather than the key
+alone, so a long operation with a short key is caught too. A key may hold colons
+of its own, because an actor member name cannot.
+
+An actor that only needs to know "what is next" can still keep one alarm and
+drain everything due when it fires. That costs one row instead of one per item
+and cannot strand an entry when an occurrence is coalesced, so prefer it for a
+large queue of interchangeable items and prefer `key` when an item needs an
+alarm that can be moved on its own.
+
 ### Runtime managers
 
 Every manager below is available as a property on `SolidObjectsRuntime`; the

@@ -57,6 +57,8 @@ export interface CommitActionIntent {
 }
 
 export interface ReminderIntent {
+  /** Without a key this is the operation. */
+  name: string
   operation: string
   atMilliseconds: number
   arguments: JsonObject
@@ -92,6 +94,43 @@ export interface ReminderOptions {
   at: Date
   everyMilliseconds?: number
   missed?: "all" | "latest"
+  /** Your own identifier for the item this alarm waits on, so each item gets one. */
+  key?: string | number
+}
+
+/** MySQL holds the reminder name in a VARCHAR(255); the other families hold more. */
+const REMINDER_NAME_LIMIT = 255
+const REMINDER_KEY_SEPARATOR = ":"
+
+function validatedReminderKey(key: string | number | undefined): string | undefined {
+  if (key === undefined) return undefined
+
+  const reminderKey = String(key)
+  if (reminderKey.length === 0) throw new TypeError("reminder key must not be empty")
+
+  return reminderKey
+}
+
+/**
+ * The name is the operation, a colon, and the key. An operation cannot hold a
+ * colon of its own, so a keyed name never collides with an unkeyed one.
+ *
+ * The length is checked on the composed name rather than the key alone, because
+ * a long operation and a short key overflow the column just as easily as the
+ * reverse, and it is refused here rather than at the insert, once the turn is
+ * already doing work.
+ */
+function reminderName(operation: string, key: string | undefined): string {
+  if (key === undefined) return operation
+
+  const name = `${operation}${REMINDER_KEY_SEPARATOR}${key}`
+  if (name.length > REMINDER_NAME_LIMIT) {
+    throw new TypeError(
+      `reminder name ${name.length} characters exceeds the ${REMINDER_NAME_LIMIT} the database holds`,
+    )
+  }
+
+  return name
 }
 
 export interface OutboundMessageOptions {
@@ -187,15 +226,18 @@ export abstract class Actor {
     this.#intents.commitActions.push({ name, arguments: jsonObject(argumentsValue) })
   }
 
+  /** See docs/api.md for when to give a reminder a key. */
   schedule(options: ReminderOptions): ScheduledOperations {
     const atMilliseconds = options.at.getTime()
     if (!Number.isFinite(atMilliseconds)) throw new TypeError("reminder time must be valid")
     if (options.everyMilliseconds !== undefined && options.everyMilliseconds <= 0) {
       throw new TypeError("reminder interval must be positive")
     }
+    const key = validatedReminderKey(options.key)
 
     return createStagedOperationMap(this.#operations, (operation, argumentsValue) => {
       this.#intents.reminders.push({
+        name: reminderName(operation, key),
         operation,
         atMilliseconds,
         arguments: jsonObject(argumentsValue),

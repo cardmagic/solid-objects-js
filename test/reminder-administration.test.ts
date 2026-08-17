@@ -40,7 +40,7 @@ describe("reminder administration", () => {
     await runtime.install()
     await ReminderActor.ref("one").arm({ at: new Date(Date.now() - 1_000).toISOString() })
     await runtime.settings.database.connection((connection) =>
-      connection.run(`UPDATE ${runtime?.repository.table("reminders")} SET operation = ?`, [
+      connection.run(`UPDATE ${runtime?.repository.table("reminders")} SET message_operation = ?`, [
         "removedOperation",
       ]),
     )
@@ -56,6 +56,7 @@ describe("reminder administration", () => {
     expect(paused.items[0]).toMatchObject({
       actorType: ReminderActor.actorType,
       actorId: "one",
+      name: "increment",
       operation: "removedOperation",
       status: "paused",
       errorName: "UnknownOperation",
