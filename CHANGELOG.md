@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.13.2 - 2026-08-17
 
 - Accept a `key` on `schedule`, naming a reminder for the item it is waiting
   on rather than for its operation, so one actor can hold an alarm per queued
@@ -10,9 +10,6 @@
   `message_operation` column to the reminders table, left null on existing rows.
   The composed name is bounded by the 255 characters MySQL holds it in, checked
   on the name rather than the key alone.
-
-## 0.13.2 - 2026-08-16
-
 - Add an authorized `runtime.administration.processes()` query for inspecting
   live and stale process rows through the runtime's database adapter.
 - Document rolling-deployment overlap as a reason for the polling-only warning.
