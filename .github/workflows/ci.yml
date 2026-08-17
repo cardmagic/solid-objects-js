@@ -130,7 +130,7 @@ jobs:
     needs: [quality, postgresql, mysql, browser, redis]
     runs-on: ubuntu-latest
     permissions:
-      contents: read
+      contents: write
       id-token: write
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
@@ -164,3 +164,10 @@ jobs:
           fi
       - if: steps.registry.outputs.exists != 'true'
         run: npm publish --access public
+      - name: Write release notes
+        run: node scripts/release-notes.mjs "${GITHUB_REF_NAME#v}" > "${RUNNER_TEMP}/release-notes.md"
+      - name: Create GitHub release
+        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2
+        with:
+          name: ${{ github.ref_name }}
+          body_path: ${{ runner.temp }}/release-notes.md
