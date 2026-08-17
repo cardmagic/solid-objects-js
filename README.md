@@ -1,7 +1,10 @@
-# Durable Objects for Node, backed by your existing SQL database
+# Solid Objects JS
 
 [![CI](https://github.com/cardmagic/solid-objects-js/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/cardmagic/solid-objects-js/actions/workflows/ci.yml)
 [![npm](https://img.shields.io/npm/v/solid-objects)](https://www.npmjs.com/package/solid-objects)
+
+Self-hosted, distributed Durable Objects in Node without a daemon using your
+existing SQL database.
 
 Build addressable TypeScript objects with serialized calls and durable state
 using SQLite, PostgreSQL, or MySQL, without deploying to Cloudflare.
