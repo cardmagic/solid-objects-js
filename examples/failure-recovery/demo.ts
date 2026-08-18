@@ -8,7 +8,11 @@ import { fork, type ChildProcess } from "node:child_process"
 import { createRuntime, type ActorReference, type MessageReference } from "solid-objects"
 import { sqlite } from "solid-objects/database/sqlite"
 import { RecoveryCounter } from "./actor.ts"
-import { assertSerializedExecution, parseSerializationEvent } from "./serialization.ts"
+import {
+  assertSerializedExecution,
+  parseSerializationEvent,
+  type SerializationProof,
+} from "./serialization.ts"
 
 interface WorkerMessage {
   event: string
@@ -54,7 +58,7 @@ try {
 
 assert.equal(existsSync(directory), false)
 
-async function proveSerialization(): Promise<{ finalState: number; overlap: false }> {
+async function proveSerialization(): Promise<SerializationProof & { finalState: number }> {
   const controlDirectory = join(directory, "serialization")
   await mkdir(controlDirectory)
   const reference = runtime.ref(RecoveryCounter, "serialized")
@@ -69,10 +73,10 @@ async function proveSerialization(): Promise<{ finalState: number; overlap: fals
     join(controlDirectory, "serialization.jsonl"),
     parseSerializationEvent,
   )
-  assertSerializedExecution(events, { messageCount: 2 })
+  const proof = assertSerializedExecution(events, { messageCount: 2 })
   const snapshot = await reference.snapshot()
   assert.equal(snapshot.count, 2)
-  return { finalState: snapshot.count, overlap: false }
+  return { ...proof, finalState: snapshot.count }
 }
 
 async function proveCrashRecovery(): Promise<{

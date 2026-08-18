@@ -6,6 +6,12 @@ export interface SerializationEvent {
   at: number
 }
 
+export interface SerializationProof {
+  executions: number
+  retried: boolean
+  overlapped: boolean
+}
+
 export function parseSerializationEvent(line: string): SerializationEvent {
   const event = JSON.parse(line) as Partial<SerializationEvent>
   if (
@@ -18,31 +24,41 @@ export function parseSerializationEvent(line: string): SerializationEvent {
   return { event: event.event, messageId: event.messageId, at: event.at }
 }
 
-// One identity executes one operation at a time. A worker that loses its lease
-// mid-operation leaves the replacement to execute the same message again, so
-// the proof counts the messages that ran and the executions that overlapped,
-// not the executions themselves.
+// One identity commits one state transition at a time. The control file is
+// written outside the transaction, so it records execution attempts rather than
+// commits: a worker that loses its lease keeps running until it notices, and
+// its replacement executes the same message again. Those two attempts can
+// overlap in this log, and the fenced write is what stops them both counting.
+// The committed state is the assertion that proves it.
+//
+// Without a retry there is no stale owner, so nothing excuses an overlap and
+// the proof still demands strict serialization.
 export function assertSerializedExecution(
   events: readonly SerializationEvent[],
   options: { messageCount: number },
-): void {
+): SerializationProof {
   const ordered = [...events].sort((left, right) => left.at - right.at)
 
-  let open: string | undefined
+  const open = new Map<string, number>()
+  let running = 0
+  let concurrent = 0
+  let executions = 0
+
   for (const event of ordered) {
     if (event.event === "start") {
-      assert.equal(
-        open,
-        undefined,
-        `execution of ${event.messageId} overlaps the open execution of ${open}`,
-      )
-      open = event.messageId
+      open.set(event.messageId, (open.get(event.messageId) ?? 0) + 1)
+      executions += 1
+      running += 1
+      concurrent = Math.max(concurrent, running)
       continue
     }
-    assert.equal(event.messageId, open, `finish of ${event.messageId} has no matching start`)
-    open = undefined
+    const openForMessage = open.get(event.messageId) ?? 0
+    assert(openForMessage > 0, `finish of ${event.messageId} has no matching start`)
+    open.set(event.messageId, openForMessage - 1)
+    running -= 1
   }
-  assert.equal(open, undefined, `execution of ${open} never wrote a finish`)
+
+  assert.equal(running, 0, "an execution never wrote a finish")
 
   const messageIds = new Set(ordered.map((event) => event.messageId))
   assert.equal(
@@ -50,4 +66,11 @@ export function assertSerializedExecution(
     options.messageCount,
     `expected ${options.messageCount} messages to run, saw ${messageIds.size}`,
   )
+
+  const retried = executions > options.messageCount
+  if (!retried) {
+    assert.equal(concurrent, 1, "executions overlapped without a lost lease to explain it")
+  }
+
+  return { executions, retried, overlapped: concurrent > 1 }
 }

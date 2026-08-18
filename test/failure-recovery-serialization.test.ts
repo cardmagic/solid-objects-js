@@ -15,7 +15,11 @@ describe("serialization proof", () => {
   it("accepts two executions that do not overlap", () => {
     const events = [...execution("a", 10, 20), ...execution("b", 30, 40)]
 
-    expect(() => assertSerializedExecution(events, { messageCount: 2 })).not.toThrow()
+    expect(assertSerializedExecution(events, { messageCount: 2 })).toEqual({
+      executions: 2,
+      retried: false,
+      overlapped: false,
+    })
   })
 
   // A worker can lose its lease mid-operation, and the replacement executes the
@@ -24,10 +28,34 @@ describe("serialization proof", () => {
   it("accepts a message that executes twice after a lost lease", () => {
     const events = [...execution("a", 10, 20), ...execution("a", 30, 40), ...execution("b", 50, 60)]
 
-    expect(() => assertSerializedExecution(events, { messageCount: 2 })).not.toThrow()
+    expect(assertSerializedExecution(events, { messageCount: 2 })).toEqual({
+      executions: 3,
+      retried: true,
+      overlapped: false,
+    })
   })
 
-  it("rejects executions that overlap", () => {
+  // The stale attempt is what lost the lease, so it is still running when the
+  // replacement starts. Its writes are fenced out, and the committed state is
+  // what proves that, so the log is allowed to interleave here.
+  it("accepts a stale attempt that is still running when its replacement starts", () => {
+    const events: SerializationEvent[] = [
+      { event: "start", messageId: "a", at: 10 },
+      { event: "start", messageId: "a", at: 20 },
+      { event: "finish", messageId: "a", at: 30 },
+      { event: "finish", messageId: "a", at: 40 },
+      ...execution("b", 50, 60),
+    ]
+
+    expect(assertSerializedExecution(events, { messageCount: 2 })).toEqual({
+      executions: 3,
+      retried: true,
+      overlapped: true,
+    })
+  })
+
+  // Without a retry there is no stale owner, so nothing excuses an overlap.
+  it("rejects executions that overlap when no message ran twice", () => {
     const events: SerializationEvent[] = [
       { event: "start", messageId: "a", at: 10 },
       { event: "start", messageId: "b", at: 15 },
@@ -42,6 +70,16 @@ describe("serialization proof", () => {
     const events = [...execution("a", 10, 20), { event: "start", messageId: "b", at: 30 } as const]
 
     expect(() => assertSerializedExecution(events, { messageCount: 2 })).toThrow(/finish/)
+  })
+
+  it("rejects a finish with no start", () => {
+    const events: SerializationEvent[] = [
+      ...execution("a", 10, 20),
+      { event: "finish", messageId: "b", at: 30 },
+      ...execution("b", 40, 50),
+    ]
+
+    expect(() => assertSerializedExecution(events, { messageCount: 2 })).toThrow(/start/)
   })
 
   it("rejects a run that lost one of the messages", () => {

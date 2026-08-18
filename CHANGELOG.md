@@ -6,10 +6,13 @@
   than executions. A worker that loses its lease mid-operation leaves the
   replacement to execute the same message again, which is the at-least-once
   contract, so the proof failed on slower machines for behaviour it documents
-  elsewhere. It now asserts that executions never overlap, that every start has
-  a finish, and that exactly the two sent messages ran, with the committed state
-  check unchanged. `assertSerializedExecution` moved into its own module and has
-  unit coverage for the retry, overlap, unfinished, and lost-message cases.
+  elsewhere. It now asserts that every start has a finish, that exactly the two
+  sent messages ran, and that executions overlap only when a lost lease explains
+  it, because the stale attempt keeps running until it notices. The committed
+  state check is unchanged, and the demo reports the executions it saw.
+  `assertSerializedExecution` moved into its own module with unit coverage for
+  the clean, retried, stale-overlap, unexplained-overlap, unfinished,
+  unmatched-finish, and lost-message cases.
 
 ## 0.13.2 - 2026-08-17
 
