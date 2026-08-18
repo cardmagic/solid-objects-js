@@ -54,6 +54,20 @@ describe("serialization proof", () => {
     })
   })
 
+  // A retry excuses the superseded attempt, not the surviving ones. Message a
+  // retries, and then the attempt that replaced it runs at the same time as b.
+  it("rejects overlap between the surviving attempts even after a retry", () => {
+    const events: SerializationEvent[] = [
+      ...execution("a", 10, 20),
+      { event: "start", messageId: "a", at: 30 },
+      { event: "start", messageId: "b", at: 35 },
+      { event: "finish", messageId: "a", at: 40 },
+      { event: "finish", messageId: "b", at: 45 },
+    ]
+
+    expect(() => assertSerializedExecution(events, { messageCount: 2 })).toThrow(/overlap/)
+  })
+
   // Without a retry there is no stale owner, so nothing excuses an overlap.
   it("rejects executions that overlap when no message ran twice", () => {
     const events: SerializationEvent[] = [
