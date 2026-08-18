@@ -116,12 +116,20 @@ import { waitFor, Worker } from "./worker.js"
 import { EffectWorker } from "./effect-worker.js"
 import type { WakeUpRole } from "./wake-up.js"
 import { withDatabaseDeadline } from "./database/deadline.js"
+import type { DatabaseConnection } from "./database/types.js"
 
 interface RegisteredActor {
   actorClass: ActorClass
   definition: ValidatedActorDefinition
   operations: ReadonlySet<string>
   queries: ReadonlySet<string>
+}
+
+export interface SnapshotWithIncarnation<ActorType extends Actor> {
+  snapshot: ActorSnapshot<ActorType>
+  instanceId: string
+  revision: string
+  createdAtMs: number
 }
 
 interface PayloadProjectionSnapshot {
@@ -683,6 +691,27 @@ export class SolidObjectsRuntime {
       argumentsValue: {},
       authorizationContext: options.authorizationContext,
     })
+    const built = await this.buildSnapshotWithIncarnation(reference)
+    return built.snapshot
+  }
+
+  async snapshotWithIncarnation<ActorType extends Actor>(
+    reference: ActorReferenceCore<ActorType>,
+    options: SnapshotOptions = {},
+  ): Promise<SnapshotWithIncarnation<ActorType>> {
+    await this.authorize({
+      kind: "query",
+      reference,
+      operation: "__snapshot__",
+      argumentsValue: {},
+      authorizationContext: options.authorizationContext,
+    })
+    return this.buildSnapshotWithIncarnation(reference)
+  }
+
+  private async buildSnapshotWithIncarnation<ActorType extends Actor>(
+    reference: ActorReferenceCore<ActorType>,
+  ): Promise<SnapshotWithIncarnation<ActorType>> {
     const registered = this.fetchActor(reference.actorType)
     const instance = await this.repository.findInstanceByIdentity(
       reference.actorType,
@@ -718,7 +747,12 @@ export class SolidObjectsRuntime {
     ) {
       throw new QueryMutatedState("snapshot getters must not mutate actor state or stage work")
     }
-    return readonlyCopy(snapshot) as ActorSnapshot<ActorType>
+    return {
+      snapshot: readonlyCopy(snapshot) as ActorSnapshot<ActorType>,
+      instanceId: instance?.id ?? "0",
+      revision: String(instance?.state_revision ?? 0),
+      createdAtMs: Number(instance?.created_at_ms ?? 0),
+    }
   }
 
   async subscriptionSnapshot(options: {
@@ -1441,6 +1475,66 @@ export class SolidObjectsRuntime {
         errorName: error instanceof Error ? error.name : "Error",
       })
     }
+  }
+
+  async enqueueInternalMessage<Result = unknown>(options: {
+    actorType: string
+    actorId: string
+    operation: string
+    argumentsValue?: JsonObject
+    idempotencyKey?: string
+  }): Promise<MessageReference<Result>> {
+    const { actorType, actorId, operation, argumentsValue = {}, idempotencyKey } = options
+    const actor = this.fetchActor(actorType)
+    if (!actor.operations.has(operation)) {
+      throw new UnknownOperation(`unknown operation ${JSON.stringify(operation)}`)
+    }
+    const argumentsObject = jsonObject(argumentsValue, { maxBytes: this.settings.maxPayloadBytes })
+    const message = await this.repository.enqueue({
+      actorType,
+      actorId,
+      operation,
+      deliveryMode: "internal",
+      arguments: argumentsObject,
+      initialState: initialStateFor(actor.definition),
+      stateVersion: actor.definition.stateVersion,
+      ...(idempotencyKey === undefined ? {} : { idempotencyKey }),
+    })
+    this.announceInternalMessage(message)
+    return this.messageReferenceFromRow<Result>(message)
+  }
+
+  async enqueueInternalMessageInTransaction(
+    connection: DatabaseConnection,
+    options: {
+      actorType: string
+      actorId: string
+      operation: string
+      argumentsValue?: JsonObject
+      idempotencyKey?: string
+    },
+  ): Promise<MessageRow> {
+    const { actorType, actorId, operation, argumentsValue = {}, idempotencyKey } = options
+    const actor = this.fetchActor(actorType)
+    if (!actor.operations.has(operation)) {
+      throw new UnknownOperation(`unknown operation ${JSON.stringify(operation)}`)
+    }
+    const argumentsObject = jsonObject(argumentsValue, { maxBytes: this.settings.maxPayloadBytes })
+    return this.repository.enqueueInTransaction(connection, {
+      actorType,
+      actorId,
+      operation,
+      deliveryMode: "internal",
+      arguments: argumentsObject,
+      initialState: initialStateFor(actor.definition),
+      stateVersion: actor.definition.stateVersion,
+      ...(idempotencyKey === undefined ? {} : { idempotencyKey }),
+    })
+  }
+
+  announceInternalMessage(message: MessageRow): void {
+    this.emitInstrumentation("message.enqueued", messageInstrumentation(message))
+    this.wakeUp("actors")
   }
 
   private async enqueue<Result>(options: {

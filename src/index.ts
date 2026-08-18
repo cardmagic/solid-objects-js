@@ -14,7 +14,12 @@ export {
   type ReminderIntent,
   type ReminderOptions,
 } from "./actor.js"
-export { configure, createRuntime, SolidObjectsRuntime } from "./runtime.js"
+export {
+  configure,
+  createRuntime,
+  SolidObjectsRuntime,
+  type SnapshotWithIncarnation,
+} from "./runtime.js"
 export { VERSION } from "./version.js"
 export { guardApplicationDatabase } from "./application-database.js"
 export { runCli, type CliRunOptions } from "./cli.js"

@@ -8,13 +8,22 @@ Reference: Ruby `solid_objects` 0.13.3. The JavaScript package began at the
 Ruby design's `0.12` capability generation; that version number did not imply
 earlier JavaScript releases.
 
-The Node `0.13.3` implementation has capability parity with that reference. Its
+The Node `0.14.0` implementation has capability parity with that reference. Its
 relational runtime, correctness boundaries, administration, diagnostics,
 operator dashboard, realtime projections, browser behavior, and supported
 adapters have native equivalents. Rails-specific rendering surfaces are
 replaced by transport- and framework-neutral JavaScript APIs. The partial guard
 row and the shared planned result-lookup row below are explicit scope
 boundaries, not missing Ruby capabilities.
+
+`0.14.0` also adds `runtime.enqueueInternalMessage()`,
+`runtime.enqueueInternalMessageInTransaction()`, and
+`runtime.snapshotWithIncarnation()`. These are Node-only integration points
+for a host package (such as a future commercial scaling layer), not ported
+Ruby capabilities: Ruby's equivalent primitives (`SolidObjects::Mailbox#enqueue`,
+`ActorSnapshot`) are already reachable in-process without a dedicated public
+API, since Ruby has no package-privacy boundary between a gem and its own
+dependents the way Node's `exports` map enforces one.
 
 ## Status vocabulary
 
