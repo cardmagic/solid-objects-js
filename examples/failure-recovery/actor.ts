@@ -25,16 +25,14 @@ export class RecoveryCounter extends Actor {
   async serialize({ controlDirectory }: { controlDirectory: string }): Promise<number> {
     const message = this.currentMessage
     if (!message) throw new Error("serialize requires a durable message")
-    await appendFile(
-      join(controlDirectory, "serialization.jsonl"),
-      `${JSON.stringify({ event: "start", messageId: message.id, at: Date.now() })}\n`,
-    )
+    // The attempt and the process identify the execution, so a start pairs with
+    // its own finish even when a superseded attempt outlives its replacement.
+    const execution = { messageId: message.id, attempt: message.attempt, processId: process.pid }
+    const path = join(controlDirectory, "serialization.jsonl")
+    await appendFile(path, `${JSON.stringify({ event: "start", ...execution, at: Date.now() })}\n`)
     await new Promise((resolve) => setTimeout(resolve, 100))
     this.count += 1
-    await appendFile(
-      join(controlDirectory, "serialization.jsonl"),
-      `${JSON.stringify({ event: "finish", messageId: message.id, at: Date.now() })}\n`,
-    )
+    await appendFile(path, `${JSON.stringify({ event: "finish", ...execution, at: Date.now() })}\n`)
     return this.count
   }
 }

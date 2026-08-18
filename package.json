@@ -1,6 +1,6 @@
 {
   "name": "solid-objects",
-  "version": "0.13.2",
+  "version": "0.13.3",
   "description": "Race-free realtime state per application identity, backed by your SQL database",
   "type": "module",
   "license": "MIT",
@@ -23,7 +23,7 @@
     "url": "git+https://github.com/cardmagic/solid-objects-js.git"
   },
   "engines": {
-    "node": ">=24.15.0"
+    "node": ">=24.4.0"
   },
   "packageManager": "pnpm@11.11.0",
   "bin": {

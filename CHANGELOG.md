@@ -1,5 +1,32 @@
 # Changelog
 
+## 0.13.3 - 2026-08-18
+
+- Lower the supported Node.js floor from 24.15.0 to 24.4.0. Node.js 24.4.0 is
+  the first release that accepts `readBigInts` on the `DatabaseSync`
+  constructor, which the SQLite adapter needs to read 64-bit integers without
+  losing precision. Node.js 24.0.0 through 24.3.x ignore the option, and the
+  effect recovery and transaction retry tests fail there. A new CI job runs the
+  default suite, the build, the packaged artifact smoke test, and the recovery
+  demo on the floor.
+- Record that `node:sqlite` stays experimental until Node.js 24.15.0 and prints
+  a warning on stderr before it.
+- Make the failure-recovery demo's serialization proof count messages rather
+  than executions. A worker that loses its lease mid-operation leaves the
+  replacement to execute the same message again, which is the at-least-once
+  contract, so the proof failed on slower machines for behaviour it documents
+  elsewhere. Each serialization event now carries its attempt and process, so a
+  start pairs with its own finish instead of with whichever finish came next.
+  The proof asserts that every start has its own finish, that exactly the two
+  sent messages ran, and that the surviving attempt of each message never
+  overlaps another message's surviving attempt; a superseded attempt may
+  overlap anything, because it keeps running until it notices the lost lease and
+  its write is fenced out. The committed state check is unchanged, and the demo
+  reports the executions it saw. `assertSerializedExecution` moved into its own
+  module with unit coverage for the clean, retried, superseded-overlap,
+  still-running-replacement, unexplained-overlap, boundary, unfinished,
+  unmatched-finish, double-start, restart-after-finish, and lost-message cases.
+
 ## 0.13.2 - 2026-08-17
 
 - Accept a `key` on `schedule`, naming a reminder for the item it is waiting

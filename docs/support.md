@@ -4,7 +4,7 @@
 
 | Component      | Supported or tested range                                   |
 | -------------- | ----------------------------------------------------------- |
-| Node.js        | 24.15 or newer; CI uses 24.15                               |
+| Node.js        | 24.4.0 or newer; CI runs 24.4.0 and 24.15.0                 |
 | TypeScript     | 5.9 or newer for TypeScript applications                    |
 | SQLite         | Node's built-in `node:sqlite` on the supported Node runtime |
 | PostgreSQL     | 14 or newer; CI runs 14 and 18                              |
@@ -14,6 +14,17 @@
 
 The package is ESM-only. PostgreSQL, MySQL, and Redis require their optional
 peer dependency. SQLite has no driver dependency beyond Node.js.
+
+The Node.js floor is 24.4.0 because the SQLite adapter reads integer columns as
+`BigInt`. Node.js 24.4.0 is the first release that accepts `readBigInts` on the
+`DatabaseSync` constructor. Node.js 24.0.0 through 24.3.x ignore the option and
+return `Number`, which loses precision on 64-bit values and fails the effect
+recovery and transaction retry tests.
+
+Node.js 24.15.0 is the first release where `node:sqlite` is no longer
+experimental. Between 24.4.0 and 24.14.x the module works but prints
+`ExperimentalWarning: SQLite is an experimental feature` on stderr, and its API
+can change. Prefer 24.15.0 or newer where the choice is free.
 
 ## What the matrix covers
 

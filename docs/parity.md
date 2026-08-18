@@ -4,11 +4,11 @@ This ledger tracks capability parity with the Ruby `solid_objects` gem.
 Parity means preserving a capability and its correctness or security boundary,
 not copying a Rails API into Node.
 
-Reference: Ruby `solid_objects` 0.13.2. The JavaScript package began at the
+Reference: Ruby `solid_objects` 0.13.3. The JavaScript package began at the
 Ruby design's `0.12` capability generation; that version number did not imply
 earlier JavaScript releases.
 
-The Node `0.13.2` implementation has capability parity with that reference. Its
+The Node `0.13.3` implementation has capability parity with that reference. Its
 relational runtime, correctness boundaries, administration, diagnostics,
 operator dashboard, realtime projections, browser behavior, and supported
 adapters have native equivalents. Rails-specific rendering surfaces are
