@@ -11,6 +11,18 @@
   demo on the floor.
 - Record that `node:sqlite` stays experimental until Node.js 24.15.0 and prints
   a warning on stderr before it.
+- Make the failure-recovery demo's serialization proof count messages rather
+  than executions. A worker that loses its lease mid-operation leaves the
+  replacement to execute the same message again, which is the at-least-once
+  contract, so the proof failed on slower machines for behaviour it documents
+  elsewhere. It now asserts that every start has a finish, that exactly the two
+  sent messages ran, and that the surviving attempt of each message had the
+  identity to itself. A superseded attempt may overlap, because it keeps running
+  until it notices the lost lease and its write is fenced out. The committed
+  state check is unchanged, and the demo reports the executions it saw.
+  `assertSerializedExecution` moved into its own module with unit coverage for
+  the clean, retried, stale-overlap, surviving-overlap, unexplained-overlap,
+  unfinished, unmatched-finish, and lost-message cases.
 
 ## 0.13.2 - 2026-08-17
 
