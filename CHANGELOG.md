@@ -1,5 +1,16 @@
 # Changelog
 
+## Unreleased
+
+- Make the failure-recovery demo's serialization proof count messages rather
+  than executions. A worker that loses its lease mid-operation leaves the
+  replacement to execute the same message again, which is the at-least-once
+  contract, so the proof failed on slower machines for behaviour it documents
+  elsewhere. It now asserts that executions never overlap, that every start has
+  a finish, and that exactly the two sent messages ran, with the committed state
+  check unchanged. `assertSerializedExecution` moved into its own module and has
+  unit coverage for the retry, overlap, unfinished, and lost-message cases.
+
 ## 0.13.2 - 2026-08-17
 
 - Accept a `key` on `schedule`, naming a reminder for the item it is waiting

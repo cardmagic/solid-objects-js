@@ -8,17 +8,12 @@ import { fork, type ChildProcess } from "node:child_process"
 import { createRuntime, type ActorReference, type MessageReference } from "solid-objects"
 import { sqlite } from "solid-objects/database/sqlite"
 import { RecoveryCounter } from "./actor.ts"
+import { assertSerializedExecution, parseSerializationEvent } from "./serialization.ts"
 
 interface WorkerMessage {
   event: string
   attempt?: number
   processed?: number
-}
-
-interface SerializationEvent {
-  event: "start" | "finish"
-  messageId: string
-  at: number
 }
 
 interface ExternalEffectEvent {
@@ -74,12 +69,7 @@ async function proveSerialization(): Promise<{ finalState: number; overlap: fals
     join(controlDirectory, "serialization.jsonl"),
     parseSerializationEvent,
   )
-  assert.equal(events.length, 4)
-  const starts = events.filter((event) => event.event === "start")
-  const finishes = events.filter((event) => event.event === "finish")
-  assert.equal(starts.length, 2)
-  assert.equal(finishes.length, 2)
-  assert(Number(starts[1]?.at) >= Number(finishes[0]?.at))
+  assertSerializedExecution(events, { messageCount: 2 })
   const snapshot = await reference.snapshot()
   assert.equal(snapshot.count, 2)
   return { finalState: snapshot.count, overlap: false }
@@ -198,18 +188,6 @@ async function readJsonLines<Value>(
   parse: (line: string) => Value,
 ): Promise<Value[]> {
   return (await readFile(path, "utf8")).trim().split("\n").filter(Boolean).map(parse)
-}
-
-function parseSerializationEvent(line: string): SerializationEvent {
-  const event = JSON.parse(line) as Partial<SerializationEvent>
-  if (
-    (event.event !== "start" && event.event !== "finish") ||
-    typeof event.messageId !== "string" ||
-    typeof event.at !== "number"
-  ) {
-    throw new TypeError("invalid serialization event")
-  }
-  return { event: event.event, messageId: event.messageId, at: event.at }
 }
 
 function parseExternalEffectEvent(line: string): ExternalEffectEvent {
