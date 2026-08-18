@@ -12,9 +12,10 @@ The Node `0.13.3` implementation has capability parity with that reference. Its
 relational runtime, correctness boundaries, administration, diagnostics,
 operator dashboard, realtime projections, browser behavior, and supported
 adapters have native equivalents. Rails-specific rendering surfaces are
-replaced by transport- and framework-neutral JavaScript APIs. The partial guard
-row and the shared planned result-lookup row below are explicit scope
-boundaries, not missing Ruby capabilities.
+replaced by transport- and framework-neutral JavaScript APIs. The partial
+guard and backpressure rows and the shared planned result-lookup row below
+are explicit scope boundaries shared with the Ruby reference, not missing
+Ruby capabilities.
 
 ## Status vocabulary
 
@@ -37,6 +38,7 @@ boundaries, not missing Ruby capabilities.
 | Domain rejection and strict poison ordering                                                                   | Native  | Rejections accept JavaScript identifier-style codes and roll back without retry; invalid codes fail terminally, while retryable failures block later operations until completion or dead-lettering.                |
 | Bounded activation passes and hot-actor fairness                                                              | Native  | Configurable turn-count and elapsed-time budgets bound each pass, then move only that actor's already-due memberships behind actors already waiting.                                                               |
 | Bounded claim candidate scan                                                                                  | Native  | A configurable ordered scan continues to another ready actor when a worker loses the first candidate's lease race.                                                                                                 |
+| Backpressure and payload caps                                                                                 | Partial | Serialization enforces a shared maximum JSON nesting depth and an optional caller-supplied `maxBytes` limit, both raising `PayloadTooLarge`; reminder names are bounded to 255 characters. Distributed per-actor rate limits and global admission control do not exist yet, matching the open Ruby roadmap item. |
 | Idle activation cache                                                                                         | Native  | Long-running workers retain hydrated actors under renewable fenced leases, restore public state after failed turns, and release on timeout, fairness yield, lease loss, or shutdown.                               |
 | Transactional effects and outcome operations                                                                  | Native  | At-least-once handlers receive immutable stable effect, attempt, source-message, and actor identity; success and failure operations also receive the originally staged arguments for correlation.                  |
 | Actor-to-actor delivery                                                                                       | Native  | `sendTo(reference).operation()` stages delivery in the source actor commit.                                                                                                                                        |
@@ -61,7 +63,7 @@ boundaries, not missing Ruby capabilities.
 | Message, process, and opt-in instance retention                               | Native | Supervised scheduling bounds message and process growth; authorized manual APIs add preview and keep destructive instance expiration explicit.                                                       |
 | Doctor and schema verification                                                | Native | Structured checks cover configuration, schema/version shape, adapter server versions, neutral-context policy probes, live roles, and a targeted round trip.                                          |
 | CLI                                                                           | Native | The packaged executable loads an application runtime and exposes start, diagnostics, processes, dead letters, reminders, and explicit retention pruning as JSON.                                     |
-| Operator dashboard                                                            | Native | The opt-in `solid-objects/web` export provides Fetch and Node/Connect mounting, authorized runtime views and actions, session-backed CSRF, filtering, paging, charts, and immutable extension hooks. |
+| Operator dashboard                                                            | Native | The opt-in `solid-objects/web` export provides Fetch and Node/Connect mounting, authorized runtime views and actions, session-backed CSRF, filtering, paging, charts, and immutable extension hooks. Matches the Ruby dashboard's own documented limits: no audit trail of admin actions, dead-letter retry is one at a time, and pause sets a flag rather than interrupting an in-flight turn. |
 | Structured instrumentation                                                    | Native | An isolated transport-neutral sink emits immutable lifecycle metadata and structurally excludes application payloads.                                                                                |
 | Public test helper                                                            | Native | `runtime.testing` provides role-selective deterministic draining, explicit-time due-reminder execution, and dependency-ordered reset without relying on cascades.                                    |
 
@@ -71,11 +73,17 @@ boundaries, not missing Ruby capabilities.
 | ------------------------ | ------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | SQLite                   | Native | Uses built-in `node:sqlite`, serialized process-local access, bounded transient writer retries, foreign keys, strict tables, database time, and deadline-bounded access and lock waits. |
 | PostgreSQL               | Native | Optional `pg` 8.23 peer, bounded pooling, 64-bit schema, row-locked sequences, server checks, and deadline-bounded pool, statement, and lock waits.                                     |
-| MySQL                    | Native | Optional `mysql2` 3.23 peer, bounded pooling, InnoDB schema, row-locked sequences, scoped deadlock retry, and deadline-bounded pool, query, and lock waits.                             |
+| MySQL                    | Native | Optional `mysql2` 3.23 peer, bounded pooling, InnoDB schema, row-locked sequences, scoped deadlock retry, and deadline-bounded pool, query, and lock waits. Ruby also tests a second client, `trilogy`; Node has no comparable second MySQL client, so only `mysql2` is tracked here. |
 | Durable polling fallback | Native | Every role progresses without a notification service.                                                                                                                                   |
 | In-process wake-up       | Native | A generation-based default adapter prevents claim-to-wait signal loss; commits wake role-specific waiters and polling remains the fallback.                                             |
 | PostgreSQL wake-up       | Native | `database.wakeUp()` uses one dedicated event-driven client, role-specific `LISTEN/NOTIFY`, generation fencing, reconnectable listeners, and durable polling fallback.                   |
 | Redis wake-up            | Native | An optional `redis` peer provides role-specific Pub/Sub over separate lazy publisher/subscriber connections, with bounded failures and durable polling fallback.                        |
+
+Every wake-up adapter above is opt-in. Neither runtime selects one
+automatically: an application that configures nothing keeps polling, and
+each runtime warns once when live processes share a database without a
+configured cross-process adapter. This is a shared, intentional limitation
+of both runtimes, not a gap between them.
 
 ## Realtime and browser behavior
 
