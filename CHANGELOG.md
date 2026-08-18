@@ -1,5 +1,16 @@
 # Changelog
 
+## Unreleased
+
+- Lower the supported Node.js floor from 24.15.0 to 24.4.0. Node.js 24.4.0 is
+  the first release that accepts `readBigInts` on the `DatabaseSync`
+  constructor, which the SQLite adapter needs to read 64-bit integers without
+  losing precision. Node.js 24.0.0 through 24.3.x ignore the option, and the
+  effect recovery and transaction retry tests fail there. A new CI job runs the
+  default suite, the build, and the recovery demo on the floor.
+- Record that `node:sqlite` stays experimental until Node.js 24.15.0 and prints
+  a warning on stderr before it.
+
 ## 0.13.1 - 2026-08-16
 
 - Back idle actor, effect, reminder, and broadcast polling off exponentially

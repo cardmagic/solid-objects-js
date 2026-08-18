@@ -57,8 +57,9 @@ processes submit them concurrently.
 
 ## Run it now with SQLite
 
-Node.js 24.15 or newer is required. The `0.13.1` release includes a
-packaged quickstart:
+Node.js 24.4.0 or newer is required. Node.js 24.15 or newer is preferred,
+because `node:sqlite` prints an experimental warning before it. The `0.13.1`
+release includes a packaged quickstart:
 
 ```bash
 npm exec --yes --package=solid-objects@0.13.1 -- solid-objects quickstart
@@ -255,7 +256,8 @@ edge placement, cross-identity transactions, and operational data access—is in
 
 ## Requirements and supported systems
 
-- Node.js 24.15 or newer
+- Node.js 24.4.0 or newer; 24.15 or newer to avoid the `node:sqlite`
+  experimental warning
 - TypeScript 5.9 or newer for TypeScript applications
 - SQLite through `node:sqlite`, PostgreSQL 14 or newer, or MySQL 8.0 or newer
   with InnoDB

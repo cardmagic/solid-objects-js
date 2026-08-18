@@ -7,7 +7,9 @@ lowest layer that can prove it.
 ## Setup
 
 Install Node.js 24.15 or newer, enable Corepack, and install the locked
-dependencies:
+dependencies. The package supports Node.js 24.4.0 or newer and CI runs the
+default suite on that floor, but 24.15 is where `node:sqlite` stops printing an
+experimental warning:
 
 ```bash
 corepack enable
