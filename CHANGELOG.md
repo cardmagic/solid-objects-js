@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.13.2 - 2026-08-18
 
 - Lower the supported Node.js floor from 24.15.0 to 24.4.0. Node.js 24.4.0 is
   the first release that accepts `readBigInts` on the `DatabaseSync`
