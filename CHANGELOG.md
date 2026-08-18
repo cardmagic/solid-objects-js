@@ -7,7 +7,8 @@
   constructor, which the SQLite adapter needs to read 64-bit integers without
   losing precision. Node.js 24.0.0 through 24.3.x ignore the option, and the
   effect recovery and transaction retry tests fail there. A new CI job runs the
-  default suite, the build, and the recovery demo on the floor.
+  default suite, the build, the packaged artifact smoke test, and the
+  recovery demo on the floor.
 - Record that `node:sqlite` stays experimental until Node.js 24.15.0 and prints
   a warning on stderr before it.
 

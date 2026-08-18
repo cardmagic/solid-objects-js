@@ -38,6 +38,7 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm run test
       - run: pnpm run build
+      - run: pnpm run test:package
       - run: pnpm run test:recovery
 
   postgresql:
