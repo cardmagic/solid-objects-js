@@ -46,6 +46,7 @@ export {
 } from "./realtime.js"
 export { DeadLetterManager, type DeadLetter } from "./dead-letters.js"
 export {
+  AdministrationManager,
   ProcessManager,
   type ProcessCleanupResult,
   type ProcessMetadata,

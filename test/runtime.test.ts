@@ -36,6 +36,26 @@ class Counter extends Actor {
     }).increment!({ amount })
   }
 
+  armKeyed({ item, at }: { item: string; at: number }): void {
+    this.schedule({ at: new Date(at), key: item }).increment!({ amount: 1 })
+  }
+
+  armEmptyKey(): void {
+    this.schedule({ at: new Date("2030-01-02T03:04:05.000Z"), key: "" }).increment!({ amount: 1 })
+  }
+
+  armOversizedKey(): void {
+    this.schedule({ at: new Date("2030-01-02T03:04:05.000Z"), key: "k".repeat(300) }).increment!({
+      amount: 1,
+    })
+  }
+
+  armSeparatorKey(): void {
+    this.schedule({ at: new Date("2030-01-02T03:04:05.000Z"), key: "group:7" }).increment!({
+      amount: 1,
+    })
+  }
+
   armUnknown(): void {
     this.schedule({ at: new Date("2030-01-02T03:04:05.000Z") }).missing!()
   }
@@ -299,6 +319,107 @@ describe("actor reminders", () => {
     })
     expect(Number(reminder?.run_at_ms)).toBe(new Date("2030-01-02T03:04:05.000Z").getTime())
     expect(Number(reminder?.interval_ms)).toBe(60_000)
+  })
+
+  it("gives each key its own alarm", async () => {
+    runtime = configuredRuntime()
+    await runtime.install()
+    const reference = Counter.ref("keyed")
+
+    await reference.armKeyed({ item: "a", at: new Date("2030-01-02T03:04:05.000Z").getTime() })
+    await reference.armKeyed({ item: "b", at: new Date("2030-01-03T03:04:05.000Z").getTime() })
+
+    const reminders = await runtime.settings.database.connection((connection) =>
+      connection.all<{ operation: string; message_operation: string | null }>(
+        `SELECT operation, message_operation FROM ${runtime?.repository.table("reminders")}
+         ORDER BY operation`,
+      ),
+    )
+    expect(reminders.map((reminder) => reminder.operation)).toEqual(["increment:a", "increment:b"])
+    expect(reminders.every((reminder) => reminder.message_operation === "increment")).toBe(true)
+  })
+
+  it("moves only the alarm whose key is scheduled again", async () => {
+    runtime = configuredRuntime()
+    await runtime.install()
+    const reference = Counter.ref("keyed-move")
+    const moved = new Date("2030-06-01T00:00:00.000Z").getTime()
+
+    await reference.armKeyed({ item: "a", at: new Date("2030-01-02T03:04:05.000Z").getTime() })
+    await reference.armKeyed({ item: "b", at: new Date("2030-01-03T03:04:05.000Z").getTime() })
+    await reference.armKeyed({ item: "a", at: moved })
+
+    const reminders = await runtime.settings.database.connection((connection) =>
+      connection.all<{ operation: string; run_at_ms: number | bigint }>(
+        `SELECT operation, run_at_ms FROM ${runtime?.repository.table("reminders")}
+         ORDER BY operation`,
+      ),
+    )
+    expect(reminders).toHaveLength(2)
+    expect(Number(reminders[0]?.run_at_ms)).toBe(moved)
+    expect(Number(reminders[1]?.run_at_ms)).toBe(new Date("2030-01-03T03:04:05.000Z").getTime())
+  })
+
+  it("keeps naming an unkeyed alarm for its operation", async () => {
+    runtime = configuredRuntime()
+    await runtime.install()
+
+    await Counter.ref("unkeyed").arm({ amount: 7 })
+
+    const reminder = await runtime.settings.database.connection((connection) =>
+      connection.get<{ operation: string; message_operation: string | null }>(
+        `SELECT operation, message_operation FROM ${runtime?.repository.table("reminders")}`,
+      ),
+    )
+    expect(reminder?.operation).toBe("increment")
+    expect(reminder?.message_operation).toBe("increment")
+  })
+
+  it("runs a keyed alarm against the operation it was scheduled with", async () => {
+    runtime = configuredRuntime()
+    await runtime.install()
+    const reference = Counter.ref("keyed-delivery")
+    await reference.armKeyed({ item: "a", at: Date.now() - 1_000 })
+
+    expect(await runtime.reminderScheduler().runOnce()).toBe(1)
+    await runtime.worker().runUntilIdle()
+
+    expect(await reference.increment({ amount: 0 })).toBe(1)
+  })
+
+  it("refuses an empty key", async () => {
+    runtime = configuredRuntime({ maxAttempts: 1 })
+    await runtime.install()
+    const message = await Counter.ref("keyed-empty").send.armEmptyKey()
+
+    await runtime.worker().runUntilIdle()
+
+    expect(await message.status()).toBe("dead")
+  })
+
+  it("allows a key to hold the separator, since the operation may not", async () => {
+    runtime = configuredRuntime()
+    await runtime.install()
+
+    await Counter.ref("keyed-separator").armSeparatorKey()
+
+    const reminder = await runtime.settings.database.connection((connection) =>
+      connection.get<{ operation: string; message_operation: string | null }>(
+        `SELECT operation, message_operation FROM ${runtime?.repository.table("reminders")}`,
+      ),
+    )
+    expect(reminder?.operation).toBe("increment:group:7")
+    expect(reminder?.message_operation).toBe("increment")
+  })
+
+  it("refuses a composed name longer than the database holds", async () => {
+    runtime = configuredRuntime({ maxAttempts: 1 })
+    await runtime.install()
+    const message = await Counter.ref("keyed-long").send.armOversizedKey()
+
+    await runtime.worker().runUntilIdle()
+
+    expect(await message.status()).toBe("dead")
   })
 
   it("rejects unknown reminder messages before persistence", async () => {

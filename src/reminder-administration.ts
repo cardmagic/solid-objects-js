@@ -7,6 +7,8 @@ export interface ReminderRecord {
   readonly id: string
   readonly actorType: string
   readonly actorId: string
+  /** Without a key this is the operation. */
+  readonly name: string
   readonly operation: string
   readonly runAt: Date
   readonly intervalMilliseconds: number | null

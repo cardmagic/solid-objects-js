@@ -675,7 +675,7 @@ export class Repository {
         const existing = await connection.get<{ id: string; run_at_ms: number | bigint }>(
           `SELECT id, run_at_ms FROM ${this.table("reminders")}
            WHERE instance_id = ? AND operation = ?`,
-          [turn.instance.id, reminder.operation],
+          [turn.instance.id, reminder.name],
         )
         if (existing && Number(existing.run_at_ms) !== reminder.atMilliseconds) {
           reminderReplacements.push({
@@ -687,14 +687,17 @@ export class Repository {
         }
         await connection.run(
           `INSERT INTO ${this.table("reminders")}
-           (id, instance_id, operation, run_at_ms, arguments, interval_ms, missed_policy, status)
-           VALUES (?, ?, ?, ?, ?, ?, ?, 'scheduled')
+           (id, instance_id, operation, message_operation, run_at_ms, arguments, interval_ms,
+            missed_policy, status)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'scheduled')
            ON CONFLICT(instance_id, operation) DO UPDATE SET run_at_ms = excluded.run_at_ms,
+             message_operation = excluded.message_operation,
              arguments = excluded.arguments, interval_ms = excluded.interval_ms,
              missed_policy = excluded.missed_policy, status = 'scheduled', error = NULL`,
           [
             randomUUID(),
             turn.instance.id,
+            reminder.name,
             reminder.operation,
             reminder.atMilliseconds,
             JSON.stringify(reminder.arguments),
@@ -1507,7 +1510,7 @@ export class Repository {
       await this.enqueueInTransaction(connection, {
         actorType: claimed.actor_type,
         actorId: claimed.actor_id,
-        operation: claimed.operation,
+        operation: claimed.message_operation ?? claimed.operation,
         deliveryMode: "internal",
         arguments: jsonObject(JSON.parse(claimed.arguments)),
         idempotencyKey: `reminder:${claimed.id}:${claimed.occurrence}`,

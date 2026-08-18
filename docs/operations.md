@@ -17,6 +17,14 @@ delivery; without one, newly committed work can wait up to the current idle
 polling interval. Notification errors are isolated and logged by role and error
 class without failing the committed work.
 
+The warning excludes process rows with the current hostname and host process ID.
+It can therefore appear during a rolling deployment or restart overlap when an
+older and newer process briefly share the same database. A process that stopped
+without graceful cleanup remains live until its heartbeat exceeds
+`processAliveThresholdMilliseconds`; inspect
+`runtime.administration.processes()` to distinguish a live overlap from a stale
+row.
+
 Each role exposes `currentPollingIntervalMilliseconds`.
 `solid_objects.polling.interval_changed` reports the role, reason, previous
 interval, and current interval. The polling-only warning is also emitted as
@@ -62,9 +70,12 @@ runs under the application-write guard, and `onDeactivate()` is best effort:
 it may not run after a crash, cannot establish a correctness guarantee, and a
 failure is logged without preventing lease release.
 
-`runtime.processes.all()` returns administration-authorized immutable process
-metadata with hostname, host process ID, Node and Solid Objects versions, and a
-current `stale` flag. Graceful shutdown first persists `draining` with a
+`runtime.administration.processes()` returns the same administration-authorized
+immutable process metadata as `runtime.processes.all()`, with hostname, host
+process ID, Node and Solid Objects versions, and a current `stale` flag. It is
+safe to call through the runtime's database adapter while workers are running;
+the query is serialized with other database access and does not require a
+second SQLite connection. Graceful shutdown first persists `draining` with a
 `shutdownRequestedAt` timestamp, then deactivates owned actors and atomically
 releases every role claim before persisting `stopped`. `cleanup()` reauthorizes
 separately and performs the same release for stale running or draining

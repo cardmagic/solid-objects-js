@@ -75,7 +75,7 @@ const EXPECTED_COLUMNS: Readonly<Record<string, readonly string[]>> = {
     "activation_generation",
     "claimed_at_ms",
   ],
-  reminders: ["id", "instance_id", "operation", "run_at_ms", "status"],
+  reminders: ["id", "instance_id", "operation", "message_operation", "run_at_ms", "status"],
   effects: ["id", "message_id", "instance_id", "name", "status", "available_at_ms"],
   broadcasts: [
     "id",
@@ -202,7 +202,7 @@ export class Doctor {
           message: `incompatible schema identity ${wrongIdentity.schema_identity}`,
         })
       }
-      if (versions.join(",") !== "1,2,3,4,5,6") {
+      if (versions.join(",") !== "1,2,3,4,5,6,7") {
         return check({
           name: "schema",
           status: "fail",

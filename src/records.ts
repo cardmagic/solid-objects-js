@@ -119,6 +119,7 @@ export interface ReminderRow {
   actor_type: string
   actor_id: string
   operation: string
+  message_operation: string | null
   run_at_ms: number | bigint
   arguments: string
   interval_ms: number | bigint | null

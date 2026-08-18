@@ -1,16 +1,30 @@
 # Changelog
 
-## 0.13.2 - 2026-08-18
+## 0.13.3 - 2026-08-18
 
 - Lower the supported Node.js floor from 24.15.0 to 24.4.0. Node.js 24.4.0 is
   the first release that accepts `readBigInts` on the `DatabaseSync`
   constructor, which the SQLite adapter needs to read 64-bit integers without
   losing precision. Node.js 24.0.0 through 24.3.x ignore the option, and the
   effect recovery and transaction retry tests fail there. A new CI job runs the
-  default suite, the build, the packaged artifact smoke test, and the
-  recovery demo on the floor.
+  default suite, the build, the packaged artifact smoke test, and the recovery
+  demo on the floor.
 - Record that `node:sqlite` stays experimental until Node.js 24.15.0 and prints
   a warning on stderr before it.
+
+## 0.13.2 - 2026-08-17
+
+- Accept a `key` on `schedule`, naming a reminder for the item it is waiting
+  on rather than for its operation, so one actor can hold an alarm per queued
+  item. Scheduling the same key again moves that item's alarm and leaves the
+  others alone. Without a key the name is still the operation, so existing
+  reminders keep their names and their coalescing behaviour. Adds a nullable
+  `message_operation` column to the reminders table, left null on existing rows.
+  The composed name is bounded by the 255 characters MySQL holds it in, checked
+  on the name rather than the key alone.
+- Add an authorized `runtime.administration.processes()` query for inspecting
+  live and stale process rows through the runtime's database adapter.
+- Document rolling-deployment overlap as a reason for the polling-only warning.
 
 ## 0.13.1 - 2026-08-16
 

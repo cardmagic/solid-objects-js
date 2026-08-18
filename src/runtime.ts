@@ -66,6 +66,7 @@ import {
 } from "./reconciliation.js"
 import { Repository } from "./repository.js"
 import {
+  AdministrationManager,
   ProcessManager,
   type ProcessCleanupResult,
   type ProcessMetadata,
@@ -158,6 +159,7 @@ export class SolidObjectsRuntime {
   readonly reminders
   readonly realtime
   readonly processes
+  readonly administration
   private readonly registry = new Map<string, RegisteredActor>()
   private readonly effects = new Map<string, EffectHandler>()
   private readonly commitActions = new Map<string, CommitActionHandler>()
@@ -178,6 +180,7 @@ export class SolidObjectsRuntime {
     this.reminders = new ReminderManager(this)
     this.realtime = new RealtimeManager(this)
     this.processes = new ProcessManager(this)
+    this.administration = new AdministrationManager(this)
   }
 
   async install(): Promise<void> {
@@ -1052,7 +1055,7 @@ export class SolidObjectsRuntime {
         reminderId: result.reminder.id,
         actorType: result.reminder.actor_type,
         actorId: result.reminder.actor_id,
-        operation: result.reminder.operation,
+        operation: result.reminder.message_operation ?? result.reminder.operation,
         runAt: new Date(Number(result.reminder.run_at_ms)).toISOString(),
       })
       this.wakeUp("reminders")
@@ -1401,8 +1404,9 @@ export class SolidObjectsRuntime {
     options: { nowMilliseconds?: number } = {},
   ): Promise<void> {
     const actor = this.fetchActor(reminder.actor_type)
-    if (!actor.operations.has(reminder.operation)) {
-      throw new UnknownOperation(`unknown reminder operation ${JSON.stringify(reminder.operation)}`)
+    const dispatchOperation = reminder.message_operation ?? reminder.operation
+    if (!actor.operations.has(dispatchOperation)) {
+      throw new UnknownOperation(`unknown reminder operation ${JSON.stringify(dispatchOperation)}`)
     }
     await this.repository.enqueueReminder(reminder, options)
     this.wakeUp("actors")
@@ -2076,7 +2080,8 @@ function reminderRecord(row: ReminderRow): ReminderRecord {
     id: row.id,
     actorType: row.actor_type,
     actorId: row.actor_id,
-    operation: row.operation,
+    name: row.operation,
+    operation: row.message_operation ?? row.operation,
     runAt: new Date(Number(row.run_at_ms)),
     intervalMilliseconds: row.interval_ms === null ? null : Number(row.interval_ms),
     missedPolicy: row.missed_policy,

@@ -26,6 +26,13 @@ describe("process administration", () => {
     await expect(runtime.processes.all()).rejects.toBeInstanceOf(Unauthorized)
   })
 
+  it("authorizes the administration process query", async () => {
+    runtime = configuredRuntime({ authorizeAdministration: () => false })
+    await runtime.install()
+
+    await expect(runtime.administration.processes()).rejects.toBeInstanceOf(Unauthorized)
+  })
+
   it("returns immutable process metadata with current liveness", async () => {
     runtime = configuredRuntime()
     await runtime.install()
@@ -42,7 +49,7 @@ describe("process administration", () => {
       hostProcessId: process.pid,
       metadata: {
         nodeVersion: process.version,
-        solidObjectsVersion: "0.13.2",
+        solidObjectsVersion: "0.13.3",
       },
       shutdownState: "running",
       shutdownRequestedAt: null,
@@ -56,6 +63,24 @@ describe("process administration", () => {
     expect(Object.isFrozen(processes)).toBe(true)
     expect(processes.every(Object.isFrozen)).toBe(true)
     expect(processes.every(({ metadata }) => Object.isFrozen(metadata))).toBe(true)
+  })
+
+  it("exposes process liveness through the administration query", async () => {
+    runtime = configuredRuntime()
+    await runtime.install()
+    await runtime.repository.registerProcess("live", "worker")
+
+    const processes = await runtime.administration.processes()
+
+    expect(processes).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: "live",
+          kind: "worker",
+          stale: false,
+        }),
+      ]),
+    )
   })
 
   it("atomically releases every claim owned by a stale process", async () => {
