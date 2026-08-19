@@ -1,5 +1,28 @@
 # Changelog
 
+## 0.14.0 - 2026-08-18
+
+- Add `runtime.enqueueInternalMessage()` and
+  `runtime.enqueueInternalMessageInTransaction(connection, options)`, public
+  entry points for a host package to enqueue an `internal`-delivery-mode
+  actor message without going through user authorization. The
+  transaction-scoped variant accepts a caller-supplied `DatabaseConnection`
+  so the enqueue can commit atomically alongside other writes in the same
+  transaction; call the new `runtime.announceInternalMessage(message)` after
+  that transaction commits to wake worker roles the same way a normal
+  enqueue does.
+- Add `runtime.snapshotWithIncarnation(reference)`, returning the same
+  authorized fields as `snapshot()` alongside the read instance's
+  `instanceId`, `revision`, and `createdAtMs`, computed from one shared read.
+  `instanceId` is a random UUID, not a monotonically increasing value, so a
+  caller that needs to detect actor recreation (a new incarnation
+  superseding an old one, regardless of revision) should fence on
+  `createdAtMs` rather than comparing `instanceId` values directly.
+  `createdAtMs` orders incarnations at millisecond granularity; destroying
+  and recreating the same actor identity within the same millisecond
+  produces two incarnations a caller cannot order by `createdAtMs` alone —
+  see `docs/correctness.md`.
+
 ## 0.13.3 - 2026-08-18
 
 - Lower the supported Node.js floor from 24.15.0 to 24.4.0. Node.js 24.4.0 is

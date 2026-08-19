@@ -13,6 +13,14 @@ generic signatures; this index explains the supported role of every export.
   default.
 - `SolidObjectsRuntime`: installation, registration, supervision, and manager
   owner. The normal lifecycle is `install()`, `run(signal)`, then `close()`.
+  `snapshotWithIncarnation(reference)` returns the same authorized fields as
+  `snapshot()` alongside the read instance's `instanceId`, `revision`, and
+  `createdAtMs`, computed from the identical read so a caller can fence a
+  derived write (for example a downstream projection) against a stale or
+  superseded actor incarnation. `createdAtMs` orders incarnations at
+  millisecond granularity; see
+  [Limitations and non-goals](correctness.md#limitations-and-non-goals) for
+  the same-millisecond boundary.
 - `Actor`: base class providing `ref()`, `actorId`, `currentMessage`,
   `observables()`, `reject()`, `emit()`, `commitAction()`, `schedule()`,
   `sendTo()`, and protected lifecycle hooks.
@@ -25,6 +33,8 @@ generic signatures; this index explains the supported role of every export.
 - `ActorClass`, `ActorReference`, `ActorMessageSender`, `ActorSnapshot`,
   `ActorOperationNames`, `ActorQueryNames`, `StagedOperations`, and
   `ScheduledOperations`: inferred actor-class and fluent-dispatch types.
+- `SnapshotWithIncarnation`: the `{ snapshot, instanceId, revision,
+createdAtMs }` shape returned by `SolidObjectsRuntime.snapshotWithIncarnation`.
 - `MessageReference`: immutable durable message identity with `id`,
   `requestId`, actor identity, `sequence`, `status()`, `result()`, and `wait()`.
 - `InvocationOptions`, `AsyncInvocationOptions`, `SnapshotOptions`, and
