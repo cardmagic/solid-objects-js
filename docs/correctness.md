@@ -71,6 +71,14 @@
   placement, capacity, database backups, and database failover.
 - Redis and PostgreSQL notifications reduce wake-up latency but do not replace
   durable polling or become a source of truth.
+- `snapshotWithIncarnation`'s `createdAtMs` orders actor incarnations at
+  millisecond granularity, the same precision every adapter stores
+  `created_at_ms` at. Destroying and recreating the same actor identity
+  within the same database-clock millisecond produces two incarnations with
+  an equal `createdAtMs`; a caller fencing a derived write on it cannot
+  distinguish which of the two is current in that narrow case. `instanceId`
+  still changes and detects that a recreation happened; it is a random UUID
+  and carries no order of its own.
 - Large documents, bulk pipelines, globally placed edge state, and global
   counters are outside the intended workload. Prefer an ordinary row
   transaction when it completely enforces the invariant.

@@ -43,7 +43,7 @@ describe("snapshotWithIncarnation", () => {
     expect(withIncarnation.createdAtMs).toBeGreaterThan(0)
   })
 
-  it("gives a recreated actor a fresh instanceId and a createdAtMs no earlier than the original", async () => {
+  it("gives a recreated actor a fresh instanceId; createdAtMs only orders it at millisecond granularity", async () => {
     runtime = createRuntime(configuredSettings())
     runtime.register(Counter)
     await runtime.install()

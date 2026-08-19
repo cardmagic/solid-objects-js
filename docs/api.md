@@ -17,7 +17,10 @@ generic signatures; this index explains the supported role of every export.
   `snapshot()` alongside the read instance's `instanceId`, `revision`, and
   `createdAtMs`, computed from the identical read so a caller can fence a
   derived write (for example a downstream projection) against a stale or
-  superseded actor incarnation.
+  superseded actor incarnation. `createdAtMs` orders incarnations at
+  millisecond granularity; see
+  [Limitations and non-goals](correctness.md#limitations-and-non-goals) for
+  the same-millisecond boundary.
 - `Actor`: base class providing `ref()`, `actorId`, `currentMessage`,
   `observables()`, `reject()`, `emit()`, `commitAction()`, `schedule()`,
   `sendTo()`, and protected lifecycle hooks.

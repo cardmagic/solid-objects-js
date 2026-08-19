@@ -18,6 +18,10 @@
   caller that needs to detect actor recreation (a new incarnation
   superseding an old one, regardless of revision) should fence on
   `createdAtMs` rather than comparing `instanceId` values directly.
+  `createdAtMs` orders incarnations at millisecond granularity; destroying
+  and recreating the same actor identity within the same millisecond
+  produces two incarnations a caller cannot order by `createdAtMs` alone —
+  see `docs/correctness.md`.
 
 ## 0.13.3 - 2026-08-18
 
