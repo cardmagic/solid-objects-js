@@ -96,6 +96,28 @@ verifies that:
 - operations for two different identities overlap in time; and
 - the runtime closes and temporary state is removed.
 
+## What Solid Objects is for
+
+Use Solid Objects when more than one request, job, or process can act on the
+same logical thing and the next action must use its latest committed state.
+These are the stateful coordination patterns for which people often reach for
+Durable Objects:
+
+| Pattern                                 | One identity per              | What the object coordinates                                                                 |
+| --------------------------------------- | ----------------------------- | ------------------------------------------------------------------------------------------- |
+| Multiplayer, presence, or collaboration | Room, session, or document    | Joins, moves, and edits commit in order; subscribers refresh from committed state           |
+| Reservations and expiring holds         | Show, resource, or stock item | Availability checks and holds cannot interleave; a durable reminder can release an old hold |
+| Checkout and account workflows          | Cart, order, account, device  | The current step, retries, and effect results return to the same ordered mailbox            |
+| Per-key rate limits                     | API key, account, or device   | Token checks and decrements are serialized; a reminder can refill the bucket                |
+| Stateful agent sessions                 | Agent session                 | Messages and tool results apply in order and pending work survives a worker exit            |
+
+The common shape is one durable coordination boundary with an application
+defined identity. Work for that identity is serialized, while unrelated rooms,
+carts, accounts, or sessions can progress concurrently. A single global rate
+limiter or another very hot identity is a poor fit because it becomes an
+intentional bottleneck. If one ordinary row transaction solves the problem,
+prefer that. See [Choosing Solid Objects](docs/fit.md) for the longer guide.
+
 ## Measured behavior
 
 One developer machine, not a capacity promise. Apple M5, Node.js 26.7.0, 250
@@ -123,28 +145,6 @@ low-latency delivery.
 
 Conditions, sources of bias, and the complete matrix for all three databases
 are in [Benchmarks](docs/benchmarks.md).
-
-## What Solid Objects is for
-
-Use Solid Objects when more than one request, job, or process can act on the
-same logical thing and the next action must use its latest committed state.
-These are the stateful coordination patterns for which people often reach for
-Durable Objects:
-
-| Pattern                                 | One identity per              | What the object coordinates                                                                 |
-| --------------------------------------- | ----------------------------- | ------------------------------------------------------------------------------------------- |
-| Multiplayer, presence, or collaboration | Room, session, or document    | Joins, moves, and edits commit in order; subscribers refresh from committed state           |
-| Reservations and expiring holds         | Show, resource, or stock item | Availability checks and holds cannot interleave; a durable reminder can release an old hold |
-| Checkout and account workflows          | Cart, order, account, device  | The current step, retries, and effect results return to the same ordered mailbox            |
-| Per-key rate limits                     | API key, account, or device   | Token checks and decrements are serialized; a reminder can refill the bucket                |
-| Stateful agent sessions                 | Agent session                 | Messages and tool results apply in order and pending work survives a worker exit            |
-
-The common shape is one durable coordination boundary with an application
-defined identity. Work for that identity is serialized, while unrelated rooms,
-carts, accounts, or sessions can progress concurrently. A single global rate
-limiter or another very hot identity is a poor fit because it becomes an
-intentional bottleneck. If one ordinary row transaction solves the problem,
-prefer that. See [Choosing Solid Objects](docs/fit.md) for the longer guide.
 
 ## Running in a deployed application
 
