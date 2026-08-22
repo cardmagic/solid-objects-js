@@ -1,7 +1,7 @@
 import { createServer } from "node:http"
 import { readFile } from "node:fs/promises"
 import { extname, resolve } from "node:path"
-import { Actor, configure } from "../dist/index.js"
+import { Actor, configure, receiveSyncEnvelope } from "../dist/index.js"
 import { sqlite } from "../dist/database/sqlite.js"
 import { createDashboard, createNodeDashboardHandler } from "../dist/web/index.js"
 
@@ -20,6 +20,14 @@ class DashboardBrowserActor extends Actor {
     this.count += 1
   }
 }
+class MirrorCounter extends Actor {
+  static actorType = "MirrorCounter"
+  count = 0
+  increment({ amount = 1 } = {}) {
+    this.count += amount
+    return this.count
+  }
+}
 const runtime = configure({
   database: sqlite({ path: ":memory:" }),
   authorizeMessage: () => true,
@@ -27,6 +35,7 @@ const runtime = configure({
   authorizeAdministration: () => true,
 })
 runtime.register(DashboardBrowserActor)
+runtime.register(MirrorCounter)
 await runtime.install()
 await DashboardBrowserActor.ref("browser-room").increment()
 const sessionValues = new Map()
@@ -76,7 +85,35 @@ const server = createServer(async (request, response) => {
     response.end("<!doctype html><html><body></body></html>")
     return
   }
-  if (pathname === "/sqlite-wasm-worker.mjs" || pathname === "/runtime-worker.mjs") {
+  if (pathname === "/sync" && request.method === "POST") {
+    try {
+      const envelope = JSON.parse(await readBody(request))
+      await receiveSyncEnvelope({ runtime, envelope })
+      await runtime.testing.drain({ roles: ["actors"] })
+      response.writeHead(200, { "content-type": "application/json" })
+      response.end("{}")
+    } catch (error) {
+      response.writeHead(422, { "content-type": "application/json" })
+      response.end(JSON.stringify({ error: String(error?.message ?? error) }))
+    }
+    return
+  }
+  if (pathname === "/sync-state") {
+    const actorId = new URL(request.url ?? "/", "http://127.0.0.1").searchParams.get("actorId")
+    const snapshot = await runtime
+      .ref(MirrorCounter, actorId ?? "missing")
+      .snapshot()
+      .catch(() => ({ count: 0 }))
+    response.writeHead(200, { "content-type": "application/json" })
+    response.end(JSON.stringify(snapshot))
+    return
+  }
+  if (
+    pathname === "/sqlite-wasm-worker.mjs" ||
+    pathname === "/runtime-worker.mjs" ||
+    pathname === "/tab-host-worker.mjs" ||
+    pathname === "/sync-bridge-worker.mjs"
+  ) {
     await serveFile({ response, path: resolve(browserFixtureRoot, pathname.slice(1)) })
     return
   }
@@ -98,6 +135,15 @@ const server = createServer(async (request, response) => {
   }
   await serveFile({ response, path })
 })
+
+function readBody(request) {
+  return new Promise((resolve, reject) => {
+    const chunks = []
+    request.on("data", (chunk) => chunks.push(chunk))
+    request.on("end", () => resolve(Buffer.concat(chunks).toString("utf-8")))
+    request.on("error", reject)
+  })
+}
 
 async function serveFile({ response, path }) {
   try {

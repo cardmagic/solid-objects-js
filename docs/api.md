@@ -351,6 +351,66 @@ entry points; the last registration wins.
   through direct actor references.
 - Alarms and reminders fire only while the hosting worker is alive.
 
+## `solid-objects/browser/tab-host`
+
+Many tabs, one runtime. Each tab starts a candidate host; the Web Locks API
+elects one leader per origin. The leader starts the runtime, runs its
+workers, and serves invocations from every tab over a `BroadcastChannel`.
+When the leader's tab dies, the lock releases and the next host promotes.
+
+- `startTabHost(options)`: join the election. `TabHostOptions` carries the
+  election `name` and a `startRuntime` callback; the callback runs only on
+  promotion, so a follower never opens the database. It returns a
+  `TabHostRuntimeHandle` with the runtime and an optional `close`.
+- `TabHost`: `role()`, `leadership()` (a promise that resolves on
+  promotion), and `close()`.
+- `connectTabClient(options)`: connect from any tab. `TabClientOptions`
+  carries the election `name` plus retry and timeout intervals.
+- `TabClient.invoke(invocation)`: send a `TabInvocation` (`actorType`,
+  `actorId`, `operation`, `arguments`). The client retries until a leader
+  answers; the leader enqueues with the request id as the idempotency key,
+  so a resend applies once.
+- `TabInvocationTimeout` and `TabInvocationFailed`: the client-side errors.
+
+A tab dies without a clean shutdown, so failover speed follows the fence
+settings. Give the browser runtime a short `leaseDurationMilliseconds` and
+`processAliveThresholdMilliseconds` (for example 750), with a
+`leaseRenewalIntervalMilliseconds` below the lease (for example 250), so a
+new leader reclaims a dead tab's activations before sync invocations time
+out. When `startRuntime` fails, close the database in a catch block; an
+open SAH pool otherwise blocks the next candidate until the worker dies.
+
+## `solid-objects/sync-bridge`
+
+The transactional outbox bridge between a local runtime and a server
+runtime. An actor stages a sync intent with `emit(SYNC_BRIDGE_EFFECT, ...)`
+in the same transaction as its state change. The effect worker drains the
+outbox with at-least-once delivery, per-actor order, and retry backoff.
+
+- `SYNC_BRIDGE_EFFECT`: the effect name (`solid-objects.sync`). The staged
+  arguments hold `operation`, `arguments`, and an optional target
+  `actorType` and `actorId`; the target defaults to the source actor.
+- `registerSyncBridge(options)`: register the drain handler on the local
+  runtime. `SyncBridgeOptions` carries the runtime and a `transmit`
+  callback that carries a `SyncEnvelope` to the server; throw from
+  `transmit` while offline and the effect retries with backoff. Give a
+  browser runtime a generous `maxAttempts`; an effect that exhausts its
+  attempts during a long offline period lands in dead letters, and
+  `runtime.deadLetters.retry` re-queues it.
+- `receiveSyncEnvelope(options)`: idempotent server ingest. It enqueues an
+  internal message with `sync:<effectId>` as the idempotency key, so a
+  replayed envelope applies once. The host must authenticate the sender
+  before this call; internal delivery skips `authorizeMessage`.
+- Per-actor order comes from an ordered drain: a claimed sync effect
+  transmits every undelivered envelope for its actor up to its own mailbox
+  sequence, oldest first. A duplicate transmission is safe; the server
+  deduplicates by effect id. Run one effect worker per local runtime for
+  the order guarantee.
+- `InvalidSyncEnvelope`: the non-retryable rejection for malformed staged
+  arguments; the effect dead-letters instead of retrying forever.
+
+Both modules are browser-safe and also run in Node.
+
 ## `solid-objects/web`
 
 - `createDashboard(options)` creates an immutable `SolidObjectsDashboard` with

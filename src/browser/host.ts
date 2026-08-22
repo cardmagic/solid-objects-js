@@ -17,6 +17,22 @@ export {
   SQLiteWasmDatabase,
   type SQLiteWasmDatabaseOptions,
 } from "../database/sqlite-wasm.js"
+export {
+  connectTabClient,
+  startTabHost,
+  type TabClient,
+  type TabClientOptions,
+  type TabHost,
+  type TabHostOptions,
+  type TabHostRuntimeHandle,
+  type TabInvocation,
+} from "./tab-host.js"
+export {
+  registerSyncBridge,
+  SYNC_BRIDGE_EFFECT,
+  type SyncBridgeOptions,
+  type SyncEnvelope,
+} from "../sync-bridge.js"
 
 function randomHostProcessId(): number {
   const values = new Uint32Array(1)

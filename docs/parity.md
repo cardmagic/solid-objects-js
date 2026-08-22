@@ -111,8 +111,7 @@ of both runtimes, not a gap between them.
 An in-browser runtime with SQLite WASM storage is planned for this package
 ([#17](https://github.com/cardmagic/solid-objects-js/issues/17)). It is a
 JavaScript-only capability. The Ruby gem has no browser target, so no Ruby
-parity row will exist for it. Milestones M1, M2, and the first stage of M3
-are complete:
+parity row will exist for it. All four milestones are complete:
 
 - M1: the shared modules no longer import Node built-in modules, a
   registered platform factory supplies async context propagation, and
@@ -121,10 +120,19 @@ are complete:
 - M2: `solid-objects/database/sqlite-wasm` implements the `Database`
   contract on SQLite WASM. The full runtime passes a round-trip test
   against it, and Playwright proves OPFS persistence across a page reload.
-- M3, stage one: `solid-objects/browser/host` hosts the full runtime in a
-  browser module worker on OPFS storage, with durable actor state across
-  page reloads proven in Chromium. Stage two (the `SharedWorker` host with
-  Web Locks election across tabs) and M4 (the sync bridge) remain.
+- M3: `solid-objects/browser/host` hosts the full runtime in a browser
+  module worker on OPFS storage, with durable actor state across page
+  reloads proven in Chromium. `solid-objects/browser/tab-host` elects one
+  leader per origin with the Web Locks API and serves every tab over a
+  `BroadcastChannel`; Playwright proves shared state across two tabs and
+  failover with durable continuation after the leader tab closes. The plan
+  named a `SharedWorker` as the host; Web Locks election between dedicated
+  workers replaced it, because OPFS sync access handles exist only in
+  dedicated workers.
+- M4: `solid-objects/sync-bridge` drains the local effects outbox to a
+  server runtime with at-least-once delivery, per-actor order, and an
+  idempotent server ingest. Vitest proves order under transmit failures,
+  replay deduplication, and recovery after an offline period.
 
 ## Rails-specific surfaces
 

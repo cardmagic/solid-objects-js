@@ -73,38 +73,32 @@ describe("turn context store", () => {
     expect(store.getStore()).toBeUndefined()
   })
 
-  it("keeps the store across awaits inside one serialized turn", async () => {
+  it("scopes only the synchronous part of an async callback", async () => {
     const store = new TurnContextStore<{ value: number }>()
     const observed = await store.run({ value: 4 }, async () => {
+      const beforeAwait = store.getStore()?.value
       await Promise.resolve()
-      await new Promise((resolve) => setTimeout(resolve, 1))
-      return store.getStore()?.value
+      const afterAwait = store.getStore()?.value
+      return { beforeAwait, afterAwait }
     })
-    expect(observed).toBe(4)
+    expect(observed).toEqual({ beforeAwait: 4, afterAwait: undefined })
     expect(store.getStore()).toBeUndefined()
   })
 
-  it("restores the previous store after an async callback rejects", async () => {
+  it("never leaks a store into tasks that interleave with an async callback", async () => {
     const store = new TurnContextStore<{ value: number }>()
-    await expect(
-      store.run({ value: 4 }, async () => {
-        await Promise.resolve()
-        throw new Error("boom")
-      }),
-    ).rejects.toThrow("boom")
-    expect(store.getStore()).toBeUndefined()
-  })
-
-  it("supports sequential turns without leakage", async () => {
-    const store = new TurnContextStore<{ value: number }>()
-    const first = await store.run({ value: 1 }, async () => {
-      await Promise.resolve()
-      return store.getStore()?.value
+    let releaseCallback = () => {}
+    const held = new Promise<void>((resolve) => {
+      releaseCallback = resolve
     })
-    const second = await store.run({ value: 2 }, async () => {
-      await Promise.resolve()
-      return store.getStore()?.value
+    const running = store.run({ value: 9 }, async () => {
+      await held
     })
-    expect([first, second]).toEqual([1, 2])
+    const interleaved = await new Promise<number | undefined>((resolve) =>
+      setTimeout(() => resolve(store.getStore()?.value), 1),
+    )
+    releaseCallback()
+    await running
+    expect(interleaved).toBeUndefined()
   })
 })

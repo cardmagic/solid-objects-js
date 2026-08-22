@@ -61,6 +61,8 @@ const entryPoints = [
   "src/wake-up/redis.ts",
   "src/browser/index.ts",
   "src/browser/host.ts",
+  "src/browser/tab-host.ts",
+  "src/sync-bridge.ts",
   "src/web/index.ts",
 ]
 

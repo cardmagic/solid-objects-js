@@ -70,6 +70,14 @@
       "types": "./dist/browser/host.d.ts",
       "import": "./dist/browser/host.js"
     },
+    "./browser/tab-host": {
+      "types": "./dist/browser/tab-host.d.ts",
+      "import": "./dist/browser/tab-host.js"
+    },
+    "./sync-bridge": {
+      "types": "./dist/sync-bridge.d.ts",
+      "import": "./dist/sync-bridge.js"
+    },
     "./web": {
       "types": "./dist/web/index.d.ts",
       "import": "./dist/web/index.js"

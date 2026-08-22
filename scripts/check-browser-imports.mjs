@@ -7,6 +7,8 @@ const repositoryRoot = path.resolve(import.meta.dirname, "..")
 const browserSafeRoots = [
   "src/browser/host.ts",
   "src/browser/index.ts",
+  "src/browser/tab-host.ts",
+  "src/sync-bridge.ts",
   "src/context.ts",
   "src/database/deadline.ts",
   "src/database/sqlite-wasm.ts",

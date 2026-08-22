@@ -167,7 +167,10 @@ async function openHandle(context: {
   if (context.options.storage !== "persistent") {
     return new context.sqlite3.oo1.DB(context.options.path, "c")
   }
-  const pool = await context.sqlite3.installOpfsSAHPoolVfs({})
+  const reinitOptions = {
+    forceReinitIfPreviouslyFailed: true,
+  } as Parameters<Sqlite3Static["installOpfsSAHPoolVfs"]>[0]
+  const pool = await context.sqlite3.installOpfsSAHPoolVfs(reinitOptions)
   return new pool.OpfsSAHPoolDb(context.options.path)
 }
 
