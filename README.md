@@ -18,8 +18,15 @@ invalidations are stored in the database the application already operates.
 
 > **Early release:** the correctness core has automated coverage across the
 > supported databases, the Chromium browser client, process recovery, and
-> packaged artifacts, but the TypeScript implementation is new. Read the
+> packaged artifacts, but the TypeScript implementation is new. There is one
+> deployed first-party reference application. There is no measured scale and no
+> third-party production use yet. Read the
 > [delivery boundaries](#delivery-boundaries) before using it for important data.
+
+> **Not a replacement for SQL transactions:** when one row update inside one
+> transaction solves the problem, use that. Solid Objects earns its cost when an
+> entity needs ordered calls across requests, retries, reminders, effects, and
+> realtime state. See [Good and poor fits](#good-and-poor-fits).
 
 ## The programming model
 
@@ -61,19 +68,28 @@ processes submit them concurrently.
 ## Run it now with SQLite
 
 Node.js 24.4.0 or newer is required. Node.js 24.15 or newer is preferred,
-because `node:sqlite` prints an experimental warning before it. The `0.13.3`
-release includes a packaged quickstart:
+because `node:sqlite` prints an experimental warning before it. The published
+package includes a quickstart:
 
 ```bash
-npm exec --yes --package=solid-objects@0.13.3 -- solid-objects quickstart
+npm exec --yes --package=solid-objects@latest -- solid-objects quickstart
 ```
 
 The command needs no repository checkout, database server, Redis, container, or
 application configuration. It uses Node's built-in SQLite module and removes
-its scoped temporary database before exiting.
+its scoped temporary database before exiting. One local run printed:
 
-The executable asserts rather than merely printing a plausible result. In one
-local run, it verifies that:
+```json
+{
+  "sameIdentityCalls": 25,
+  "sameIdentityFinalState": 25,
+  "independentIdentitiesOverlapped": true,
+  "temporaryStateRemoved": true
+}
+```
+
+The executable asserts rather than merely printing a plausible result. It
+verifies that:
 
 - 25 concurrent calls to one identity produce the exact committed state `25`;
 - their return values are the complete sequence from `1` through `25`;
@@ -243,18 +259,30 @@ provide authentication, WebSocket transport, and rendering. See the
 These systems solve different coordination problems. The table describes their
 default unit and deployment model, not a quality ranking.
 
-| Approach                    | Serialization and state unit                          | Durable substrate                     | Additional runtime                                      | Recovery model                                 | Placement                    |
-| --------------------------- | ----------------------------------------------------- | ------------------------------------- | ------------------------------------------------------- | ---------------------------------------------- | ---------------------------- |
-| SQL transaction or row lock | Selected rows in one transaction                      | Application database                  | None                                                    | Application retries the transaction            | Application deployment       |
-| Traditional job queue       | Job or queue; ordering depends on queue configuration | Broker or queue database              | Queue workers and usually a broker                      | Retry the job                                  | Application deployment       |
-| Solid Objects               | TypeScript class plus object ID                       | Existing SQLite, PostgreSQL, or MySQL | Library in application processes                        | Retry the per-ID operation from durable state  | Application deployment       |
-| Cloudflare Durable Objects  | Object class plus globally unique ID                  | Per-object managed storage            | Cloudflare Workers platform                             | Managed object activation                      | Cloudflare-selected location |
-| Rivet Actors                | Addressable actor                                     | Actor state, KV, or per-actor SQLite  | Rivet Engine or managed compute                         | Actor sleep, wake, and persistence             | Configured Rivet deployment  |
-| DBOS                        | Workflow ID and checkpointed steps                    | PostgreSQL system database            | Library; Conductor recommended for distributed recovery | Deterministic workflow replay from checkpoints | Application deployment       |
-| Restate                     | Service handler or keyed virtual object               | Restate log and state store           | Restate server or cloud service                         | Durable handler execution and journal replay   | Restate deployment           |
+| Approach                    | Serialization and state unit                          | Durable substrate                                | Additional runtime                                      | Recovery model                                           | Placement                                                 |
+| --------------------------- | ----------------------------------------------------- | ------------------------------------------------ | ------------------------------------------------------- | -------------------------------------------------------- | --------------------------------------------------------- |
+| SQL transaction or row lock | Selected rows in one transaction                      | Application database                             | None                                                    | Application retries the transaction                      | Application deployment                                    |
+| Traditional job queue       | Job or queue; ordering depends on queue configuration | Broker or queue database                         | Queue workers and usually a broker                      | Retry the job                                            | Application deployment                                    |
+| Solid Objects               | TypeScript class plus object ID                       | Existing SQLite, PostgreSQL, or MySQL            | Library in application processes                        | Retry the per-ID operation from durable state            | Application deployment                                    |
+| Cloudflare Durable Objects  | Object class plus globally unique ID                  | Per-object managed storage                       | Cloudflare Workers platform                             | Managed object activation                                | Cloudflare-selected location                              |
+| celld                       | Object class plus object name                         | Per-object SQLite replicated to a bucket you own | celld daemon that embeds V8 and runs Wrangler bundles   | A new owner restores the object database from the bucket | Any node in your fleet, chosen by bucket compare-and-swap |
+| Rivet Actors                | Addressable actor                                     | Actor state, KV, or per-actor SQLite             | Rivet Engine or managed compute                         | Actor sleep, wake, and persistence                       | Configured Rivet deployment                               |
+| DBOS                        | Workflow ID and checkpointed steps                    | PostgreSQL system database                       | Library; Conductor recommended for distributed recovery | Deterministic workflow replay from checkpoints           | Application deployment                                    |
+| Restate                     | Service handler or keyed virtual object               | Restate log and state store                      | Restate server or cloud service                         | Durable handler execution and journal replay             | Restate deployment                                        |
 
-The sourced, dimension-by-dimension comparison—including realtime projections,
-edge placement, cross-identity transactions, and operational data access—is in
+celld and Solid Objects both self-host the Durable Objects model, so the
+difference is where the state lives and what you run. celld runs a daemon that
+embeds V8 and executes Wrangler bundles, and it gives each object its own
+SQLite database that replicates to an object-storage bucket you own. Object
+ownership moves between nodes through compare-and-swap on that bucket. Solid
+Objects runs plain TypeScript classes inside your Node processes, adds no
+daemon, and keeps object state in the SQL database the application already
+operates. Choose celld to run Workers-format code across a fleet with
+bucket-based placement. Choose Solid Objects to keep one database, no extra
+process, and an ordinary Node deployment.
+
+The sourced, dimension-by-dimension comparison, including realtime projections,
+edge placement, cross-identity transactions, and operational data access, is in
 [docs/comparisons.md](docs/comparisons.md).
 
 ## Requirements and supported systems
