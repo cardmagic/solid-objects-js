@@ -14,11 +14,10 @@ generic signatures; this index explains the supported role of every export.
 - `SolidObjectsRuntime`: installation, registration, supervision, and manager
   owner. The normal lifecycle is `install()`, `run(signal)`, then `close()`.
   `snapshotWithIncarnation(reference)` returns the same authorized fields as
-  `snapshot()` alongside the read instance's `instanceId`, `revision`, and
-  `createdAtMs`, computed from the identical read so a caller can fence a
-  derived write (for example a downstream projection) against a stale or
-  superseded actor incarnation. `createdAtMs` orders incarnations at
-  millisecond granularity; see
+  `snapshot()`. It adds the read instance's `instanceId`, `revision`, and
+  `createdAtMs` from that identical read. A caller can therefore fence a derived
+  write, such as a downstream projection, against a stale or superseded actor
+  incarnation. `createdAtMs` orders incarnations to the millisecond. See
   [Limitations and non-goals](correctness.md#limitations-and-non-goals) for
   the same-millisecond boundary.
 - `Actor`: base class providing `ref()`, `actorId`, `currentMessage`,
@@ -38,8 +37,8 @@ createdAtMs }` shape returned by `SolidObjectsRuntime.snapshotWithIncarnation`.
 - `MessageReference`: immutable durable message identity with `id`,
   `requestId`, actor identity, `sequence`, `status()`, `result()`, and `wait()`.
 - `InvocationOptions`, `AsyncInvocationOptions`, `SnapshotOptions`, and
-  `DestroyOptions`: authorization, idempotency, timing, and scheduling options
-  used by reference methods.
+  `DestroyOptions`: the options for authorization, idempotency, time, and
+  schedule that the reference methods use.
 
 `ActorIntents`, `EffectIntent`, `CommitActionIntent`, `ReminderIntent`,
 `OutboundMessageIntent`, `ReminderOptions`, `OutboundMessageOptions`,
@@ -59,11 +58,11 @@ override observables(): Record<string, unknown> {
 }
 ```
 
-Both values must be JSON-compatible and are evaluated after each successful
-turn. An invalidation-only value participates in change detection but is never
-written to the broadcast outbox or invalidation envelope. The envelope carries
-its name in `invalidations`, allowing component registries to refresh a
-reauthorized endpoint without exposing the value.
+Both values must be JSON-compatible. The runtime evaluates them after each
+successful turn. An invalidation-only value takes part in change detection, but
+the runtime never writes it to the broadcast outbox or the invalidation
+envelope. The envelope carries its name in `invalidations`. A component registry
+can then refresh a reauthorized endpoint, and the value stays private.
 
 `MessageReference` does not retain an invocation's authorization context.
 Supply `authorizationContext` to each `status()`, `result()`, and `wait()` call;
@@ -91,12 +90,13 @@ function playerForSession<PlayerType extends { sessionId: string }>(options: {
 
 ### Reminders
 
-A reminder is one alarm per actor and name. Scheduling a name that is already
-armed **moves the existing alarm** rather than adding a second one, which is
-what makes a reminder safe to re-arm from a handler that may run more than once.
+A reminder is one alarm per actor and name. If you schedule a name that is
+already armed, the runtime **moves the existing alarm**. It does not add a
+second one. A reminder is therefore safe to re-arm from a handler that can run
+more than once.
 
-Without a key that name is the operation, so one actor holds one alarm per
-operation, and arming one per queued item keeps only the last:
+Without a key, that name is the operation. One actor then holds one alarm per
+operation. If you arm one alarm per queued item, only the last one remains:
 
 ```typescript
 // Wrong. Every entry overwrites the previous entry's alarm.
@@ -126,10 +126,10 @@ alone, so a long operation with a short key is caught too. A key may hold colons
 of its own, because an actor member name cannot.
 
 An actor that only needs to know "what is next" can still keep one alarm and
-drain everything due when it fires. That costs one row instead of one per item
-and cannot strand an entry when an occurrence is coalesced, so prefer it for a
-large queue of interchangeable items and prefer `key` when an item needs an
-alarm that can be moved on its own.
+drain everything that is due when it fires. That costs one row instead of one
+row per item. It also cannot strand an entry when the runtime coalesces an
+occurrence. Prefer it for a large queue of interchangeable items. Prefer `key`
+when one item needs an alarm that you can move on its own.
 
 ### Runtime managers
 
@@ -333,8 +333,8 @@ The wire format, trust boundary, revision rules, and component semantics are in
   `DashboardExtension` objects, and `DashboardMiddleware` functions.
 - `DashboardRequestContext` supplies the existing administration authorization
   context and an optional `DashboardSession`. Read/write access requires the
-  session so its `read()` and `write()` methods can hold the masked CSRF token
-  across requests; read-only modes do not create CSRF state.
+  session, because its `read()` and `write()` methods hold the masked CSRF token
+  across requests. Read-only modes create no CSRF state.
 - `DashboardRoute`, `DashboardRouteContext`, `DashboardPolicy`, `DashboardPage`,
   and `DashboardTab` define extension pages. Every route requires a policy.
 - `DashboardRenderer`, `DashboardRenderInput`, and `DashboardMiddlewareInput`

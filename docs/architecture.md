@@ -14,8 +14,9 @@ same operation, delivery mode, and arguments.
 
 The correctness contract is:
 
-> Messages for one actor are durably enqueued and processed sequentially, at
-> least once, by at most one valid activation lease holder at a time.
+> Solid Objects durably enqueues the messages for one actor. At most one valid
+> activation lease holder processes them at a time, in sequence, and at least
+> once.
 
 Actor code runs outside the database transaction. A short transaction guarded
 by the activation owner, token, generation, expiration, and claimed-message
@@ -36,10 +37,10 @@ at the shutdown boundary; database leases and fencing remain the correctness
 mechanism if a failed role was still executing actor code.
 
 SQLite serializes access through one process-local connection and begins write
-transactions immediately. PostgreSQL and MySQL use bounded pools, keep each
-transaction on one checked-out client, store timestamps and sequences as
-64-bit integers, and lock an actor's instance row while allocating mailbox
-sequences. MySQL creates InnoDB tables and retries only the side-effect-free
+transactions immediately. PostgreSQL and MySQL use bounded pools. They keep each
+transaction on one checked-out client. They store timestamps and sequences as
+64-bit integers. They lock an actor's instance row during mailbox sequence
+allocation. MySQL creates InnoDB tables and retries only the side-effect-free
 enqueue transaction when InnoDB chooses it as a deadlock victim. Every adapter
 uses database time and the same fencing predicates.
 
@@ -51,19 +52,21 @@ statement and lock timeouts. MySQL bounds pool checkout and client queries and
 installs transaction execution and lock-wait limits. A deadline before enqueue
 commit produces no durable message. After commit, timeout diagnostics retain
 the message reference for later recovery.
-Already-running JavaScript actor code is cooperative rather than forcefully
-preempted; leases and fenced commits remain authoritative if it outlives the
-caller's wait.
+JavaScript actor code that already runs is cooperative. The runtime does not
+preempt it by force. If it outlives the caller's wait, leases and fenced commits
+stay authoritative.
 
 Each database adapter also tracks its active transaction through Node's async
-context. A committed call or message wait fails before enqueue or polling when
-the same logical call stack already owns a Solid Objects transaction, rather
-than waiting for a connection or serialized SQLite slot it cannot release.
+context. A committed call or message wait fails early when the same logical call
+stack already owns a Solid Objects transaction. It fails before enqueue or
+polling. It does not wait for a connection or a serialized SQLite slot that it
+cannot release.
 
 PostgreSQL notifications are an opt-in latency layer. One event-driven client
-per runtime listens on role-specific channels before the worker checks durable
-state, which closes the listener-startup race without holding a polling
-connection per worker. A notification advances a process-local role generation
+per runtime listens on role-specific channels. It listens before the worker
+checks durable state. This closes the listener-startup race, and no worker holds
+a polling connection of its own. A notification advances a process-local role
+generation
 and wakes every matching waiter. Reconnection and notification loss fall back
 to adaptive polling, whose current wait can be as long as the configured idle
 ceiling.
@@ -81,8 +84,8 @@ keeps its original future availability.
 
 The global claim reads at most `claimScanLimit` ordered candidates. If another
 worker acquires the first candidate's lease, the transaction continues through
-that bounded set instead of returning idle and sacrificing parallelism across
-independent actor identities.
+that bounded set. It does not return idle, because an idle return loses
+parallelism across independent actor identities.
 
 When a pass becomes idle, a long-running worker keeps the hydrated actor and
 continues renewing the same fenced lease until its idle timeout. A later turn

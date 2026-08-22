@@ -17,8 +17,8 @@ fields, then walks its prototype chain to discover methods and getters.
 - Operation, field, and getter names must not collide with the reference API.
 
 The constructor must establish every persisted field and must not depend on
-external state. Solid Objects invokes it while validating the class, creating
-defaults, hydrating state, and projecting a snapshot.
+external state. Solid Objects invokes it at four points: class validation,
+default creation, state hydration, and snapshot projection.
 
 ## Observable broadcast modes
 
@@ -79,12 +79,16 @@ asynchronous work or write through a database wrapped by
 a failing migration, or state newer than the running code raises
 `StateMigrationError`.
 
-For a destructive shape change, use expand/contract deployment: first deploy
-readers that understand both shapes, then deploy the migration, wait for
-operational evidence that actors have advanced, and only then remove old-shape
-support. If old code cannot understand the new shape, drain it before new code
-can persist the migration. Keep old migration steps so actors idle for several
-releases can still advance one version at a time.
+For a destructive shape change, use an expand/contract deployment:
+
+1. deploy readers that understand both shapes;
+2. deploy the migration;
+3. wait for operational evidence that the actors advanced;
+4. remove the old-shape support.
+
+If old code cannot understand the new shape, drain it before new code persists
+the migration. Keep the old migration steps. An actor that stays idle for
+several releases can then still advance one version at a time.
 
 Actor state migration is separate from `runtime.install()`. The latter applies
 the package's relational schema migrations; it does not eagerly rewrite actor

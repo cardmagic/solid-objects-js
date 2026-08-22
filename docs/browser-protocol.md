@@ -79,9 +79,9 @@ stale revisions within an incarnation.
 
 `SolidObjectsComponentRegistry` maps changed observable names to keyed UI
 registrations. The browser supplies an asynchronous `refresh` function and a
-synchronous `apply` function, so HTML, virtual DOM, and framework-native render
-results use the same coordination contract without assuming a rendering
-framework.
+synchronous `apply` function. HTML, virtual DOM, and framework-native render
+results therefore use the same coordination contract. The registry assumes no
+render framework.
 
 Components may share a batch name. A microtask unions affected components in
 the same actor, batch, incarnation, and revision into one refresh request.

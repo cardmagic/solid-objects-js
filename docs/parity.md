@@ -11,20 +11,21 @@ earlier JavaScript releases.
 The Node `0.14.0` implementation has capability parity with that reference. Its
 relational runtime, correctness boundaries, administration, diagnostics,
 operator dashboard, realtime projections, browser behavior, and supported
-adapters have native equivalents. Rails-specific rendering surfaces are
-replaced by transport- and framework-neutral JavaScript APIs. The partial
-guard and backpressure rows and the shared planned result-lookup row below
-are explicit scope boundaries shared with the Ruby reference, not missing
+adapters have native equivalents. Transport- and framework-neutral JavaScript
+APIs replace the Rails-specific render surfaces. Three rows below are explicit
+scope boundaries that the Ruby reference shares: the partial guard row, the
+backpressure row, and the shared planned result-lookup row. They are not missing
 Ruby capabilities.
 
 `0.14.0` also adds `runtime.enqueueInternalMessage()`,
 `runtime.enqueueInternalMessageInTransaction()`, and
 `runtime.snapshotWithIncarnation()`. These are Node-only integration points
 for a host package (such as a future commercial scaling layer), not ported
-Ruby capabilities: Ruby's equivalent primitives (`SolidObjects::Mailbox#enqueue`,
-`ActorSnapshot`) are already reachable in-process without a dedicated public
-API, since Ruby has no package-privacy boundary between a gem and its own
-dependents the way Node's `exports` map enforces one.
+Ruby capabilities. Ruby's equivalent primitives
+(`SolidObjects::Mailbox#enqueue`, `ActorSnapshot`) are already reachable
+in-process, and they need no dedicated public API. Node's `exports` map enforces
+a package-privacy boundary between a package and its dependents. Ruby has no
+such boundary between a gem and its dependents.
 
 ## Status vocabulary
 
@@ -89,10 +90,10 @@ dependents the way Node's `exports` map enforces one.
 | Redis wake-up            | Native | An optional `redis` peer provides role-specific Pub/Sub over separate lazy publisher/subscriber connections, with bounded failures and durable polling fallback.                                                                                                                      |
 
 Every wake-up adapter above is opt-in. Neither runtime selects one
-automatically: an application that configures nothing keeps polling, and
-each runtime warns once when live processes share a database without a
-configured cross-process adapter. This is a shared, intentional limitation
-of both runtimes, not a gap between them.
+automatically. An application that configures nothing keeps polling. Each
+runtime warns once when live processes share a database without a configured
+cross-process adapter. This limit is intentional in both runtimes. It is not a
+gap between them.
 
 ## Realtime and browser behavior
 

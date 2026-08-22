@@ -115,9 +115,9 @@ with fresh random bytes, so tokens differ between requests while every form
 already open in the same session remains valid. POST requests without a valid
 token receive 403 and do not perform the action.
 
-Every stored or request-derived string is escaped before entering HTML,
-including JSON placed in chart attributes. HTML and statistics responses are
-private and not cached. The dashboard sends a nonce-backed content security
+The dashboard escapes every stored or request-derived string before that string
+enters the HTML. This includes the JSON in chart attributes. HTML and statistics
+responses are private, and no cache holds them. The dashboard sends a nonce-backed content security
 policy, denies framing, disables MIME sniffing, and limits referrers to the
 same origin.
 
@@ -137,9 +137,9 @@ effects, broadcasts, and dead letters. Pause prevents workers from claiming
 new turns for that identity; a turn already executing may still commit. Resume
 clears the brake and normal polling resumes delivery.
 
-Dead-letter retry calls `runtime.deadLetters.retry()`, retaining its durable
-idempotency and actor-operation validation. A retry refused by the runtime is
-shown on the detail page with status 422.
+Dead-letter retry calls `runtime.deadLetters.retry()`. It keeps the durable
+idempotency and the actor-operation validation of that method. If the runtime
+refuses a retry, the detail page shows it with status 422.
 
 `HEAD /` performs only a schema reachability query and creates no CSRF session
 state. Use it for liveness checks instead of polling the full dashboard.

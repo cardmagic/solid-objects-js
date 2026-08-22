@@ -3,23 +3,32 @@
 [![CI](https://github.com/cardmagic/solid-objects-js/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/cardmagic/solid-objects-js/actions/workflows/ci.yml)
 [![npm](https://img.shields.io/npm/v/solid-objects)](https://www.npmjs.com/package/solid-objects)
 
-Self-hosted, distributed Durable Objects in Node without a daemon using your
-existing SQL database.
+Open Source Durable Objects for JavaScript, in the SQL database you already run.
+No daemon, no broker, and no new datastore.
 
-Build addressable TypeScript objects with serialized calls and durable state
-using SQLite, PostgreSQL, or MySQL, without deploying to Cloudflare.
+Build addressable TypeScript objects with serialized calls and durable state on
+SQLite, PostgreSQL, or MySQL. You don't need Cloudflare for this.
 
 Concurrent calls for one identity cannot overwrite each other. Calls for
 different identities can run at the same time.
 
 Define ordinary TypeScript classes and run them in ordinary Node.js processes.
-State, queued operations, retries, reminders, effects, and realtime
-invalidations are stored in the database the application already operates.
+Solid Objects keeps the state, the queued operations, the retries, the
+reminders, the effects, and the realtime invalidations in the database the
+application already operates.
 
-> **Early release:** the correctness core has automated coverage across the
-> supported databases, the Chromium browser client, process recovery, and
-> packaged artifacts, but the TypeScript implementation is new. Read the
-> [delivery boundaries](#delivery-boundaries) before using it for important data.
+> **Early release:** the correctness core has automated coverage. That coverage
+> includes the supported databases, the Chromium browser client, process
+> recovery, and the packaged artifacts. The TypeScript implementation is still
+> new. There is one deployed first-party reference application. There is no
+> measured scale and no third-party production use yet. Read the
+> [delivery boundaries](#delivery-boundaries) before you use it for important
+> data.
+
+> **Not a replacement for SQL transactions:** when one row update inside one
+> transaction solves the problem, use that. Solid Objects earns its cost when an
+> entity needs ordered calls across requests, retries, reminders, effects, and
+> realtime state. See [Good and poor fits](#good-and-poor-fits).
 
 ## The programming model
 
@@ -61,29 +70,31 @@ processes submit them concurrently.
 ## Run it now with SQLite
 
 Node.js 24.4.0 or newer is required. Node.js 24.15 or newer is preferred,
-because `node:sqlite` prints an experimental warning before it. The `0.13.3`
-release includes a packaged quickstart:
+because `node:sqlite` prints an experimental warning before it. The published
+package includes a quickstart:
 
 ```bash
-npm exec --yes --package=solid-objects@0.13.3 -- solid-objects quickstart
+npm exec --yes --package=solid-objects@latest -- solid-objects quickstart
 ```
 
 The command needs no repository checkout, database server, Redis, container, or
 application configuration. It uses Node's built-in SQLite module and removes
 its scoped temporary database before exiting.
 
-The executable asserts rather than merely printing a plausible result. In one
-local run, it verifies that:
+It states its plan first, prints the `Counter` class it runs, and asks for
+permission. It executes the work only after you answer, and then it explains
+what each result proves. It asks nothing when stdin is not a terminal, so CI
+never waits. Add `--yes` to skip the question in a terminal, or `--json` for a
+machine-readable summary.
 
-- 25 concurrent calls to one identity produce the exact committed state `25`;
-- their return values are the complete sequence from `1` through `25`;
-- operations for two different identities overlap in time; and
-- the runtime closes and temporary state is removed.
+The executable asserts rather than merely printing a plausible result. It exits
+with a non-zero code when one of those checks fails.
 
 ## What Solid Objects is for
 
 Use Solid Objects when more than one request, job, or process can act on the
-same logical thing and the next action must use its latest committed state.
+same logical thing. The next action must then use the latest committed state of
+that thing.
 These are the stateful coordination patterns for which people often reach for
 Durable Objects:
 
@@ -102,11 +113,46 @@ limiter or another very hot identity is a poor fit because it becomes an
 intentional bottleneck. If one ordinary row transaction solves the problem,
 prefer that. See [Choosing Solid Objects](docs/fit.md) for the longer guide.
 
+## Measured behavior
+
+One developer machine, not a capacity promise. Apple M5, Node.js 24.18.0, 250
+measured operations at client concurrency 16, on August 22, 2026. PostgreSQL
+17.11 and MySQL 9.7.1 run natively, not in a container.
+
+| Measurement                                                   |           Result |
+| ------------------------------------------------------------- | ---------------: |
+| Committed operations per second, one hot identity, SQLite     | 286 to 323 ops/s |
+| The same identity across four processes, SQLite               | 507 to 519 ops/s |
+| The same identity across four processes, PostgreSQL           | 266 to 331 ops/s |
+| The same identity across four processes, MySQL                | 214 to 228 ops/s |
+| Idle wake-up to committed result, one process                 |      2.66 ms p50 |
+| Idle wake-up to committed result, two processes, polling only |     1,006 ms p50 |
+| Idle CPU per process, 100 ms fast interval                    |           0.121% |
+| Idle database passes per second, after backoff                |              4.0 |
+
+The four idle rows come from a separate harness on August 16, 2026.
+
+Each range spans the synchronous and the asynchronous handler shape. Calls to
+one identity are serialized on purpose, so the per-call latency in these runs
+includes the wait behind the other fifteen concurrent callers. Throughput is
+the honest number for that case.
+
+The same PostgreSQL and MySQL versions in Docker Desktop reached 1.8x to 4.9x
+less throughput on those rows. Measure your own deployment shape before you
+plan capacity.
+
+The polling-only row is the tradeoff to know before you deploy: use PostgreSQL
+notifications or the optional Redis Pub/Sub when separate processes need
+low-latency delivery.
+
+Conditions, sources of bias, and the complete matrix for all three databases
+are in [Benchmarks](docs/benchmarks.md).
+
 ## Running in a deployed application
 
 [Shuffle Up and Play](https://shuffleupandplay.com/) is a deployed reference
-application where two players create a table, load decks, and move cards while
-realtime updates reach both browsers. Its
+application. Two players create a table, load decks, and move cards. Realtime
+updates reach both browsers. Its
 [source](https://github.com/cardmagic/shuffleupandplay) uses Node 24,
 TypeScript, SQLite, `node:http`, and `ws`. Each table code addresses one
 `GameRoom` actor that owns both seats, so mutations share one durable mailbox
@@ -125,23 +171,23 @@ The application and its tests exercise more than a counter-shaped happy path:
 | Time and schema changes   | The actor defines [versioned state migrations](https://github.com/cardmagic/shuffleupandplay/blob/519a343e8db0bb6eed961a2ffd374dba80d67cd6/src/actors/game-room.ts#L47-L91) and a [durable reminder](https://github.com/cardmagic/shuffleupandplay/blob/519a343e8db0bb6eed961a2ffd374dba80d67cd6/src/actors/game-room.ts#L276-L310). Tests load [stored version-one state](https://github.com/cardmagic/shuffleupandplay/blob/519a343e8db0bb6eed961a2ffd374dba80d67cd6/test/operations.test.ts#L135-L201) and [run the reminder scheduler](https://github.com/cardmagic/shuffleupandplay/blob/519a343e8db0bb6eed961a2ffd374dba80d67cd6/test/durability.test.ts#L236-L257).                                                                                                                                                                   |
 | Operations and CI         | The [operations tests](https://github.com/cardmagic/shuffleupandplay/blob/519a343e8db0bb6eed961a2ffd374dba80d67cd6/test/operations.test.ts#L39-L202) exercise doctor, process, retention, and reconciliation APIs; server suites cover the [dashboard](https://github.com/cardmagic/shuffleupandplay/blob/519a343e8db0bb6eed961a2ffd374dba80d67cd6/test/server.test.ts#L297-L326), [rate limits](https://github.com/cardmagic/shuffleupandplay/blob/519a343e8db0bb6eed961a2ffd374dba80d67cd6/test/rate-limit.test.ts), and [shutdown](https://github.com/cardmagic/shuffleupandplay/blob/519a343e8db0bb6eed961a2ffd374dba80d67cd6/test/shutdown.test.ts). The [current main CI run](https://github.com/cardmagic/shuffleupandplay/actions/runs/31963000789) passed typechecking, 171 tests, the build, the doctor, and a Docker image build. |
 
-**Scope:** the checked-in deployment configuration runs one Node process using
-SQLite on one Docker host. It demonstrates a real deployed workload, not a
-measured traffic level or every supported topology. Its deck-import effect
-reads an external API; effects that write to an external system still need a
-stable idempotency key because delivery is at least once. The application
-restart tests close the runtime cleanly; abrupt termination, PostgreSQL, MySQL,
-and multi-process lease fencing are verified separately by the library's
+**Scope:** the checked-in deployment configuration runs one Node process with
+SQLite on one Docker host. It shows a real deployed workload. It does not show a
+measured traffic level or every supported topology. Its deck-import effect reads
+an external API. An effect that writes to an external system still needs a
+stable idempotency key, because delivery is at least once. The restart tests
+close the runtime cleanly. The library verifies abrupt termination, PostgreSQL,
+MySQL, and multi-process lease fencing separately in its
 [test matrix](docs/support.md),
 [failure-recovery demonstration](examples/failure-recovery/demo.ts), and
-[correctness contract](docs/correctness.md). Evaluate those guarantees and
-limits against your own workload.
+[correctness contract](docs/correctness.md). Compare those guarantees and limits
+with your own workload.
 
 ## How it works
 
-An object is addressed by its TypeScript class and application-defined ID.
-Public fields are JSON state, public methods are durable operations, and public
-getters are ordered queries.
+Solid Objects addresses an object by its TypeScript class and its
+application-defined ID. Public fields are JSON state, public methods are durable
+operations, and public getters are ordered queries.
 
 For each identity, Solid Objects:
 
@@ -157,9 +203,9 @@ claimed message. A worker that finishes JavaScript after losing its lease
 cannot commit. See the executable [failure-recovery demonstration](examples/failure-recovery/demo.ts)
 and the full [architecture](docs/architecture.md).
 
-Redis is optional wake-up infrastructure. It can reduce notification latency
-for a multi-process MySQL deployment, but the relational database remains the
-durable source of truth and polling remains the recovery path.
+Redis is optional wake-up infrastructure. It can reduce notification latency in
+a multi-process MySQL deployment. The relational database stays the durable
+source of truth, and polling stays the recovery path.
 
 Idle roles back off from the configured 100 ms fast polling interval to one
 second. Processed work and wake-up notifications reset that interval
@@ -230,7 +276,7 @@ class Room extends Actor {
 ```
 
 `version` crosses the shared invalidation channel. `hands` contributes only its
-name when its real value changes, allowing a reauthorized component endpoint to
+name when its real value changes. A reauthorized component endpoint can then
 render subscriber-specific state without a manual revision counter.
 
 The browser package handles replay, reconnection, incarnation/revision fences,
@@ -243,19 +289,31 @@ provide authentication, WebSocket transport, and rendering. See the
 These systems solve different coordination problems. The table describes their
 default unit and deployment model, not a quality ranking.
 
-| Approach                    | Serialization and state unit                          | Durable substrate                     | Additional runtime                                      | Recovery model                                 | Placement                    |
-| --------------------------- | ----------------------------------------------------- | ------------------------------------- | ------------------------------------------------------- | ---------------------------------------------- | ---------------------------- |
-| SQL transaction or row lock | Selected rows in one transaction                      | Application database                  | None                                                    | Application retries the transaction            | Application deployment       |
-| Traditional job queue       | Job or queue; ordering depends on queue configuration | Broker or queue database              | Queue workers and usually a broker                      | Retry the job                                  | Application deployment       |
-| Solid Objects               | TypeScript class plus object ID                       | Existing SQLite, PostgreSQL, or MySQL | Library in application processes                        | Retry the per-ID operation from durable state  | Application deployment       |
-| Cloudflare Durable Objects  | Object class plus globally unique ID                  | Per-object managed storage            | Cloudflare Workers platform                             | Managed object activation                      | Cloudflare-selected location |
-| Rivet Actors                | Addressable actor                                     | Actor state, KV, or per-actor SQLite  | Rivet Engine or managed compute                         | Actor sleep, wake, and persistence             | Configured Rivet deployment  |
-| DBOS                        | Workflow ID and checkpointed steps                    | PostgreSQL system database            | Library; Conductor recommended for distributed recovery | Deterministic workflow replay from checkpoints | Application deployment       |
-| Restate                     | Service handler or keyed virtual object               | Restate log and state store           | Restate server or cloud service                         | Durable handler execution and journal replay   | Restate deployment           |
+| Approach                    | Serialization and state unit                          | Durable substrate                                | Additional runtime                                      | Recovery model                                           | Placement                                                 |
+| --------------------------- | ----------------------------------------------------- | ------------------------------------------------ | ------------------------------------------------------- | -------------------------------------------------------- | --------------------------------------------------------- |
+| SQL transaction or row lock | Selected rows in one transaction                      | Application database                             | None                                                    | Application retries the transaction                      | Application deployment                                    |
+| Traditional job queue       | Job or queue; ordering depends on queue configuration | Broker or queue database                         | Queue workers and usually a broker                      | Retry the job                                            | Application deployment                                    |
+| Solid Objects               | TypeScript class plus object ID                       | Existing SQLite, PostgreSQL, or MySQL            | Library in application processes                        | Retry the per-ID operation from durable state            | Application deployment                                    |
+| Cloudflare Durable Objects  | Object class plus globally unique ID                  | Per-object managed storage                       | Cloudflare Workers platform                             | Managed object activation                                | Cloudflare-selected location                              |
+| celld                       | Object class plus object name                         | Per-object SQLite replicated to a bucket you own | celld daemon that embeds V8 and runs Wrangler bundles   | A new owner restores the object database from the bucket | Any node in your fleet, chosen by bucket compare-and-swap |
+| Rivet Actors                | Addressable actor                                     | Actor state, KV, or per-actor SQLite             | Rivet Engine or managed compute                         | Actor sleep, wake, and persistence                       | Configured Rivet deployment                               |
+| DBOS                        | Workflow ID and checkpointed steps                    | PostgreSQL system database                       | Library; Conductor recommended for distributed recovery | Deterministic workflow replay from checkpoints           | Application deployment                                    |
+| Restate                     | Service handler or keyed virtual object               | Restate log and state store                      | Restate server or cloud service                         | Durable handler execution and journal replay             | Restate deployment                                        |
 
-The sourced, dimension-by-dimension comparison—including realtime projections,
-edge placement, cross-identity transactions, and operational data access—is in
-[docs/comparisons.md](docs/comparisons.md).
+celld and Solid Objects both self-host the Durable Objects model. The difference
+is where the state lives and what you run. celld runs a daemon that embeds V8
+and executes Wrangler bundles. It gives each object its own SQLite database,
+and it replicates that database to an object-storage bucket you own. Object
+ownership moves between nodes through compare-and-swap on that bucket. Solid
+Objects runs plain TypeScript classes inside your Node processes, adds no
+daemon, and keeps object state in the SQL database the application already
+operates. Choose celld to run Workers-format code across a fleet with
+bucket-based placement. Choose Solid Objects to keep one database, no extra
+process, and an ordinary Node deployment.
+
+[docs/comparisons.md](docs/comparisons.md) holds the sourced comparison for each
+dimension: realtime projections, edge placement, cross-identity transactions,
+and operational data access.
 
 ## Requirements and supported systems
 
@@ -267,8 +325,8 @@ edge placement, cross-identity transactions, and operational data access—is in
 - optional `pg`, `mysql2`, or `redis` peer dependency only for the selected
   adapter
 
-The exact CI matrix and boundaries are documented in
-[Supported versions](docs/support.md).
+[Supported versions](docs/support.md) records the exact CI matrix and the
+boundaries.
 
 ## Operations
 
@@ -277,10 +335,10 @@ and stale-process recovery roles. The database-backed operator dashboard is an
 optional `solid-objects/web` export with deny-by-default administration policy,
 session-backed CSRF protection, and Fetch or Node/Connect mounting.
 
-The dashboard defaults to authorized read/write access. An authorized
-read-only mode removes mutations, while an explicitly public read-only mode is
-appropriate only for synthetic demo data because it exposes stored arguments,
-results, errors, identifiers, and operational metadata.
+The dashboard defaults to authorized read/write access. An authorized read-only
+mode removes the mutations. Use the explicitly public read-only mode only for
+synthetic demo data, because it exposes stored arguments, results, errors,
+identifiers, and operational metadata.
 
 Administration remains available through the JSON CLI and typed runtime
 managers. See [Operations](docs/operations.md), the [dashboard guide](docs/dashboard.md),
@@ -288,11 +346,11 @@ and [Configuration](docs/configuration.md).
 
 ## Design provenance
 
-Solid Objects JS is a Node.js and TypeScript implementation informed by the
-Ruby [`solid_objects`](https://github.com/cardmagic/solid_objects) design. It
-began at the `0.12` capability generation because the initial implementation
-targeted the Ruby `0.12` contract; the number does not represent twelve earlier
-JavaScript release generations.
+Solid Objects JS is a Node.js and TypeScript implementation. The Ruby
+[`solid_objects`](https://github.com/cardmagic/solid_objects) design informed
+it. It began at the `0.12` capability generation, because the first
+implementation targeted the Ruby `0.12` contract. That number does not represent
+twelve earlier JavaScript release generations.
 
 The TypeScript implementation is not a source translation. It redesigned the
 API around inferred TypeScript references, Node runtime supervision,
@@ -304,9 +362,9 @@ runtime differences.
 The Ruby project first appeared publicly on August 6, 2026, and this TypeScript
 repository on August 13, 2026. Both remain early releases. The
 [`mtg-playmat`](https://github.com/cardmagic/mtg-playmat) application uses the
-Ruby actor and realtime design, while
+Ruby actor and realtime design.
 [Shuffle Up and Play](https://github.com/cardmagic/shuffleupandplay) uses the
-TypeScript package in the deployed Node and SQLite topology documented above.
+TypeScript package in the deployed Node and SQLite topology above.
 
 ## Documentation
 

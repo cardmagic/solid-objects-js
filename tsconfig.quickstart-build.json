@@ -8,5 +8,5 @@
     "sourceMap": true,
     "noEmit": false
   },
-  "include": ["examples/sqlite-quickstart.ts"]
+  "include": ["examples/sqlite-quickstart.ts", "examples/quickstart-report.ts"]
 }

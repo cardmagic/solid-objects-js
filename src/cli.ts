@@ -39,7 +39,7 @@ export async function runCli(
   const parsed = parseArguments(commandArguments)
   const write = options.write ?? ((value: string) => process.stdout.write(value))
   if (command === "quickstart") {
-    assertOptions(parsed, { command })
+    assertOptions(parsed, { command, flags: ["json", "yes"] })
     assertNoPositionals(parsed, command)
     const module = (await import(
       new URL("./examples/sqlite-quickstart.js", import.meta.url).href
@@ -47,11 +47,15 @@ export async function runCli(
       runQuickstart(options: {
         signal?: AbortSignal
         write: (value: string) => void
+        format: "report" | "json"
+        confirm?: () => boolean
       }): Promise<void>
     }
     await module.runQuickstart({
       ...(options.signal === undefined ? {} : { signal: options.signal }),
+      ...(parsed.flags.has("yes") ? { confirm: () => true } : {}),
       write,
+      format: parsed.flags.has("json") ? "json" : "report",
     })
     return 0
   }
@@ -174,7 +178,7 @@ function parseArguments(argumentsValue: readonly string[]): ParsedArguments {
       continue
     }
     const name = argument === "-c" ? "config" : argument.slice(2)
-    if (name === "execute" || name === "skip-round-trip") {
+    if (name === "execute" || name === "skip-round-trip" || name === "json" || name === "yes") {
       flags.add(name)
       continue
     }
@@ -250,7 +254,7 @@ function help(): string {
   return `Usage: solid-objects <command> [options]
 
 Commands:
-  quickstart
+  quickstart [--json] [--yes]
   start
   doctor [--skip-round-trip]
   status

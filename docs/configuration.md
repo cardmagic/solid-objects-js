@@ -59,8 +59,8 @@ runtime role enabled. Broadcast workers are started only when `broadcast` or
 Consecutive empty passes double it up to
 `idlePollingIntervalMilliseconds`. Actor workers never wait longer than
 `leaseRenewalIntervalMilliseconds`. Set the fast and idle values equal for a
-fixed cadence. A custom wake-up adapter should return `true` for a notification
-and `false` for a timeout; an older adapter that returns `void` remains
+fixed cadence. A custom wake-up adapter must return `true` for a notification
+and `false` for a timeout. An older adapter that returns `void` remains
 compatible and keeps the fast cadence. Wake-ups reduce latency, while database
 polling remains the correctness path.
 
