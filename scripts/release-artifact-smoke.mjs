@@ -109,6 +109,17 @@ try {
     false,
     "quickstart must not wait for an answer when stdin is not a terminal",
   )
+
+  const piped = await run(
+    "bash",
+    [
+      "-c",
+      'set -o pipefail; "$0" quickstart | head -3',
+      join(projectDirectory, "node_modules/.bin/solid-objects"),
+    ],
+    { cwd: projectDirectory },
+  )
+  assert(piped.includes("Solid Objects quickstart"), "a closed pipe must still print the heading")
 } finally {
   await rm(temporaryDirectory, { recursive: true })
 }
