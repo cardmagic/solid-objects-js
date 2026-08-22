@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from "vitest"
-import "../src/platform/node-context-store.js"
+import "../src/platform/node.js"
 import { Actor } from "../src/actor.js"
 import { configure, type SolidObjectsRuntime } from "../src/runtime.js"
 import { sqliteWasm, type SQLiteWasmDatabase } from "../src/database/sqlite-wasm.js"

@@ -60,6 +60,7 @@ const entryPoints = [
   "src/database/mysql.ts",
   "src/wake-up/redis.ts",
   "src/browser/index.ts",
+  "src/browser/host.ts",
   "src/web/index.ts",
 ]
 

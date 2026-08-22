@@ -1,4 +1,4 @@
-import "./platform/node-context-store.js"
+import "./platform/node.js"
 import { resolve } from "node:path"
 import { pathToFileURL } from "node:url"
 import { SolidObjectsRuntime } from "./runtime.js"

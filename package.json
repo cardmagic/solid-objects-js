@@ -66,6 +66,10 @@
       "types": "./dist/browser/index.d.ts",
       "import": "./dist/browser/index.js"
     },
+    "./browser/host": {
+      "types": "./dist/browser/host.d.ts",
+      "import": "./dist/browser/host.js"
+    },
     "./web": {
       "types": "./dist/web/index.d.ts",
       "import": "./dist/web/index.js"

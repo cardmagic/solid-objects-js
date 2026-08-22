@@ -18,7 +18,7 @@ describe("context store registry", () => {
   })
 
   it("uses the AsyncLocalStorage factory after the node platform module loads", async () => {
-    await import("../src/platform/node-context-store.js")
+    await import("../src/platform/node.js")
     const store = createContextStore<{ value: number }>()
     const observed = await store.run({ value: 7 }, async () => {
       await Promise.resolve()
@@ -29,7 +29,7 @@ describe("context store registry", () => {
   })
 
   it("keeps the AsyncLocalStorage store across interleaved async runs", async () => {
-    await import("../src/platform/node-context-store.js")
+    await import("../src/platform/node.js")
     const store = createContextStore<{ value: number }>()
     const results = await Promise.all(
       [1, 2, 3].map((value) =>

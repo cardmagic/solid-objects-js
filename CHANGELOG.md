@@ -15,6 +15,18 @@
 - Add `check:browser-imports` to `pnpm run check`. The script walks the
   import graph of the browser-safe modules and fails when a `node:` module
   or a server-only driver reaches that graph.
+- Add `solid-objects/browser/host`, the entry point for a runtime host
+  inside a browser worker. An import registers the browser platform: a
+  turn-scoped context store and a browser host identity. The module
+  re-exports the core runtime API and the WASM adapter. A Playwright test
+  runs the full runtime in a Chromium module worker and proves durable
+  actor state across a page reload. This is the first stage of milestone M3
+  ([#17](https://github.com/cardmagic/solid-objects-js/issues/17)).
+- Replace the `Buffer.byteLength` payload size check with `TextEncoder`, so
+  serialization works without the Node `Buffer` global.
+- Route the process identity (hostname, process id, runtime version)
+  through `src/platform/host-identity.ts`. The repository no longer imports
+  `node:os` or reads `process.pid` directly.
 - Add `solid-objects/database/sqlite-wasm`, a browser-safe `Database`
   adapter on `@sqlite.org/sqlite-wasm` (an optional peer dependency). The
   full runtime passes its round-trip test against this adapter in Node, and

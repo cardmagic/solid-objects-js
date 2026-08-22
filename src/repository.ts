@@ -1,5 +1,5 @@
 import { randomUUID } from "./platform/uuid.js"
-import { hostname } from "node:os"
+import { hostIdentity } from "./platform/host-identity.js"
 import {
   ActorDestroyed,
   IdempotencyConflict,
@@ -65,9 +65,12 @@ export class Repository {
         [
           processId,
           kind,
-          hostname(),
-          process.pid,
-          JSON.stringify({ solidObjectsVersion: VERSION, nodeVersion: process.version }),
+          hostIdentity().hostname,
+          hostIdentity().hostProcessId,
+          JSON.stringify({
+            solidObjectsVersion: VERSION,
+            nodeVersion: hostIdentity().runtimeVersion,
+          }),
           now,
           now,
         ],
@@ -126,7 +129,11 @@ export class Repository {
          WHERE shutdown_state <> 'stopped' AND heartbeat_at_ms > ?
            AND (hostname <> ? OR host_process_id <> ?)
          LIMIT 1`,
-        [now - this.settings.processAliveThresholdMilliseconds, hostname(), process.pid],
+        [
+          now - this.settings.processAliveThresholdMilliseconds,
+          hostIdentity().hostname,
+          hostIdentity().hostProcessId,
+        ],
       )
       return row !== undefined
     })

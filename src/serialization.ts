@@ -2,12 +2,13 @@ import { InvalidPayload, PayloadTooLarge } from "./errors.js"
 import type { DeepReadonly, JsonValue } from "./types.js"
 
 const MAX_NESTING = 100
+const utf8Encoder = new TextEncoder()
 
 export function normalizeJson(value: unknown, options: { maxBytes?: number } = {}): JsonValue {
   const normalized = normalize(value, 0)
   const encoded = JSON.stringify(normalized)
 
-  if (options.maxBytes !== undefined && Buffer.byteLength(encoded) > options.maxBytes) {
+  if (options.maxBytes !== undefined && utf8Encoder.encode(encoded).length > options.maxBytes) {
     throw new PayloadTooLarge(`serialized value exceeds ${options.maxBytes} bytes`)
   }
 

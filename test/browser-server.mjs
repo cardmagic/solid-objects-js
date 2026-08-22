@@ -76,8 +76,8 @@ const server = createServer(async (request, response) => {
     response.end("<!doctype html><html><body></body></html>")
     return
   }
-  if (pathname === "/sqlite-wasm-worker.mjs") {
-    await serveFile({ response, path: resolve(browserFixtureRoot, "sqlite-wasm-worker.mjs") })
+  if (pathname === "/sqlite-wasm-worker.mjs" || pathname === "/runtime-worker.mjs") {
+    await serveFile({ response, path: resolve(browserFixtureRoot, pathname.slice(1)) })
     return
   }
   if (pathname.startsWith("/vendor/sqlite-wasm/")) {

@@ -5,6 +5,7 @@ import ts from "typescript"
 
 const repositoryRoot = path.resolve(import.meta.dirname, "..")
 const browserSafeRoots = [
+  "src/browser/host.ts",
   "src/browser/index.ts",
   "src/context.ts",
   "src/database/deadline.ts",

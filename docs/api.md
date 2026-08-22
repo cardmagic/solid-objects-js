@@ -335,6 +335,22 @@ component registry reacts to names in either location.
 The wire format, trust boundary, revision rules, and component semantics are in
 [Browser protocol](browser-protocol.md).
 
+## `solid-objects/browser/host`
+
+The entry point for a runtime host inside a browser worker. An import of
+this module registers the browser platform: a turn-scoped context store and
+a browser host identity. Do not import it in the same process as the Node
+entry points; the last registration wins.
+
+- Re-exports `Actor`, `broadcastInvalidation`, `broadcastValue`, `configure`,
+  `createRuntime`, `SolidObjectsRuntime`, and `VERSION` from the core, and
+  `sqliteWasm`, `SQLiteWasmDatabase`, and `SQLiteWasmDatabaseOptions` from
+  the WASM adapter, so a worker needs one import.
+- The turn-scoped context store expects serialized actor turns. One worker
+  hosts one runtime. A page talks to that worker through messages, not
+  through direct actor references.
+- Alarms and reminders fire only while the hosting worker is alive.
+
 ## `solid-objects/web`
 
 - `createDashboard(options)` creates an immutable `SolidObjectsDashboard` with
