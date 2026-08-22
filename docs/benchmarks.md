@@ -143,12 +143,12 @@ Measured on August 15, 2026 with the prepared `0.13.0` source tree:
 | four processes | cold many | synchronous  | 13.68 | 1088.93 | 2186.30 | 2519.92 |
 | four processes | cold many | asynchronous | 11.38 | 1209.84 | 2532.38 | 2730.74 |
 
-The poor throughput and tail latency in cold and asynchronous cases are
-observed limitations, not capacity recommendations. The small asynchronous
-yield changed scheduling enough to improve some cases and worsen others;
-repeat runs on application-shaped payloads are required before drawing a
-general conclusion. PostgreSQL 14, MySQL 8.0, and other database versions are
-covered by integration tests but were not benchmarked.
+The poor throughput and tail latency in the cold and asynchronous cases are
+observed limitations. They are not capacity recommendations. The small
+asynchronous yield changed the schedule enough to improve some cases and worsen
+others. Repeat the runs on application-shaped payloads before you draw a general
+conclusion. Integration tests cover PostgreSQL 14, MySQL 8.0, and other database
+versions, but this harness did not measure them.
 
 ## Sources of bias
 

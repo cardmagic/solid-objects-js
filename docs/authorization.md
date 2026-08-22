@@ -15,12 +15,13 @@ WebSocket or stream connection, passes that fresh server-side subject as the
 session's `authorizationContext`, and forwards incoming protocol messages to
 `session.receive()`. Every subscribe request calls `authorizeSubscription`
 before actor type lookup, so denied callers cannot probe the registry. A new
-connection must use a newly resolved authorization context; do not copy a user
-object from an earlier request or trust an actor ID supplied by the browser.
+connection must use a newly resolved authorization context. Do not copy a user
+object from an earlier request. Do not trust an actor ID that the browser
+supplies.
 
-Successful subscription authorization allows the `broadcastValue()` portion
-of the explicit `observables()` projection for that actor, including the
-immediate committed replay. Unwrapped observables and values marked with
+Successful subscription authorization allows the `broadcastValue()` portion of
+the explicit `observables()` projection for that actor. The immediate committed
+replay is part of that portion. Unwrapped observables and values marked with
 `broadcastInvalidation()` disclose only their names, not their values.
 Subscription authorization does not
 authorize actor state, operations, queries, destruction, or administration.

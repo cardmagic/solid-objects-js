@@ -13,9 +13,9 @@ not cross a process boundary. When live processes share the database without a
 configured adapter, the runtime logs
 `solid_objects.polling_only_cross_process_wake_up` once. Use PostgreSQL
 notifications or optional Redis Pub/Sub when separate processes need prompt
-delivery; without one, newly committed work can wait up to the current idle
-polling interval. Notification errors are isolated and logged by role and error
-class without failing the committed work.
+delivery. Without one of them, newly committed work can wait for the current
+idle polling interval. The runtime isolates notification errors and logs them by
+role and error class. The committed work does not fail.
 
 The warning excludes process rows with the current hostname and host process ID.
 It can therefore appear during a rolling deployment or restart overlap when an
@@ -53,8 +53,8 @@ isolated backlogs. `solid_objects.activation.yielded` reports the actor
 identity, turns processed, and remaining due membership count.
 
 `claimScanLimit` defaults to 100. Global claims inspect a bounded ordered set of
-actor identities and continue after a lost lease race, preserving worker
-parallelism without an unbounded scan.
+actor identities. They continue after a lost lease race. Worker parallelism
+stays, and the scan stays bounded.
 
 Workers retain a hydrated actor and its fenced lease for
 `idleDeactivationTimeoutMilliseconds`, which defaults to 30 seconds. Idle
@@ -66,15 +66,17 @@ longer polling.
 
 Actors can override protected `onActivate()` and `onDeactivate()` methods for
 nondurable, process-local resources. Either hook may be asynchronous. Hook code
-runs under the application-write guard, and `onDeactivate()` is best effort:
-it may not run after a crash, cannot establish a correctness guarantee, and a
-failure is logged without preventing lease release.
+runs under the application-write guard. `onDeactivate()` is best effort:
+
+- it may not run after a crash;
+- it cannot establish a correctness guarantee;
+- the runtime logs a failure and still releases the lease.
 
 `runtime.administration.processes()` returns the same administration-authorized
 immutable process metadata as `runtime.processes.all()`, with hostname, host
-process ID, Node and Solid Objects versions, and a current `stale` flag. It is
-safe to call through the runtime's database adapter while workers are running;
-the query is serialized with other database access and does not require a
+process ID, Node and Solid Objects versions, and a current `stale` flag. You can
+safely call it through the runtime's database adapter while the workers run. The
+runtime serializes the query with the other database access, and it needs no
 second SQLite connection. Graceful shutdown first persists `draining` with a
 `shutdownRequestedAt` timestamp, then deactivates owned actors and atomically
 releases every role claim before persisting `stopped`. `cleanup()` reauthorizes
@@ -82,7 +84,8 @@ separately and performs the same release for stale running or draining
 processes. The cleanup count is instrumented; application payloads are not.
 
 Committed calls and `message.wait()` apply `timeoutMilliseconds` to the entire
-durable wait, beginning before enqueue or message lookup. Adapter deadlines
+durable wait. The clock starts before enqueue or message lookup. Adapter
+deadlines
 bound serialized SQLite access and lock waits, PostgreSQL pool acquisition,
 statements, and locks, and MySQL pool acquisition, queries, and transaction
 lock waits. A `SyncEnqueueTimeout` means the enqueue transaction did not commit
@@ -112,10 +115,14 @@ ID and later calls return a reference to that same message.
 
 Self-scheduling actors need a low-frequency reconciler because application
 alarms can still be lost. `runtime.reconciliation` provides administration-
-authorized, read-only views for active instances, quiet instances without
-ready work, claimed work, or scheduled reminders, migrated state batches, and
-orphaned actor IDs. Collection reads use a maximum page size of 1,000 and a
-stable cursor.
+authorized, read-only views for:
+
+- active instances;
+- quiet instances with no ready work, claimed work, or scheduled reminder;
+- migrated state batches;
+- orphaned actor IDs.
+
+Collection reads use a maximum page size of 1,000 and a stable cursor.
 
 The host application supplies its current owner IDs to `orphaned()` because
 Node applications do not share an Active Record relation abstraction. Send
@@ -140,9 +147,16 @@ actor type appears in `instanceRetentionByActorType`, and remains an explicit
 operator action because it deletes the entire actor incarnation.
 
 Pruning selects and rechecks at most `pruneBatchSize` rows per transaction. It
-preserves ready and claimed messages, dead-letter originals and replacements,
-unfinished effects and broadcasts, scheduled reminders, leased or paused
-instances, and processes that still own a claim or activation. Instance
+keeps:
+
+- ready and claimed messages;
+- dead-letter originals and replacements;
+- unfinished effects and broadcasts;
+- scheduled reminders;
+- leased or paused instances;
+- processes that still own a claim or an activation.
+
+Instance
 expiration removes the entire actor incarnation and all of its retained
 history, so use it only for actor types whose state is safely disposable.
 

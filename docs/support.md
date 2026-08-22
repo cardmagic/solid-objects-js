@@ -28,19 +28,26 @@ can change. Prefer 24.15.0 or newer where the choice is free.
 
 ## What the matrix covers
 
-The default suite exercises actor definitions, mailbox ordering, state
-migrations, leases, fencing, retries, dead letters, effects, reminders,
-realtime outboxes, administration, authorization, retention, lifecycle,
-timeouts, and SQLite behavior.
+The default suite exercises:
+
+- actor definitions, mailbox order, and state migrations;
+- leases, fencing, retries, and dead letters;
+- effects, reminders, and realtime outboxes;
+- administration, authorization, and retention;
+- lifecycle, timeouts, and SQLite behavior.
 
 Database jobs run the real adapter suites against PostgreSQL and MySQL servers.
 The Redis job runs wake-up behavior against a real Redis server. The browser
 job uses native WebSocket connections and Chromium for replay, payload,
 component, dashboard, and revision-fence behavior.
 
-The quality job also builds the ESM package, inspects `npm pack`, installs the
-generated tarball in a clean temporary project, runs its packaged SQLite
-quickstart, and executes the multi-process recovery demonstration.
+The quality job also:
+
+1. builds the ESM package;
+2. inspects `npm pack`;
+3. installs the tarball in a clean temporary project;
+4. runs the packaged SQLite quickstart;
+5. executes the multi-process recovery demonstration.
 
 ## Boundaries
 
