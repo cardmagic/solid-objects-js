@@ -3,8 +3,8 @@
 [![CI](https://github.com/cardmagic/solid-objects-js/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/cardmagic/solid-objects-js/actions/workflows/ci.yml)
 [![npm](https://img.shields.io/npm/v/solid-objects)](https://www.npmjs.com/package/solid-objects)
 
-Self-hosted, distributed Durable Objects in Node without a daemon using your
-existing SQL database.
+Durable Objects for Node, in the SQL database you already run. No daemon, no
+broker, and no new datastore.
 
 Build addressable TypeScript objects with serialized calls and durable state
 using SQLite, PostgreSQL, or MySQL, without deploying to Cloudflare.
@@ -95,6 +95,34 @@ verifies that:
 - their return values are the complete sequence from `1` through `25`;
 - operations for two different identities overlap in time; and
 - the runtime closes and temporary state is removed.
+
+## Measured behavior
+
+One developer machine, not a capacity promise. Apple M5, Node.js 26.7.0, 250
+measured operations at client concurrency 16, on August 15 and 16, 2026.
+
+| Measurement                                                   |           Result |
+| ------------------------------------------------------------- | ---------------: |
+| Committed operations per second, one hot identity, SQLite     |  95 to 449 ops/s |
+| The same identity across four processes, SQLite               | 453 to 487 ops/s |
+| The same identity across four processes, PostgreSQL           |   84 to 86 ops/s |
+| The same identity across four processes, MySQL                |   28 to 30 ops/s |
+| Idle wake-up to committed result, one process                 |      2.66 ms p50 |
+| Idle wake-up to committed result, two processes, polling only |     1,006 ms p50 |
+| Idle CPU per process, 100 ms fast interval                    |           0.121% |
+| Idle database passes per second, after backoff                |              4.0 |
+
+Each range spans the synchronous and the asynchronous handler shape. Calls to
+one identity are serialized on purpose, so the per-call latency in these runs
+includes the wait behind the other fifteen concurrent callers. Throughput is
+the honest number for that case.
+
+The polling-only row is the tradeoff to know before you deploy: use PostgreSQL
+notifications or the optional Redis Pub/Sub when separate processes need
+low-latency delivery.
+
+Conditions, sources of bias, and the complete matrix for all three databases
+are in [Benchmarks](docs/benchmarks.md).
 
 ## What Solid Objects is for
 
