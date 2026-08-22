@@ -67,18 +67,48 @@ try {
   assert(resolvedModule.includes("/node_modules/solid-objects/dist/index.js"))
   assert.equal(resolvedModule.startsWith(`file://${repositoryRoot}`), false)
 
-  const quickstart = await run(
+  const quickstartJson = await run(
     join(projectDirectory, "node_modules/.bin/solid-objects"),
-    ["quickstart"],
+    ["quickstart", "--json"],
     { cwd: projectDirectory },
   )
-  const result = JSON.parse(quickstart)
+  const result = JSON.parse(quickstartJson)
   assert.deepEqual(result, {
     sameIdentityCalls: 25,
     sameIdentityFinalState: 25,
     independentIdentitiesOverlapped: true,
     temporaryStateRemoved: true,
   })
+
+  const quickstartReport = await run(
+    join(projectDirectory, "node_modules/.bin/solid-objects"),
+    ["quickstart"],
+    { cwd: projectDirectory },
+  )
+  for (const expectedText of [
+    "This command will:",
+    "send 25 concurrent calls to one identity;",
+    "The actor it runs:",
+    "class Counter extends Actor {",
+    "PASS  25 concurrent calls to one identity",
+    "PASS  Two different identities ran at the same time",
+    "PASS  Temporary state removed",
+    "What each PASS means",
+    "npm install solid-objects",
+    "where would the solid-objects library be best used in this app?",
+  ]) {
+    assert(quickstartReport.includes(expectedText), `quickstart report is missing ${expectedText}`)
+  }
+  assert(
+    quickstartReport.indexOf("This command will:") <
+      quickstartReport.indexOf("PASS  25 concurrent calls to one identity"),
+    "quickstart must state its plan before it reports results",
+  )
+  assert.equal(
+    quickstartReport.includes("Run it now?"),
+    false,
+    "quickstart must not wait for an answer when stdin is not a terminal",
+  )
 } finally {
   await rm(temporaryDirectory, { recursive: true })
 }
