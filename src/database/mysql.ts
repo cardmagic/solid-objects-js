@@ -1,3 +1,4 @@
+import "../platform/node-context-store.js"
 import mysqlDriver, {
   type Pool,
   type PoolConnection,

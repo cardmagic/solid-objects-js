@@ -1,3 +1,5 @@
+import "./platform/node-context-store.js"
+
 export {
   Actor,
   broadcastInvalidation,

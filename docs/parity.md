@@ -106,6 +106,16 @@ of both runtimes, not a gap between them.
 | Personalized payload broadcasts                              | Native         | Static typed projections run against committed state under each fresh subscriber context, reauthorize as queries, isolate failures, and carry independent revision fences.                                                                                                                                         |
 | Real-browser compatibility suite                             | Native         | Playwright exercises subscription replay over native WebSocket, incarnation/revision fences, payload delivery, component batching, and cancellation in Chromium.                                                                                                                                                   |
 
+## Node-only work in progress
+
+An in-browser runtime with SQLite WASM storage is planned for this package
+([#17](https://github.com/cardmagic/solid-objects-js/issues/17)). It is a
+JavaScript-only capability. The Ruby gem has no browser target, so no Ruby
+parity row will exist for it. Milestone M1 is complete: the shared modules
+no longer import Node built-in modules, a registered platform factory
+supplies async context propagation, and `pnpm run check` enforces a
+Node-free import graph for the browser-safe modules.
+
 ## Rails-specific surfaces
 
 Rails generators, Active Record models/controllers, Turbo rendering, and

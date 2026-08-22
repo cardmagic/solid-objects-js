@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto"
+import { randomUUID } from "./platform/uuid.js"
 import { Actor } from "./actor.js"
 import type { DatabaseConnection } from "./database/types.js"
 import { initialStateFor, validateDefinition } from "./definition.js"

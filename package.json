@@ -69,7 +69,8 @@
   },
   "scripts": {
     "build": "pnpm run clean && tsc -p tsconfig.build.json && tsc -p tsconfig.quickstart-build.json && node scripts/prepare-executable.mjs",
-    "check": "pnpm run check:parameters && pnpm run check:documentation && tsc -p tsconfig.json --noEmit && tsc -p tsconfig.examples.json --noEmit",
+    "check": "pnpm run check:parameters && pnpm run check:documentation && pnpm run check:browser-imports && tsc -p tsconfig.json --noEmit && tsc -p tsconfig.examples.json --noEmit",
+    "check:browser-imports": "node scripts/check-browser-imports.mjs",
     "check:documentation": "node scripts/check-documentation.mjs",
     "check:parameters": "node scripts/check-parameter-style.mjs",
     "clean": "node scripts/clean.mjs",

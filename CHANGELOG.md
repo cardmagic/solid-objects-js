@@ -1,5 +1,21 @@
 # Changelog
 
+## Unreleased
+
+- Add a platform seam for async context propagation
+  (`src/platform/context-store.ts`). Shared modules no longer import
+  `node:async_hooks` directly. Node entry points register an
+  `AsyncLocalStorage` factory. A `TurnContextStore` gives a browser host a
+  turn-scoped store for serialized actor turns. This is milestone M1 of the
+  in-browser runtime plan
+  ([#17](https://github.com/cardmagic/solid-objects-js/issues/17)).
+- Route UUID generation through `src/platform/uuid.ts`, which uses the
+  standard `crypto.randomUUID()`. Shared modules no longer import
+  `node:crypto`.
+- Add `check:browser-imports` to `pnpm run check`. The script walks the
+  import graph of the browser-safe modules and fails when a `node:` module
+  or a server-only driver reaches that graph.
+
 ## 0.14.0 - 2026-08-18
 
 - Add `runtime.enqueueInternalMessage()` and

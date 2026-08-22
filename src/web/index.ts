@@ -1,3 +1,4 @@
+import "../platform/node-context-store.js"
 import { randomBytes, timingSafeEqual } from "node:crypto"
 import { Unauthorized, SolidObjectsError } from "../errors.js"
 import {
