@@ -3,11 +3,11 @@
 [![CI](https://github.com/cardmagic/solid-objects-js/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/cardmagic/solid-objects-js/actions/workflows/ci.yml)
 [![npm](https://img.shields.io/npm/v/solid-objects)](https://www.npmjs.com/package/solid-objects)
 
-Open Source Durable Objects for Node, in the SQL database you already run. No
-daemon, no broker, and no new datastore.
+Open Source Durable Objects for JavaScript, in the SQL database you already run.
+No daemon, no broker, and no new datastore.
 
 Build addressable TypeScript objects with serialized calls and durable state on
-SQLite, PostgreSQL, or MySQL. You do not need Cloudflare for this.
+SQLite, PostgreSQL, or MySQL. You don't need Cloudflare for this.
 
 Concurrent calls for one identity cannot overwrite each other. Calls for
 different identities can run at the same time.
@@ -84,46 +84,11 @@ its scoped temporary database before exiting.
 It states its plan first, prints the `Counter` class it runs, and asks for
 permission. It executes the work only after you answer, and then it explains
 what each result proves. It asks nothing when stdin is not a terminal, so CI
-never waits. Add `--yes` to skip the question in a terminal.
-
-The plan and the results of one local run were:
-
-```text
-Solid Objects quickstart
-
-This command will:
-
-  1. create a temporary SQLite database;
-  2. send 25 concurrent calls to one identity;
-  3. run two other identities at the same time;
-  4. close the runtime and delete the temporary database.
-
-Results
-
-PASS  25 concurrent calls to one identity
-      They ran in order on one mailbox.
-      The committed state is 25.
-      The return values were the complete sequence 1 through 25.
-PASS  Two different identities ran at the same time
-      Their execution windows overlapped, so an unrelated identity
-      never waits behind this one.
-PASS  Temporary state removed
-      The scoped temporary SQLite database was deleted at exit.
-```
+never waits. Add `--yes` to skip the question in a terminal, or `--json` for a
+machine-readable summary.
 
 The executable asserts rather than merely printing a plausible result. It exits
 with a non-zero code when one of those checks fails.
-
-Add `--json` for the machine-readable summary that CI can parse:
-
-```json
-{
-  "sameIdentityCalls": 25,
-  "sameIdentityFinalState": 25,
-  "independentIdentitiesOverlapped": true,
-  "temporaryStateRemoved": true
-}
-```
 
 ## What Solid Objects is for
 
