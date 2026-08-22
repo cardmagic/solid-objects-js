@@ -6,6 +6,13 @@ import { sqlite } from "../dist/database/sqlite.js"
 import { createDashboard, createNodeDashboardHandler } from "../dist/web/index.js"
 
 const root = resolve(import.meta.dirname, "../dist")
+const sqliteWasmRoot = resolve(import.meta.dirname, "../node_modules/@sqlite.org/sqlite-wasm/dist")
+const browserFixtureRoot = resolve(import.meta.dirname, "browser")
+const contentTypes = {
+  ".js": "text/javascript; charset=utf-8",
+  ".mjs": "text/javascript; charset=utf-8",
+  ".wasm": "application/wasm",
+}
 class DashboardBrowserActor extends Actor {
   static actorType = "DashboardBrowserActor"
   count = 0
@@ -69,22 +76,44 @@ const server = createServer(async (request, response) => {
     response.end("<!doctype html><html><body></body></html>")
     return
   }
+  if (pathname === "/sqlite-wasm-worker.mjs") {
+    await serveFile({ response, path: resolve(browserFixtureRoot, "sqlite-wasm-worker.mjs") })
+    return
+  }
+  if (pathname.startsWith("/vendor/sqlite-wasm/")) {
+    const vendorPath = resolve(sqliteWasmRoot, `.${pathname.slice("/vendor/sqlite-wasm".length)}`)
+    if (!vendorPath.startsWith(`${sqliteWasmRoot}/`)) {
+      response.writeHead(404)
+      response.end()
+      return
+    }
+    await serveFile({ response, path: vendorPath })
+    return
+  }
   const path = resolve(root, `.${pathname}`)
   if (!path.startsWith(`${root}/`)) {
     response.writeHead(404)
     response.end()
     return
   }
+  await serveFile({ response, path })
+})
+
+async function serveFile({ response, path }) {
   try {
-    const contents = await readFile(path)
-    response.writeHead(200, {
-      "content-type": extname(path) === ".js" ? "text/javascript; charset=utf-8" : "text/plain",
-    })
+    let contents = await readFile(path)
+    const contentType = contentTypes[extname(path)] ?? "text/plain"
+    if (extname(path) === ".js" || extname(path) === ".mjs") {
+      contents = contents
+        .toString("utf-8")
+        .replaceAll('"@sqlite.org/sqlite-wasm"', '"/vendor/sqlite-wasm/index.mjs"')
+    }
+    response.writeHead(200, { "content-type": contentType })
     response.end(contents)
   } catch {
     response.writeHead(404)
     response.end()
   }
-})
+}
 
 server.listen(4179, "127.0.0.1")

@@ -8,6 +8,7 @@ const browserSafeRoots = [
   "src/browser/index.ts",
   "src/context.ts",
   "src/database/deadline.ts",
+  "src/database/sqlite-wasm.ts",
   "src/database/transaction-context.ts",
   "src/database/types.ts",
   "src/platform/context-store.ts",

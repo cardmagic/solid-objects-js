@@ -275,6 +275,18 @@ and `SyncTimeoutWaitingOn` type timeout diagnostics. See
 - `SQLiteDatabase`: `Database` implementation and `close()` owner.
 - `SQLiteDatabaseOptions`: path, busy timeout, and lock retry options.
 
+## `solid-objects/database/sqlite-wasm`
+
+- `sqliteWasm(options)`: construct `SQLiteWasmDatabase` asynchronously. The
+  first call loads the `@sqlite.org/sqlite-wasm` module.
+- `SQLiteWasmDatabase`: `Database` implementation on SQLite WASM and `close()`
+  owner. It runs in a browser and in Node. One host owns the database file;
+  the adapter serializes access on one connection.
+- `SQLiteWasmDatabaseOptions`: `path` plus a `storage` mode. `"temporary"`
+  (the default) keeps data for the life of the process or page.
+  `"persistent"` stores data in the browser origin's OPFS through the SQLite
+  SAH pool VFS, and fails fast where OPFS is unavailable.
+
 ## `solid-objects/database/postgresql`
 
 - `postgresql(options)`: construct `PostgreSQLDatabase`.

@@ -111,10 +111,15 @@ of both runtimes, not a gap between them.
 An in-browser runtime with SQLite WASM storage is planned for this package
 ([#17](https://github.com/cardmagic/solid-objects-js/issues/17)). It is a
 JavaScript-only capability. The Ruby gem has no browser target, so no Ruby
-parity row will exist for it. Milestone M1 is complete: the shared modules
-no longer import Node built-in modules, a registered platform factory
-supplies async context propagation, and `pnpm run check` enforces a
-Node-free import graph for the browser-safe modules.
+parity row will exist for it. Milestones M1 and M2 are complete:
+
+- M1: the shared modules no longer import Node built-in modules, a
+  registered platform factory supplies async context propagation, and
+  `pnpm run check` enforces a Node-free import graph for the browser-safe
+  modules.
+- M2: `solid-objects/database/sqlite-wasm` implements the `Database`
+  contract on SQLite WASM. The full runtime passes a round-trip test
+  against it, and Playwright proves OPFS persistence across a page reload.
 
 ## Rails-specific surfaces
 

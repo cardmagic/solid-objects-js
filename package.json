@@ -46,6 +46,10 @@
       "types": "./dist/database/sqlite.d.ts",
       "import": "./dist/database/sqlite.js"
     },
+    "./database/sqlite-wasm": {
+      "types": "./dist/database/sqlite-wasm.d.ts",
+      "import": "./dist/database/sqlite-wasm.js"
+    },
     "./database/postgresql": {
       "types": "./dist/database/postgresql.d.ts",
       "import": "./dist/database/postgresql.js"
@@ -92,6 +96,7 @@
   },
   "devDependencies": {
     "@playwright/test": "^1.62.1",
+    "@sqlite.org/sqlite-wasm": "3.53.0-build1",
     "@types/node": "^24.0.0",
     "@types/pg": "^8.21.0",
     "@types/ws": "^8.18.1",
@@ -105,11 +110,15 @@
     "ws": "^8.21.3"
   },
   "peerDependencies": {
+    "@sqlite.org/sqlite-wasm": ">=3.50.0-build1",
     "mysql2": "^3.23.3",
     "pg": "^8.23.0",
     "redis": "^6.2.1"
   },
   "peerDependenciesMeta": {
+    "@sqlite.org/sqlite-wasm": {
+      "optional": true
+    },
     "mysql2": {
       "optional": true
     },

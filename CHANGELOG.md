@@ -15,6 +15,13 @@
 - Add `check:browser-imports` to `pnpm run check`. The script walks the
   import graph of the browser-safe modules and fails when a `node:` module
   or a server-only driver reaches that graph.
+- Add `solid-objects/database/sqlite-wasm`, a browser-safe `Database`
+  adapter on `@sqlite.org/sqlite-wasm` (an optional peer dependency). The
+  full runtime passes its round-trip test against this adapter in Node, and
+  a Playwright test proves transactions, rollback, and OPFS persistence
+  across a page reload in Chromium. This is milestone M2 of the in-browser
+  runtime plan
+  ([#17](https://github.com/cardmagic/solid-objects-js/issues/17)).
 
 ## 0.14.0 - 2026-08-18
 
