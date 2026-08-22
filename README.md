@@ -3,11 +3,11 @@
 [![CI](https://github.com/cardmagic/solid-objects-js/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/cardmagic/solid-objects-js/actions/workflows/ci.yml)
 [![npm](https://img.shields.io/npm/v/solid-objects)](https://www.npmjs.com/package/solid-objects)
 
-Durable Objects for Node, in the SQL database you already run. No daemon, no
-broker, and no new datastore.
+Open Source Durable Objects for Node, in the SQL database you already run. No
+daemon, no broker, and no new datastore.
 
 Build addressable TypeScript objects with serialized calls and durable state on
-SQLite, PostgreSQL, or MySQL. You do not deploy to Cloudflare.
+SQLite, PostgreSQL, or MySQL. You do not need Cloudflare for this.
 
 Concurrent calls for one identity cannot overwrite each other. Calls for
 different identities can run at the same time.
@@ -79,7 +79,42 @@ npm exec --yes --package=solid-objects@latest -- solid-objects quickstart
 
 The command needs no repository checkout, database server, Redis, container, or
 application configuration. It uses Node's built-in SQLite module and removes
-its scoped temporary database before exiting. One local run printed:
+its scoped temporary database before exiting.
+
+It states its plan first, prints the `Counter` class it runs, and asks for
+permission. It executes the work only after you answer, and then it explains
+what each result proves. It asks nothing when stdin is not a terminal, so CI
+never waits. Add `--yes` to skip the question in a terminal.
+
+The plan and the results of one local run were:
+
+```text
+Solid Objects quickstart
+
+This command will:
+
+  1. create a temporary SQLite database;
+  2. send 25 concurrent calls to one identity;
+  3. run two other identities at the same time;
+  4. close the runtime and delete the temporary database.
+
+Results
+
+PASS  25 concurrent calls to one identity
+      They ran in order on one mailbox.
+      The committed state is 25.
+      The return values were the complete sequence 1 through 25.
+PASS  Two different identities ran at the same time
+      Their execution windows overlapped, so an unrelated identity
+      never waits behind this one.
+PASS  Temporary state removed
+      The scoped temporary SQLite database was deleted at exit.
+```
+
+The executable asserts rather than merely printing a plausible result. It exits
+with a non-zero code when one of those checks fails.
+
+Add `--json` for the machine-readable summary that CI can parse:
 
 ```json
 {
@@ -89,14 +124,6 @@ its scoped temporary database before exiting. One local run printed:
   "temporaryStateRemoved": true
 }
 ```
-
-The executable asserts rather than merely printing a plausible result. It
-verifies that:
-
-- 25 concurrent calls to one identity produce the exact committed state `25`;
-- their return values are the complete sequence from `1` through `25`;
-- operations for two different identities overlap in time; and
-- the runtime closes and temporary state is removed.
 
 ## What Solid Objects is for
 
@@ -123,24 +150,31 @@ prefer that. See [Choosing Solid Objects](docs/fit.md) for the longer guide.
 
 ## Measured behavior
 
-One developer machine, not a capacity promise. Apple M5, Node.js 26.7.0, 250
-measured operations at client concurrency 16, on August 15 and 16, 2026.
+One developer machine, not a capacity promise. Apple M5, Node.js 24.18.0, 250
+measured operations at client concurrency 16, on August 22, 2026. PostgreSQL
+17.11 and MySQL 9.7.1 run natively, not in a container.
 
 | Measurement                                                   |           Result |
 | ------------------------------------------------------------- | ---------------: |
-| Committed operations per second, one hot identity, SQLite     |  95 to 449 ops/s |
-| The same identity across four processes, SQLite               | 453 to 487 ops/s |
-| The same identity across four processes, PostgreSQL           |   84 to 86 ops/s |
-| The same identity across four processes, MySQL                |   28 to 30 ops/s |
+| Committed operations per second, one hot identity, SQLite     | 286 to 323 ops/s |
+| The same identity across four processes, SQLite               | 507 to 519 ops/s |
+| The same identity across four processes, PostgreSQL           | 266 to 331 ops/s |
+| The same identity across four processes, MySQL                | 214 to 228 ops/s |
 | Idle wake-up to committed result, one process                 |      2.66 ms p50 |
 | Idle wake-up to committed result, two processes, polling only |     1,006 ms p50 |
 | Idle CPU per process, 100 ms fast interval                    |           0.121% |
 | Idle database passes per second, after backoff                |              4.0 |
 
+The four idle rows come from a separate harness on August 16, 2026.
+
 Each range spans the synchronous and the asynchronous handler shape. Calls to
 one identity are serialized on purpose, so the per-call latency in these runs
 includes the wait behind the other fifteen concurrent callers. Throughput is
 the honest number for that case.
+
+The same PostgreSQL and MySQL versions in Docker Desktop reached 1.8x to 4.9x
+less throughput on those rows. Measure your own deployment shape before you
+plan capacity.
 
 The polling-only row is the tradeoff to know before you deploy: use PostgreSQL
 notifications or the optional Redis Pub/Sub when separate processes need

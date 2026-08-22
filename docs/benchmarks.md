@@ -83,72 +83,93 @@ dataset. Redirect stdout to retain the JSON result.
 
 ## Observed results
 
-Measured on August 15, 2026 with the prepared `0.13.0` source tree:
+Measured on August 22, 2026 with the `0.14.0` source tree:
 
-- Apple M5, 10 logical CPUs, 24 GiB memory
-- macOS 26.6 (`darwin 25.6.0`)
-- Node.js 26.7.0
-- SQLite 3.53.4 on the internal SSD, PostgreSQL 18.4 and MySQL 8.4.11 in
-  Docker Desktop
+- Apple M5 (Mac17,2), 10 logical CPUs
+- macOS 26.6
+- Node.js 24.18.0
+- SQLite 3.53.1 through `node:sqlite` on the internal SSD
+- PostgreSQL 17.11 and MySQL 9.7.1, both installed natively and started on a
+  scoped temporary data directory
 - 25 warmup operations, 250 measured operations, concurrency 16
 
-### SQLite 3.53.4
+### SQLite 3.53.1
 
-| Topology       | Shape     | Handler      |  ops/s | p50 ms |  p95 ms |  p99 ms |
-| -------------- | --------- | ------------ | -----: | -----: | ------: | ------: |
-| one process    | warm hot  | synchronous  |  95.51 |  35.34 | 1159.07 | 1711.76 |
-| one process    | warm hot  | asynchronous | 448.63 |  35.96 |   38.95 |   41.47 |
-| one process    | warm many | synchronous  |  44.35 | 141.55 | 1886.35 | 2543.15 |
-| one process    | warm many | asynchronous | 240.64 |  48.62 |   75.10 |  671.64 |
-| one process    | cold many | synchronous  |  30.91 | 436.98 | 1502.26 | 1729.10 |
-| one process    | cold many | asynchronous |  57.15 | 167.36 |  967.74 | 1066.49 |
-| four processes | warm hot  | synchronous  | 453.10 |  27.24 |   72.09 |   77.88 |
-| four processes | warm hot  | asynchronous | 487.39 |  29.27 |   60.66 |   68.28 |
-| four processes | warm many | synchronous  |  78.88 |  86.33 |  890.29 | 1381.65 |
-| four processes | warm many | asynchronous |  47.56 | 220.37 | 1130.53 | 1341.86 |
-| four processes | cold many | synchronous  |  70.45 | 174.67 |  643.53 |  668.46 |
-| four processes | cold many | asynchronous |  39.92 | 221.01 | 1309.13 | 1442.30 |
+| Topology       | Shape     | Handler      |  ops/s | p50 ms | p95 ms | p99 ms |
+| -------------- | --------- | ------------ | -----: | -----: | -----: | -----: |
+| one process    | warm hot  | synchronous  | 286.09 |  50.09 | 135.15 | 176.55 |
+| one process    | warm hot  | asynchronous | 322.53 |  48.66 |  70.59 |  75.87 |
+| one process    | warm many | synchronous  | 119.05 | 132.25 | 237.52 | 247.05 |
+| one process    | warm many | asynchronous | 288.26 |  32.64 |  70.33 | 562.42 |
+| one process    | cold many | synchronous  |  47.67 | 326.04 | 435.46 | 507.03 |
+| one process    | cold many | asynchronous |  99.39 |    148 | 236.03 | 295.26 |
+| four processes | warm hot  | synchronous  | 518.66 |  30.15 |  52.73 |  78.57 |
+| four processes | warm hot  | asynchronous |  506.8 |  26.39 |  92.26 | 102.18 |
+| four processes | warm many | synchronous  | 190.36 |  76.65 |  145.7 | 158.94 |
+| four processes | warm many | asynchronous |  77.12 |  194.6 | 399.43 |  527.1 |
+| four processes | cold many | synchronous  |  54.74 | 273.33 | 646.68 | 650.09 |
+| four processes | cold many | asynchronous |  93.85 | 145.27 | 333.78 |  426.6 |
 
-### PostgreSQL 18.4
+### PostgreSQL 17.11
 
-| Topology       | Shape     | Handler      | ops/s |  p50 ms |  p95 ms |  p99 ms |
-| -------------- | --------- | ------------ | ----: | ------: | ------: | ------: |
-| one process    | warm hot  | synchronous  | 66.99 |  232.89 |  317.94 |  375.68 |
-| one process    | warm hot  | asynchronous | 72.27 |  211.57 |  280.89 |  316.61 |
-| one process    | warm many | synchronous  | 76.69 |  129.88 |  552.01 | 1963.27 |
-| one process    | warm many | asynchronous | 25.78 |  340.96 | 2326.38 | 6917.26 |
-| one process    | cold many | synchronous  | 12.70 | 1262.08 | 1734.77 | 2199.20 |
-| one process    | cold many | asynchronous | 11.23 | 1254.46 | 2796.81 | 2905.99 |
-| four processes | warm hot  | synchronous  | 83.71 |  191.83 |  220.87 |  231.84 |
-| four processes | warm hot  | asynchronous | 86.42 |  184.56 |  210.11 |  215.48 |
-| four processes | warm many | synchronous  | 95.47 |  100.31 |  330.27 | 1663.84 |
-| four processes | warm many | asynchronous | 37.04 |  232.71 | 1601.29 | 4447.85 |
-| four processes | cold many | synchronous  | 14.79 | 1114.18 | 1263.33 | 1313.70 |
-| four processes | cold many | asynchronous | 11.68 | 1231.94 | 2555.34 | 2848.80 |
+| Topology       | Shape     | Handler      |  ops/s | p50 ms | p95 ms |  p99 ms |
+| -------------- | --------- | ------------ | -----: | -----: | -----: | ------: |
+| one process    | warm hot  | synchronous  | 206.31 |  69.33 | 132.69 |  153.03 |
+| one process    | warm hot  | asynchronous | 212.07 |  72.38 |  96.75 |  106.12 |
+| one process    | warm many | synchronous  |  191.4 |  55.71 | 147.99 |   722.6 |
+| one process    | warm many | asynchronous |   66.6 | 121.61 | 920.97 | 2441.28 |
+| one process    | cold many | synchronous  |  31.38 | 500.73 | 705.15 |  722.54 |
+| one process    | cold many | asynchronous |  17.24 | 909.02 | 1192.9 | 1211.35 |
+| four processes | warm hot  | synchronous  | 265.63 |  57.94 |  82.52 |  109.46 |
+| four processes | warm hot  | asynchronous | 330.94 |  46.81 |  63.76 |   70.25 |
+| four processes | warm many | synchronous  | 161.73 |  58.67 | 237.04 |  718.55 |
+| four processes | warm many | asynchronous | 119.63 |  68.71 | 531.12 |  1372.5 |
+| four processes | cold many | synchronous  |  50.84 | 314.51 | 487.09 |  506.45 |
+| four processes | cold many | asynchronous |  29.93 |  546.7 | 615.36 |   638.1 |
 
-### MySQL 8.4.11
+### MySQL 9.7.1
 
-| Topology       | Shape     | Handler      | ops/s |  p50 ms |  p95 ms |  p99 ms |
-| -------------- | --------- | ------------ | ----: | ------: | ------: | ------: |
-| one process    | warm hot  | synchronous  | 28.11 |  504.36 | 1648.10 | 2088.05 |
-| one process    | warm hot  | asynchronous | 25.29 |  508.26 | 1750.17 | 2222.72 |
-| one process    | warm many | synchronous  | 61.79 |  165.62 |  463.59 | 2036.31 |
-| one process    | warm many | asynchronous | 22.45 |  446.17 | 2420.92 | 7818.65 |
-| one process    | cold many | synchronous  | 10.23 | 1353.37 | 3038.76 | 3185.15 |
-| one process    | cold many | asynchronous | 10.04 | 1338.31 | 3344.18 | 3477.06 |
-| four processes | warm hot  | synchronous  | 29.89 |  427.18 | 1483.88 | 1997.56 |
-| four processes | warm hot  | asynchronous | 27.59 |  448.16 | 1518.00 | 1589.57 |
-| four processes | warm many | synchronous  | 69.77 |  157.79 |  410.83 | 2263.13 |
-| four processes | warm many | asynchronous | 36.21 |  265.24 | 1579.43 | 4594.33 |
-| four processes | cold many | synchronous  | 13.68 | 1088.93 | 2186.30 | 2519.92 |
-| four processes | cold many | asynchronous | 11.38 | 1209.84 | 2532.38 | 2730.74 |
+| Topology       | Shape     | Handler      |  ops/s |  p50 ms |  p95 ms |  p99 ms |
+| -------------- | --------- | ------------ | -----: | ------: | ------: | ------: |
+| one process    | warm hot  | synchronous  |  79.59 |  208.66 |  222.86 |  225.19 |
+| one process    | warm hot  | asynchronous |  79.98 |  206.78 |  232.74 |  237.94 |
+| one process    | warm many | synchronous  |   79.7 |  129.25 |  395.52 | 1987.46 |
+| one process    | warm many | asynchronous |  28.06 |  338.85 | 1992.54 | 6004.98 |
+| one process    | cold many | synchronous  |  13.78 | 1215.91 | 1445.61 | 1470.91 |
+| one process    | cold many | asynchronous |  11.63 | 1347.74 | 1733.01 | 1820.26 |
+| four processes | warm hot  | synchronous  | 213.75 |   72.85 |   94.48 |  106.73 |
+| four processes | warm hot  | asynchronous | 228.32 |   70.45 |   84.96 |   90.39 |
+| four processes | warm many | synchronous  | 105.31 |   90.36 |  297.88 | 1064.14 |
+| four processes | warm many | asynchronous |  80.03 |  149.92 |  324.98 | 1090.95 |
+| four processes | cold many | synchronous  |  51.82 |   306.1 |  407.22 |  424.45 |
+| four processes | cold many | asynchronous |  27.35 |  554.03 |  807.18 |  868.48 |
 
-The poor throughput and tail latency in the cold and asynchronous cases are
-observed limitations. They are not capacity recommendations. The small
-asynchronous yield changed the schedule enough to improve some cases and worsen
-others. Repeat the runs on application-shaped payloads before you draw a general
+The cold and asynchronous cases keep the poorest throughput and the longest
+tail. These are observed limitations. They are not capacity recommendations.
+Repeat the runs on application-shaped payloads before you draw a general
 conclusion. Integration tests cover PostgreSQL 14, MySQL 8.0, and other database
 versions, but this harness did not measure them.
+
+### Virtualization cost
+
+The same server version ran natively and in Docker Desktop on the same machine,
+on the same day, through the same harness. Only the container boundary changes.
+
+| Database         | Topology and shape              | Native ops/s | Docker ops/s | Native gain |
+| ---------------- | ------------------------------- | -----------: | -----------: | ----------: |
+| PostgreSQL 17.11 | four processes, warm hot, async |       330.94 |        67.69 |        4.9x |
+| PostgreSQL 17.11 | one process, warm hot, sync     |       206.31 |        56.44 |        3.7x |
+| MySQL 9.7.1      | four processes, warm hot, async |       228.32 |        60.27 |        3.8x |
+| MySQL 9.7.1      | one process, warm hot, sync     |        79.59 |        44.56 |        1.8x |
+
+Across the full matrix, Docker Desktop cost between 1.0x and 7.8x of the native
+throughput. The multi-process rows lose the most, because more connections and
+more commits cross the container boundary. Measure a database on the deployment
+shape you intend to run, and state the boundary with any number you publish.
+
+Earlier releases of this document reported PostgreSQL 18.4 and MySQL 8.4.11 in
+Docker Desktop on the `0.13.0` tree. Those numbers measured the container as
+much as the database, so the tables above replace them.
 
 ## Sources of bias
 
@@ -156,7 +177,8 @@ versions, but this harness did not measure them.
 - Loopback database connections exclude production network latency.
 - Filesystem cache, SQLite WAL state, Node JIT warmup, and garbage collection
   affect short runs.
-- Docker Desktop adds virtualization overhead to containerized databases.
+- Docker Desktop costs between 1.0x and 7.8x of the native throughput. The
+  tables above use native servers. See [Virtualization cost](#virtualization-cost).
 - The payload is a small counter, not a representative application state size.
 - The harness measures default durability settings and one client concurrency.
 - Hot-identity results deliberately include serialization and cannot be scaled
