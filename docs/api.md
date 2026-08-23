@@ -513,12 +513,16 @@ current. From Lit, `watch(counter.live.count)` with the `SignalWatcher`
 mixin renders it with no further glue; any consumer of the standard
 signals API composes the same way.
 
-- `configureLiveSignals(options)`: set the unsubscribe linger.
+- `configureLiveSignals(options)`: tune the lifecycle.
   `LiveSignalsConfiguration` carries `lingerMilliseconds` (default one
   second): how long a signal with no watchers keeps its subscription
-  before the session closes.
-- `activeLiveSubscriptionCount()`: the number of open live sessions, for
-  diagnostics and leak tests.
+  before the session closes; and `retryMilliseconds` (default one
+  second): how long a still-watched signal waits before it retries a
+  denied or failed subscription.
+- `activeLiveSubscriptionCount()` and `liveEntryCount(runtime)`: open
+  sessions and cached per-actor entries, for diagnostics and leak tests.
+  A closed entry leaves the runtime cache, so an abandoned actor holds
+  no signal state.
 - `ActorLiveSignals` and `LiveSignal`: the structural types on
   `reference.live`. `LiveSignal` exposes only `get()`, so the package
   types never require the optional peer; at runtime every signal is a

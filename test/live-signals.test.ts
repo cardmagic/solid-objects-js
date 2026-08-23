@@ -4,6 +4,7 @@ import "../src/platform/node.js"
 import {
   activeLiveSubscriptionCount,
   configureLiveSignals,
+  liveEntryCount,
   type LiveSignal,
 } from "../src/signals.js"
 import { Actor, broadcastInvalidation, broadcastValue } from "../src/actor.js"
@@ -46,7 +47,7 @@ afterEach(async () => {
   watchers.length = 0
   await Promise.all(runtimes.map((runtime) => runtime.close()))
   runtimes.length = 0
-  configureLiveSignals({ lingerMilliseconds: 50 })
+  configureLiveSignals({ lingerMilliseconds: 50, retryMilliseconds: 50 })
   await eventually(() => activeLiveSubscriptionCount() === 0)
 })
 
@@ -160,6 +161,57 @@ describe("live signals", () => {
     watcher.watch(counter.live.count! as never)
     counter.live.count!.get()
     await eventually(() => activeLiveSubscriptionCount() === 1)
+    watcher.unwatch(counter.live.count! as never)
+  })
+
+  it("retries after a failed subscription and recovers", async () => {
+    configureLiveSignals({ lingerMilliseconds: 50, retryMilliseconds: 50 })
+    let denials = 2
+    const runtime = createRuntime({
+      database: sqlite({ path: ":memory:" }),
+      authorizeMessage: () => true,
+      authorizeQuery: () => true,
+      authorizeDestroy: () => true,
+      authorizeSubscription: () => {
+        if (denials > 0) {
+          denials -= 1
+          return false
+        }
+        return true
+      },
+      pollingIntervalMilliseconds: 1,
+      syncPollingIntervalMilliseconds: 1,
+    })
+    runtime.register(LiveCounter)
+    runtimes.push(runtime)
+    await runtime.install()
+    const counter = runtime.ref(LiveCounter, "recovering")
+    await counter.increment()
+
+    watch(counter.live.count!)
+    await eventually(() => counter.live.count!.get() === 1)
+    expect(denials).toBe(0)
+  })
+
+  it("evicts an idle entry from the runtime cache after the linger", async () => {
+    configureLiveSignals({ lingerMilliseconds: 50 })
+    const runtime = await liveRuntime()
+    const counter = runtime.ref(LiveCounter, "evicted")
+
+    const watcher = new Signal.subtle.Watcher(() => {})
+    watcher.watch(counter.live.count! as never)
+    counter.live.count!.get()
+    await eventually(() => activeLiveSubscriptionCount() === 1)
+    expect(liveEntryCount(runtime)).toBe(1)
+
+    watcher.unwatch(counter.live.count! as never)
+    await eventually(() => activeLiveSubscriptionCount() === 0)
+    expect(liveEntryCount(runtime)).toBe(0)
+
+    watcher.watch(counter.live.count! as never)
+    counter.live.count!.get()
+    await eventually(() => activeLiveSubscriptionCount() === 1)
+    expect(liveEntryCount(runtime)).toBe(1)
     watcher.unwatch(counter.live.count! as never)
   })
 
