@@ -7,6 +7,7 @@ import { createDashboard, createNodeDashboardHandler } from "../dist/web/index.j
 
 const root = resolve(import.meta.dirname, "../dist")
 const sqliteWasmRoot = resolve(import.meta.dirname, "../node_modules/@sqlite.org/sqlite-wasm/dist")
+const signalPolyfillRoot = resolve(import.meta.dirname, "../node_modules/signal-polyfill/dist")
 const browserFixtureRoot = resolve(import.meta.dirname, "browser")
 const contentTypes = {
   ".js": "text/javascript; charset=utf-8",
@@ -113,9 +114,23 @@ const server = createServer(async (request, response) => {
     pathname === "/runtime-worker.mjs" ||
     pathname === "/tab-host-worker.mjs" ||
     pathname === "/transmit-worker.mjs" ||
-    pathname === "/shared-db-worker.mjs"
+    pathname === "/shared-db-worker.mjs" ||
+    pathname === "/live-signals-worker.mjs"
   ) {
     await serveFile({ response, path: resolve(browserFixtureRoot, pathname.slice(1)) })
+    return
+  }
+  if (pathname.startsWith("/vendor/signal-polyfill/")) {
+    const vendorPath = resolve(
+      signalPolyfillRoot,
+      `.${pathname.slice("/vendor/signal-polyfill".length)}`,
+    )
+    if (!vendorPath.startsWith(`${signalPolyfillRoot}/`)) {
+      response.writeHead(404)
+      response.end()
+      return
+    }
+    await serveFile({ response, path: vendorPath })
     return
   }
   if (pathname.startsWith("/vendor/sqlite-wasm/")) {
@@ -154,6 +169,7 @@ async function serveFile({ response, path }) {
       contents = contents
         .toString("utf-8")
         .replaceAll('"@sqlite.org/sqlite-wasm"', '"/vendor/sqlite-wasm/index.mjs"')
+        .replaceAll('"signal-polyfill"', '"/vendor/signal-polyfill/index.js"')
     }
     response.writeHead(200, { "content-type": contentType })
     response.end(contents)

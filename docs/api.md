@@ -29,6 +29,8 @@ generic signatures; this index explains the supported role of every export.
   only its name in the durable envelope when it changes.
 - `ObservableBroadcast`: the immutable marker type returned by either helper.
 - `VERSION`: running package version.
+- `reference.live`: read-only live signals for an actor, enabled by the
+  `solid-objects/signals` entry point documented below.
 - `ActorClass`, `ActorReference`, `ActorMessageSender`, `ActorSnapshot`,
   `ActorOperationNames`, `ActorQueryNames`, `StagedOperations`, and
   `ScheduledOperations`: inferred actor-class and fluent-dispatch types.
@@ -491,6 +493,55 @@ The tab host and transmit modules are browser-safe and also run in Node.
 The transmit wire contract is shared with the Ruby gem
 ([solid-objects-ruby#49](https://github.com/cardmagic/solid-objects-ruby/pull/49));
 `compatibility/transmit-envelopes.json` pins it in both repositories.
+
+## `solid-objects/signals`
+
+Live signals: the read-side adapter on the proposed standard JavaScript
+signals API. One side-effect import enables `reference.live`:
+
+```typescript
+import "solid-objects/signals"
+
+const counter = runtime.ref(Counter, "page-hits")
+counter.live.count // a read-only signal of the broadcast observable
+counter.live.snapshot // a read-only signal of the authorized snapshot
+```
+
+One property, three tenses: `snapshot.count` is one committed read,
+`await counter.count` asks the actor now, and `counter.live.count` stays
+current. From Lit, `watch(counter.live.count)` with the `SignalWatcher`
+mixin renders it with no further glue; any consumer of the standard
+signals API composes the same way.
+
+- `configureLiveSignals(options)`: set the unsubscribe linger.
+  `LiveSignalsConfiguration` carries `lingerMilliseconds` (default one
+  second): how long a signal with no watchers keeps its subscription
+  before the session closes.
+- `activeLiveSubscriptionCount()`: the number of open live sessions, for
+  diagnostics and leak tests.
+- `ActorLiveSignals` and `LiveSignal`: the structural types on
+  `reference.live`. `LiveSignal` exposes only `get()`, so the package
+  types never require the optional peer; at runtime every signal is a
+  standard `Signal.Computed`, read-only by construction.
+
+Behavior:
+
+- A signal subscribes its actor through an in-process
+  `runtime.realtime` session when the first watcher arrives and closes
+  the session after the linger when the last watcher leaves. The
+  subscription authorizes through `authorizeSubscription` with an
+  undefined authorization context.
+- Value-broadcast observables set their named signals from each
+  envelope. Invalidation-only observables stay `undefined` by design;
+  `live.snapshot` re-fetches the authorized snapshot (coalesced) on
+  every accepted envelope, so private-value flows read from there.
+- Envelopes apply only on a monotonic revision advance for the same
+  instance, the same fence the browser client uses.
+- `snapshot` is a reserved name on `live`; an observable named
+  `snapshot` is shadowed.
+- `signal-polyfill` is an optional peer dependency. Nothing loads it
+  until the `solid-objects/signals` entry is imported; `reference.live`
+  throws a pointer to that import otherwise.
 
 ## `solid-objects/web`
 
