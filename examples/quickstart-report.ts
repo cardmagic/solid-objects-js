@@ -13,7 +13,7 @@ interface QuickstartCheck {
 
 const INSTALL_COMMAND = "npm install solid-objects"
 const AGENT_PROMPT = "where would the solid-objects library be best used in this app?"
-const DOCUMENTATION_URL = "https://solidobjects.dev/node"
+const DOCUMENTATION_URL = "https://solidobjects.dev/js"
 
 export function formatQuickstartPlan(plan: {
   sameIdentityCalls: number
