@@ -17,6 +17,7 @@ export interface LiveSignalsConfiguration {
 }
 
 const SNAPSHOT_KEY = "snapshot"
+const PAYLOADS_KEY = "payloads"
 
 let lingerMilliseconds = 1_000
 let retryMilliseconds = 1_000
@@ -65,6 +66,11 @@ class LiveActorEntry {
   readonly #mirrors = new Map<string, LiveSignal<DeepReadonly<JsonValue> | undefined>>()
   readonly #snapshotState = new Signal.State<ActorSnapshot<Actor> | undefined>(undefined)
   #snapshotMirror: LiveSignal<ActorSnapshot<Actor> | undefined> | undefined
+  readonly #payloadStates = new Map<string, Signal.State<DeepReadonly<JsonValue> | undefined>>()
+  readonly #payloadMirrors = new Map<string, LiveSignal<DeepReadonly<JsonValue> | undefined>>()
+  readonly #payloadWatcherCounts = new Map<string, number>()
+  readonly #payloadFences = new Map<string, { instanceId: string; revision: bigint }>()
+  #payloadsProxy: object | undefined
   #watcherCount = 0
   #snapshotWatcherCount = 0
   #session: LiveSession | undefined
@@ -91,6 +97,49 @@ class LiveActorEntry {
     return mirror
   }
 
+  payloadsProxy(): object {
+    this.#payloadsProxy ??= new Proxy(
+      {},
+      {
+        get: (_target, property) => {
+          if (typeof property !== "string") return undefined
+          return this.payloadSignalFor(property)
+        },
+        has: (_target, property) => typeof property === "string",
+      },
+    )
+    return this.#payloadsProxy
+  }
+
+  payloadSignalFor(name: string): LiveSignal<DeepReadonly<JsonValue> | undefined> {
+    const existing = this.#payloadMirrors.get(name)
+    if (existing) return existing
+    const state = this.payloadStateFor(name)
+    const mirror = new Signal.Computed(() => state.get(), {
+      [Signal.subtle.watched]: () => {
+        this.#payloadWatcherCounts.set(name, (this.#payloadWatcherCounts.get(name) ?? 0) + 1)
+        this.retain({ snapshot: false, payloadName: name })
+      },
+      [Signal.subtle.unwatched]: () => {
+        const count = (this.#payloadWatcherCounts.get(name) ?? 1) - 1
+        if (count <= 0) this.#payloadWatcherCounts.delete(name)
+        else this.#payloadWatcherCounts.set(name, count)
+        this.release({ snapshot: false })
+      },
+    })
+    this.#payloadMirrors.set(name, mirror)
+    return mirror
+  }
+
+  private payloadStateFor(name: string) {
+    let state = this.#payloadStates.get(name)
+    if (!state) {
+      state = new Signal.State<DeepReadonly<JsonValue> | undefined>(undefined)
+      this.#payloadStates.set(name, state)
+    }
+    return state
+  }
+
   snapshotSignal(): LiveSignal<ActorSnapshot<Actor> | undefined> {
     this.#snapshotMirror ??= new Signal.Computed(() => this.#snapshotState.get(), {
       [Signal.subtle.watched]: () => this.retain({ snapshot: true }),
@@ -108,7 +157,7 @@ class LiveActorEntry {
     return state
   }
 
-  private retain(options: { snapshot: boolean }): void {
+  private retain(options: { snapshot: boolean; payloadName?: string }): void {
     this.#watcherCount += 1
     if (options.snapshot) this.#snapshotWatcherCount += 1
     if (this.#linger !== undefined) {
@@ -116,6 +165,7 @@ class LiveActorEntry {
       this.#linger = undefined
     }
     if (!this.#session) this.open()
+    else if (options.payloadName !== undefined) this.sendSubscribe(this.#session)
     else if (options.snapshot) void this.refreshSnapshot()
   }
 
@@ -141,13 +191,7 @@ class LiveActorEntry {
     }) as LiveSession
     this.#session = session
     openSessions.add(this)
-    void session
-      .receive({
-        version: 1,
-        action: "subscribe",
-        actorType: this.#reference.actorType,
-        actorId: this.#reference.actorId,
-      })
+    void this.sendSubscribe(session)
       .then(() => this.refreshSnapshot())
       .catch((error: unknown) => {
         this.#reference.runtime.settings.logger.warn({
@@ -166,6 +210,17 @@ class LiveActorEntry {
       })
   }
 
+  private sendSubscribe(session: LiveSession): Promise<void> {
+    const payloadNames = [...this.#payloadWatcherCounts.keys()]
+    return session.receive({
+      version: 1,
+      action: "subscribe",
+      actorType: this.#reference.actorType,
+      actorId: this.#reference.actorId,
+      ...(payloadNames.length > 0 ? { payloads: payloadNames } : {}),
+    })
+  }
+
   private close(): void {
     if (this.#retry !== undefined) {
       clearTimeout(this.#retry)
@@ -179,6 +234,10 @@ class LiveActorEntry {
   }
 
   private receive(envelope: RealtimeEnvelope): void {
+    if (envelope.kind === "payload") {
+      this.receivePayload(envelope)
+      return
+    }
     if (envelope.kind !== "invalidation") return
     const revision = BigInt(envelope.revision)
     if (this.#instanceId === envelope.instanceId && revision <= this.#revision) return
@@ -188,6 +247,14 @@ class LiveActorEntry {
       this.stateFor(name).set(value as DeepReadonly<JsonValue>)
     }
     void this.refreshSnapshot()
+  }
+
+  private receivePayload(envelope: RealtimeEnvelope & { kind: "payload" }): void {
+    const revision = BigInt(envelope.revision)
+    const fence = this.#payloadFences.get(envelope.name)
+    if (fence && fence.instanceId === envelope.instanceId && revision <= fence.revision) return
+    this.#payloadFences.set(envelope.name, { instanceId: envelope.instanceId, revision })
+    this.payloadStateFor(envelope.name).set(envelope.payload as DeepReadonly<JsonValue>)
   }
 
   private async refreshSnapshot(): Promise<void> {
@@ -245,6 +312,7 @@ installLiveSignals((reference) => {
       get(_target, property) {
         if (typeof property !== "string") return undefined
         if (property === SNAPSHOT_KEY) return resolved.snapshotSignal()
+        if (property === PAYLOADS_KEY) return resolved.payloadsProxy()
         return resolved.signalFor(property)
       },
       has(_target, property) {

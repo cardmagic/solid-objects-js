@@ -34,6 +34,25 @@ class LiveCounter extends Actor {
   }
 }
 
+class LivePayloadCounter extends Actor {
+  static override readonly actorType = "LivePayloadCounter"
+  static override readonly payloads = {
+    personalized: (actor: LivePayloadCounter) => ({ count: actor.count }),
+    doubled: (actor: LivePayloadCounter) => ({ value: actor.count * 2 }),
+  }
+
+  count = 0
+
+  increment(): number {
+    this.count += 1
+    return this.count
+  }
+
+  override observables(): Record<string, unknown> {
+    return { count: broadcastValue(this.count) }
+  }
+}
+
 const runtimes: SolidObjectsRuntime[] = []
 const watchers: Array<{
   watcher: InstanceType<typeof Signal.subtle.Watcher>
@@ -62,6 +81,7 @@ async function liveRuntime(): Promise<SolidObjectsRuntime> {
     syncPollingIntervalMilliseconds: 1,
   })
   runtime.register(LiveCounter)
+  runtime.register(LivePayloadCounter)
   runtimes.push(runtime)
   await runtime.install()
   return runtime
@@ -226,6 +246,30 @@ describe("live signals", () => {
 
     watcher.unwatch(first.live.count! as never)
     watcher.unwatch(second.live.count! as never)
+  })
+
+  it("delivers personalized payload signals with independent fences", async () => {
+    const runtime = await liveRuntime()
+    const counter = runtime.ref(LivePayloadCounter, "payloaded")
+    watch(counter.live.payloads.personalized!)
+    await eventually(() => activeLiveSubscriptionCount() === 1)
+
+    await counter.increment()
+    await runtime.testing.drain({ roles: ["actors", "broadcasts"] })
+    await eventually(() => {
+      const payload = counter.live.payloads.personalized!.get() as { count?: number } | undefined
+      return payload?.count === 1
+    })
+
+    watch(counter.live.payloads.doubled!)
+    await counter.increment()
+    await runtime.testing.drain({ roles: ["actors", "broadcasts"] })
+    await eventually(() => {
+      const doubled = counter.live.payloads.doubled!.get() as { value?: number } | undefined
+      return doubled?.value === 4
+    })
+    expect((counter.live.payloads.personalized!.get() as { count?: number }).count).toBe(2)
+    expect(counter.live.payloads.personalized).toBe(counter.live.payloads.personalized)
   })
 
   it("exposes read-only signals and a stable proxy", () => {

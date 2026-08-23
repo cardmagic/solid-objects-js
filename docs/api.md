@@ -542,10 +542,15 @@ Behavior:
   envelope. Invalidation-only observables stay `undefined` by design;
   `live.snapshot` re-fetches the authorized snapshot (coalesced) on
   every accepted envelope, so private-value flows read from there.
+- Personalized payload projections arrive as
+  `live.payloads.<name>` signals. A newly watched payload name re-sends
+  the subscription with the grown name list, and each payload keeps the
+  independent per-name revision fence the wire protocol gives it.
+  Payloads evaluate under the live session's authorization context.
 - Envelopes apply only on a monotonic revision advance for the same
   instance, the same fence the browser client uses.
-- `snapshot` is a reserved name on `live`; an observable named
-  `snapshot` is shadowed.
+- `snapshot` and `payloads` are reserved names on `live`; observables
+  with those names are shadowed.
 - `signal-polyfill` is an optional peer dependency. Nothing loads it
   until the `solid-objects/signals` entry is imported; `reference.live`
   throws a pointer to that import otherwise.

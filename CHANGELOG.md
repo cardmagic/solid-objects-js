@@ -10,7 +10,9 @@
   `runtime.realtime` session when first watched and unsubscribe after a
   linger when the last watcher leaves. Value-broadcast observables feed
   named signals; `live.snapshot` re-fetches the authorized snapshot on
-  each accepted envelope; stale revisions are fenced. Works in Node and
+  each accepted envelope; `live.payloads.<name>` carries personalized
+  payload projections under their independent revision fences; stale
+  revisions are fenced. Works in Node and
   in the browser runtime.
 
 ## 0.14.0 - 2026-08-23

@@ -171,6 +171,9 @@ export interface LiveSignal<Value> {
 
 export type ActorLiveSignals<ActorType extends Actor> = {
   readonly snapshot: LiveSignal<ActorSnapshot<ActorType> | undefined>
+  readonly payloads: {
+    readonly [name: string]: LiveSignal<DeepReadonly<JsonValue> | undefined>
+  }
 } & {
   readonly [name: string]: LiveSignal<DeepReadonly<JsonValue> | undefined>
 }
