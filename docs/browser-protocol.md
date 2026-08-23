@@ -129,9 +129,10 @@ authentication, so the trust boundary is the origin.
 
 ## Sync envelope
 
-`solid-objects/transmit` transmits one JSON envelope per staged sync
+`solid-objects/transmit` transmits one JSON envelope per staged transmit
 effect: `effectId`, target `actorType` and `actorId`, `operation`, and an
-`arguments` object. The transport belongs to the host application; the
+optional `arguments` object that defaults to an empty object on both
+ingests. The transport belongs to the host application; the
 Playwright suite posts envelopes over `fetch`. The server calls
 `receiveTransmitEnvelope`, which enqueues an internal message with
 `transmit:<effectId>` as the idempotency key, so a replayed envelope applies once.

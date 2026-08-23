@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it } from "vitest"
 import "../src/platform/node.js"
 import { Actor } from "../src/actor.js"
+import { IdempotencyConflict } from "../src/errors.js"
 import { createRuntime, type SolidObjectsRuntime } from "../src/runtime.js"
 import type { SolidObjectsConfiguration } from "../src/configuration.js"
 import { sqlite } from "../src/database/sqlite.js"
@@ -250,6 +251,55 @@ describe("sync bridge", () => {
 
     expect(await server.ref(AuditLog, "audit-primary").snapshot()).toEqual({
       events: ["signed_in"],
+    })
+  })
+
+  it("accepts an envelope without arguments, matching the Ruby ingest", async () => {
+    const server = testRuntime()
+    await server.install()
+    server.register(ServerTransmitCounter)
+
+    await receiveTransmitEnvelope({
+      runtime: server,
+      envelope: {
+        effectId: "effect-no-arguments",
+        actorType: "TransmitCounter",
+        actorId: "defaulted",
+        operation: "increment",
+      } as never,
+    })
+    await server.testing.drain({ roles: ["actors"] })
+
+    expect(await server.ref(ServerTransmitCounter, "defaulted").snapshot()).toEqual({
+      count: 1,
+      applied: [1],
+    })
+  })
+
+  it("raises IdempotencyConflict when a replay changes the arguments", async () => {
+    const server = testRuntime()
+    await server.install()
+    server.register(ServerTransmitCounter)
+    const envelope = {
+      effectId: "effect-conflict",
+      actorType: "TransmitCounter",
+      actorId: "conflicted",
+      operation: "increment",
+      arguments: { amount: 1 },
+    }
+
+    await receiveTransmitEnvelope({ runtime: server, envelope })
+    await expect(
+      receiveTransmitEnvelope({
+        runtime: server,
+        envelope: { ...envelope, arguments: { amount: 2 } },
+      }),
+    ).rejects.toBeInstanceOf(IdempotencyConflict)
+    await server.testing.drain({ roles: ["actors"] })
+
+    expect(await server.ref(ServerTransmitCounter, "conflicted").snapshot()).toEqual({
+      count: 1,
+      applied: [1],
     })
   })
 

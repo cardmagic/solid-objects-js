@@ -445,7 +445,9 @@ outbox with at-least-once delivery, per-actor order, and retry backoff.
   browser runtime a generous `maxAttempts`; an effect that exhausts its
   attempts during a long offline period lands in dead letters, and
   `runtime.deadLetters.retry` re-queues it.
-- `receiveTransmitEnvelope(options)`: idempotent server ingest. It enqueues an
+- `receiveTransmitEnvelope(options)`: idempotent server ingest. `arguments`
+  is optional in the envelope and defaults to an empty object, matching the
+  staging side and the Ruby ingest. It enqueues an
   internal message with `transmit:<effectId>` as the idempotency key, so a
   replayed envelope applies once. The host must authenticate the sender
   before this call; internal delivery skips `authorizeMessage`. The call
@@ -453,20 +455,29 @@ outbox with at-least-once delivery, per-actor order, and retry backoff.
   callback to post to:
 
   ```typescript
-  import { receiveTransmitEnvelope } from "solid-objects"
+  import { IdempotencyConflict, InvalidPayload, receiveTransmitEnvelope } from "solid-objects"
 
   async function handleSyncRoute(request: Request): Promise<Response> {
     const sender = await authenticate(request)
     if (!sender) return new Response("Forbidden", { status: 403 })
-    const envelope = await request.json()
-    await receiveTransmitEnvelope({ runtime, envelope })
-    return Response.json({})
+    try {
+      await receiveTransmitEnvelope({ runtime, envelope: await request.json() })
+      return Response.json({})
+    } catch (error) {
+      if (error instanceof InvalidPayload || error instanceof IdempotencyConflict) {
+        return new Response(null, { status: 422 })
+      }
+      throw error
+    }
   }
   ```
 
-  The example uses a Fetch-style handler; any HTTP framework works, and a
-  422 response for a rejected envelope tells the browser side to stop
-  retrying that effect.
+  The example uses a Fetch-style handler; any HTTP framework works. The 422
+  matters: it tells the sending outbox to dead-letter the effect instead of
+  retrying it. `InvalidPayload` marks a malformed envelope, and
+  `IdempotencyConflict` marks a replay whose arguments changed; both are
+  permanently unappliable, and a 500 would make the outbox retry them
+  forever.
 
 - Per-actor order comes from an ordered drain: a claimed transmit effect
   transmits every undelivered envelope for its actor up to its own mailbox

@@ -47,17 +47,18 @@ export async function receiveTransmitEnvelope(options: {
   const { envelope } = options
   for (const field of ["effectId", "actorType", "actorId", "operation"] as const) {
     if (typeof envelope[field] !== "string" || envelope[field].length === 0) {
-      throw new InvalidPayload(`sync envelope requires a non-empty ${field}`)
+      throw new InvalidPayload(`transmit envelope requires a non-empty ${field}`)
     }
   }
-  if (!isJsonObject(envelope.arguments)) {
-    throw new InvalidPayload("sync envelope arguments must be a JSON object")
+  const argumentsValue = envelope.arguments ?? {}
+  if (!isJsonObject(argumentsValue)) {
+    throw new InvalidPayload("transmit envelope arguments must be a JSON object")
   }
   const message = await options.runtime.enqueueInternalMessage({
     actorType: envelope.actorType,
     actorId: envelope.actorId,
     operation: envelope.operation,
-    argumentsValue: envelope.arguments,
+    argumentsValue,
     idempotencyKey: `transmit:${envelope.effectId}`,
   })
   return { messageId: message.id }
