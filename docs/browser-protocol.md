@@ -105,3 +105,35 @@ several WebSocket processes, the configured `broadcast` callback publishes the
 committed envelope through a shared transport and each process passes received
 envelopes to `runtime.realtime.publish()`. The session fence safely drops the
 duplicate seen by a process that both claimed and received the same event.
+
+## Tab host channel protocol
+
+`solid-objects/browser/tab-host` uses a second, unrelated wire surface: a
+`BroadcastChannel` between tabs of one origin. Every envelope carries
+`protocol: "solid-objects-tab-host"` and `version: 1`; a listener ignores
+anything else. Three kinds exist:
+
+- `invoke`: a client request with a `requestId` (a UUID the client generates),
+  the target `actorType`, `actorId`, `operation`, and a JSON `arguments`
+  object.
+- `result`: the leader's answer for one `requestId`, with either an `ok`
+  value or a named error.
+- `leader-online`: the announcement a new leader posts on promotion. Clients
+  re-post their pending requests when they see it.
+
+The client retries an `invoke` on an interval until a `result` arrives or its
+timeout passes. The leader enqueues each request with `tab:<requestId>` as the
+idempotency key, so a retried or re-posted request applies once. The channel
+is same-origin plumbing between the application's own tabs; it carries no
+authentication, so the trust boundary is the origin.
+
+## Sync envelope
+
+`solid-objects/sync-bridge` transmits one JSON envelope per staged sync
+effect: `effectId`, target `actorType` and `actorId`, `operation`, and an
+`arguments` object. The transport belongs to the host application; the
+Playwright suite posts envelopes over `fetch`. The server calls
+`receiveSyncEnvelope`, which enqueues an internal message with
+`sync:<effectId>` as the idempotency key, so a replayed envelope applies once.
+Internal delivery skips `authorizeMessage`; the host must authenticate the
+sender before that call.
