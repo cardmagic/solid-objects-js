@@ -18,6 +18,13 @@ export {
   type SQLiteWasmDatabaseOptions,
 } from "../database/sqlite-wasm.js"
 export {
+  sharedSqliteWasm,
+  SharedSQLiteWasmDatabase,
+  SharedDatabaseFailover,
+  SharedDatabaseUnavailable,
+  type SharedSQLiteWasmDatabaseOptions,
+} from "../database/shared-sqlite-wasm.js"
+export {
   connectTabClient,
   startTabHost,
   type TabClient,

@@ -137,3 +137,29 @@ Playwright suite posts envelopes over `fetch`. The server calls
 `sync:<effectId>` as the idempotency key, so a replayed envelope applies once.
 Internal delivery skips `authorizeMessage`; the host must authenticate the
 sender before that call.
+
+## Shared database channel protocol
+
+`solid-objects/database/shared-sqlite-wasm` uses a third wire surface: a
+`BroadcastChannel` that carries SQL sessions from every tab to the current
+database holder. Every envelope carries
+`protocol: "solid-objects-shared-sqlite"` and `version: 1`. Seven kinds
+exist:
+
+- `ping` and `pong`: holder discovery. A new instance pings until a holder
+  answers with its `epoch`.
+- `holder-online`: the announcement a new holder posts on promotion, with a
+  fresh `epoch`.
+- `open`: start a session (`connection` or `transaction`) with a client
+  `sessionId`.
+- `statement`: one `run`, `get`, `all`, or `now` operation inside a session.
+- `close`: finish a session with `commit`, `rollback`, or `end`.
+- `result`: the holder's answer for one `requestId`.
+
+Every request carries the `epoch` it targets. A holder rejects requests from
+another epoch, so a client learns about a failover from a fast rejection
+rather than a timeout. A session that has not executed a statement retries
+against the new holder automatically; later failures surface as
+`SharedDatabaseFailover`, because a partially executed session must not
+replay. The channel is same-origin plumbing with the origin as its trust
+boundary, the same as the tab host protocol.

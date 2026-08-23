@@ -11,6 +11,7 @@ const browserSafeRoots = [
   "src/sync-bridge.ts",
   "src/context.ts",
   "src/database/deadline.ts",
+  "src/database/shared-sqlite-wasm.ts",
   "src/database/sqlite-wasm.ts",
   "src/database/transaction-context.ts",
   "src/database/types.ts",

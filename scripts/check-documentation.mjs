@@ -56,6 +56,7 @@ const entryPoints = [
   "src/index.ts",
   "src/database/sqlite.ts",
   "src/database/sqlite-wasm.ts",
+  "src/database/shared-sqlite-wasm.ts",
   "src/database/postgresql.ts",
   "src/database/mysql.ts",
   "src/wake-up/redis.ts",

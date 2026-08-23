@@ -1,4 +1,5 @@
 import { randomUUID } from "../platform/uuid.js"
+import { requireWebLocks } from "../platform/web-locks.js"
 import type { SolidObjectsRuntime } from "../runtime.js"
 import type { DeepReadonly, JsonObject, JsonValue } from "../types.js"
 
@@ -102,7 +103,7 @@ export function startTabHost(options: TabHostOptions): TabHost {
   })
   let leaderCleanup: (() => Promise<void>) | undefined
 
-  const lockRequest = requireLocks()
+  const lockRequest = requireWebLocks()
     .request(channelName, { signal: queueAbort.signal }, async () => {
       if (closed) return
       currentRole = "leader"
@@ -276,12 +277,4 @@ function parseTabMessage(value: unknown): TabMessage | undefined {
     return candidate as TabMessage
   }
   return undefined
-}
-
-function requireLocks(): LockManager {
-  const locks = globalThis.navigator?.locks
-  if (!locks) {
-    throw new Error("the Web Locks API is unavailable; the tab host cannot elect a leader")
-  }
-  return locks
 }

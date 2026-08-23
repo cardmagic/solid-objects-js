@@ -50,6 +50,10 @@
       "types": "./dist/database/sqlite-wasm.d.ts",
       "import": "./dist/database/sqlite-wasm.js"
     },
+    "./database/shared-sqlite-wasm": {
+      "types": "./dist/database/shared-sqlite-wasm.d.ts",
+      "import": "./dist/database/shared-sqlite-wasm.js"
+    },
     "./database/postgresql": {
       "types": "./dist/database/postgresql.d.ts",
       "import": "./dist/database/postgresql.js"

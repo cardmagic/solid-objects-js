@@ -2,6 +2,15 @@
 
 ## 0.14.0 - 2026-08-22
 
+- Add `solid-objects/database/shared-sqlite-wasm`, the transparent
+  multi-tab database. Every tab runs an ordinary
+  `configure -> install -> ref` flow against the same shared database; the
+  adapter elects one holder per origin with the Web Locks API, sends every
+  other tab's SQL over a `BroadcastChannel` session to the holder, and
+  fails over onto the same OPFS state when the holder's tab dies. The
+  runtime's leases and fencing arbitrate the tabs' workers exactly as they
+  arbitrate Node processes. A Playwright test proves plain actor references
+  incrementing one durable counter from two tabs with failover.
 - Add `solid-objects/browser/tab-host`, the multi-tab host that completes
   milestone M3 of the in-browser runtime plan
   ([#17](https://github.com/cardmagic/solid-objects-js/issues/17)). Every

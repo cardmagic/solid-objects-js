@@ -112,7 +112,8 @@ const server = createServer(async (request, response) => {
     pathname === "/sqlite-wasm-worker.mjs" ||
     pathname === "/runtime-worker.mjs" ||
     pathname === "/tab-host-worker.mjs" ||
-    pathname === "/sync-bridge-worker.mjs"
+    pathname === "/sync-bridge-worker.mjs" ||
+    pathname === "/shared-db-worker.mjs"
   ) {
     await serveFile({ response, path: resolve(browserFixtureRoot, pathname.slice(1)) })
     return

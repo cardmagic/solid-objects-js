@@ -126,7 +126,11 @@ parity row exists for it. All four milestones are complete:
   reloads proven in Chromium. `solid-objects/browser/tab-host` elects one
   leader per origin with the Web Locks API and serves every tab over a
   `BroadcastChannel`; Playwright proves shared state across two tabs and
-  failover with durable continuation after the leader tab closes. The plan
+  failover with durable continuation after the leader tab closes.
+  `solid-objects/database/shared-sqlite-wasm` goes further: it moves the
+  election behind the `Database` seam, so every tab runs the ordinary
+  `configure -> install -> ref` flow and the runtime's own leases and
+  fencing arbitrate the tabs' workers. The plan
   named a `SharedWorker` as the host; Web Locks election between dedicated
   workers replaced it, because OPFS sync access handles exist only in
   dedicated workers.

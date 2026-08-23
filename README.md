@@ -297,7 +297,7 @@ lives in the origin's private file system (OPFS), so actor state survives
 page reloads.
 
 ```javascript
-import { Actor, configure, sqliteWasm } from "solid-objects/browser/host"
+import { Actor, configure, sharedSqliteWasm } from "solid-objects/browser/host"
 
 class Counter extends Actor {
   static actorType = "Counter"
@@ -310,9 +310,8 @@ class Counter extends Actor {
   }
 }
 
-const database = await sqliteWasm({ path: "app.db", storage: "persistent" })
 const runtime = configure({
-  database,
+  database: sharedSqliteWasm({ path: "app.db" }),
   authorizeMessage: () => true,
   authorizeQuery: () => true,
 })
@@ -321,12 +320,18 @@ await runtime.install()
 await Counter.ref("page-hits").increment()
 ```
 
+That code runs identically in every tab. `sharedSqliteWasm` elects one
+database holder per origin through the Web Locks API, carries the other
+tabs' SQL to it over a `BroadcastChannel`, and fails over onto the same
+durable state when the holder's tab dies. Use `sqliteWasm` directly for a
+single dedicated worker.
+
 Two companions complete the local-first story:
 
-- `solid-objects/browser/tab-host` gives many tabs one runtime. The Web Locks
-  API elects one leader per origin; other tabs invoke through a
-  `BroadcastChannel` client, and a dead leader's tab fails over onto the same
-  durable state.
+- `solid-objects/browser/tab-host` runs one runtime for all tabs when the
+  application prefers request-level routing: the leader's worker executes
+  every operation, and other tabs invoke through a `BroadcastChannel` client
+  by name.
 - `solid-objects/sync-bridge` drains the transactional effects outbox to a
   server runtime with at-least-once delivery, per-actor order, and an
   idempotent server ingest, so offline writes reconcile when the network

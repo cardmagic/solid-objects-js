@@ -287,6 +287,37 @@ and `SyncTimeoutWaitingOn` type timeout diagnostics. See
   `"persistent"` stores data in the browser origin's OPFS through the SQLite
   SAH pool VFS, and fails fast where OPFS is unavailable.
 
+## `solid-objects/database/shared-sqlite-wasm`
+
+Many browser tabs, one database, no visible infrastructure. Every tab
+constructs the same shared database and runs an ordinary
+`configure → install → ref` flow; the adapter hides the coordination. The
+Web Locks API elects one holder per origin. The holder opens the real
+SQLite WASM database; every other instance sends its SQL over a
+`BroadcastChannel` session to the holder, through the same serialized
+access queue. When the holder dies, the lock releases, the next instance
+opens the pool, and the runtime's leases and fencing arbitrate the tabs'
+workers exactly as they arbitrate Node processes.
+
+- `sharedSqliteWasm(options)`: construct `SharedSQLiteWasmDatabase`.
+- `SharedSQLiteWasmDatabase`: `Database` implementation with a `role()`
+  probe (`connecting`, `holder`, or `remote`) and `close()`.
+- `SharedSQLiteWasmDatabaseOptions`: `path`, an optional election `name`
+  (defaults to the path), the `storage` mode (persistent by default except
+  for `:memory:`), and the request, retry, session-idle, and open-attempt
+  tuning knobs.
+- `SharedDatabaseFailover`: the retryable rejection an in-flight statement
+  receives when the holder changes mid-operation. A session that has not
+  executed a statement yet retries automatically; anything later surfaces,
+  because replaying partially executed work is not safe.
+- `SharedDatabaseUnavailable`: the rejection for a closed instance, a
+  timed-out request, or an idle session the holder reclaimed.
+
+A transaction that dies with its holder rolls back with the pool, which is
+the same at-least-once story as a crashed Node process. Sessions that stay
+idle longer than `sessionIdleTimeoutMilliseconds` (default 10 seconds) are
+reclaimed so a dead tab cannot hold the database hostage.
+
 ## `solid-objects/database/postgresql`
 
 - `postgresql(options)`: construct `PostgreSQLDatabase`.
