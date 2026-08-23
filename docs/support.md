@@ -18,6 +18,21 @@ The package is ESM-only. PostgreSQL, MySQL, Redis, and SQLite WASM require
 their optional peer dependency. The Node SQLite adapter has no driver
 dependency beyond Node.js.
 
+The browser runtime is tested in Chromium. The APIs it needs are standard,
+so other engines work where those APIs exist; verify them on the exact
+engine you target:
+
+- Persistent storage needs OPFS sync access handles in a dedicated worker.
+  Chromium has them; Safari added them in 16.4; Firefox added them in 111.
+- The multi-tab hosts need the Web Locks API and `BroadcastChannel`, which
+  every current engine provides.
+- An embedded WebView is not the platform browser. Cordova and other
+  WKWebView or Android WebView shells can lack OPFS even when the device's
+  browser has it. `sqliteWasm({ storage: "persistent" })` fails fast where
+  OPFS is missing, and temporary storage still works wherever the WASM
+  module loads, so probe the target WebView before you commit to durable
+  in-app state.
+
 The browser runtime needs two platform capabilities:
 
 - Persistent storage uses the OPFS SAH pool VFS, which needs a secure context
