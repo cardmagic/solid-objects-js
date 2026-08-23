@@ -379,6 +379,11 @@ When the leader's tab dies, the lock releases and the next host promotes.
   so a resend applies once.
 - `TabInvocationTimeout` and `TabInvocationFailed`: the client-side errors.
 
+The election needs the Web Locks API. Every current browser provides it;
+Node provides `navigator.locks` from 24.5, so Node-side use of this module
+needs a newer Node than the package floor. `startTabHost` fails fast with a
+clear error where the API is missing.
+
 A tab dies without a clean shutdown, so failover speed follows the fence
 settings. Give the browser runtime a short `leaseDurationMilliseconds` and
 `processAliveThresholdMilliseconds` (for example 750), with a

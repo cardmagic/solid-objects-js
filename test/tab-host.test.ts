@@ -62,7 +62,9 @@ function trackedClient(name: string): TabClient {
   return client
 }
 
-describe("tab host", () => {
+const describeTabHost = globalThis.navigator?.locks ? describe : describe.skip
+
+describeTabHost("tab host", () => {
   it("elects one leader and serves invocations from any participant", async () => {
     const name = `election-${crypto.randomUUID()}`
     const first = trackedHost(name)
