@@ -45,7 +45,9 @@ async function eventually(condition: () => boolean): Promise<void> {
   throw new Error("condition never became true")
 }
 
-describe("shared SQLite WASM adapter", () => {
+const describeShared = globalThis.navigator?.locks ? describe : describe.skip
+
+describeShared("shared SQLite WASM adapter", () => {
   it("executes statements from the holder and a remote instance", async () => {
     const name = `statements-${crypto.randomUUID()}`
     const first = shared(name)

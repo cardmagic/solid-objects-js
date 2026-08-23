@@ -483,6 +483,12 @@ export class SharedSQLiteWasmDatabase implements Database {
   }
 
   private async runElection(): Promise<void> {
+    try {
+      requireWebLocks()
+    } catch (error) {
+      this.options.onError?.(error instanceof Error ? error : new Error(String(error)))
+      return
+    }
     while (!this.closed) {
       try {
         await requireWebLocks().request(
