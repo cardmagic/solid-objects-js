@@ -360,10 +360,9 @@ class TransmitController < ApplicationController
 end
 ```
 
-The Ruby side of the family lands through
-[solid-objects-ruby#49](https://github.com/cardmagic/solid-objects-ruby/pull/49);
-until it releases, a few lines of Node running only `receiveTransmitEnvelope`
-bridge the gap.
+The Ruby side of the family shipped in `solid_objects` 0.14.0, released the
+same day as this package's 0.14.0
+([solid-objects-ruby#49](https://github.com/cardmagic/solid-objects-ruby/pull/49)).
 
 The wire shapes are documented in the
 [browser protocol](docs/browser-protocol.md), the API in the

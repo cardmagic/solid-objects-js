@@ -4,7 +4,7 @@ This ledger tracks capability parity with the Ruby `solid_objects` gem.
 Parity means preserving a capability and its correctness or security boundary,
 not copying a Rails API into Node.
 
-Reference: Ruby `solid_objects` 0.13.3. The JavaScript package began at the
+Reference: Ruby `solid_objects` 0.14.0. The JavaScript package began at the
 Ruby design's `0.12` capability generation; that version number did not imply
 earlier JavaScript releases.
 
@@ -146,9 +146,9 @@ complete:
 ## Shared capability: the transmit family
 
 The transmit family is the one part of the browser work that both runtimes
-share. The Ruby gem adopts it in
-[solid-objects-ruby#49](https://github.com/cardmagic/solid-objects-ruby/pull/49)
-(proposals [#47](https://github.com/cardmagic/solid-objects-ruby/issues/47)
+share. The Ruby gem ships it in `0.14.0`
+([solid-objects-ruby#49](https://github.com/cardmagic/solid-objects-ruby/pull/49),
+from proposals [#47](https://github.com/cardmagic/solid-objects-ruby/issues/47)
 and [#48](https://github.com/cardmagic/solid-objects-ruby/issues/48)):
 `SolidObjects::Transmission.receive` is the ingest, and `Actor#transmit`
 with `register_transmit` is the staging side. Identifiers differ by
