@@ -8,7 +8,7 @@ function runWorkerCommand(
     (input) =>
       new Promise((resolve, reject) => {
         const scope = window as unknown as { __syncWorker?: Worker }
-        scope.__syncWorker ??= new Worker("/sync-bridge-worker.mjs", { type: "module" })
+        scope.__syncWorker ??= new Worker("/mirror-worker.mjs", { type: "module" })
         const worker = scope.__syncWorker
         const requestId = crypto.randomUUID()
         const onMessage = (event: MessageEvent) => {

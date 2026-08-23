@@ -78,9 +78,9 @@
       "types": "./dist/browser/tab-host.d.ts",
       "import": "./dist/browser/tab-host.js"
     },
-    "./sync-bridge": {
-      "types": "./dist/sync-bridge.d.ts",
-      "import": "./dist/sync-bridge.js"
+    "./mirror": {
+      "types": "./dist/mirror.d.ts",
+      "import": "./dist/mirror.js"
     },
     "./web": {
       "types": "./dist/web/index.d.ts",

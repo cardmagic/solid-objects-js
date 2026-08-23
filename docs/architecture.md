@@ -137,7 +137,7 @@ workers, other tabs invoke through a versioned `BroadcastChannel` protocol
 with idempotent request ids, and a dead leader's lock release promotes the
 next candidate onto the same durable state.
 
-`solid-objects/sync-bridge` connects a local runtime to a server runtime
+`solid-objects/mirror` connects a local runtime to a server runtime
 through the existing effects outbox. An actor stages a sync intent in the same
 transaction as its state change; the effect worker drains the outbox with
 at-least-once delivery and retry backoff. Per-actor order comes from an

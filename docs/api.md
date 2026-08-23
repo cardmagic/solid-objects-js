@@ -423,10 +423,10 @@ new leader reclaims a dead tab's activations before sync invocations time
 out. When `startRuntime` fails, close the database in a catch block; an
 open SAH pool otherwise blocks the next candidate until the worker dies.
 
-## `solid-objects/sync-bridge`
+## `solid-objects/mirror`
 
 The transactional outbox bridge between a local runtime and a server
-runtime. An actor stages a sync intent with `emit(SYNC_BRIDGE_EFFECT, ...)`
+runtime. An actor stages a sync intent with `emit(MIRROR_EFFECT, ...)`
 in the same transaction as its state change. The effect worker drains the
 outbox with at-least-once delivery, per-actor order, and retry backoff.
 
@@ -434,18 +434,18 @@ outbox with at-least-once delivery, per-actor order, and retry backoff.
 { amount })` stages a sync intent that replays the operation on the
   server twin of the same actor, in the same transaction as the local
   state change.
-- `SYNC_BRIDGE_EFFECT`: the effect name (`solid-objects.sync`) underneath
+- `MIRROR_EFFECT`: the effect name (`solid-objects.mirror`) underneath
   `mirror()`. Stage it directly with `emit()` when the target differs from
   the source: the staged arguments hold `operation`, `arguments`, and an
   optional target `actorType` and `actorId`.
-- `registerSyncBridge(options)`: register the drain handler on the local
-  runtime. `SyncBridgeOptions` carries the runtime and a `transmit`
-  callback that carries a `SyncEnvelope` to the server; throw from
+- `registerMirror(options)`: register the drain handler on the local
+  runtime. `RegisterMirrorOptions` carries the runtime and a `transmit`
+  callback that carries a `MirrorEnvelope` to the server; throw from
   `transmit` while offline and the effect retries with backoff. Give a
   browser runtime a generous `maxAttempts`; an effect that exhausts its
   attempts during a long offline period lands in dead letters, and
   `runtime.deadLetters.retry` re-queues it.
-- `receiveSyncEnvelope(options)`: idempotent server ingest. It enqueues an
+- `receiveMirrorEnvelope(options)`: idempotent server ingest. It enqueues an
   internal message with `sync:<effectId>` as the idempotency key, so a
   replayed envelope applies once. The host must authenticate the sender
   before this call; internal delivery skips `authorizeMessage`.
@@ -454,7 +454,7 @@ outbox with at-least-once delivery, per-actor order, and retry backoff.
   sequence, oldest first. A duplicate transmission is safe; the server
   deduplicates by effect id. Run one effect worker per local runtime for
   the order guarantee.
-- `InvalidSyncEnvelope`: the non-retryable rejection for malformed staged
+- `InvalidMirrorEnvelope`: the non-retryable rejection for malformed staged
   arguments; the effect dead-letters instead of retrying forever.
 
 Both modules are browser-safe and also run in Node.

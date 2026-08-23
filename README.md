@@ -332,7 +332,7 @@ Two companions complete the local-first story:
   application prefers request-level routing: the leader's worker executes
   every operation, and other tabs invoke through a `BroadcastChannel` client
   by name.
-- `solid-objects/sync-bridge` drains the transactional effects outbox to a
+- `solid-objects/mirror` drains the transactional effects outbox to a
   server runtime with at-least-once delivery, per-actor order, and an
   idempotent server ingest, so offline writes reconcile when the network
   returns.

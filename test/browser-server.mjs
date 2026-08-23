@@ -1,7 +1,7 @@
 import { createServer } from "node:http"
 import { readFile } from "node:fs/promises"
 import { extname, resolve } from "node:path"
-import { Actor, configure, receiveSyncEnvelope } from "../dist/index.js"
+import { Actor, configure, receiveMirrorEnvelope } from "../dist/index.js"
 import { sqlite } from "../dist/database/sqlite.js"
 import { createDashboard, createNodeDashboardHandler } from "../dist/web/index.js"
 
@@ -88,7 +88,7 @@ const server = createServer(async (request, response) => {
   if (pathname === "/sync" && request.method === "POST") {
     try {
       const envelope = JSON.parse(await readBody(request))
-      await receiveSyncEnvelope({ runtime, envelope })
+      await receiveMirrorEnvelope({ runtime, envelope })
       await runtime.testing.drain({ roles: ["actors"] })
       response.writeHead(200, { "content-type": "application/json" })
       response.end("{}")
@@ -112,7 +112,7 @@ const server = createServer(async (request, response) => {
     pathname === "/sqlite-wasm-worker.mjs" ||
     pathname === "/runtime-worker.mjs" ||
     pathname === "/tab-host-worker.mjs" ||
-    pathname === "/sync-bridge-worker.mjs" ||
+    pathname === "/mirror-worker.mjs" ||
     pathname === "/shared-db-worker.mjs"
   ) {
     await serveFile({ response, path: resolve(browserFixtureRoot, pathname.slice(1)) })

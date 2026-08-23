@@ -5,11 +5,11 @@ import { createRuntime, type SolidObjectsRuntime } from "../src/runtime.js"
 import type { SolidObjectsConfiguration } from "../src/configuration.js"
 import { sqlite } from "../src/database/sqlite.js"
 import {
-  receiveSyncEnvelope,
-  registerSyncBridge,
-  SYNC_BRIDGE_EFFECT,
-  type SyncEnvelope,
-} from "../src/sync-bridge.js"
+  receiveMirrorEnvelope,
+  registerMirror,
+  MIRROR_EFFECT,
+  type MirrorEnvelope,
+} from "../src/mirror.js"
 
 class MirrorCounter extends Actor {
   static override readonly actorType = "MirrorCounter"
@@ -30,7 +30,7 @@ class EmitCounter extends Actor {
 
   increment({ amount = 1 }: { amount?: number } = {}): number {
     this.count += amount
-    this.emit(SYNC_BRIDGE_EFFECT, {
+    this.emit(MIRROR_EFFECT, {
       arguments: { operation: "increment", arguments: { amount } },
     })
     return this.count
@@ -65,7 +65,7 @@ class Reporter extends Actor {
   static override readonly actorType = "Reporter"
 
   report({ eventName }: { eventName: string }): void {
-    this.emit(SYNC_BRIDGE_EFFECT, {
+    this.emit(MIRROR_EFFECT, {
       arguments: {
         actorType: "AuditLog",
         actorId: "audit-primary",
@@ -100,11 +100,11 @@ function testRuntime(overrides: Partial<SolidObjectsConfiguration> = {}): SolidO
 }
 
 async function pairedRuntimes(options: {
-  transmit: (envelope: SyncEnvelope) => Promise<void>
+  transmit: (envelope: MirrorEnvelope) => Promise<void>
 }): Promise<{ local: SolidObjectsRuntime; server: SolidObjectsRuntime }> {
   const local = testRuntime()
   const server = testRuntime()
-  registerSyncBridge({ runtime: local, transmit: options.transmit })
+  registerMirror({ runtime: local, transmit: options.transmit })
   await local.install()
   await server.install()
   return { local, server }
@@ -112,11 +112,11 @@ async function pairedRuntimes(options: {
 
 describe("sync bridge", () => {
   it("delivers emitted sync effects to the server actor", async () => {
-    const delivered: SyncEnvelope[] = []
+    const delivered: MirrorEnvelope[] = []
     const { local, server } = await pairedRuntimes({
       transmit: async (envelope) => {
         delivered.push(envelope)
-        await receiveSyncEnvelope({ runtime: server, envelope })
+        await receiveMirrorEnvelope({ runtime: server, envelope })
       },
     })
     server.register(ServerMirrorCounter)
@@ -139,11 +139,11 @@ describe("sync bridge", () => {
   })
 
   it("deduplicates a replayed envelope on the server", async () => {
-    let captured: SyncEnvelope | undefined
+    let captured: MirrorEnvelope | undefined
     const { local, server } = await pairedRuntimes({
       transmit: async (envelope) => {
         captured = envelope
-        await receiveSyncEnvelope({ runtime: server, envelope })
+        await receiveMirrorEnvelope({ runtime: server, envelope })
       },
     })
     server.register(ServerMirrorCounter)
@@ -151,8 +151,8 @@ describe("sync bridge", () => {
     await local.ref(MirrorCounter, "counter-1").increment({ amount: 3 })
     await local.testing.drain({ roles: ["actors", "effects"] })
     if (!captured) throw new Error("transmit never ran")
-    await receiveSyncEnvelope({ runtime: server, envelope: captured })
-    await receiveSyncEnvelope({ runtime: server, envelope: captured })
+    await receiveMirrorEnvelope({ runtime: server, envelope: captured })
+    await receiveMirrorEnvelope({ runtime: server, envelope: captured })
     await server.testing.drain({ roles: ["actors"] })
 
     expect(await server.ref(ServerMirrorCounter, "counter-1").snapshot()).toEqual({
@@ -170,7 +170,7 @@ describe("sync bridge", () => {
           failuresRemaining -= 1
           throw new Error("network down")
         }
-        await receiveSyncEnvelope({ runtime: server, envelope })
+        await receiveMirrorEnvelope({ runtime: server, envelope })
       },
     })
     server.register(ServerMirrorCounter)
@@ -192,7 +192,7 @@ describe("sync bridge", () => {
     const { local, server } = await pairedRuntimes({
       transmit: async (envelope) => {
         if (!online) throw new Error("offline")
-        await receiveSyncEnvelope({ runtime: server, envelope })
+        await receiveMirrorEnvelope({ runtime: server, envelope })
       },
     })
     server.register(ServerMirrorCounter)
@@ -221,7 +221,7 @@ describe("sync bridge", () => {
   it("delivers a raw emit the same way as mirror", async () => {
     const { local, server } = await pairedRuntimes({
       transmit: async (envelope) => {
-        await receiveSyncEnvelope({ runtime: server, envelope })
+        await receiveMirrorEnvelope({ runtime: server, envelope })
       },
     })
     server.register(ServerMirrorCounter)
@@ -239,7 +239,7 @@ describe("sync bridge", () => {
   it("routes an explicit target to a different server actor", async () => {
     const { local, server } = await pairedRuntimes({
       transmit: async (envelope) => {
-        await receiveSyncEnvelope({ runtime: server, envelope })
+        await receiveMirrorEnvelope({ runtime: server, envelope })
       },
     })
     server.register(AuditLog)
@@ -259,7 +259,7 @@ describe("sync bridge", () => {
     server.register(MirrorCounter)
 
     await expect(
-      receiveSyncEnvelope({
+      receiveMirrorEnvelope({
         runtime: server,
         envelope: {
           effectId: "effect-1",

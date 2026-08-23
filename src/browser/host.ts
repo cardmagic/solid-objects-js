@@ -35,11 +35,11 @@ export {
   type TabInvocation,
 } from "./tab-host.js"
 export {
-  registerSyncBridge,
-  SYNC_BRIDGE_EFFECT,
-  type SyncBridgeOptions,
-  type SyncEnvelope,
-} from "../sync-bridge.js"
+  registerMirror,
+  MIRROR_EFFECT,
+  type RegisterMirrorOptions,
+  type MirrorEnvelope,
+} from "../mirror.js"
 
 function randomHostProcessId(): number {
   const values = new Uint32Array(1)

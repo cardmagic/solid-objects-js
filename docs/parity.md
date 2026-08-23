@@ -134,7 +134,7 @@ parity row exists for it. All four milestones are complete:
   named a `SharedWorker` as the host; Web Locks election between dedicated
   workers replaced it, because OPFS sync access handles exist only in
   dedicated workers.
-- M4: `solid-objects/sync-bridge` drains the local effects outbox to a
+- M4: `solid-objects/mirror` drains the local effects outbox to a
   server runtime with at-least-once delivery, per-actor order, and an
   idempotent server ingest. Vitest proves order under transmit failures,
   replay deduplication, and recovery after an offline period.

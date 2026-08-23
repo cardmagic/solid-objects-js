@@ -1,4 +1,4 @@
-import { Actor, configure, registerSyncBridge, sqliteWasm } from "/browser/host.js"
+import { Actor, configure, registerMirror, sqliteWasm } from "/browser/host.js"
 
 class MirrorCounter extends Actor {
   static actorType = "MirrorCounter"
@@ -31,7 +31,7 @@ self.onmessage = async (event) => {
       pollingIntervalMilliseconds: 5,
       syncPollingIntervalMilliseconds: 5,
     })
-    registerSyncBridge({
+    registerMirror({
       runtime,
       transmit: async (envelope) => {
         const response = await fetch("/sync", {

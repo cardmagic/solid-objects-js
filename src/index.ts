@@ -24,13 +24,13 @@ export {
 } from "./runtime.js"
 export { VERSION } from "./version.js"
 export {
-  receiveSyncEnvelope,
-  registerSyncBridge,
-  SYNC_BRIDGE_EFFECT,
-  InvalidSyncEnvelope,
-  type SyncBridgeOptions,
-  type SyncEnvelope,
-} from "./sync-bridge.js"
+  receiveMirrorEnvelope,
+  registerMirror,
+  MIRROR_EFFECT,
+  InvalidMirrorEnvelope,
+  type RegisterMirrorOptions,
+  type MirrorEnvelope,
+} from "./mirror.js"
 export { guardApplicationDatabase } from "./application-database.js"
 export { runCli, type CliRunOptions } from "./cli.js"
 export { Worker } from "./worker.js"

@@ -63,7 +63,7 @@ const entryPoints = [
   "src/browser/index.ts",
   "src/browser/host.ts",
   "src/browser/tab-host.ts",
-  "src/sync-bridge.ts",
+  "src/mirror.ts",
   "src/web/index.ts",
 ]
 

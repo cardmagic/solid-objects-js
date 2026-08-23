@@ -129,11 +129,11 @@ authentication, so the trust boundary is the origin.
 
 ## Sync envelope
 
-`solid-objects/sync-bridge` transmits one JSON envelope per staged sync
+`solid-objects/mirror` transmits one JSON envelope per staged sync
 effect: `effectId`, target `actorType` and `actorId`, `operation`, and an
 `arguments` object. The transport belongs to the host application; the
 Playwright suite posts envelopes over `fetch`. The server calls
-`receiveSyncEnvelope`, which enqueues an internal message with
+`receiveMirrorEnvelope`, which enqueues an internal message with
 `sync:<effectId>` as the idempotency key, so a replayed envelope applies once.
 Internal delivery skips `authorizeMessage`; the host must authenticate the
 sender before that call.

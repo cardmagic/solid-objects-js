@@ -2,10 +2,10 @@ import { InvalidPayload, NonRetryableError } from "./errors.js"
 import type { SolidObjectsRuntime } from "./runtime.js"
 import type { EffectContext, JsonObject, JsonValue } from "./types.js"
 
-export { SYNC_BRIDGE_EFFECT } from "./sync-effect.js"
-import { SYNC_BRIDGE_EFFECT } from "./sync-effect.js"
+export { MIRROR_EFFECT } from "./mirror-effect.js"
+import { MIRROR_EFFECT } from "./mirror-effect.js"
 
-export interface SyncEnvelope {
+export interface MirrorEnvelope {
   effectId: string
   actorType: string
   actorId: string
@@ -13,23 +13,23 @@ export interface SyncEnvelope {
   arguments: JsonObject
 }
 
-export interface SyncBridgeOptions {
+export interface RegisterMirrorOptions {
   runtime: SolidObjectsRuntime
-  transmit: (envelope: SyncEnvelope) => Promise<void>
+  transmit: (envelope: MirrorEnvelope) => Promise<void>
   effectName?: string
 }
 
-export class InvalidSyncEnvelope extends NonRetryableError {
+export class InvalidMirrorEnvelope extends NonRetryableError {
   constructor(message: string) {
     super(message)
-    this.name = "InvalidSyncEnvelope"
+    this.name = "InvalidMirrorEnvelope"
   }
 }
 
-export function registerSyncBridge(options: SyncBridgeOptions): void {
-  const effectName = options.effectName ?? SYNC_BRIDGE_EFFECT
+export function registerMirror(options: RegisterMirrorOptions): void {
+  const effectName = options.effectName ?? MIRROR_EFFECT
   options.runtime.registerEffect(effectName, async (argumentsValue, context) => {
-    parseSyncEnvelope({ argumentsValue, context })
+    parseMirrorEnvelope({ argumentsValue, context })
     const undelivered = await undeliveredEnvelopesThrough({
       runtime: options.runtime,
       effectName,
@@ -40,9 +40,9 @@ export function registerSyncBridge(options: SyncBridgeOptions): void {
   })
 }
 
-export async function receiveSyncEnvelope(options: {
+export async function receiveMirrorEnvelope(options: {
   runtime: SolidObjectsRuntime
-  envelope: SyncEnvelope
+  envelope: MirrorEnvelope
 }): Promise<{ messageId: string }> {
   const { envelope } = options
   for (const field of ["effectId", "actorType", "actorId", "operation"] as const) {
@@ -63,18 +63,18 @@ export async function receiveSyncEnvelope(options: {
   return { messageId: message.id }
 }
 
-function parseSyncEnvelope(input: {
+function parseMirrorEnvelope(input: {
   argumentsValue: JsonObject
   context: EffectContext
-}): SyncEnvelope {
+}): MirrorEnvelope {
   const { argumentsValue, context } = input
   const operation = argumentsValue.operation
   if (typeof operation !== "string" || operation.length === 0) {
-    throw new InvalidSyncEnvelope("sync effect arguments require a non-empty operation")
+    throw new InvalidMirrorEnvelope("sync effect arguments require a non-empty operation")
   }
   const targetArguments = argumentsValue.arguments ?? {}
   if (!isJsonObject(targetArguments)) {
-    throw new InvalidSyncEnvelope("sync effect arguments must hold a JSON object in arguments")
+    throw new InvalidMirrorEnvelope("sync effect arguments must hold a JSON object in arguments")
   }
   const actorType = argumentsValue.actorType ?? context.actorType
   const actorId = argumentsValue.actorId ?? context.actorId
@@ -83,7 +83,7 @@ function parseSyncEnvelope(input: {
     ["actorId", actorId],
   ] as const) {
     if (typeof value !== "string" || value.length === 0) {
-      throw new InvalidSyncEnvelope(`sync effect ${field} must be a non-empty string`)
+      throw new InvalidMirrorEnvelope(`sync effect ${field} must be a non-empty string`)
     }
   }
   return {
@@ -99,7 +99,7 @@ async function undeliveredEnvelopesThrough(input: {
   runtime: SolidObjectsRuntime
   effectName: string
   context: EffectContext
-}): Promise<SyncEnvelope[]> {
+}): Promise<MirrorEnvelope[]> {
   const { runtime, effectName, context } = input
   const effects = runtime.repository.table("effects")
   const messages = runtime.repository.table("messages")
@@ -116,19 +116,19 @@ async function undeliveredEnvelopesThrough(input: {
       [effectName, context.actorType, context.actorId, context.sourceMessageId],
     ),
   )
-  const envelopes: SyncEnvelope[] = []
+  const envelopes: MirrorEnvelope[] = []
   for (const row of rows) {
     const argumentsValue: JsonValue = JSON.parse(row.arguments)
     if (!isJsonObject(argumentsValue)) continue
     try {
       envelopes.push(
-        parseSyncEnvelope({
+        parseMirrorEnvelope({
           argumentsValue,
           context: { ...context, id: row.id },
         }),
       )
     } catch (error) {
-      if (!(error instanceof InvalidSyncEnvelope)) throw error
+      if (!(error instanceof InvalidMirrorEnvelope)) throw error
     }
   }
   return envelopes
