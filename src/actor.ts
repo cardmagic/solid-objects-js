@@ -2,6 +2,7 @@ import { currentMessage, currentRuntime } from "./context.js"
 import { getDefaultRuntime } from "./default-runtime.js"
 import type { StateMigration } from "./definition.js"
 import { InvalidRejectionCode, Rejected, UnknownOperation } from "./errors.js"
+import { SYNC_BRIDGE_EFFECT } from "./sync-effect.js"
 import {
   createStagedOperationMap,
   createStagedOperations,
@@ -219,6 +220,15 @@ export abstract class Actor {
       arguments: jsonObject(options.arguments ?? {}),
       ...(options.onSuccess === undefined ? {} : { successOperation: String(options.onSuccess) }),
       ...(options.onFailure === undefined ? {} : { failureOperation: String(options.onFailure) }),
+    })
+  }
+
+  mirror(): ScheduledOperations {
+    return createStagedOperationMap(this.#operations, (operation, argumentsValue) => {
+      this.#intents.effects.push({
+        name: SYNC_BRIDGE_EFFECT,
+        arguments: jsonObject({ operation, arguments: argumentsValue }),
+      })
     })
   }
 

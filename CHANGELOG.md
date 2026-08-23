@@ -22,7 +22,8 @@
   state. A Playwright test proves shared state across two tabs and
   failover after the leader closes.
 - Add `solid-objects/sync-bridge`, milestone M4 of the plan. An actor
-  stages a sync intent with `emit(SYNC_BRIDGE_EFFECT, ...)` in the same
+  stages a sync intent with `this.mirror().operation(arguments)` (or with
+  `emit(SYNC_BRIDGE_EFFECT, ...)` for a different target) in the same
   transaction as its state change. `registerSyncBridge` drains the outbox
   with at-least-once delivery and per-actor order (an ordered drain up to
   the claimed effect's mailbox sequence), and `receiveSyncEnvelope` gives

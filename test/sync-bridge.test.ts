@@ -18,6 +18,18 @@ class MirrorCounter extends Actor {
 
   increment({ amount = 1 }: { amount?: number } = {}): number {
     this.count += amount
+    this.mirror().increment!({ amount })
+    return this.count
+  }
+}
+
+class EmitCounter extends Actor {
+  static override readonly actorType = "MirrorCounter"
+
+  count = 0
+
+  increment({ amount = 1 }: { amount?: number } = {}): number {
+    this.count += amount
     this.emit(SYNC_BRIDGE_EFFECT, {
       arguments: { operation: "increment", arguments: { amount } },
     })
@@ -203,6 +215,24 @@ describe("sync bridge", () => {
     expect(await server.ref(ServerMirrorCounter, "offline").snapshot()).toEqual({
       count: 6,
       applied: [1, 2, 3],
+    })
+  })
+
+  it("delivers a raw emit the same way as mirror", async () => {
+    const { local, server } = await pairedRuntimes({
+      transmit: async (envelope) => {
+        await receiveSyncEnvelope({ runtime: server, envelope })
+      },
+    })
+    server.register(ServerMirrorCounter)
+
+    await local.ref(EmitCounter, "emitted").increment({ amount: 4 })
+    await local.testing.drain({ roles: ["actors", "effects"] })
+    await server.testing.drain({ roles: ["actors"] })
+
+    expect(await server.ref(ServerMirrorCounter, "emitted").snapshot()).toEqual({
+      count: 4,
+      applied: [4],
     })
   })
 

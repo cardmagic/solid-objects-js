@@ -1,10 +1,4 @@
-import {
-  Actor,
-  configure,
-  registerSyncBridge,
-  SYNC_BRIDGE_EFFECT,
-  sqliteWasm,
-} from "/browser/host.js"
+import { Actor, configure, registerSyncBridge, sqliteWasm } from "/browser/host.js"
 
 class MirrorCounter extends Actor {
   static actorType = "MirrorCounter"
@@ -13,9 +7,7 @@ class MirrorCounter extends Actor {
 
   increment({ amount = 1 } = {}) {
     this.count += amount
-    this.emit(SYNC_BRIDGE_EFFECT, {
-      arguments: { operation: "increment", arguments: { amount } },
-    })
+    this.mirror().increment({ amount })
     return this.count
   }
 }

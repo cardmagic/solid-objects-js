@@ -2,7 +2,8 @@ import { InvalidPayload, NonRetryableError } from "./errors.js"
 import type { SolidObjectsRuntime } from "./runtime.js"
 import type { EffectContext, JsonObject, JsonValue } from "./types.js"
 
-export const SYNC_BRIDGE_EFFECT = "solid-objects.sync"
+export { SYNC_BRIDGE_EFFECT } from "./sync-effect.js"
+import { SYNC_BRIDGE_EFFECT } from "./sync-effect.js"
 
 export interface SyncEnvelope {
   effectId: string

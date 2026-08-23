@@ -21,8 +21,8 @@ generic signatures; this index explains the supported role of every export.
   [Limitations and non-goals](correctness.md#limitations-and-non-goals) for
   the same-millisecond boundary.
 - `Actor`: base class providing `ref()`, `actorId`, `currentMessage`,
-  `observables()`, `reject()`, `emit()`, `commitAction()`, `schedule()`,
-  `sendTo()`, and protected lifecycle hooks.
+  `observables()`, `reject()`, `emit()`, `mirror()`, `commitAction()`,
+  `schedule()`, `sendTo()`, and protected lifecycle hooks.
 - `broadcastValue(value)`: mark an observable so its changed value enters the
   durable invalidation envelope.
 - `broadcastInvalidation(value)`: compare the real observable value but put
@@ -430,9 +430,14 @@ runtime. An actor stages a sync intent with `emit(SYNC_BRIDGE_EFFECT, ...)`
 in the same transaction as its state change. The effect worker drains the
 outbox with at-least-once delivery, per-actor order, and retry backoff.
 
-- `SYNC_BRIDGE_EFFECT`: the effect name (`solid-objects.sync`). The staged
-  arguments hold `operation`, `arguments`, and an optional target
-  `actorType` and `actorId`; the target defaults to the source actor.
+- `actor.mirror()`: the fluent staging surface. `this.mirror().increment(
+{ amount })` stages a sync intent that replays the operation on the
+  server twin of the same actor, in the same transaction as the local
+  state change.
+- `SYNC_BRIDGE_EFFECT`: the effect name (`solid-objects.sync`) underneath
+  `mirror()`. Stage it directly with `emit()` when the target differs from
+  the source: the staged arguments hold `operation`, `arguments`, and an
+  optional target `actorType` and `actorId`.
 - `registerSyncBridge(options)`: register the drain handler on the local
   runtime. `SyncBridgeOptions` carries the runtime and a `transmit`
   callback that carries a `SyncEnvelope` to the server; throw from
