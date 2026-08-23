@@ -1,6 +1,8 @@
 import { registerContextStoreFactory } from "/platform/context-store.js"
 import { TurnContextStore } from "/platform/turn-context-store.js"
 import { sqliteWasm } from "/database/sqlite-wasm.js"
+import { withDatabaseDeadline } from "/database/deadline.js"
+import { DatabaseDeadlineExceeded } from "/errors.js"
 
 registerContextStoreFactory(() => new TurnContextStore())
 
@@ -35,13 +37,31 @@ async function exercise(instructions) {
     } catch (error) {
       rollbackMessage = String(error.message)
     }
+    let deadlineOutcome = "not-run"
+    try {
+      await withDatabaseDeadline({ timeoutMilliseconds: 25 }, () =>
+        database.transaction(async (connection) => {
+          await connection.run("INSERT INTO visits(phase) VALUES (?)", ["deadline-overrun"])
+          await new Promise((resolve) => setTimeout(resolve, 100))
+        }),
+      )
+      deadlineOutcome = "committed"
+    } catch (error) {
+      deadlineOutcome =
+        error instanceof DatabaseDeadlineExceeded ? "rolled-back" : `error:${error.message}`
+    }
+    const overrun = await database.connection((connection) =>
+      connection.all("SELECT phase FROM visits WHERE phase = 'deadline-overrun'"),
+    )
     const rows = await database.connection((connection) =>
-      connection.all("SELECT phase FROM visits ORDER BY id"),
+      connection.all("SELECT phase FROM visits WHERE phase <> 'deadline-overrun' ORDER BY id"),
     )
     const now = await database.connection((connection) => connection.nowMilliseconds())
     return {
       phases: rows.map((row) => row.phase),
       rollbackMessage,
+      deadlineOutcome,
+      overrunRows: overrun.length,
       clockSkewMilliseconds: Math.abs(now - Date.now()),
     }
   } finally {

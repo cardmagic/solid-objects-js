@@ -3,6 +3,8 @@ import { expect, test, type Page } from "@playwright/test"
 interface WorkerReport {
   phases: string[]
   rollbackMessage: string
+  deadlineOutcome: string
+  overrunRows: number
   clockSkewMilliseconds: number
 }
 
@@ -35,6 +37,8 @@ test("persists SQLite WASM state in OPFS across page reloads", async ({ page }) 
   const first = await runWorkerPhase(page, "first")
   expect(first.phases).toEqual(["first"])
   expect(first.rollbackMessage).toBe("abort")
+  expect(first.deadlineOutcome).toBe("rolled-back")
+  expect(first.overrunRows).toBe(0)
   expect(first.clockSkewMilliseconds).toBeLessThan(5_000)
 
   await page.reload()

@@ -19,11 +19,23 @@ interface SQLiteWasmHandles {
   sqlite3: Sqlite3Static
 }
 
+interface SQLiteWasmConnectionOptions {
+  handles: SQLiteWasmHandles
+  requireDeadlineRemaining: () => void
+}
+
 class SQLiteWasmConnection implements DatabaseConnection {
-  constructor(private readonly handles: SQLiteWasmHandles) {}
+  private readonly handles: SQLiteWasmHandles
+  private readonly requireDeadlineRemaining: () => void
+
+  constructor(options: SQLiteWasmConnectionOptions) {
+    this.handles = options.handles
+    this.requireDeadlineRemaining = options.requireDeadlineRemaining
+  }
 
   async run(sql: string, parameters: readonly unknown[] = []): Promise<RunResult> {
     requireDatabaseDeadlineRemaining()
+    this.requireDeadlineRemaining()
     this.execute({ sql, parameters })
     const output: RunResult = { changes: this.handles.handle.changes() }
     const lastInsertRowid = this.handles.sqlite3.capi.sqlite3_last_insert_rowid(this.handles.handle)
@@ -41,6 +53,7 @@ class SQLiteWasmConnection implements DatabaseConnection {
 
   async all<Row extends object>(sql: string, parameters: readonly unknown[] = []): Promise<Row[]> {
     requireDatabaseDeadlineRemaining()
+    this.requireDeadlineRemaining()
     const resultRows: Record<string, SqlValue>[] = []
     this.execute({ sql, parameters, resultRows })
     return resultRows as Row[]
@@ -76,11 +89,15 @@ export class SQLiteWasmDatabase implements Database {
   private readonly databaseConnection: SQLiteWasmConnection
   private accessTail: Promise<void> = Promise.resolve()
   private closed = false
+  private activeDeadlineExpiresAtMilliseconds: number | undefined
 
   constructor(handles: SQLiteWasmHandles) {
     this.handles = handles
     this.handles.handle.exec("PRAGMA foreign_keys = ON")
-    this.databaseConnection = new SQLiteWasmConnection(handles)
+    this.databaseConnection = new SQLiteWasmConnection({
+      handles,
+      requireDeadlineRemaining: () => this.requireActiveDeadlineRemaining(),
+    })
   }
 
   async connection<Result>(
@@ -109,6 +126,8 @@ export class SQLiteWasmDatabase implements Database {
 
   private async withAccess<Result>(callback: () => Promise<Result>): Promise<Result> {
     const initialRemaining = requireDatabaseDeadlineRemaining()
+    const deadlineExpiresAtMilliseconds =
+      initialRemaining === undefined ? undefined : performance.now() + initialRemaining
     const previous = this.accessTail
     let release = () => {}
     this.accessTail = new Promise<void>((resolve) => {
@@ -127,9 +146,20 @@ export class SQLiteWasmDatabase implements Database {
     try {
       if (initialRemaining !== undefined) requireDatabaseDeadlineRemaining()
       if (this.closed) throw new Error("SQLite WASM database is closed")
+      this.activeDeadlineExpiresAtMilliseconds = deadlineExpiresAtMilliseconds
+      this.requireActiveDeadlineRemaining()
       return await callback()
     } finally {
+      this.activeDeadlineExpiresAtMilliseconds = undefined
       release()
+    }
+  }
+
+  private requireActiveDeadlineRemaining(): void {
+    const expiresAt = this.activeDeadlineExpiresAtMilliseconds
+    if (expiresAt === undefined) return
+    if (performance.now() >= expiresAt) {
+      throw new DatabaseDeadlineExceeded("database deadline exceeded")
     }
   }
 
@@ -140,6 +170,7 @@ export class SQLiteWasmDatabase implements Database {
     try {
       const result = await callback(this.databaseConnection)
       requireDatabaseDeadlineRemaining()
+      this.requireActiveDeadlineRemaining()
       this.handles.handle.exec("COMMIT")
       return result
     } catch (error) {
