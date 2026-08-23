@@ -3,7 +3,7 @@ import { hostname } from "node:os"
 import { registerContextStoreFactory } from "./context-store.js"
 import { registerHostIdentity } from "./host-identity.js"
 
-registerContextStoreFactory(() => new AsyncLocalStorage())
+registerContextStoreFactory(<Store>() => new AsyncLocalStorage<Store>())
 registerHostIdentity({
   hostname: hostname(),
   hostProcessId: process.pid,

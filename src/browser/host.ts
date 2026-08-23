@@ -2,7 +2,7 @@ import { registerContextStoreFactory } from "../platform/context-store.js"
 import { registerHostIdentity } from "../platform/host-identity.js"
 import { TurnContextStore } from "../platform/turn-context-store.js"
 
-registerContextStoreFactory(() => new TurnContextStore())
+registerContextStoreFactory(<Store>() => new TurnContextStore<Store>())
 registerHostIdentity({
   hostname: globalThis.location?.hostname ?? "browser",
   hostProcessId: randomHostProcessId(),

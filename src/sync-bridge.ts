@@ -1,6 +1,6 @@
 import { InvalidPayload, NonRetryableError } from "./errors.js"
 import type { SolidObjectsRuntime } from "./runtime.js"
-import type { EffectContext, JsonObject } from "./types.js"
+import type { EffectContext, JsonObject, JsonValue } from "./types.js"
 
 export const SYNC_BRIDGE_EFFECT = "solid-objects.sync"
 
@@ -117,10 +117,12 @@ async function undeliveredEnvelopesThrough(input: {
   )
   const envelopes: SyncEnvelope[] = []
   for (const row of rows) {
+    const argumentsValue: JsonValue = JSON.parse(row.arguments)
+    if (!isJsonObject(argumentsValue)) continue
     try {
       envelopes.push(
         parseSyncEnvelope({
-          argumentsValue: JSON.parse(row.arguments) as JsonObject,
+          argumentsValue,
           context: { ...context, id: row.id },
         }),
       )

@@ -3,7 +3,7 @@ export interface ContextStore<Store> {
   getStore(): Store | undefined
 }
 
-export type ContextStoreFactory = () => ContextStore<unknown>
+export type ContextStoreFactory = <Store>() => ContextStore<Store>
 
 export class ContextStoreFactoryMissing extends Error {
   constructor() {
@@ -27,7 +27,7 @@ export function createContextStore<Store>(): ContextStore<Store> {
     run<Result>(store: Store, callback: () => Result): Result {
       if (!instance) {
         if (!registeredFactory) throw new ContextStoreFactoryMissing()
-        instance = registeredFactory() as ContextStore<Store>
+        instance = registeredFactory<Store>()
       }
       return instance.run(store, callback)
     },

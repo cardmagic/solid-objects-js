@@ -1,6 +1,6 @@
 import { randomUUID } from "../platform/uuid.js"
 import type { SolidObjectsRuntime } from "../runtime.js"
-import type { JsonObject } from "../types.js"
+import type { DeepReadonly, JsonObject, JsonValue } from "../types.js"
 
 const PROTOCOL = "solid-objects-tab-host"
 const VERSION = 1
@@ -37,7 +37,7 @@ export interface TabClientOptions {
 }
 
 export interface TabClient {
-  invoke(invocation: TabInvocation): Promise<unknown>
+  invoke(invocation: TabInvocation): Promise<DeepReadonly<JsonValue>>
   close(): void
 }
 
@@ -74,7 +74,9 @@ interface InvokeResult {
   version: typeof VERSION
   kind: "result"
   requestId: string
-  outcome: { ok: true; value: unknown } | { ok: false; error: { name: string; message: string } }
+  outcome:
+    | { ok: true; value: DeepReadonly<JsonValue> }
+    | { ok: false; error: { name: string; message: string } }
 }
 
 interface LeaderAnnouncement {
@@ -110,7 +112,8 @@ export function startTabHost(options: TabHostOptions): TabHost {
       const running = handle.runtime.run(runAbort.signal)
       const channel = new BroadcastChannel(channelName)
       channel.onmessage = (event: MessageEvent) => {
-        void serveRequest({ handle, channel, data: event.data as TabMessage })
+        const message = parseTabMessage(event.data)
+        if (message) void serveRequest({ handle, channel, message })
       }
       leaderCleanup = async () => {
         channel.onmessage = null
@@ -155,7 +158,7 @@ export function connectTabClient(options: TabClientOptions): TabClient {
   const channel = new BroadcastChannel(channelName)
   interface PendingInvocation {
     request: InvokeRequest
-    resolve: (value: unknown) => void
+    resolve: (value: DeepReadonly<JsonValue>) => void
     reject: (error: Error) => void
     retryTimer: ReturnType<typeof setInterval>
     timeoutTimer: ReturnType<typeof setTimeout>
@@ -172,8 +175,8 @@ export function connectTabClient(options: TabClientOptions): TabClient {
   }
 
   channel.onmessage = (event: MessageEvent) => {
-    const message = event.data as TabMessage
-    if (message?.protocol !== PROTOCOL || message.version !== VERSION) return
+    const message = parseTabMessage(event.data)
+    if (!message) return
     if (message.kind === "leader-online") {
       for (const entry of pending.values()) channel.postMessage(entry.request)
       return
@@ -187,7 +190,7 @@ export function connectTabClient(options: TabClientOptions): TabClient {
 
   return {
     invoke: (invocation) =>
-      new Promise<unknown>((resolve, reject) => {
+      new Promise<DeepReadonly<JsonValue>>((resolve, reject) => {
         const request: InvokeRequest = {
           protocol: PROTOCOL,
           version: VERSION,
@@ -227,20 +230,21 @@ export function connectTabClient(options: TabClientOptions): TabClient {
 async function serveRequest(input: {
   handle: TabHostRuntimeHandle
   channel: BroadcastChannel
-  data: TabMessage
+  message: TabMessage
 }): Promise<void> {
-  const { handle, channel, data } = input
-  if (data?.protocol !== PROTOCOL || data.version !== VERSION || data.kind !== "invoke") return
+  const { handle, channel, message } = input
+  if (message.kind !== "invoke") return
+  const request = message
   let outcome: InvokeResult["outcome"]
   try {
-    const message = await handle.runtime.enqueueInternalMessage({
-      actorType: data.actorType,
-      actorId: data.actorId,
-      operation: data.operation,
-      argumentsValue: data.arguments,
-      idempotencyKey: `tab:${data.requestId}`,
+    const enqueued = await handle.runtime.enqueueInternalMessage<JsonValue>({
+      actorType: request.actorType,
+      actorId: request.actorId,
+      operation: request.operation,
+      argumentsValue: request.arguments,
+      idempotencyKey: `tab:${request.requestId}`,
     })
-    outcome = { ok: true, value: await message.wait() }
+    outcome = { ok: true, value: await enqueued.wait() }
   } catch (error) {
     outcome = {
       ok: false,
@@ -254,10 +258,24 @@ async function serveRequest(input: {
     protocol: PROTOCOL,
     version: VERSION,
     kind: "result",
-    requestId: data.requestId,
+    requestId: request.requestId,
     outcome,
   }
   channel.postMessage(result)
+}
+
+function parseTabMessage(value: unknown): TabMessage | undefined {
+  if (typeof value !== "object" || value === null) return undefined
+  const candidate = value as Partial<TabMessage>
+  if (candidate.protocol !== PROTOCOL || candidate.version !== VERSION) return undefined
+  if (
+    candidate.kind === "invoke" ||
+    candidate.kind === "result" ||
+    candidate.kind === "leader-online"
+  ) {
+    return candidate as TabMessage
+  }
+  return undefined
 }
 
 function requireLocks(): LockManager {

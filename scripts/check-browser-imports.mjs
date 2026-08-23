@@ -54,10 +54,18 @@ function visit(filePath) {
 }
 
 function valueImportSpecifier(statement) {
-  if (!ts.isImportDeclaration(statement)) return undefined
-  if (statement.importClause?.isTypeOnly) return undefined
-  if (!ts.isStringLiteral(statement.moduleSpecifier)) return undefined
-  return statement.moduleSpecifier.text
+  if (ts.isImportDeclaration(statement)) {
+    if (statement.importClause?.isTypeOnly) return undefined
+    if (!ts.isStringLiteral(statement.moduleSpecifier)) return undefined
+    return statement.moduleSpecifier.text
+  }
+  if (ts.isExportDeclaration(statement)) {
+    if (statement.isTypeOnly) return undefined
+    if (!statement.moduleSpecifier || !ts.isStringLiteral(statement.moduleSpecifier))
+      return undefined
+    return statement.moduleSpecifier.text
+  }
+  return undefined
 }
 
 function resolveRelativeImport(options) {

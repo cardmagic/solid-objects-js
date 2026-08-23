@@ -165,6 +165,25 @@ describe("SQLite WASM adapter", () => {
     expect(queuedRan).toBe(false)
   })
 
+  it("rolls back a transaction that finishes after its deadline", async () => {
+    database = await sqliteWasm({ path: ":memory:" })
+    await database.connection((connection) =>
+      connection.run("CREATE TABLE records(id INTEGER PRIMARY KEY)"),
+    )
+    await expect(
+      withDatabaseDeadline({ timeoutMilliseconds: 10 }, () =>
+        database!.transaction(async (connection) => {
+          await connection.run("INSERT INTO records(id) VALUES (1)")
+          await new Promise((resolve) => setTimeout(resolve, 30))
+        }),
+      ),
+    ).rejects.toBeInstanceOf(DatabaseDeadlineExceeded)
+    const row = await database.connection((connection) =>
+      connection.get<{ count: number | bigint }>("SELECT COUNT(*) AS count FROM records"),
+    )
+    expect(Number(row?.count)).toBe(0)
+  })
+
   it("closes idempotently and rejects work afterwards", async () => {
     database = await sqliteWasm({ path: ":memory:" })
     await database.close()

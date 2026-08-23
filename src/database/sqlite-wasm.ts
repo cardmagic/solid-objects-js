@@ -2,6 +2,7 @@ import sqlite3InitModule, {
   type BindableValue,
   type Database as WasmDatabaseHandle,
   type Sqlite3Static,
+  type SqlValue,
 } from "@sqlite.org/sqlite-wasm"
 import type { Database, DatabaseConnection, RunResult } from "./types.js"
 import { requireDatabaseDeadlineRemaining } from "./deadline.js"
@@ -40,9 +41,9 @@ class SQLiteWasmConnection implements DatabaseConnection {
 
   async all<Row extends object>(sql: string, parameters: readonly unknown[] = []): Promise<Row[]> {
     requireDatabaseDeadlineRemaining()
-    const resultRows: Row[] = []
+    const resultRows: Record<string, SqlValue>[] = []
     this.execute({ sql, parameters, resultRows })
-    return resultRows
+    return resultRows as Row[]
   }
 
   async nowMilliseconds(): Promise<number> {
@@ -56,14 +57,14 @@ class SQLiteWasmConnection implements DatabaseConnection {
   private execute(options: {
     sql: string
     parameters: readonly unknown[]
-    resultRows?: object[]
+    resultRows?: Record<string, SqlValue>[]
   }): void {
     const bind = options.parameters.map(normalizeParameter)
     this.handles.handle.exec({
       sql: options.sql,
       rowMode: "object",
       ...(bind.length > 0 ? { bind } : {}),
-      ...(options.resultRows ? { resultRows: options.resultRows as never } : {}),
+      ...(options.resultRows ? { resultRows: options.resultRows } : {}),
     })
   }
 }
@@ -138,6 +139,7 @@ export class SQLiteWasmDatabase implements Database {
     this.handles.handle.exec("BEGIN IMMEDIATE")
     try {
       const result = await callback(this.databaseConnection)
+      requireDatabaseDeadlineRemaining()
       this.handles.handle.exec("COMMIT")
       return result
     } catch (error) {

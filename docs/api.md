@@ -349,6 +349,13 @@ entry points; the last registration wins.
 - The turn-scoped context store expects serialized actor turns. One worker
   hosts one runtime. A page talks to that worker through messages, not
   through direct actor references.
+- The store scopes only the synchronous part of a callback and restores
+  the previous scope in strict stack order, so an interleaved task never
+  observes another turn's scope. The cost of that isolation: after the
+  first `await` inside an actor operation, `currentActor()`,
+  `applicationWritesForbidden()`, and the database deadline read as unset.
+  Keep guarded application-database writes in synchronous actor code or in
+  commit actions; Node keeps full `AsyncLocalStorage` propagation.
 - Alarms and reminders fire only while the hosting worker is alive.
 
 ## `solid-objects/browser/tab-host`

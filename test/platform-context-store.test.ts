@@ -43,7 +43,7 @@ describe("context store registry", () => {
   })
 
   it("lets a later registration replace the factory for new stores", async () => {
-    registerContextStoreFactory(() => new TurnContextStore())
+    registerContextStoreFactory(<Store>() => new TurnContextStore<Store>())
     const store = createContextStore<{ value: string }>()
     const observed = store.run({ value: "turn" }, () => store.getStore()?.value)
     expect(observed).toBe("turn")
