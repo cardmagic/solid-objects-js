@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.14.0 - 2026-08-22
+## 0.14.0 - 2026-08-23
 
 - Add `solid-objects/database/shared-sqlite-wasm`, the transparent
   multi-tab database. Every tab runs an ordinary
