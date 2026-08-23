@@ -110,9 +110,12 @@ gap between them.
 ## JavaScript-only: the browser runtime
 
 `0.14.0` ships an in-browser runtime with SQLite WASM storage
-([#17](https://github.com/cardmagic/solid-objects-js/issues/17)). It is a
-JavaScript-only capability. The Ruby gem has no browser target, so no Ruby
-parity row exists for it. All four milestones are complete:
+([#17](https://github.com/cardmagic/solid-objects-js/issues/17)). The
+runtime itself is a JavaScript-only capability: the Ruby gem has no browser
+target, so no Ruby parity row exists for milestones M1 through M3. The
+transmit family (milestone M4) started here but is not JavaScript-only; the
+next section tracks it as a shared capability. All four milestones are
+complete:
 
 - M1: the shared modules no longer import Node built-in modules, a
   registered platform factory supplies async context propagation, and
@@ -137,7 +140,33 @@ parity row exists for it. All four milestones are complete:
 - M4: `solid-objects/transmit` drains the local effects outbox to a
   server runtime with at-least-once delivery, per-actor order, and an
   idempotent server ingest. Vitest proves order under transmit failures,
-  replay deduplication, and recovery after an offline period.
+  replay deduplication, and recovery after an offline period, on SQLite,
+  PostgreSQL, and MySQL.
+
+## Shared capability: the transmit family
+
+The transmit family is the one part of the browser work that both runtimes
+share. The Ruby gem adopts it in
+[solid-objects-ruby#49](https://github.com/cardmagic/solid-objects-ruby/pull/49)
+(proposals [#47](https://github.com/cardmagic/solid-objects-ruby/issues/47)
+and [#48](https://github.com/cardmagic/solid-objects-ruby/issues/48)):
+`SolidObjects::Transmission.receive` is the ingest, and `Actor#transmit`
+with `register_transmit` is the staging side. Identifiers differ by
+runtime idiom; the wire contract is what both sides guarantee:
+
+- envelope keys are camelCase (`effectId`, `actorType`, `actorId`,
+  `operation`, and an optional `arguments` that defaults to an empty
+  object);
+- the ingest idempotency key is `transmit:<effectId>`, byte for byte;
+- a replay with changed arguments raises the idempotency conflict on both
+  sides and leaves the first application intact.
+
+`compatibility/transmit-envelopes.json` is committed to both repositories
+with a consuming test on each side, so the contract is enforced from both
+sides of the repository boundary. Manual cross-runtime QA (Node to Rails
+and Rails to Node) ran in solid-objects-ruby#49; the one disagreement it
+found (the optional `arguments` default) is fixed and pinned by the shared
+fixture.
 
 ## Rails-specific surfaces
 

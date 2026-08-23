@@ -487,7 +487,10 @@ outbox with at-least-once delivery, per-actor order, and retry backoff.
 - `InvalidTransmitEnvelope`: the non-retryable rejection for malformed staged
   arguments; the effect dead-letters instead of retrying forever.
 
-Both modules are browser-safe and also run in Node.
+The tab host and transmit modules are browser-safe and also run in Node.
+The transmit wire contract is shared with the Ruby gem
+([solid-objects-ruby#49](https://github.com/cardmagic/solid-objects-ruby/pull/49));
+`compatibility/transmit-envelopes.json` pins it in both repositories.
 
 ## `solid-objects/web`
 

@@ -21,6 +21,11 @@
   the next host promotes, and the runtime continues from the same OPFS
   state. A Playwright test proves shared state across two tabs and
   failover after the leader closes.
+- Share the transmit wire contract with the Ruby gem. The golden fixture
+  file `compatibility/transmit-envelopes.json` is committed to both
+  repositories with a consuming test on each side; `receiveTransmitEnvelope`
+  now defaults a missing `arguments` to an empty object, matching the Ruby
+  ingest and the staging side.
 - Add `solid-objects/transmit`, milestone M4 of the plan. An actor
   stages a transmit intent with `this.transmit().operation(arguments)` (or with
   `emit(TRANSMIT_EFFECT, ...)` for a different target) in the same

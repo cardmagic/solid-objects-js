@@ -65,6 +65,13 @@ describe("shared transmit envelope fixtures", () => {
       const first = await receiveTransmitEnvelope({ runtime, envelope: fixture.envelope })
       const replay = await receiveTransmitEnvelope({ runtime, envelope: fixture.envelope })
       expect(replay.messageId, fixture.name).toBe(first.messageId)
+      const stored = await runtime.settings.database.connection((connection) =>
+        connection.get<{ idempotency_key: string }>(
+          `SELECT idempotency_key FROM ${runtime.repository.table("messages")} WHERE id = ?`,
+          [first.messageId],
+        ),
+      )
+      expect(stored?.idempotency_key, fixture.name).toBe(fixture.idempotencyKey)
     }
     await runtime.testing.drain({ roles: ["actors"] })
 
