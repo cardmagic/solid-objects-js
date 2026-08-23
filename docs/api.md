@@ -502,7 +502,7 @@ signals API. One side-effect import enables `reference.live`:
 ```typescript
 import "solid-objects/signals"
 
-const counter = runtime.ref(Counter, "page-hits")
+const counter = Counter.ref("page-hits")
 counter.live.count // a read-only signal of the broadcast observable
 counter.live.snapshot // a read-only signal of the authorized snapshot
 ```
