@@ -1,4 +1,4 @@
-import { AsyncLocalStorage } from "node:async_hooks"
+import { createContextStore } from "./platform/context-store.js"
 import type { Actor } from "./actor.js"
 import type { SolidObjectsRuntime } from "./runtime.js"
 import type { MessageContext } from "./types.js"
@@ -16,7 +16,7 @@ interface ActorExecutionContext {
   message?: MessageContext
 }
 
-const storage = new AsyncLocalStorage<ExecutionContext>()
+const storage = createContextStore<ExecutionContext>()
 
 export function currentActor(): Actor | undefined {
   return storage.getStore()?.actor

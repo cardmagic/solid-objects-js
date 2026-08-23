@@ -14,6 +14,9 @@ or realtime projections.
   invalidations atomically.
 - The application already operates SQLite, PostgreSQL, or MySQL and should keep
   durable coordination there.
+- A local-first application needs the same actor model in the browser:
+  durable per-user state on SQLite WASM, one runtime shared across tabs, and
+  an outbox that syncs to a server runtime when the network allows.
 
 ## Prefer a row transaction when
 

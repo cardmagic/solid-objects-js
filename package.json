@@ -46,6 +46,14 @@
       "types": "./dist/database/sqlite.d.ts",
       "import": "./dist/database/sqlite.js"
     },
+    "./database/sqlite-wasm": {
+      "types": "./dist/database/sqlite-wasm.d.ts",
+      "import": "./dist/database/sqlite-wasm.js"
+    },
+    "./database/shared-sqlite-wasm": {
+      "types": "./dist/database/shared-sqlite-wasm.d.ts",
+      "import": "./dist/database/shared-sqlite-wasm.js"
+    },
     "./database/postgresql": {
       "types": "./dist/database/postgresql.d.ts",
       "import": "./dist/database/postgresql.js"
@@ -62,6 +70,18 @@
       "types": "./dist/browser/index.d.ts",
       "import": "./dist/browser/index.js"
     },
+    "./browser/host": {
+      "types": "./dist/browser/host.d.ts",
+      "import": "./dist/browser/host.js"
+    },
+    "./browser/tab-host": {
+      "types": "./dist/browser/tab-host.d.ts",
+      "import": "./dist/browser/tab-host.js"
+    },
+    "./transmit": {
+      "types": "./dist/transmit.d.ts",
+      "import": "./dist/transmit.js"
+    },
     "./web": {
       "types": "./dist/web/index.d.ts",
       "import": "./dist/web/index.js"
@@ -69,7 +89,8 @@
   },
   "scripts": {
     "build": "pnpm run clean && tsc -p tsconfig.build.json && tsc -p tsconfig.quickstart-build.json && node scripts/prepare-executable.mjs",
-    "check": "pnpm run check:parameters && pnpm run check:documentation && tsc -p tsconfig.json --noEmit && tsc -p tsconfig.examples.json --noEmit",
+    "check": "pnpm run check:parameters && pnpm run check:documentation && pnpm run check:browser-imports && tsc -p tsconfig.json --noEmit && tsc -p tsconfig.examples.json --noEmit",
+    "check:browser-imports": "node scripts/check-browser-imports.mjs",
     "check:documentation": "node scripts/check-documentation.mjs",
     "check:parameters": "node scripts/check-parameter-style.mjs",
     "clean": "node scripts/clean.mjs",
@@ -91,6 +112,7 @@
   },
   "devDependencies": {
     "@playwright/test": "^1.62.1",
+    "@sqlite.org/sqlite-wasm": "3.53.0-build1",
     "@types/node": "^24.0.0",
     "@types/pg": "^8.21.0",
     "@types/ws": "^8.18.1",
@@ -104,11 +126,15 @@
     "ws": "^8.21.3"
   },
   "peerDependencies": {
+    "@sqlite.org/sqlite-wasm": ">=3.50.0-build1",
     "mysql2": "^3.23.3",
     "pg": "^8.23.0",
     "redis": "^6.2.1"
   },
   "peerDependenciesMeta": {
+    "@sqlite.org/sqlite-wasm": {
+      "optional": true
+    },
     "mysql2": {
       "optional": true
     },

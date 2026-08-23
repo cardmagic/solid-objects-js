@@ -1,3 +1,4 @@
+import "../platform/node.js"
 import { DatabaseSync } from "node:sqlite"
 import type { Database, DatabaseConnection, RunResult } from "./types.js"
 import {

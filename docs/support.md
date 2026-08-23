@@ -2,18 +2,32 @@
 
 ## Runtime support
 
-| Component      | Supported or tested range                                   |
-| -------------- | ----------------------------------------------------------- |
-| Node.js        | 24.4.0 or newer; CI runs 24.4.0 and 24.15.0                 |
-| TypeScript     | 5.9 or newer for TypeScript applications                    |
-| SQLite         | Node's built-in `node:sqlite` on the supported Node runtime |
-| PostgreSQL     | 14 or newer; CI runs 14 and 18                              |
-| MySQL          | 8.0 or newer with InnoDB; CI runs 8.0 and 8.4               |
-| Redis wake-up  | Optional; CI runs Redis 7                                   |
-| Browser client | Chromium through Playwright                                 |
+| Component       | Supported or tested range                                   |
+| --------------- | ----------------------------------------------------------- |
+| Node.js         | 24.4.0 or newer; CI runs 24.4.0 and 24.15.0                 |
+| TypeScript      | 5.9 or newer for TypeScript applications                    |
+| SQLite          | Node's built-in `node:sqlite` on the supported Node runtime |
+| PostgreSQL      | 14 or newer; CI runs 14 and 18                              |
+| MySQL           | 8.0 or newer with InnoDB; CI runs 8.0 and 8.4               |
+| Redis wake-up   | Optional; CI runs Redis 7                                   |
+| Browser client  | Chromium through Playwright                                 |
+| SQLite WASM     | `@sqlite.org/sqlite-wasm` 3.50 or newer; optional           |
+| Browser runtime | Chromium through Playwright; OPFS for persistent storage    |
 
-The package is ESM-only. PostgreSQL, MySQL, and Redis require their optional
-peer dependency. SQLite has no driver dependency beyond Node.js.
+The package is ESM-only. PostgreSQL, MySQL, Redis, and SQLite WASM require
+their optional peer dependency. The Node SQLite adapter has no driver
+dependency beyond Node.js.
+
+The browser runtime needs two platform capabilities:
+
+- Persistent storage uses the OPFS SAH pool VFS, which needs a secure context
+  and a dedicated worker. `sqliteWasm({ storage: "persistent" })` fails fast
+  where OPFS is unavailable; temporary storage works everywhere the WASM
+  module loads.
+- The tab host election uses the Web Locks API. Every current browser
+  provides it. Node.js provides `navigator.locks` from 24.5, so Node-side use
+  of `solid-objects/browser/tab-host` needs a newer Node than the package
+  floor; the tab host test suite skips on older Node.
 
 The Node.js floor is 24.4.0 because the SQLite adapter reads integer columns as
 `BigInt`. Node.js 24.4.0 is the first release that accepts `readBigInts` on the
@@ -39,7 +53,11 @@ The default suite exercises:
 Database jobs run the real adapter suites against PostgreSQL and MySQL servers.
 The Redis job runs wake-up behavior against a real Redis server. The browser
 job uses native WebSocket connections and Chromium for replay, payload,
-component, dashboard, and revision-fence behavior.
+component, dashboard, and revision-fence behavior. It also runs the browser
+runtime suites in Chromium module workers: SQLite WASM transactions and OPFS
+persistence across page reloads, the full runtime with durable actor state,
+deadline rollback under the turn-scoped context store, two tabs on one
+runtime with leader failover, and the sync bridge drain into a Node runtime.
 
 The quality job also:
 

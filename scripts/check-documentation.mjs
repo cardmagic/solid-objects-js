@@ -55,10 +55,15 @@ const configurationReference = await readFile(
 const entryPoints = [
   "src/index.ts",
   "src/database/sqlite.ts",
+  "src/database/sqlite-wasm.ts",
+  "src/database/shared-sqlite-wasm.ts",
   "src/database/postgresql.ts",
   "src/database/mysql.ts",
   "src/wake-up/redis.ts",
   "src/browser/index.ts",
+  "src/browser/host.ts",
+  "src/browser/tab-host.ts",
+  "src/transmit.ts",
   "src/web/index.ts",
 ]
 

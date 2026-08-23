@@ -1,11 +1,11 @@
-import { AsyncLocalStorage } from "node:async_hooks"
+import { createContextStore } from "../platform/context-store.js"
 
 interface TransactionScope {
   database: object
   active: boolean
 }
 
-const transactionScopes = new AsyncLocalStorage<readonly TransactionScope[]>()
+const transactionScopes = createContextStore<readonly TransactionScope[]>()
 
 export function withDatabaseTransaction<Result>(
   database: object,

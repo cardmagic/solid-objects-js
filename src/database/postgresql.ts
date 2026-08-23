@@ -1,3 +1,4 @@
+import "../platform/node.js"
 import { Pool, TypeOverrides, types, type PoolClient, type PoolConfig } from "pg"
 import { postgresqlSql } from "./postgresql-sql.js"
 import type { Database, DatabaseConnection, RunResult } from "./types.js"

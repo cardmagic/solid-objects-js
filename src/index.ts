@@ -1,3 +1,5 @@
+import "./platform/node.js"
+
 export {
   Actor,
   broadcastInvalidation,
@@ -21,6 +23,14 @@ export {
   type SnapshotWithIncarnation,
 } from "./runtime.js"
 export { VERSION } from "./version.js"
+export {
+  receiveTransmitEnvelope,
+  registerTransmit,
+  TRANSMIT_EFFECT,
+  InvalidTransmitEnvelope,
+  type RegisterTransmitOptions,
+  type TransmitEnvelope,
+} from "./transmit.js"
 export { guardApplicationDatabase } from "./application-database.js"
 export { runCli, type CliRunOptions } from "./cli.js"
 export { Worker } from "./worker.js"

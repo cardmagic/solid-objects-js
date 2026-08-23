@@ -41,8 +41,10 @@ transactions immediately. PostgreSQL and MySQL use bounded pools. They keep each
 transaction on one checked-out client. They store timestamps and sequences as
 64-bit integers. They lock an actor's instance row during mailbox sequence
 allocation. MySQL creates InnoDB tables and retries only the side-effect-free
-enqueue transaction when InnoDB chooses it as a deadlock victim. Every adapter
-uses database time and the same fencing predicates.
+enqueue transaction when InnoDB chooses it as a deadlock victim. SQLite WASM
+serializes one in-process connection the same way as the Node SQLite adapter.
+It stores its file in the browser origin's OPFS through the SAH pool VFS.
+Every adapter uses database time and the same fencing predicates.
 
 Synchronous invocation carries a monotonic deadline into adapter operations.
 SQLite bounds its process-local access queue and busy timeout. Outside a caller
@@ -56,11 +58,14 @@ JavaScript actor code that already runs is cooperative. The runtime does not
 preempt it by force. If it outlives the caller's wait, leases and fenced commits
 stay authoritative.
 
-Each database adapter also tracks its active transaction through Node's async
-context. A committed call or message wait fails early when the same logical call
-stack already owns a Solid Objects transaction. It fails before enqueue or
-polling. It does not wait for a connection or a serialized SQLite slot that it
-cannot release.
+Each database adapter also tracks its active transaction through a platform
+context store: `AsyncLocalStorage` in Node, and a turn-scoped store in the
+browser that covers only synchronous code. A committed call or message wait
+fails early when the same logical call stack already owns a Solid Objects
+transaction. It fails before enqueue or polling. It does not wait for a
+connection or a serialized SQLite slot that it cannot release. The SQLite WASM
+adapter also captures each operation's absolute deadline at access entry, so
+deadline enforcement does not depend on ambient context after an `await`.
 
 PostgreSQL notifications are an opt-in latency layer. One event-driven client
 per runtime listens on role-specific channels. It listens before the worker
@@ -121,5 +126,24 @@ broadcast events through an application-owned shared transport and calls
 another broker optional for a single Node process while making the
 cross-process boundary explicit.
 
-Solid Objects provides database-backed state coordination for Node.js. It does
-not reproduce Cloudflare's placement or edge-runtime guarantees.
+The browser hosts the same runtime through three layers. A platform seam
+supplies what Node builtins supplied before: a context store, a host identity,
+and UUID generation; `solid-objects/browser/host` registers the browser
+implementations on import. A dedicated module worker owns the runtime and the
+OPFS database, because OPFS sync access handles exist only in dedicated
+workers. Across tabs, `solid-objects/browser/tab-host` elects one leader per
+origin through the Web Locks API; only the leader opens the database and runs
+workers, other tabs invoke through a versioned `BroadcastChannel` protocol
+with idempotent request ids, and a dead leader's lock release promotes the
+next candidate onto the same durable state.
+
+`solid-objects/transmit` connects a local runtime to a server runtime
+through the existing effects outbox. An actor stages a transmit intent in the same
+transaction as its state change; the effect worker drains the outbox with
+at-least-once delivery and retry backoff. Per-actor order comes from an
+ordered drain up to the claimed effect's mailbox sequence, and the server
+ingest deduplicates on the effect id through the normal idempotency-key path.
+
+Solid Objects provides database-backed state coordination for Node.js and the
+browser. It does not reproduce Cloudflare's placement or edge-runtime
+guarantees.

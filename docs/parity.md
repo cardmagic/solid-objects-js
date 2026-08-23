@@ -107,6 +107,67 @@ gap between them.
 | Personalized payload broadcasts                              | Native         | Static typed projections run against committed state under each fresh subscriber context, reauthorize as queries, isolate failures, and carry independent revision fences.                                                                                                                                         |
 | Real-browser compatibility suite                             | Native         | Playwright exercises subscription replay over native WebSocket, incarnation/revision fences, payload delivery, component batching, and cancellation in Chromium.                                                                                                                                                   |
 
+## JavaScript-only: the browser runtime
+
+`0.14.0` ships an in-browser runtime with SQLite WASM storage
+([#17](https://github.com/cardmagic/solid-objects-js/issues/17)). The
+runtime itself is a JavaScript-only capability: the Ruby gem has no browser
+target, so no Ruby parity row exists for milestones M1 through M3. The
+transmit family (milestone M4) started here but is not JavaScript-only; the
+next section tracks it as a shared capability. All four milestones are
+complete:
+
+- M1: the shared modules no longer import Node built-in modules, a
+  registered platform factory supplies async context propagation, and
+  `pnpm run check` enforces a Node-free import graph for the browser-safe
+  modules.
+- M2: `solid-objects/database/sqlite-wasm` implements the `Database`
+  contract on SQLite WASM. The full runtime passes a round-trip test
+  against it, and Playwright proves OPFS persistence across a page reload.
+- M3: `solid-objects/browser/host` hosts the full runtime in a browser
+  module worker on OPFS storage, with durable actor state across page
+  reloads proven in Chromium. `solid-objects/browser/tab-host` elects one
+  leader per origin with the Web Locks API and serves every tab over a
+  `BroadcastChannel`; Playwright proves shared state across two tabs and
+  failover with durable continuation after the leader tab closes.
+  `solid-objects/database/shared-sqlite-wasm` goes further: it moves the
+  election behind the `Database` seam, so every tab runs the ordinary
+  `configure -> install -> ref` flow and the runtime's own leases and
+  fencing arbitrate the tabs' workers. The plan
+  named a `SharedWorker` as the host; Web Locks election between dedicated
+  workers replaced it, because OPFS sync access handles exist only in
+  dedicated workers.
+- M4: `solid-objects/transmit` drains the local effects outbox to a
+  server runtime with at-least-once delivery, per-actor order, and an
+  idempotent server ingest. Vitest proves order under transmit failures,
+  replay deduplication, and recovery after an offline period, on SQLite,
+  PostgreSQL, and MySQL.
+
+## Shared capability: the transmit family
+
+The transmit family is the one part of the browser work that both runtimes
+share. The Ruby gem adopts it in
+[solid-objects-ruby#49](https://github.com/cardmagic/solid-objects-ruby/pull/49)
+(proposals [#47](https://github.com/cardmagic/solid-objects-ruby/issues/47)
+and [#48](https://github.com/cardmagic/solid-objects-ruby/issues/48)):
+`SolidObjects::Transmission.receive` is the ingest, and `Actor#transmit`
+with `register_transmit` is the staging side. Identifiers differ by
+runtime idiom; the wire contract is what both sides guarantee:
+
+- envelope keys are camelCase (`effectId`, `actorType`, `actorId`,
+  `operation`, and an optional `arguments` that defaults to an empty
+  object);
+- the ingest idempotency key is `transmit:<effectId>`, byte for byte;
+- a replay with changed arguments raises the idempotency conflict on both
+  sides and leaves the first application intact.
+
+`compatibility/transmit-envelopes.json` is committed to both repositories
+with a consuming test on each side, so the contract is enforced from both
+sides of the repository boundary. Manual cross-runtime QA (Node to Rails
+and Rails to Node) ran in solid-objects-ruby#49; the one disagreement it
+found (the optional `arguments` default) is fixed and pinned by the shared
+fixture.
+
 ## Rails-specific surfaces
 
 Rails generators, Active Record models/controllers, Turbo rendering, and

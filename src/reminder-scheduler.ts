@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto"
+import { randomUUID } from "./platform/uuid.js"
 import { UnknownOperation } from "./errors.js"
 import type { SolidObjectsRuntime } from "./runtime.js"
 import { PollingBackoff } from "./polling-backoff.js"

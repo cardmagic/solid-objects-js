@@ -71,6 +71,12 @@
   placement, capacity, database backups, and database failover.
 - Redis and PostgreSQL notifications reduce wake-up latency but do not replace
   durable polling or become a source of truth.
+- The browser platform has no `AsyncLocalStorage`. Its context store covers
+  only the synchronous part of a callback. After the first `await` inside an
+  actor operation, the ambient guards (`applicationWritesForbidden()` and the
+  inside-transaction check) read as unset. Durable-state fencing, mailbox
+  ordering, and the SQLite WASM deadline enforcement do not depend on those
+  guards. The guards are best-effort in the browser and exact in Node.
 - `snapshotWithIncarnation`'s `createdAtMs` orders actor incarnations to the
   millisecond. Every adapter stores `created_at_ms` at that same precision. If
   you destroy and recreate the same actor identity inside one database-clock

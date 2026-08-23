@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto"
+import { randomUUID } from "./platform/uuid.js"
 import type { Actor } from "./actor.js"
 import {
   ActorSetupFailed,

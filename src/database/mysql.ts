@@ -1,3 +1,4 @@
+import "../platform/node.js"
 import mysqlDriver, {
   type Pool,
   type PoolConnection,

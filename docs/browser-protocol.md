@@ -105,3 +105,62 @@ several WebSocket processes, the configured `broadcast` callback publishes the
 committed envelope through a shared transport and each process passes received
 envelopes to `runtime.realtime.publish()`. The session fence safely drops the
 duplicate seen by a process that both claimed and received the same event.
+
+## Tab host channel protocol
+
+`solid-objects/browser/tab-host` uses a second, unrelated wire surface: a
+`BroadcastChannel` between tabs of one origin. Every envelope carries
+`protocol: "solid-objects-tab-host"` and `version: 1`; a listener ignores
+anything else. Three kinds exist:
+
+- `invoke`: a client request with a `requestId` (a UUID the client generates),
+  the target `actorType`, `actorId`, `operation`, and a JSON `arguments`
+  object.
+- `result`: the leader's answer for one `requestId`, with either an `ok`
+  value or a named error.
+- `leader-online`: the announcement a new leader posts on promotion. Clients
+  re-post their pending requests when they see it.
+
+The client retries an `invoke` on an interval until a `result` arrives or its
+timeout passes. The leader enqueues each request with `tab:<requestId>` as the
+idempotency key, so a retried or re-posted request applies once. The channel
+is same-origin plumbing between the application's own tabs; it carries no
+authentication, so the trust boundary is the origin.
+
+## Sync envelope
+
+`solid-objects/transmit` transmits one JSON envelope per staged transmit
+effect: `effectId`, target `actorType` and `actorId`, `operation`, and an
+optional `arguments` object that defaults to an empty object on both
+ingests. The transport belongs to the host application; the
+Playwright suite posts envelopes over `fetch`. The server calls
+`receiveTransmitEnvelope`, which enqueues an internal message with
+`transmit:<effectId>` as the idempotency key, so a replayed envelope applies once.
+Internal delivery skips `authorizeMessage`; the host must authenticate the
+sender before that call.
+
+## Shared database channel protocol
+
+`solid-objects/database/shared-sqlite-wasm` uses a third wire surface: a
+`BroadcastChannel` that carries SQL sessions from every tab to the current
+database holder. Every envelope carries
+`protocol: "solid-objects-shared-sqlite"` and `version: 1`. Seven kinds
+exist:
+
+- `ping` and `pong`: holder discovery. A new instance pings until a holder
+  answers with its `epoch`.
+- `holder-online`: the announcement a new holder posts on promotion, with a
+  fresh `epoch`.
+- `open`: start a session (`connection` or `transaction`) with a client
+  `sessionId`.
+- `statement`: one `run`, `get`, `all`, or `now` operation inside a session.
+- `close`: finish a session with `commit`, `rollback`, or `end`.
+- `result`: the holder's answer for one `requestId`.
+
+Every request carries the `epoch` it targets. A holder rejects requests from
+another epoch, so a client learns about a failover from a fast rejection
+rather than a timeout. A session that has not executed a statement retries
+against the new holder automatically; later failures surface as
+`SharedDatabaseFailover`, because a partially executed session must not
+replay. The channel is same-origin plumbing with the origin as its trust
+boundary, the same as the tab host protocol.

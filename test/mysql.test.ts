@@ -1,7 +1,8 @@
 import { afterEach, describe, expect, it } from "vitest"
 import { Actor } from "../src/actor.js"
 import { mysql, mysqlSql, type MySQLDatabase } from "../src/database/mysql.js"
-import { configure, type SolidObjectsRuntime } from "../src/runtime.js"
+import { configure, createRuntime, type SolidObjectsRuntime } from "../src/runtime.js"
+import { receiveTransmitEnvelope, registerTransmit } from "../src/transmit.js"
 import { SyncTimeout } from "../src/errors.js"
 import { DatabaseDeadlineExceeded } from "../src/errors.js"
 import { withDatabaseDeadline } from "../src/database/deadline.js"
@@ -9,6 +10,20 @@ import type { JsonObject } from "../src/types.js"
 import { createDashboard } from "../src/web/index.js"
 
 const connectionString = process.env.SOLID_OBJECTS_DATABASE_URL
+class TransmitProofCounter extends Actor {
+  static override readonly actorType = "TransmitProofCounter"
+
+  count = 0
+  applied: number[] = []
+
+  increment({ amount = 1 }: { amount?: number } = {}): number {
+    this.count += amount
+    this.applied = [...this.applied, amount]
+    this.transmit().increment!({ amount })
+    return this.count
+  }
+}
+
 const describeMySQL = connectionString?.startsWith("mysql:") ? describe : describe.skip
 const quietLogger = { debug: () => {}, info: () => {}, warn: () => {}, error: () => {} }
 
@@ -117,6 +132,68 @@ describe("MySQL SQL compatibility", () => {
 })
 
 describeMySQL("MySQL adapter", () => {
+  it("stages, drains, and ingests transmit envelopes on MySQL", async () => {
+    if (!connectionString) throw new Error("MySQL connection string is required")
+    const localDatabase = mysql({ connectionString, maximumConnections: 5 })
+    const serverDatabase = mysql({ connectionString, maximumConnections: 5 })
+    const settings = {
+      authorizeMessage: () => true,
+      authorizeQuery: () => true,
+      authorizeDestroy: () => true,
+      pollingIntervalMilliseconds: 1,
+      syncPollingIntervalMilliseconds: 1,
+      maxAttempts: 8,
+      retryDelayMilliseconds: () => 0,
+      logger: quietLogger,
+    }
+    const local = createRuntime({
+      database: localDatabase,
+      tableNamePrefix: "transmit_local_",
+      ...settings,
+    })
+    const server = createRuntime({
+      database: serverDatabase,
+      tableNamePrefix: "transmit_server_",
+      ...settings,
+    })
+    try {
+      let failuresRemaining = 1
+      registerTransmit({
+        runtime: local,
+        deliver: async (envelope) => {
+          if (failuresRemaining > 0) {
+            failuresRemaining -= 1
+            throw new Error("network down")
+          }
+          await receiveTransmitEnvelope({ runtime: server, envelope })
+          await receiveTransmitEnvelope({ runtime: server, envelope })
+        },
+      })
+      server.register(TransmitProofCounter)
+      await local.install()
+      await server.install()
+
+      const actorId = `proof-${crypto.randomUUID()}`
+      const counter = local.ref(TransmitProofCounter, actorId)
+      await counter.increment({ amount: 1 })
+      await counter.increment({ amount: 2 })
+      await local.testing.drain({ roles: ["actors", "effects"], maxPasses: 20 })
+      await server.testing.drain({ roles: ["actors"] })
+
+      await expect(server.ref(TransmitProofCounter, actorId).snapshot()).resolves.toEqual({
+        count: 3,
+        applied: [1, 2],
+      })
+    } finally {
+      await local.testing.reset()
+      await server.testing.reset()
+      await local.close()
+      await server.close()
+      await localDatabase.close()
+      await serverDatabase.close()
+    }
+  })
+
   it("enforces deadlines without leaking session settings", async () => {
     if (!connectionString) throw new Error("MySQL connection string is required")
     database = mysql({ connectionString, maximumConnections: 1 })

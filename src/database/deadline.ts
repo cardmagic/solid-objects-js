@@ -1,11 +1,11 @@
-import { AsyncLocalStorage } from "node:async_hooks"
+import { createContextStore } from "../platform/context-store.js"
 import { DatabaseDeadlineExceeded } from "../errors.js"
 
 interface DatabaseDeadline {
   expiresAt: number
 }
 
-const deadlines = new AsyncLocalStorage<DatabaseDeadline>()
+const deadlines = createContextStore<DatabaseDeadline>()
 
 export function withDatabaseDeadline<Result>(
   options: { timeoutMilliseconds: number },

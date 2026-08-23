@@ -1,0 +1,48 @@
+import { registerContextStoreFactory } from "../platform/context-store.js"
+import { registerHostIdentity } from "../platform/host-identity.js"
+import { TurnContextStore } from "../platform/turn-context-store.js"
+
+registerContextStoreFactory(<Store>() => new TurnContextStore<Store>())
+registerHostIdentity({
+  hostname: globalThis.location?.hostname ?? "browser",
+  hostProcessId: randomHostProcessId(),
+  runtimeVersion: "browser",
+})
+
+export { Actor, broadcastInvalidation, broadcastValue } from "../actor.js"
+export { configure, createRuntime, SolidObjectsRuntime } from "../runtime.js"
+export { VERSION } from "../version.js"
+export {
+  sqliteWasm,
+  SQLiteWasmDatabase,
+  type SQLiteWasmDatabaseOptions,
+} from "../database/sqlite-wasm.js"
+export {
+  sharedSqliteWasm,
+  SharedSQLiteWasmDatabase,
+  SharedDatabaseFailover,
+  SharedDatabaseUnavailable,
+  type SharedSQLiteWasmDatabaseOptions,
+} from "../database/shared-sqlite-wasm.js"
+export {
+  connectTabClient,
+  startTabHost,
+  type TabClient,
+  type TabClientOptions,
+  type TabHost,
+  type TabHostOptions,
+  type TabHostRuntimeHandle,
+  type TabInvocation,
+} from "./tab-host.js"
+export {
+  registerTransmit,
+  TRANSMIT_EFFECT,
+  type RegisterTransmitOptions,
+  type TransmitEnvelope,
+} from "../transmit.js"
+
+function randomHostProcessId(): number {
+  const values = new Uint32Array(1)
+  globalThis.crypto.getRandomValues(values)
+  return values[0] ?? 1
+}

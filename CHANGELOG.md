@@ -1,6 +1,82 @@
 # Changelog
 
-## 0.14.0 - 2026-08-18
+## 0.14.0 - 2026-08-22
+
+- Add `solid-objects/database/shared-sqlite-wasm`, the transparent
+  multi-tab database. Every tab runs an ordinary
+  `configure -> install -> ref` flow against the same shared database; the
+  adapter elects one holder per origin with the Web Locks API, sends every
+  other tab's SQL over a `BroadcastChannel` session to the holder, and
+  fails over onto the same OPFS state when the holder's tab dies. The
+  runtime's leases and fencing arbitrate the tabs' workers exactly as they
+  arbitrate Node processes. A Playwright test proves plain actor references
+  incrementing one durable counter from two tabs with failover.
+- Add `solid-objects/browser/tab-host`, the multi-tab host that completes
+  milestone M3 of the in-browser runtime plan
+  ([#17](https://github.com/cardmagic/solid-objects-js/issues/17)). Every
+  tab starts a candidate host; the Web Locks API elects one leader per
+  origin, and only the leader opens the database and runs the runtime.
+  Tabs invoke actors through a `BroadcastChannel` client that retries with
+  idempotent request ids. When the leader's tab dies, the lock releases,
+  the next host promotes, and the runtime continues from the same OPFS
+  state. A Playwright test proves shared state across two tabs and
+  failover after the leader closes.
+- Share the transmit wire contract with the Ruby gem. The golden fixture
+  file `compatibility/transmit-envelopes.json` is committed to both
+  repositories with a consuming test on each side; `receiveTransmitEnvelope`
+  now defaults a missing `arguments` to an empty object, matching the Ruby
+  ingest and the staging side.
+- Add `solid-objects/transmit`, milestone M4 of the plan. An actor
+  stages a transmit intent with `this.transmit().operation(arguments)` (or with
+  `emit(TRANSMIT_EFFECT, ...)` for a different target) in the same
+  transaction as its state change. `registerTransmit` drains the outbox
+  with at-least-once delivery and per-actor order (an ordered drain up to
+  the claimed effect's mailbox sequence), and `receiveTransmitEnvelope` gives
+  the server an idempotent ingest keyed on the effect id. Vitest covers
+  order under transmit failures, replay deduplication, and recovery after
+  an offline period; a Playwright test drains a browser outbox into the
+  Node server runtime.
+- Change `TurnContextStore` to synchronous scoping. The store no longer
+  stays set across `await` boundaries, so an open transaction scope cannot
+  leak into interleaved tasks and trip the inside-transaction guards. In
+  the browser those guards are best-effort; Node keeps full
+  `AsyncLocalStorage` semantics.
+- Retry OPFS SAH pool acquisition. The upstream module caches a failed
+  initialization; the adapter now passes `forceReinitIfPreviouslyFailed`,
+  so a new leader can claim the pool after the old tab dies.
+
+- Add a platform seam for async context propagation
+  (`src/platform/context-store.ts`). Shared modules no longer import
+  `node:async_hooks` directly. Node entry points register an
+  `AsyncLocalStorage` factory. A `TurnContextStore` gives a browser host a
+  turn-scoped store for serialized actor turns. This is milestone M1 of the
+  in-browser runtime plan
+  ([#17](https://github.com/cardmagic/solid-objects-js/issues/17)).
+- Route UUID generation through `src/platform/uuid.ts`, which uses the
+  standard `crypto.randomUUID()`. Shared modules no longer import
+  `node:crypto`.
+- Add `check:browser-imports` to `pnpm run check`. The script walks the
+  import graph of the browser-safe modules and fails when a `node:` module
+  or a server-only driver reaches that graph.
+- Add `solid-objects/browser/host`, the entry point for a runtime host
+  inside a browser worker. An import registers the browser platform: a
+  turn-scoped context store and a browser host identity. The module
+  re-exports the core runtime API and the WASM adapter. A Playwright test
+  runs the full runtime in a Chromium module worker and proves durable
+  actor state across a page reload. This is the first stage of milestone M3
+  ([#17](https://github.com/cardmagic/solid-objects-js/issues/17)).
+- Replace the `Buffer.byteLength` payload size check with `TextEncoder`, so
+  serialization works without the Node `Buffer` global.
+- Route the process identity (hostname, process id, runtime version)
+  through `src/platform/host-identity.ts`. The repository no longer imports
+  `node:os` or reads `process.pid` directly.
+- Add `solid-objects/database/sqlite-wasm`, a browser-safe `Database`
+  adapter on `@sqlite.org/sqlite-wasm` (an optional peer dependency). The
+  full runtime passes its round-trip test against this adapter in Node, and
+  a Playwright test proves transactions, rollback, and OPFS persistence
+  across a page reload in Chromium. This is milestone M2 of the in-browser
+  runtime plan
+  ([#17](https://github.com/cardmagic/solid-objects-js/issues/17)).
 
 - Add `runtime.enqueueInternalMessage()` and
   `runtime.enqueueInternalMessageInTransaction(connection, options)`, public

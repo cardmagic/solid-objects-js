@@ -21,8 +21,8 @@ generic signatures; this index explains the supported role of every export.
   [Limitations and non-goals](correctness.md#limitations-and-non-goals) for
   the same-millisecond boundary.
 - `Actor`: base class providing `ref()`, `actorId`, `currentMessage`,
-  `observables()`, `reject()`, `emit()`, `commitAction()`, `schedule()`,
-  `sendTo()`, and protected lifecycle hooks.
+  `observables()`, `reject()`, `emit()`, `transmit()`, `commitAction()`,
+  `schedule()`, `sendTo()`, and protected lifecycle hooks.
 - `broadcastValue(value)`: mark an observable so its changed value enters the
   durable invalidation envelope.
 - `broadcastInvalidation(value)`: compare the real observable value but put
@@ -275,6 +275,49 @@ and `SyncTimeoutWaitingOn` type timeout diagnostics. See
 - `SQLiteDatabase`: `Database` implementation and `close()` owner.
 - `SQLiteDatabaseOptions`: path, busy timeout, and lock retry options.
 
+## `solid-objects/database/sqlite-wasm`
+
+- `sqliteWasm(options)`: construct `SQLiteWasmDatabase` asynchronously. The
+  first call loads the `@sqlite.org/sqlite-wasm` module.
+- `SQLiteWasmDatabase`: `Database` implementation on SQLite WASM and `close()`
+  owner. It runs in a browser and in Node. One host owns the database file;
+  the adapter serializes access on one connection.
+- `SQLiteWasmDatabaseOptions`: `path` plus a `storage` mode. `"temporary"`
+  (the default) keeps data for the life of the process or page.
+  `"persistent"` stores data in the browser origin's OPFS through the SQLite
+  SAH pool VFS, and fails fast where OPFS is unavailable.
+
+## `solid-objects/database/shared-sqlite-wasm`
+
+Many browser tabs, one database, no visible infrastructure. Every tab
+constructs the same shared database and runs an ordinary
+`configure → install → ref` flow; the adapter hides the coordination. The
+Web Locks API elects one holder per origin. The holder opens the real
+SQLite WASM database; every other instance sends its SQL over a
+`BroadcastChannel` session to the holder, through the same serialized
+access queue. When the holder dies, the lock releases, the next instance
+opens the pool, and the runtime's leases and fencing arbitrate the tabs'
+workers exactly as they arbitrate Node processes.
+
+- `sharedSqliteWasm(options)`: construct `SharedSQLiteWasmDatabase`.
+- `SharedSQLiteWasmDatabase`: `Database` implementation with a `role()`
+  probe (`connecting`, `holder`, or `remote`) and `close()`.
+- `SharedSQLiteWasmDatabaseOptions`: `path`, an optional election `name`
+  (defaults to the path), the `storage` mode (persistent by default except
+  for `:memory:`), and the request, retry, session-idle, and open-attempt
+  tuning knobs.
+- `SharedDatabaseFailover`: the retryable rejection an in-flight statement
+  receives when the holder changes mid-operation. A session that has not
+  executed a statement yet retries automatically; anything later surfaces,
+  because replaying partially executed work is not safe.
+- `SharedDatabaseUnavailable`: the rejection for a closed instance, a
+  timed-out request, or an idle session the holder reclaimed.
+
+A transaction that dies with its holder rolls back with the pool, which is
+the same at-least-once story as a crashed Node process. Sessions that stay
+idle longer than `sessionIdleTimeoutMilliseconds` (default 10 seconds) are
+reclaimed so a dead tab cannot hold the database hostage.
+
 ## `solid-objects/database/postgresql`
 
 - `postgresql(options)`: construct `PostgreSQLDatabase`.
@@ -322,6 +365,132 @@ component registry reacts to names in either location.
 
 The wire format, trust boundary, revision rules, and component semantics are in
 [Browser protocol](browser-protocol.md).
+
+## `solid-objects/browser/host`
+
+The entry point for a runtime host inside a browser worker. An import of
+this module registers the browser platform: a turn-scoped context store and
+a browser host identity. Do not import it in the same process as the Node
+entry points; the last registration wins.
+
+- Re-exports `Actor`, `broadcastInvalidation`, `broadcastValue`, `configure`,
+  `createRuntime`, `SolidObjectsRuntime`, and `VERSION` from the core, and
+  `sqliteWasm`, `SQLiteWasmDatabase`, and `SQLiteWasmDatabaseOptions` from
+  the WASM adapter, so a worker needs one import.
+- The turn-scoped context store expects serialized actor turns. One worker
+  hosts one runtime. A page talks to that worker through messages, not
+  through direct actor references.
+- The store scopes only the synchronous part of a callback and restores
+  the previous scope in strict stack order, so an interleaved task never
+  observes another turn's scope. The cost of that isolation: after the
+  first `await` inside an actor operation, `currentActor()`,
+  `applicationWritesForbidden()`, and the database deadline read as unset.
+  Keep guarded application-database writes in synchronous actor code or in
+  commit actions; Node keeps full `AsyncLocalStorage` propagation.
+- Alarms and reminders fire only while the hosting worker is alive.
+
+## `solid-objects/browser/tab-host`
+
+Many tabs, one runtime. Each tab starts a candidate host; the Web Locks API
+elects one leader per origin. The leader starts the runtime, runs its
+workers, and serves invocations from every tab over a `BroadcastChannel`.
+When the leader's tab dies, the lock releases and the next host promotes.
+
+- `startTabHost(options)`: join the election. `TabHostOptions` carries the
+  election `name` and a `startRuntime` callback; the callback runs only on
+  promotion, so a follower never opens the database. It returns a
+  `TabHostRuntimeHandle` with the runtime and an optional `close`.
+- `TabHost`: `role()`, `leadership()` (a promise that resolves on
+  promotion), and `close()`.
+- `connectTabClient(options)`: connect from any tab. `TabClientOptions`
+  carries the election `name` plus retry and timeout intervals.
+- `TabClient.invoke(invocation)`: send a `TabInvocation` (`actorType`,
+  `actorId`, `operation`, `arguments`). The client retries until a leader
+  answers; the leader enqueues with the request id as the idempotency key,
+  so a resend applies once.
+- `TabInvocationTimeout` and `TabInvocationFailed`: the client-side errors.
+
+The election needs the Web Locks API. Every current browser provides it;
+Node provides `navigator.locks` from 24.5, so Node-side use of this module
+needs a newer Node than the package floor. `startTabHost` fails fast with a
+clear error where the API is missing.
+
+A tab dies without a clean shutdown, so failover speed follows the fence
+settings. Give the browser runtime a short `leaseDurationMilliseconds` and
+`processAliveThresholdMilliseconds` (for example 750), with a
+`leaseRenewalIntervalMilliseconds` below the lease (for example 250), so a
+new leader reclaims a dead tab's activations before sync invocations time
+out. When `startRuntime` fails, close the database in a catch block; an
+open SAH pool otherwise blocks the next candidate until the worker dies.
+
+## `solid-objects/transmit`
+
+The transactional outbox bridge between a local runtime and a server
+runtime. An actor stages a transmit intent with `this.transmit()`
+in the same transaction as its state change. The effect worker drains the
+outbox with at-least-once delivery, per-actor order, and retry backoff.
+
+- `actor.transmit()`: the fluent staging surface. `this.transmit().increment(
+{ amount })` stages a transmit intent that replays the operation on the
+  server twin of the same actor, in the same transaction as the local
+  state change.
+- `TRANSMIT_EFFECT`: the effect name (`solid-objects.transmit`) underneath
+  `transmit()`. Stage it directly with `emit()` when the target differs from
+  the source: the staged arguments hold `operation`, `arguments`, and an
+  optional target `actorType` and `actorId`.
+- `registerTransmit(options)`: register the drain handler on the local
+  runtime. `RegisterTransmitOptions` carries the runtime and a `deliver`
+  callback that carries a `TransmitEnvelope` to the server; throw from
+  `deliver` while offline and the effect retries with backoff. Give a
+  browser runtime a generous `maxAttempts`; an effect that exhausts its
+  attempts during a long offline period lands in dead letters, and
+  `runtime.deadLetters.retry` re-queues it.
+- `receiveTransmitEnvelope(options)`: idempotent server ingest. `arguments`
+  is optional in the envelope and defaults to an empty object, matching the
+  staging side and the Ruby ingest. It enqueues an
+  internal message with `transmit:<effectId>` as the idempotency key, so a
+  replayed envelope applies once. The host must authenticate the sender
+  before this call; internal delivery skips `authorizeMessage`. The call
+  belongs inside whatever route the host application gives the transmit
+  callback to post to:
+
+  ```typescript
+  import { IdempotencyConflict, InvalidPayload, receiveTransmitEnvelope } from "solid-objects"
+
+  async function handleSyncRoute(request: Request): Promise<Response> {
+    const sender = await authenticate(request)
+    if (!sender) return new Response("Forbidden", { status: 403 })
+    try {
+      await receiveTransmitEnvelope({ runtime, envelope: await request.json() })
+      return Response.json({})
+    } catch (error) {
+      if (error instanceof InvalidPayload || error instanceof IdempotencyConflict) {
+        return new Response(null, { status: 422 })
+      }
+      throw error
+    }
+  }
+  ```
+
+  The example uses a Fetch-style handler; any HTTP framework works. The 422
+  matters: it tells the sending outbox to dead-letter the effect instead of
+  retrying it. `InvalidPayload` marks a malformed envelope, and
+  `IdempotencyConflict` marks a replay whose arguments changed; both are
+  permanently unappliable, and a 500 would make the outbox retry them
+  forever.
+
+- Per-actor order comes from an ordered drain: a claimed transmit effect
+  transmits every undelivered envelope for its actor up to its own mailbox
+  sequence, oldest first. A duplicate transmission is safe; the server
+  deduplicates by effect id. Run one effect worker per local runtime for
+  the order guarantee.
+- `InvalidTransmitEnvelope`: the non-retryable rejection for malformed staged
+  arguments; the effect dead-letters instead of retrying forever.
+
+The tab host and transmit modules are browser-safe and also run in Node.
+The transmit wire contract is shared with the Ruby gem
+([solid-objects-ruby#49](https://github.com/cardmagic/solid-objects-ruby/pull/49));
+`compatibility/transmit-envelopes.json` pins it in both repositories.
 
 ## `solid-objects/web`
 

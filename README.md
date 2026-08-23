@@ -17,11 +17,16 @@ Solid Objects keeps the state, the queued operations, the retries, the
 reminders, the effects, and the realtime invalidations in the database the
 application already operates.
 
+The same runtime also runs inside a browser worker on SQLite WASM, with
+durable actor state in the origin's private file system. See
+[Solid Objects in the browser](#solid-objects-in-the-browser).
+
 > **Early release:** the correctness core has automated coverage. That coverage
-> includes the supported databases, the Chromium browser client, process
-> recovery, and the packaged artifacts. The TypeScript implementation is still
-> new. There is one deployed first-party reference application. There is no
-> measured scale and no third-party production use yet. Read the
+> includes the supported databases, the Chromium browser client, the browser
+> runtime, process recovery, and the packaged artifacts. The TypeScript
+> implementation is still new. There is one deployed first-party reference
+> application. There is no measured scale and no third-party production use
+> yet. Read the
 > [delivery boundaries](#delivery-boundaries) before you use it for important
 > data.
 
@@ -284,6 +289,59 @@ personalized payloads, and framework-neutral component refresh. Applications
 provide authentication, WebSocket transport, and rendering. See the
 [browser protocol](docs/browser-protocol.md) and [authorization guide](docs/authorization.md).
 
+## Solid Objects in the browser
+
+The full runtime runs inside a browser module worker. Actors look exactly
+like they do in Node; the database is SQLite WASM, and persistent storage
+lives in the origin's private file system (OPFS), so actor state survives
+page reloads.
+
+```javascript
+import { Actor, configure, sharedSqliteWasm } from "solid-objects/browser/host"
+
+class Counter extends Actor {
+  static actorType = "Counter"
+
+  count = 0
+
+  increment({ amount = 1 } = {}) {
+    this.count += amount
+    return this.count
+  }
+}
+
+const runtime = configure({
+  database: sharedSqliteWasm({ path: "app.db" }),
+  authorizeMessage: () => true,
+  authorizeQuery: () => true,
+})
+await runtime.install()
+
+await Counter.ref("page-hits").increment()
+```
+
+That code runs identically in every tab. `sharedSqliteWasm` elects one
+database holder per origin through the Web Locks API, carries the other
+tabs' SQL to it over a `BroadcastChannel`, and fails over onto the same
+durable state when the holder's tab dies. Use `sqliteWasm` directly for a
+single dedicated worker.
+
+Two companions complete the local-first story:
+
+- `solid-objects/browser/tab-host` runs one runtime for all tabs when the
+  application prefers request-level routing: the leader's worker executes
+  every operation, and other tabs invoke through a `BroadcastChannel` client
+  by name.
+- `solid-objects/transmit` drains the transactional effects outbox to a
+  server runtime with at-least-once delivery, per-actor order, and an
+  idempotent server ingest, so offline writes reconcile when the network
+  returns.
+
+The wire shapes are documented in the
+[browser protocol](docs/browser-protocol.md), the API in the
+[public API reference](docs/api.md), and the platform boundaries in
+[supported versions](docs/support.md).
+
 ## Comparison
 
 These systems solve different coordination problems. The table describes their
@@ -322,8 +380,10 @@ and operational data access.
 - TypeScript 5.9 or newer for TypeScript applications
 - SQLite through `node:sqlite`, PostgreSQL 14 or newer, or MySQL 8.0 or newer
   with InnoDB
-- optional `pg`, `mysql2`, or `redis` peer dependency only for the selected
-  adapter
+- optional `pg`, `mysql2`, `redis`, or `@sqlite.org/sqlite-wasm` peer
+  dependency only for the selected adapter
+- for the browser runtime: a browser with OPFS for persistent storage and the
+  Web Locks API for the multi-tab host
 
 [Supported versions](docs/support.md) records the exact CI matrix and the
 boundaries.
