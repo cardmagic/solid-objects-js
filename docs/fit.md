@@ -16,7 +16,9 @@ or realtime projections.
   durable coordination there.
 - A local-first application needs the same actor model in the browser:
   durable per-user state on SQLite WASM, one runtime shared across tabs, and
-  an outbox that syncs to a server runtime when the network allows.
+  an outbox that syncs to a server when the network allows. The server side
+  can be a Node runtime or a Rails application through the Ruby gem's
+  transmit ingest; the wire contract is shared.
 
 ## Prefer a row transaction when
 

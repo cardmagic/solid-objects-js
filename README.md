@@ -18,8 +18,9 @@ reminders, the effects, and the realtime invalidations in the database the
 application already operates.
 
 The same runtime also runs inside a browser worker on SQLite WASM, with
-durable actor state in the origin's private file system. See
-[Solid Objects in the browser](#solid-objects-in-the-browser).
+durable actor state in the origin's private file system, and its offline
+writes can replay onto a Node **or Rails** backend over one shared wire
+contract. See [Solid Objects in the browser](#solid-objects-in-the-browser).
 
 > **Early release:** the correctness core has automated coverage. That coverage
 > includes the supported databases, the Chromium browser client, the browser
@@ -333,9 +334,36 @@ Two companions complete the local-first story:
   every operation, and other tabs invoke through a `BroadcastChannel` client
   by name.
 - `solid-objects/transmit` drains the transactional effects outbox to a
-  server runtime with at-least-once delivery, per-actor order, and an
-  idempotent server ingest, so offline writes reconcile when the network
-  returns.
+  server with at-least-once delivery, per-actor order, and an idempotent
+  server ingest, so offline writes reconcile when the network returns.
+
+### The backend can be Rails, not only Node
+
+The browser runtime does not require a Node server behind it. The transmit
+wire contract is shared with the Ruby gem
+([solid-objects-ruby](https://github.com/cardmagic/solid-objects-ruby)):
+`SolidObjects::Transmission.receive` accepts the same envelopes as the Node
+ingest `receiveTransmitEnvelope`, dedups on the same `transmit:<effectId>`
+key, and both repositories pin the contract with one shared fixture file.
+A browser front end on `solid-objects/browser/host` inside a Rails
+application therefore replays its offline writes directly onto Ruby server
+actors — no Node service in between:
+
+```ruby
+class TransmitController < ApplicationController
+  def create
+    head :forbidden and return unless authenticated_device?
+
+    SolidObjects::Transmission.receive(JSON.parse(request.body.read))
+    head :ok
+  end
+end
+```
+
+The Ruby side of the family lands through
+[solid-objects-ruby#49](https://github.com/cardmagic/solid-objects-ruby/pull/49);
+until it releases, a few lines of Node running only `receiveTransmitEnvelope`
+bridge the gap.
 
 The wire shapes are documented in the
 [browser protocol](docs/browser-protocol.md), the API in the
