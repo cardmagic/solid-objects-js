@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.14.0 - 2026-08-22
 
 - Add `solid-objects/browser/tab-host`, the multi-tab host that completes
   milestone M3 of the in-browser runtime plan
@@ -62,8 +62,6 @@
   across a page reload in Chromium. This is milestone M2 of the in-browser
   runtime plan
   ([#17](https://github.com/cardmagic/solid-objects-js/issues/17)).
-
-## 0.14.0 - 2026-08-18
 
 - Add `runtime.enqueueInternalMessage()` and
   `runtime.enqueueInternalMessageInTransaction(connection, options)`, public
