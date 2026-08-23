@@ -22,7 +22,7 @@
   state. A Playwright test proves shared state across two tabs and
   failover after the leader closes.
 - Add `solid-objects/mirror`, milestone M4 of the plan. An actor
-  stages a sync intent with `this.mirror().operation(arguments)` (or with
+  stages a mirror intent with `this.mirror().operation(arguments)` (or with
   `emit(MIRROR_EFFECT, ...)` for a different target) in the same
   transaction as its state change. `registerMirror` drains the outbox
   with at-least-once delivery and per-actor order (an ordered drain up to

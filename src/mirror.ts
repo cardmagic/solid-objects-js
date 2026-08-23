@@ -58,7 +58,7 @@ export async function receiveMirrorEnvelope(options: {
     actorId: envelope.actorId,
     operation: envelope.operation,
     argumentsValue: envelope.arguments,
-    idempotencyKey: `sync:${envelope.effectId}`,
+    idempotencyKey: `mirror:${envelope.effectId}`,
   })
   return { messageId: message.id }
 }
@@ -70,11 +70,11 @@ function parseMirrorEnvelope(input: {
   const { argumentsValue, context } = input
   const operation = argumentsValue.operation
   if (typeof operation !== "string" || operation.length === 0) {
-    throw new InvalidMirrorEnvelope("sync effect arguments require a non-empty operation")
+    throw new InvalidMirrorEnvelope("mirror effect arguments require a non-empty operation")
   }
   const targetArguments = argumentsValue.arguments ?? {}
   if (!isJsonObject(targetArguments)) {
-    throw new InvalidMirrorEnvelope("sync effect arguments must hold a JSON object in arguments")
+    throw new InvalidMirrorEnvelope("mirror effect arguments must hold a JSON object in arguments")
   }
   const actorType = argumentsValue.actorType ?? context.actorType
   const actorId = argumentsValue.actorId ?? context.actorId
@@ -83,7 +83,7 @@ function parseMirrorEnvelope(input: {
     ["actorId", actorId],
   ] as const) {
     if (typeof value !== "string" || value.length === 0) {
-      throw new InvalidMirrorEnvelope(`sync effect ${field} must be a non-empty string`)
+      throw new InvalidMirrorEnvelope(`mirror effect ${field} must be a non-empty string`)
     }
   }
   return {

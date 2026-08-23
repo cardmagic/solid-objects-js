@@ -426,12 +426,12 @@ open SAH pool otherwise blocks the next candidate until the worker dies.
 ## `solid-objects/mirror`
 
 The transactional outbox bridge between a local runtime and a server
-runtime. An actor stages a sync intent with `emit(MIRROR_EFFECT, ...)`
+runtime. An actor stages a mirror intent with `this.mirror()`
 in the same transaction as its state change. The effect worker drains the
 outbox with at-least-once delivery, per-actor order, and retry backoff.
 
 - `actor.mirror()`: the fluent staging surface. `this.mirror().increment(
-{ amount })` stages a sync intent that replays the operation on the
+{ amount })` stages a mirror intent that replays the operation on the
   server twin of the same actor, in the same transaction as the local
   state change.
 - `MIRROR_EFFECT`: the effect name (`solid-objects.mirror`) underneath
@@ -446,10 +446,29 @@ outbox with at-least-once delivery, per-actor order, and retry backoff.
   attempts during a long offline period lands in dead letters, and
   `runtime.deadLetters.retry` re-queues it.
 - `receiveMirrorEnvelope(options)`: idempotent server ingest. It enqueues an
-  internal message with `sync:<effectId>` as the idempotency key, so a
+  internal message with `mirror:<effectId>` as the idempotency key, so a
   replayed envelope applies once. The host must authenticate the sender
-  before this call; internal delivery skips `authorizeMessage`.
-- Per-actor order comes from an ordered drain: a claimed sync effect
+  before this call; internal delivery skips `authorizeMessage`. The call
+  belongs inside whatever route the host application gives the transmit
+  callback to post to:
+
+  ```typescript
+  import { receiveMirrorEnvelope } from "solid-objects"
+
+  async function handleSyncRoute(request: Request): Promise<Response> {
+    const sender = await authenticate(request)
+    if (!sender) return new Response("Forbidden", { status: 403 })
+    const envelope = await request.json()
+    await receiveMirrorEnvelope({ runtime, envelope })
+    return Response.json({})
+  }
+  ```
+
+  The example uses a Fetch-style handler; any HTTP framework works, and a
+  422 response for a rejected envelope tells the browser side to stop
+  retrying that effect.
+
+- Per-actor order comes from an ordered drain: a claimed mirror effect
   transmits every undelivered envelope for its actor up to its own mailbox
   sequence, oldest first. A duplicate transmission is safe; the server
   deduplicates by effect id. Run one effect worker per local runtime for

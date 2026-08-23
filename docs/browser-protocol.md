@@ -134,7 +134,7 @@ effect: `effectId`, target `actorType` and `actorId`, `operation`, and an
 `arguments` object. The transport belongs to the host application; the
 Playwright suite posts envelopes over `fetch`. The server calls
 `receiveMirrorEnvelope`, which enqueues an internal message with
-`sync:<effectId>` as the idempotency key, so a replayed envelope applies once.
+`mirror:<effectId>` as the idempotency key, so a replayed envelope applies once.
 Internal delivery skips `authorizeMessage`; the host must authenticate the
 sender before that call.
 
