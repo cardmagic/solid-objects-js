@@ -1,4 +1,4 @@
-ruby_repository: https://github.com/cardmagic/solid_objects
+ruby_repository: https://github.com/cardmagic/solid-objects-ruby
 ruby_version: 0.12.0
 ruby_commit: a01b6f5
 npm_version: 0.12.0

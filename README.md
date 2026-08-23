@@ -347,7 +347,7 @@ and [Configuration](docs/configuration.md).
 ## Design provenance
 
 Solid Objects JS is a Node.js and TypeScript implementation. The Ruby
-[`solid_objects`](https://github.com/cardmagic/solid_objects) design informed
+[`solid_objects`](https://github.com/cardmagic/solid-objects-ruby) design informed
 it. It began at the `0.12` capability generation, because the first
 implementation targeted the Ruby `0.12` contract. That number does not represent
 twelve earlier JavaScript release generations.
