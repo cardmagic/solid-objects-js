@@ -193,26 +193,39 @@ describe("live signals", () => {
     expect(denials).toBe(0)
   })
 
-  it("evicts an idle entry from the runtime cache after the linger", async () => {
+  it("keeps one canonical entry across references and eviction cycles", async () => {
     configureLiveSignals({ lingerMilliseconds: 50 })
     const runtime = await liveRuntime()
-    const counter = runtime.ref(LiveCounter, "evicted")
+    const first = runtime.ref(LiveCounter, "canonical")
 
     const watcher = new Signal.subtle.Watcher(() => {})
-    watcher.watch(counter.live.count! as never)
-    counter.live.count!.get()
+    watcher.watch(first.live.count! as never)
+    first.live.count!.get()
     await eventually(() => activeLiveSubscriptionCount() === 1)
     expect(liveEntryCount(runtime)).toBe(1)
 
-    watcher.unwatch(counter.live.count! as never)
+    watcher.unwatch(first.live.count! as never)
     await eventually(() => activeLiveSubscriptionCount() === 0)
-    expect(liveEntryCount(runtime)).toBe(0)
 
-    watcher.watch(counter.live.count! as never)
-    counter.live.count!.get()
+    const second = runtime.ref(LiveCounter, "canonical")
+    watcher.watch(second.live.count! as never)
+    second.live.count!.get()
     await eventually(() => activeLiveSubscriptionCount() === 1)
+
+    watcher.watch(first.live.count! as never)
+    first.live.count!.get()
+    await new Promise((resolve) => setTimeout(resolve, 150))
+    expect(activeLiveSubscriptionCount()).toBe(1)
     expect(liveEntryCount(runtime)).toBe(1)
-    watcher.unwatch(counter.live.count! as never)
+    expect(first.live.count).toBe(second.live.count)
+
+    await runtime.ref(LiveCounter, "canonical").increment()
+    await runtime.testing.drain({ roles: ["actors", "broadcasts"] })
+    await eventually(() => first.live.count!.get() === 1)
+    expect(second.live.count!.get()).toBe(1)
+
+    watcher.unwatch(first.live.count! as never)
+    watcher.unwatch(second.live.count! as never)
   })
 
   it("exposes read-only signals and a stable proxy", () => {

@@ -520,9 +520,12 @@ signals API composes the same way.
   second): how long a still-watched signal waits before it retries a
   denied or failed subscription.
 - `activeLiveSubscriptionCount()` and `liveEntryCount(runtime)`: open
-  sessions and cached per-actor entries, for diagnostics and leak tests.
-  A closed entry leaves the runtime cache, so an abandoned actor holds
-  no signal state.
+  sessions and live per-actor entries, for diagnostics and leak tests.
+  The cache holds entries through weak references: one canonical entry
+  per actor for as long as any proxy or signal for it is reachable, so
+  two references to one actor can never open competing subscriptions,
+  and an entry whose signals are all garbage-collected leaves the cache
+  with them.
 - `ActorLiveSignals` and `LiveSignal`: the structural types on
   `reference.live`. `LiveSignal` exposes only `get()`, so the package
   types never require the optional peer; at runtime every signal is a
