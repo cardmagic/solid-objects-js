@@ -19,18 +19,19 @@ do not parse error messages.
 | `PayloadTooLarge`       | Arguments, state, result, snapshot getter, effect result, or personalized payload exceeded its configured limit. | Reduce the JSON value or deliberately raise the corresponding limit.                                                          |
 | `SyncInsideTransaction` | A committed call or message wait would self-deadlock inside this adapter's transaction.                          | Finish the transaction first or stage actor-owned work through a commit action.                                               |
 
-`this.reject()` accepts codes matching `[A-Za-z_][A-Za-z0-9_]*`, including
-camelCase. An invalid code throws the non-retryable `InvalidRejectionCode`; the
-operation fails on its first attempt and a synchronous caller receives
-`MessageFailed` instead of waiting through retry backoff.
+`this.reject()` accepts any code that matches `[A-Za-z_][A-Za-z0-9_]*`.
+camelCase is valid. An invalid code throws the non-retryable
+`InvalidRejectionCode`. The operation then fails on its first attempt, and a
+synchronous caller receives `MessageFailed`. It does not wait through retry
+backoff.
 
 `MessageReference.status()`, `result()`, and `wait()` reauthorize the stored
 operation. `result()` returns `undefined` while work is nonterminal, returns the
 committed result when complete, and raises `Rejected` or `MessageFailed` for a
 terminal refusal or failure. `wait()` blocks until the same terminal outcomes
-or its deadline. A reference does not retain the authorization context used to
-send it; supply the context to each of these methods so the stored operation is
-reauthorized.
+or its deadline. A reference does not keep the authorization context of the
+original send. Supply the context to each of these methods, so that the runtime
+can reauthorize the stored operation.
 
 ## Definition and programming errors
 
@@ -97,8 +98,7 @@ linked replacement message; repeating the call returns the same replacement.
 Effects are different: they execute outside the actor transaction and are at
 least once. Deduplicate external work with the stable `EffectContext.id`.
 Success and failure callback operations receive the originally staged
-`arguments` for actor-state correlation. A retryable failure scheduled into the
-future is correctly considered idle for the present pass, so
-`runtime.testing.drain()` does not advance retry backoff; use a
-`NonRetryableError` when a test needs to exercise the exhausted failure callback
-without waiting.
+`arguments` for actor-state correlation. A retryable failure with a future
+schedule is correctly idle for the present pass, so `runtime.testing.drain()`
+does not advance retry backoff. Use a `NonRetryableError` when a test must reach
+the exhausted failure callback immediately.

@@ -26,8 +26,8 @@ npm trust github solid-objects \
 
 ## Release procedure
 
-1. Update the version in `package.json` and `src/version.ts`, refresh the
-   lockfile when needed, and move the release notes out of the Unreleased
+1. Update the version in `package.json` and `src/version.ts`. Refresh the
+   lockfile when necessary. Move the release notes out of the Unreleased
    section in `CHANGELOG.md` into a dated section for the new version. The
    publish job reads that section, so a version without one fails the release.
 2. Run `pnpm run format:check`, `pnpm run check`, `pnpm run test:coverage`,
@@ -48,7 +48,7 @@ quality, database, Redis, and browser job succeeds. It rejects tags that do not
 match `package.json`, safely skips versions already present in npm, and
 publishes new versions with npm provenance.
 
-The job then builds the release notes with `scripts/release-notes.mjs`, which
-prints the `CHANGELOG.md` section for the tagged version, and creates the GitHub
-release for the tag. Re-running the job on a tag that npm already holds still
-creates a missing release.
+The job then builds the release notes with `scripts/release-notes.mjs`. That
+script prints the `CHANGELOG.md` section for the tagged version. The job then
+creates the GitHub release for the tag. If you run the job again on a tag that
+npm already holds, it still creates a missing release.
