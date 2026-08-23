@@ -78,9 +78,9 @@
       "types": "./dist/browser/tab-host.d.ts",
       "import": "./dist/browser/tab-host.js"
     },
-    "./mirror": {
-      "types": "./dist/mirror.d.ts",
-      "import": "./dist/mirror.js"
+    "./transmit": {
+      "types": "./dist/transmit.d.ts",
+      "import": "./dist/transmit.js"
     },
     "./web": {
       "types": "./dist/web/index.d.ts",

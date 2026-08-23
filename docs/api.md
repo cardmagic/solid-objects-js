@@ -21,7 +21,7 @@ generic signatures; this index explains the supported role of every export.
   [Limitations and non-goals](correctness.md#limitations-and-non-goals) for
   the same-millisecond boundary.
 - `Actor`: base class providing `ref()`, `actorId`, `currentMessage`,
-  `observables()`, `reject()`, `emit()`, `mirror()`, `commitAction()`,
+  `observables()`, `reject()`, `emit()`, `transmit()`, `commitAction()`,
   `schedule()`, `sendTo()`, and protected lifecycle hooks.
 - `broadcastValue(value)`: mark an observable so its changed value enters the
   durable invalidation envelope.
@@ -423,43 +423,43 @@ new leader reclaims a dead tab's activations before sync invocations time
 out. When `startRuntime` fails, close the database in a catch block; an
 open SAH pool otherwise blocks the next candidate until the worker dies.
 
-## `solid-objects/mirror`
+## `solid-objects/transmit`
 
 The transactional outbox bridge between a local runtime and a server
-runtime. An actor stages a mirror intent with `this.mirror()`
+runtime. An actor stages a transmit intent with `this.transmit()`
 in the same transaction as its state change. The effect worker drains the
 outbox with at-least-once delivery, per-actor order, and retry backoff.
 
-- `actor.mirror()`: the fluent staging surface. `this.mirror().increment(
-{ amount })` stages a mirror intent that replays the operation on the
+- `actor.transmit()`: the fluent staging surface. `this.transmit().increment(
+{ amount })` stages a transmit intent that replays the operation on the
   server twin of the same actor, in the same transaction as the local
   state change.
-- `MIRROR_EFFECT`: the effect name (`solid-objects.mirror`) underneath
-  `mirror()`. Stage it directly with `emit()` when the target differs from
+- `TRANSMIT_EFFECT`: the effect name (`solid-objects.transmit`) underneath
+  `transmit()`. Stage it directly with `emit()` when the target differs from
   the source: the staged arguments hold `operation`, `arguments`, and an
   optional target `actorType` and `actorId`.
-- `registerMirror(options)`: register the drain handler on the local
-  runtime. `RegisterMirrorOptions` carries the runtime and a `transmit`
-  callback that carries a `MirrorEnvelope` to the server; throw from
-  `transmit` while offline and the effect retries with backoff. Give a
+- `registerTransmit(options)`: register the drain handler on the local
+  runtime. `RegisterTransmitOptions` carries the runtime and a `deliver`
+  callback that carries a `TransmitEnvelope` to the server; throw from
+  `deliver` while offline and the effect retries with backoff. Give a
   browser runtime a generous `maxAttempts`; an effect that exhausts its
   attempts during a long offline period lands in dead letters, and
   `runtime.deadLetters.retry` re-queues it.
-- `receiveMirrorEnvelope(options)`: idempotent server ingest. It enqueues an
-  internal message with `mirror:<effectId>` as the idempotency key, so a
+- `receiveTransmitEnvelope(options)`: idempotent server ingest. It enqueues an
+  internal message with `transmit:<effectId>` as the idempotency key, so a
   replayed envelope applies once. The host must authenticate the sender
   before this call; internal delivery skips `authorizeMessage`. The call
   belongs inside whatever route the host application gives the transmit
   callback to post to:
 
   ```typescript
-  import { receiveMirrorEnvelope } from "solid-objects"
+  import { receiveTransmitEnvelope } from "solid-objects"
 
   async function handleSyncRoute(request: Request): Promise<Response> {
     const sender = await authenticate(request)
     if (!sender) return new Response("Forbidden", { status: 403 })
     const envelope = await request.json()
-    await receiveMirrorEnvelope({ runtime, envelope })
+    await receiveTransmitEnvelope({ runtime, envelope })
     return Response.json({})
   }
   ```
@@ -468,12 +468,12 @@ outbox with at-least-once delivery, per-actor order, and retry backoff.
   422 response for a rejected envelope tells the browser side to stop
   retrying that effect.
 
-- Per-actor order comes from an ordered drain: a claimed mirror effect
+- Per-actor order comes from an ordered drain: a claimed transmit effect
   transmits every undelivered envelope for its actor up to its own mailbox
   sequence, oldest first. A duplicate transmission is safe; the server
   deduplicates by effect id. Run one effect worker per local runtime for
   the order guarantee.
-- `InvalidMirrorEnvelope`: the non-retryable rejection for malformed staged
+- `InvalidTransmitEnvelope`: the non-retryable rejection for malformed staged
   arguments; the effect dead-letters instead of retrying forever.
 
 Both modules are browser-safe and also run in Node.

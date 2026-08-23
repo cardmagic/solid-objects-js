@@ -8,7 +8,7 @@ const browserSafeRoots = [
   "src/browser/host.ts",
   "src/browser/index.ts",
   "src/browser/tab-host.ts",
-  "src/mirror.ts",
+  "src/transmit.ts",
   "src/context.ts",
   "src/database/deadline.ts",
   "src/database/shared-sqlite-wasm.ts",

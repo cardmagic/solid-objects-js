@@ -1,13 +1,13 @@
-import { Actor, configure, registerMirror, sqliteWasm } from "/browser/host.js"
+import { Actor, configure, registerTransmit, sqliteWasm } from "/browser/host.js"
 
-class MirrorCounter extends Actor {
-  static actorType = "MirrorCounter"
+class TransmitCounter extends Actor {
+  static actorType = "TransmitCounter"
 
   count = 0
 
   increment({ amount = 1 } = {}) {
     this.count += amount
-    this.mirror().increment({ amount })
+    this.transmit().increment({ amount })
     return this.count
   }
 }
@@ -31,9 +31,9 @@ self.onmessage = async (event) => {
       pollingIntervalMilliseconds: 5,
       syncPollingIntervalMilliseconds: 5,
     })
-    registerMirror({
+    registerTransmit({
       runtime,
-      transmit: async (envelope) => {
+      deliver: async (envelope) => {
         const response = await fetch("/sync", {
           method: "POST",
           headers: { "content-type": "application/json" },
@@ -42,7 +42,7 @@ self.onmessage = async (event) => {
         if (!response.ok) throw new Error(`sync transport failed with ${response.status}`)
       },
     })
-    runtime.register(MirrorCounter)
+    runtime.register(TransmitCounter)
     await runtime.install()
     const runAbort = new AbortController()
     const running = runtime.run(runAbort.signal)
@@ -54,7 +54,7 @@ self.onmessage = async (event) => {
     }
     let count = 0
     for (const amount of amounts) {
-      count = await runtime.ref(MirrorCounter, actorId).increment({ amount })
+      count = await runtime.ref(TransmitCounter, actorId).increment({ amount })
     }
     postMessage({ requestId, ok: true, value: count })
   } catch (error) {

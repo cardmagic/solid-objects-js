@@ -8,7 +8,7 @@ function runWorkerCommand(
     (input) =>
       new Promise((resolve, reject) => {
         const scope = window as unknown as { __syncWorker?: Worker }
-        scope.__syncWorker ??= new Worker("/mirror-worker.mjs", { type: "module" })
+        scope.__syncWorker ??= new Worker("/transmit-worker.mjs", { type: "module" })
         const worker = scope.__syncWorker
         const requestId = crypto.randomUUID()
         const onMessage = (event: MessageEvent) => {
@@ -25,7 +25,7 @@ function runWorkerCommand(
 }
 
 test("drains the browser outbox into the server runtime", async ({ page, request }) => {
-  const actorId = `mirror-${Date.now()}`
+  const actorId = `transmit-${Date.now()}`
   await page.goto("/")
 
   const localCount = await runWorkerCommand(page, { command: "run", actorId, amounts: [2, 3] })

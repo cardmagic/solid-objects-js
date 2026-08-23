@@ -2,7 +2,7 @@ import { currentMessage, currentRuntime } from "./context.js"
 import { getDefaultRuntime } from "./default-runtime.js"
 import type { StateMigration } from "./definition.js"
 import { InvalidRejectionCode, Rejected, UnknownOperation } from "./errors.js"
-import { MIRROR_EFFECT } from "./mirror-effect.js"
+import { TRANSMIT_EFFECT } from "./transmit-effect.js"
 import {
   createStagedOperationMap,
   createStagedOperations,
@@ -223,10 +223,10 @@ export abstract class Actor {
     })
   }
 
-  mirror(): ScheduledOperations {
+  transmit(): ScheduledOperations {
     return createStagedOperationMap(this.#operations, (operation, argumentsValue) => {
       this.#intents.effects.push({
-        name: MIRROR_EFFECT,
+        name: TRANSMIT_EFFECT,
         arguments: jsonObject({ operation, arguments: argumentsValue }),
       })
     })

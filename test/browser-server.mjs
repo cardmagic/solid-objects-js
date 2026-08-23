@@ -1,7 +1,7 @@
 import { createServer } from "node:http"
 import { readFile } from "node:fs/promises"
 import { extname, resolve } from "node:path"
-import { Actor, configure, receiveMirrorEnvelope } from "../dist/index.js"
+import { Actor, configure, receiveTransmitEnvelope } from "../dist/index.js"
 import { sqlite } from "../dist/database/sqlite.js"
 import { createDashboard, createNodeDashboardHandler } from "../dist/web/index.js"
 
@@ -20,8 +20,8 @@ class DashboardBrowserActor extends Actor {
     this.count += 1
   }
 }
-class MirrorCounter extends Actor {
-  static actorType = "MirrorCounter"
+class TransmitCounter extends Actor {
+  static actorType = "TransmitCounter"
   count = 0
   increment({ amount = 1 } = {}) {
     this.count += amount
@@ -35,7 +35,7 @@ const runtime = configure({
   authorizeAdministration: () => true,
 })
 runtime.register(DashboardBrowserActor)
-runtime.register(MirrorCounter)
+runtime.register(TransmitCounter)
 await runtime.install()
 await DashboardBrowserActor.ref("browser-room").increment()
 const sessionValues = new Map()
@@ -88,7 +88,7 @@ const server = createServer(async (request, response) => {
   if (pathname === "/sync" && request.method === "POST") {
     try {
       const envelope = JSON.parse(await readBody(request))
-      await receiveMirrorEnvelope({ runtime, envelope })
+      await receiveTransmitEnvelope({ runtime, envelope })
       await runtime.testing.drain({ roles: ["actors"] })
       response.writeHead(200, { "content-type": "application/json" })
       response.end("{}")
@@ -101,7 +101,7 @@ const server = createServer(async (request, response) => {
   if (pathname === "/sync-state") {
     const actorId = new URL(request.url ?? "/", "http://127.0.0.1").searchParams.get("actorId")
     const snapshot = await runtime
-      .ref(MirrorCounter, actorId ?? "missing")
+      .ref(TransmitCounter, actorId ?? "missing")
       .snapshot()
       .catch(() => ({ count: 0 }))
     response.writeHead(200, { "content-type": "application/json" })
@@ -112,7 +112,7 @@ const server = createServer(async (request, response) => {
     pathname === "/sqlite-wasm-worker.mjs" ||
     pathname === "/runtime-worker.mjs" ||
     pathname === "/tab-host-worker.mjs" ||
-    pathname === "/mirror-worker.mjs" ||
+    pathname === "/transmit-worker.mjs" ||
     pathname === "/shared-db-worker.mjs"
   ) {
     await serveFile({ response, path: resolve(browserFixtureRoot, pathname.slice(1)) })

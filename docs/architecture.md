@@ -137,8 +137,8 @@ workers, other tabs invoke through a versioned `BroadcastChannel` protocol
 with idempotent request ids, and a dead leader's lock release promotes the
 next candidate onto the same durable state.
 
-`solid-objects/mirror` connects a local runtime to a server runtime
-through the existing effects outbox. An actor stages a mirror intent in the same
+`solid-objects/transmit` connects a local runtime to a server runtime
+through the existing effects outbox. An actor stages a transmit intent in the same
 transaction as its state change; the effect worker drains the outbox with
 at-least-once delivery and retry backoff. Per-actor order comes from an
 ordered drain up to the claimed effect's mailbox sequence, and the server

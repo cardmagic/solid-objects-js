@@ -24,13 +24,13 @@ export {
 } from "./runtime.js"
 export { VERSION } from "./version.js"
 export {
-  receiveMirrorEnvelope,
-  registerMirror,
-  MIRROR_EFFECT,
-  InvalidMirrorEnvelope,
-  type RegisterMirrorOptions,
-  type MirrorEnvelope,
-} from "./mirror.js"
+  receiveTransmitEnvelope,
+  registerTransmit,
+  TRANSMIT_EFFECT,
+  InvalidTransmitEnvelope,
+  type RegisterTransmitOptions,
+  type TransmitEnvelope,
+} from "./transmit.js"
 export { guardApplicationDatabase } from "./application-database.js"
 export { runCli, type CliRunOptions } from "./cli.js"
 export { Worker } from "./worker.js"

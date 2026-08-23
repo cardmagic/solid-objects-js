@@ -35,11 +35,11 @@ export {
   type TabInvocation,
 } from "./tab-host.js"
 export {
-  registerMirror,
-  MIRROR_EFFECT,
-  type RegisterMirrorOptions,
-  type MirrorEnvelope,
-} from "../mirror.js"
+  registerTransmit,
+  TRANSMIT_EFFECT,
+  type RegisterTransmitOptions,
+  type TransmitEnvelope,
+} from "../transmit.js"
 
 function randomHostProcessId(): number {
   const values = new Uint32Array(1)

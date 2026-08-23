@@ -21,12 +21,12 @@
   the next host promotes, and the runtime continues from the same OPFS
   state. A Playwright test proves shared state across two tabs and
   failover after the leader closes.
-- Add `solid-objects/mirror`, milestone M4 of the plan. An actor
-  stages a mirror intent with `this.mirror().operation(arguments)` (or with
-  `emit(MIRROR_EFFECT, ...)` for a different target) in the same
-  transaction as its state change. `registerMirror` drains the outbox
+- Add `solid-objects/transmit`, milestone M4 of the plan. An actor
+  stages a transmit intent with `this.transmit().operation(arguments)` (or with
+  `emit(TRANSMIT_EFFECT, ...)` for a different target) in the same
+  transaction as its state change. `registerTransmit` drains the outbox
   with at-least-once delivery and per-actor order (an ordered drain up to
-  the claimed effect's mailbox sequence), and `receiveMirrorEnvelope` gives
+  the claimed effect's mailbox sequence), and `receiveTransmitEnvelope` gives
   the server an idempotent ingest keyed on the effect id. Vitest covers
   order under transmit failures, replay deduplication, and recovery after
   an offline period; a Playwright test drains a browser outbox into the
