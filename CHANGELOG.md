@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.14.1 - 2026-08-23
 
 - Add `solid-objects/signals`, live signals on actor references
   ([#24](https://github.com/cardmagic/solid-objects-js/issues/24)). One
