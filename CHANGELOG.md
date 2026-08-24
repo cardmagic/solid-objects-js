@@ -1,5 +1,17 @@
 # Changelog
 
+## Unreleased
+
+- Add `examples/at-least-once` and `pnpm run test:at-least-once`
+  ([#23](https://github.com/cardmagic/solid-objects-js/issues/23)): an
+  executable proof that the at-least-once clause fires and that the
+  documented remedy absorbs it. An effect worker crashes between the
+  external sink write and the acknowledgement; after restart the sink
+  reads 2 with deduplication off, and 1 when a guard on the stable
+  effect id is in place. The state commit happens exactly once in both
+  runs, and both deliveries carry the same effect id. CI runs the demo
+  alongside the recovery demo.
+
 ## 0.14.1 - 2026-08-23
 
 - Add `solid-objects/signals`, live signals on actor references
