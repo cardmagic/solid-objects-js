@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.14.2 - 2026-08-24
 
 - State that background pickup needs `runtime.run(signal)`
   ([#22](https://github.com/cardmagic/solid-objects-js/issues/22)). The
@@ -15,7 +15,6 @@
   `Cart.ref("cart-123")`, matching every other reference example in the
   documentation. `createRuntime()` deliberately leaves the process default
   unset, so the static form needs `configure()`.
-
 - Add `examples/at-least-once` and `pnpm run test:at-least-once`
   ([#23](https://github.com/cardmagic/solid-objects-js/issues/23)): an
   executable proof that the at-least-once clause fires and that the
