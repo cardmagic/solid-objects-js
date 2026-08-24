@@ -58,7 +58,12 @@
 
 - At-least-once execution means actor code may begin more than once. State and
   staged intents from a failed turn roll back, but arbitrary external work does
-  not. External systems need stable idempotency keys.
+  not. External systems need stable idempotency keys. This clause is
+  observable, not decorative: `pnpm run test:at-least-once` crashes an
+  effect worker between the sink write and the acknowledgement, restarts
+  it, and shows the sink reading 2 with deduplication off — then shows a
+  guard on the stable effect id absorbing the same duplicate, with the
+  sink reading 1. The state commit happens exactly once in both runs.
 - The activation fence protects the Solid Objects commit. It cannot revoke or
   undo network calls, files, emails, payments, or other external effects.
 - One identity processes one write operation at a time. This is the ordering

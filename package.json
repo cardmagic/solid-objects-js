@@ -107,6 +107,7 @@
     "test:mysql": "vitest run test/mysql.test.ts",
     "test:package": "node scripts/release-artifact-smoke.mjs",
     "test:recovery": "pnpm run build && node examples/failure-recovery/demo.ts",
+    "test:at-least-once": "pnpm run build && node examples/at-least-once/demo.ts",
     "test:redis": "vitest run test/redis-wake-up.test.ts",
     "test:watch": "vitest",
     "benchmark": "pnpm run build && node benchmarks/run.ts",

@@ -26,6 +26,7 @@ jobs:
       - run: pnpm run pack:check
       - run: pnpm run test:package
       - run: pnpm run test:recovery
+      - run: pnpm run test:at-least-once
       - run: pnpm audit --audit-level=high
 
   floor:
@@ -42,6 +43,7 @@ jobs:
       - run: pnpm run build
       - run: pnpm run test:package
       - run: pnpm run test:recovery
+      - run: pnpm run test:at-least-once
 
   postgresql:
     runs-on: ubuntu-latest
