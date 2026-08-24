@@ -62,7 +62,7 @@ const runtime = createRuntime({
 await runtime.install()
 
 try {
-  const cart = runtime.ref(Cart, "cart-123")
+  const cart = Cart.ref("cart-123")
   await Promise.all([cart.add({ sku: "blue-shirt" }), cart.add({ sku: "green-hat" })])
 } finally {
   await runtime.close()
@@ -72,6 +72,18 @@ try {
 Both calls enter the durable mailbox for `cart-123`. They execute in order and
 commit one state transition at a time, even when different requests or Node.js
 processes submit them concurrently.
+
+`install()` prepares the database and starts nothing. The example above finishes
+because the caller's own path executes each call. A process serves background
+work only after `runtime.run(signal)` starts its roles, so a process that
+installs and then waits never claims a ready message. Nothing is lost while no
+process runs. The message stays ready until one does.
+
+```typescript
+const controller = new AbortController()
+process.on("SIGTERM", () => controller.abort())
+await runtime.run(controller.signal)
+```
 
 ## Run it now with SQLite
 

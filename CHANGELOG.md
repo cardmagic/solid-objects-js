@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+- State that background pickup needs `runtime.run(signal)`
+  ([#22](https://github.com/cardmagic/solid-objects-js/issues/22)). The
+  README's programming-model example works without it because the caller's
+  own path executes the call, and nothing on that page said that a process
+  which installs and then waits claims nothing. An external prober built a
+  two-process harness from the README and read the unclaimed messages as
+  stranded. The README and `docs/operations.md` now state it, and
+  `test/background-pickup.test.ts` pins it: a sent message reads `ready`
+  after `install()`, and `completed` once `run(signal)` starts the roles.
+- Address the same example with `Cart.ref("cart-123")` instead of
+  `runtime.ref(Cart, "cart-123")`, matching every other reference example.
+
 - Add `examples/at-least-once` and `pnpm run test:at-least-once`
   ([#23](https://github.com/cardmagic/solid-objects-js/issues/23)): an
   executable proof that the at-least-once clause fires and that the

@@ -1,5 +1,12 @@
 # Operations
 
+`install()` prepares the database and starts nothing. A process serves
+background work only after `runtime.run(signal)` starts its roles. A process
+that registers actors, installs, and then waits never claims a ready message,
+and work enqueued with `send` stays ready until some process runs the roles.
+A direct call or an explicit `sync` needs no running role, because the caller's
+own path executes it.
+
 Runtime roles use durable polling as the correctness fallback. Consecutive
 empty passes double each role's wait from `pollingIntervalMilliseconds` to
 `idlePollingIntervalMilliseconds`, which defaults to one second. Processed
