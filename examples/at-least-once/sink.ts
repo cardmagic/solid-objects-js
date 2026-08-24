@@ -13,8 +13,9 @@ export async function readSink(path: string): Promise<SinkState> {
   try {
     const parsed: SinkState = JSON.parse(await readFile(path, "utf-8"))
     return parsed
-  } catch {
-    return { deliveries: [] }
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return { deliveries: [] }
+    throw error
   }
 }
 

@@ -48,6 +48,7 @@ try {
     processed = await effectWorker.runOnce()
     if (processed === 0) await new Promise((resolve) => setTimeout(resolve, 10))
   }
+  if (processed === 0) throw new Error("no effect became claimable")
   process.send?.({ event: "effects.finished", processed })
 } finally {
   await effectWorker.stop()

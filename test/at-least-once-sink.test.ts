@@ -1,4 +1,4 @@
-import { mkdtemp, rm } from "node:fs/promises"
+import { mkdtemp, rm, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { afterEach, describe, expect, it } from "vitest"
@@ -65,5 +65,18 @@ describe("at-least-once sink", () => {
   it("reads an empty sink where no file exists", async () => {
     const path = await sinkPath()
     expect(await readSink(path)).toEqual({ deliveries: [] })
+  })
+
+  it("refuses to read a damaged sink as an empty one", async () => {
+    const path = await sinkPath()
+    await writeFile(path, "{ deliveries: ")
+
+    await expect(readSink(path)).rejects.toThrow()
+  })
+
+  it("refuses to read an unreadable sink as an empty one", async () => {
+    await sinkPath()
+
+    await expect(readSink(directory as string)).rejects.toThrow()
   })
 })
