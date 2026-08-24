@@ -39,7 +39,7 @@ contract. See [Solid Objects in the browser](#solid-objects-in-the-browser).
 ## The programming model
 
 ```typescript
-import { Actor, createRuntime } from "solid-objects"
+import { Actor, configure } from "solid-objects"
 import { sqlite } from "solid-objects/database/sqlite"
 
 class Cart extends Actor {
@@ -53,7 +53,7 @@ class Cart extends Actor {
   }
 }
 
-const runtime = createRuntime({
+const runtime = configure({
   database: sqlite({ path: "cart.sqlite3" }),
   authorizeMessage: () => true,
   authorizeQuery: () => true,

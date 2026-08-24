@@ -1,6 +1,8 @@
 import { afterEach, describe, expect, it } from "vitest"
 import { Actor } from "../src/actor.js"
 import { sqlite } from "../src/database/sqlite.js"
+import type { MessageReference } from "../src/reference.js"
+import type { MessageStatus } from "../src/types.js"
 import { createRuntime, type SolidObjectsRuntime } from "../src/runtime.js"
 
 class Mailbox extends Actor {
@@ -48,13 +50,27 @@ describe("background pickup", () => {
 
     const controller = new AbortController()
     const running = runtime.run(controller.signal)
+    let observed: MessageStatus
     try {
-      await message.wait({ timeoutMilliseconds: 2_000 })
+      observed = await pollStatus({ message, timeoutMilliseconds: 2_000 })
     } finally {
       controller.abort()
       await running
     }
 
-    expect(await message.status()).toBe("completed")
+    expect(observed).toBe("completed")
   })
 })
+
+async function pollStatus(options: {
+  message: MessageReference<number>
+  timeoutMilliseconds: number
+}): Promise<MessageStatus> {
+  const deadline = performance.now() + options.timeoutMilliseconds
+  let status = await options.message.status()
+  while (status !== "completed" && performance.now() < deadline) {
+    await new Promise((resolve) => setTimeout(resolve, 10))
+    status = await options.message.status()
+  }
+  return status
+}

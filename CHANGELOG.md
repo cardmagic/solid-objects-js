@@ -11,8 +11,10 @@
   stranded. The README and `docs/operations.md` now state it, and
   `test/background-pickup.test.ts` pins it: a sent message reads `ready`
   after `install()`, and `completed` once `run(signal)` starts the roles.
-- Address the same example with `Cart.ref("cart-123")` instead of
-  `runtime.ref(Cart, "cart-123")`, matching every other reference example.
+- Build the same example with `configure()` and address the actor as
+  `Cart.ref("cart-123")`, matching every other reference example in the
+  documentation. `createRuntime()` deliberately leaves the process default
+  unset, so the static form needs `configure()`.
 
 - Add `examples/at-least-once` and `pnpm run test:at-least-once`
   ([#23](https://github.com/cardmagic/solid-objects-js/issues/23)): an
