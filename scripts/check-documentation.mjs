@@ -64,6 +64,7 @@ const entryPoints = [
   "src/browser/host.ts",
   "src/browser/tab-host.ts",
   "src/transmit.ts",
+  "src/signals.ts",
   "src/web/index.ts",
 ]
 

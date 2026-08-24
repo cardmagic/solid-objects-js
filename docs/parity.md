@@ -143,6 +143,17 @@ complete:
   replay deduplication, and recovery after an offline period, on SQLite,
   PostgreSQL, and MySQL.
 
+## JavaScript-only: live signals
+
+`reference.live` (the `solid-objects/signals` entry) adapts committed
+actor state to the proposed standard JavaScript signals API, so
+signal-consuming renderers track actors with no manual registration. No
+Ruby row exists because the slot it fills is already native in Rails:
+the gem's Turbo and Action Cable component surface re-renders partials
+from the same committed observables. Each runtime renders with its
+ecosystem's primitive; the guarantee — views track committed state under
+revision fencing and the same privacy model — is what parity preserves.
+
 ## Shared capability: the transmit family
 
 The transmit family is the one part of the browser work that both runtimes

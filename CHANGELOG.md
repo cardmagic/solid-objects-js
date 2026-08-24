@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.14.1 - 2026-08-23
+
+- Add `solid-objects/signals`, live signals on actor references
+  ([#24](https://github.com/cardmagic/solid-objects-js/issues/24)). One
+  side-effect import enables `reference.live`: read-only signals on the
+  proposed standard JavaScript signals API (`signal-polyfill`, a new
+  optional peer dependency) that subscribe through an in-process
+  `runtime.realtime` session when first watched and unsubscribe after a
+  linger when the last watcher leaves. Value-broadcast observables feed
+  named signals; `live.snapshot` re-fetches the authorized snapshot on
+  each accepted envelope; `live.payloads.<name>` carries personalized
+  payload projections under their independent revision fences; stale
+  revisions are fenced. Works in Node and
+  in the browser runtime.
+
 ## 0.14.0 - 2026-08-23
 
 - Add `solid-objects/database/shared-sqlite-wasm`, the transparent

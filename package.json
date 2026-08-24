@@ -1,6 +1,6 @@
 {
   "name": "solid-objects",
-  "version": "0.14.0",
+  "version": "0.14.1",
   "description": "Race-free realtime state per application identity, backed by your SQL database",
   "type": "module",
   "license": "MIT",
@@ -78,6 +78,10 @@
       "types": "./dist/browser/tab-host.d.ts",
       "import": "./dist/browser/tab-host.js"
     },
+    "./signals": {
+      "types": "./dist/signals.d.ts",
+      "import": "./dist/signals.js"
+    },
     "./transmit": {
       "types": "./dist/transmit.d.ts",
       "import": "./dist/transmit.js"
@@ -121,18 +125,23 @@
     "pg": "^8.23.0",
     "prettier": "^3.9.6",
     "redis": "^6.2.1",
+    "signal-polyfill": "^0.2.2",
     "typescript": "^5.9.0",
     "vitest": "^4.1.10",
     "ws": "^8.21.3"
   },
   "peerDependencies": {
     "@sqlite.org/sqlite-wasm": ">=3.50.0-build1",
+    "signal-polyfill": ">=0.2.2",
     "mysql2": "^3.23.3",
     "pg": "^8.23.0",
     "redis": "^6.2.1"
   },
   "peerDependenciesMeta": {
     "@sqlite.org/sqlite-wasm": {
+      "optional": true
+    },
+    "signal-polyfill": {
       "optional": true
     },
     "mysql2": {

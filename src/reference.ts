@@ -7,6 +7,7 @@ import type {
   DestroyOptions,
   InvocationOptions,
   JsonObject,
+  JsonValue,
   MessageStatus,
   SnapshotOptions,
 } from "./types.js"
@@ -164,6 +165,27 @@ export class ActorMessageSenderCore<ActorType extends Actor> {
   }
 }
 
+export interface LiveSignal<Value> {
+  get(): Value
+}
+
+export type ActorLiveSignals<ActorType extends Actor> = {
+  readonly snapshot: LiveSignal<ActorSnapshot<ActorType> | undefined>
+  readonly payloads: {
+    readonly [name: string]: LiveSignal<DeepReadonly<JsonValue> | undefined>
+  }
+} & {
+  readonly [name: string]: LiveSignal<DeepReadonly<JsonValue> | undefined>
+}
+
+export type LiveSignalsFactory = (reference: ActorReferenceCore<Actor>) => object
+
+let liveSignalsFactory: LiveSignalsFactory | undefined
+
+export function installLiveSignals(factory: LiveSignalsFactory): void {
+  liveSignalsFactory = factory
+}
+
 export class ActorReferenceCore<ActorType extends Actor> {
   readonly send: ActorMessageSender<ActorType>
   readonly runtime: SolidObjectsRuntime
@@ -192,6 +214,18 @@ export class ActorReferenceCore<ActorType extends Actor> {
 
   with(options: InvocationOptions): ActorInvoker<ActorType> {
     return createInvoker(this, options)
+  }
+
+  #live: object | undefined
+
+  get live(): ActorLiveSignals<ActorType> {
+    if (!liveSignalsFactory) {
+      throw new Error(
+        'ref.live is inactive; import "solid-objects/signals" once to enable live signals',
+      )
+    }
+    this.#live ??= liveSignalsFactory(this as unknown as ActorReferenceCore<Actor>)
+    return this.#live as ActorLiveSignals<ActorType>
   }
 
   snapshot(options: SnapshotOptions = {}): Promise<ActorSnapshot<ActorType>> {
