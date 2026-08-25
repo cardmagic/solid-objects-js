@@ -1,5 +1,31 @@
 # Changelog
 
+## 0.15.0 - 2026-08-25
+
+- Rewrite the first screen around the objection a reader actually has. The
+  README led with a shopping cart that appended to an array, which invites the
+  reply that one SQL statement already does it. It now leads with the ticket
+  sale from the homepage: 100 seats, a hold, a ten-minute expiry that frees the
+  seat, and a published count. That is the smallest example needing three
+  things from one number, and the three things are the argument.
+- Answer "why not just use transactions?" in the first screen instead of
+  burying the fit sections. The section concedes the transaction and the row
+  lock first, including `navigator.locks` in the browser, then argues scope
+  rather than discipline: any `expiresAt` or `scheduledAt` column is evidence
+  the critical section already outlived the lock, and what follows it is a
+  sweeper and a race.
+- Add "Is it worth installing here?", which names who should not install this,
+  and point readers with high-QPS reads or hot identities at
+  [Solid Objects Pro](https://solidobjects.pro/).
+- Correct two claims. The realtime section said a value is published once per
+  change from the saving turn; the turn records the publication atomically,
+  while delivery is a separate worker and is at least once. Design provenance
+  said the API was redesigned around Web Components; there is no
+  `customElements` or `HTMLElement` in the package.
+- Cut the README from 590 to about 540 lines by removing what `docs/` already
+  documented and what the page said three times, and add the table of contents
+  the standard-readme specification asks for above 100 lines.
+
 ## 0.14.2 - 2026-08-24
 
 - State that background pickup needs `runtime.run(signal)`
