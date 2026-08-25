@@ -36,12 +36,12 @@ contract. See [Solid Objects in the browser](#solid-objects-in-the-browser).
 > earns its cost when the critical section outlives the transaction: a hold that
 > expires in ten minutes, work that must survive a restart, or a fan-in that
 > spans many jobs. See
-> [Why not just use a transaction and a row lock?](#why-not-just-use-a-transaction-and-a-row-lock).
+> [Why not just use transactions?](#why-not-just-use-transactions).
 
 ## Contents
 
 - [The programming model](#the-programming-model)
-- [Why not just use a transaction and a row lock?](#why-not-just-use-a-transaction-and-a-row-lock)
+- [Why not just use transactions?](#why-not-just-use-transactions)
 - [Is it worth installing here?](#is-it-worth-installing-here)
 - [Run it now with SQLite](#run-it-now-with-sqlite)
 - [What Solid Objects is for](#what-solid-objects-is-for)
@@ -136,7 +136,7 @@ process.on("SIGTERM", () => controller.abort())
 await runtime.run(controller.signal)
 ```
 
-## Why not just use a transaction and a row lock?
+## Why not just use transactions?
 
 Often you should. If the whole job is read a row, decide, write it back, and
 answer the request, then a transaction with `SELECT ... FOR UPDATE` does that
@@ -153,7 +153,7 @@ Any column named `expiresAt`, `scheduledAt`, or `nextRunAt` is evidence that
 the critical section already outlived the lock that was supposed to cover it.
 What follows such a column is a sweeper that looks for due rows, and then a
 race between that sweeper and the next writer of the same row. The column, the
-sweeper, and the race are what an actor replaces.
+sweeper, and the race are what a Solid Objects actor replaces.
 
 Three cases a lock cannot reach:
 
@@ -181,6 +181,15 @@ state, or a global rate-limit counter that every request touches. One hot
 identity is serialized on purpose, so making everything one identity makes a
 queue. Split an identity only when the domain can tolerate independent
 ordering and transactions.
+
+High-QPS reads and hot identities are where this runtime stops being the right
+tool on its own. [Solid Objects Pro](https://solidobjects.pro/) is a commercial
+performance layer for the family that adds grouped commits, which coalesce
+concurrent writes into fewer database commits; optional ephemeral operations,
+which take loss-tolerant calls out of the durable journal; and materialized
+projections, which build read models after commit so reads stop competing with
+mailbox work. It ships for the Rails gem today, and the Node build is in
+development.
 
 [What Solid Objects is for](#what-solid-objects-is-for) has the pattern table,
 and [Choosing Solid Objects](docs/fit.md) is the longer guide.
