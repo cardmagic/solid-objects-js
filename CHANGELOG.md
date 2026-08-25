@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.15.0 - 2026-08-25
+## 0.14.3 - 2026-08-25
 
 - Rewrite the first screen around the objection a reader actually has. The
   README led with a shopping cart that appended to an array, which invites the
