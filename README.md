@@ -38,6 +38,26 @@ contract. See [Solid Objects in the browser](#solid-objects-in-the-browser).
 > spans many jobs. See
 > [Why not just use a transaction and a row lock?](#why-not-just-use-a-transaction-and-a-row-lock).
 
+## Contents
+
+- [The programming model](#the-programming-model)
+- [Why not just use a transaction and a row lock?](#why-not-just-use-a-transaction-and-a-row-lock)
+- [Is it worth installing here?](#is-it-worth-installing-here)
+- [Run it now with SQLite](#run-it-now-with-sqlite)
+- [What Solid Objects is for](#what-solid-objects-is-for)
+- [Measured behavior](#measured-behavior)
+- [Running in a deployed application](#running-in-a-deployed-application)
+- [How it works](#how-it-works)
+- [Delivery boundaries](#delivery-boundaries)
+- [Realtime committed state](#realtime-committed-state)
+- [Solid Objects in the browser](#solid-objects-in-the-browser)
+- [Comparison](#comparison)
+- [Requirements and supported systems](#requirements-and-supported-systems)
+- [Operations](#operations)
+- [Design provenance](#design-provenance)
+- [Documentation](#documentation)
+- [License](#license)
+
 ## The programming model
 
 A ticket sale for one event, with 100 seats and a hold that expires:
