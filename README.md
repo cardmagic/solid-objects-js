@@ -32,29 +32,49 @@ contract. See [Solid Objects in the browser](#solid-objects-in-the-browser).
 > data.
 
 > **Not a replacement for SQL transactions:** when one row update inside one
-> transaction solves the problem, use that. Solid Objects earns its cost when an
-> entity needs ordered calls across requests, retries, reminders, effects, and
-> realtime state. See [Good and poor fits](#good-and-poor-fits).
+> transaction solves the problem, use that and install nothing. Solid Objects
+> earns its cost when the critical section outlives the transaction: a hold that
+> expires in ten minutes, work that must survive a restart, or a fan-in that
+> spans many jobs. See
+> [Why not just use a transaction and a row lock?](#why-not-just-use-a-transaction-and-a-row-lock).
 
 ## The programming model
 
+A ticket sale for one event, with 100 seats and a hold that expires:
+
 ```typescript
-import { Actor, configure } from "solid-objects"
+import { Actor, broadcastValue, configure } from "solid-objects"
 import { sqlite } from "solid-objects/database/sqlite"
 
-class Cart extends Actor {
-  static override readonly actorType = "Cart"
+class TicketSale extends Actor {
+  static override readonly actorType = "TicketSale"
 
-  items: string[] = []
+  remaining = 100
+  holds: Record<string, number> = {}
 
-  add({ sku }: { sku: string }): number {
-    this.items.push(sku)
-    return this.items.length
+  override observables(): Record<string, unknown> {
+    return { remaining: broadcastValue(this.remaining) }
+  }
+
+  reserve({ buyer }: { buyer: string }): boolean {
+    if (this.remaining === 0 || buyer in this.holds) return false
+    this.remaining -= 1
+    this.holds = { ...this.holds, [buyer]: Date.now() }
+    this.schedule({ at: new Date(Date.now() + 600_000), key: buyer }).expire!({ buyer })
+    return true
+  }
+
+  expire({ buyer }: { buyer: string }): void {
+    if (!(buyer in this.holds)) return
+    const rest = { ...this.holds }
+    delete rest[buyer]
+    this.holds = rest
+    this.remaining += 1
   }
 }
 
 const runtime = configure({
-  database: sqlite({ path: "cart.sqlite3" }),
+  database: sqlite({ path: "tickets.sqlite3" }),
   authorizeMessage: () => true,
   authorizeQuery: () => true,
 })
@@ -62,16 +82,27 @@ const runtime = configure({
 await runtime.install()
 
 try {
-  const cart = Cart.ref("cart-123")
-  await Promise.all([cart.add({ sku: "blue-shirt" }), cart.add({ sku: "green-hat" })])
+  const sale = TicketSale.ref("event-42")
+  const buyers = ["ada", "grace", "alan"]
+  await Promise.all(buyers.map((buyer) => sale.reserve({ buyer })))
 } finally {
   await runtime.close()
 }
 ```
 
-Both calls enter the durable mailbox for `cart-123`. They execute in order and
-commit one state transition at a time, even when different requests or Node.js
-processes submit them concurrently.
+Every reserve enters the durable mailbox for `event-42`. They execute in order
+and commit one state transition at a time, even when different requests or
+Node.js processes submit them concurrently, so the guard on `remaining` cannot
+oversell.
+
+That example wants three things from the same number. It must never go below
+zero. It must give the seat back if the buyer does not pay within ten minutes.
+It must show the current count to everyone watching the page.
+
+The first is one UPDATE statement. The second is an `expiresAt` column plus a
+sweeper. The third is a push on every code path that changes the number. The
+combination is what costs, not any one of them. Here the guard, the ten-minute
+alarm, and the published count are one class, and they commit together.
 
 `install()` prepares the database and starts nothing. The example above finishes
 because the caller's own path executes each call. A process serves background
@@ -84,6 +115,53 @@ const controller = new AbortController()
 process.on("SIGTERM", () => controller.abort())
 await runtime.run(controller.signal)
 ```
+
+## Why not just use a transaction and a row lock?
+
+Often you should. If the whole job is read a row, decide, write it back, and
+answer the request, then a transaction with `SELECT ... FOR UPDATE` does that
+and you need nothing else installed. In the browser, `navigator.locks` is the
+same answer. Reach for those first.
+
+The argument for an actor is scope, not discipline. A lock is scoped to one
+transaction, on one connection, in one process. The ticket sale above leaves
+that scope on one line: the hold expires in ten minutes, and no transaction
+stays open for ten minutes. A `setTimeout` does not cover it either, because it
+dies with the process.
+
+Any column named `expiresAt`, `scheduledAt`, or `nextRunAt` is evidence that
+the critical section already outlived the lock that was supposed to cover it.
+What follows such a column is a sweeper that looks for due rows, and then a
+race between that sweeper and the next writer of the same row. The column, the
+sweeper, and the race are what an actor replaces.
+
+Three cases a lock cannot reach:
+
+- work that fires at a future moment, when no transaction of yours is open;
+- work that must survive a process restart, which rules out an in-process
+  timer; and
+- a fan-in whose critical section spans many jobs over minutes, such as an
+  import that counts its own chunks as each one finishes.
+
+If it all happens inside one request, use a lock. If something has to happen
+later, or has to survive a restart, that is when this is worth installing.
+
+## Is it worth installing here?
+
+Worth it when several requests, jobs, or processes act on the same cart, room,
+device, event, or session, and each next action needs the last committed state.
+Worth it when that same thing also owns work that fires later, or a number a
+live page must show.
+
+Not worth it for a plain counter, a single-row update inside one transaction, a
+stateless job, bulk ingestion or a data-parallel pipeline, CPU-heavy work, a
+large JSON document that belongs in normalized rows, or a global rate-limit
+counter that every request touches. One hot identity is serialized on purpose,
+so making everything one identity makes a queue.
+
+The longer version is in [What Solid Objects is for](#what-solid-objects-is-for),
+[Good and poor fits](#good-and-poor-fits), and
+[Choosing Solid Objects](docs/fit.md).
 
 ## Run it now with SQLite
 
@@ -271,6 +349,20 @@ See [Correctness and delivery semantics](docs/correctness.md) and
 
 ## Realtime committed state
 
+For a like count or a dashboard number, write the row and then send on your own
+socket. That is less code than this library and it works.
+
+It gets harder when several people write to the same record at once. Each
+request builds its payload in its own process and sends it. The lock decided
+who wrote first, but it has no say over which of the two sends arrives last, so
+a viewer can be left looking at the older number. The second gap is that the
+send is not part of the write: if the process dies after the database commits
+and before the send goes out, the tab keeps a wrong number and nothing corrects
+it.
+
+An observable is the alternative. The value is published once per change, in
+commit order, from the same turn that saved the change.
+
 Actors opt into browser-visible dependencies. In `0.13`, an unwrapped
 observable triggers invalidation without storing or sending its value. Use
 `broadcastValue()` only for a scalar that every authorized subscriber may see:
@@ -359,7 +451,7 @@ ingest `receiveTransmitEnvelope`, dedups on the same `transmit:<effectId>`
 key, and both repositories pin the contract with one shared fixture file.
 A browser front end on `solid-objects/browser/host` inside a Rails
 application therefore replays its offline writes directly onto Ruby server
-actors — no Node service in between:
+actors, with no Node service in between:
 
 ```ruby
 class TransmitController < ApplicationController
