@@ -37,8 +37,16 @@ history, and no actor-state migration contract.
   identities.
 - Compute and state must be automatically placed close to clients at the edge.
 - The team wants a managed control plane to place, scale, and recover workers.
+- A rate limiter sits on the request path, and every request touches the same
+  identity. A low-rate quota that a reminder refills is a different case and
+  fits, because each check is one durable ordered message. For the high-QPS
+  limiter, see [Solid Objects Pro](https://solidobjects.pro/): grouped commits
+  coalesce concurrent writes into one insert, and ephemeral operations keep
+  loss-tolerant calls out of the durable journal. It ships for the Rails gem
+  today, and the Node build is in development.
 - Durable workflow replay across named steps is more important than a mutable
-  object with ordered operations.
+  object with ordered operations. The runtime redelivers an ordered message and
+  retries it. It does not replay a function from a step log.
 
 ## Model identities deliberately
 

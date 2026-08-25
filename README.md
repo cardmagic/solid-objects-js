@@ -22,15 +22,6 @@ durable actor state in the origin's private file system, and its offline
 writes can replay onto a Node **or Rails** backend over one shared wire
 contract. See [Solid Objects in the browser](#solid-objects-in-the-browser).
 
-> **Early release:** the correctness core has automated coverage. That coverage
-> includes the supported databases, the Chromium browser client, the browser
-> runtime, process recovery, and the packaged artifacts. The TypeScript
-> implementation is still new. There is one deployed first-party reference
-> application. There is no measured scale and no third-party production use
-> yet. Read the
-> [delivery boundaries](#delivery-boundaries) before you use it for important
-> data.
-
 > **Not a replacement for SQL transactions:** when one row update inside one
 > transaction solves the problem, use that and install nothing. Solid Objects
 > earns its cost when the critical section outlives the transaction: a hold that
@@ -56,6 +47,7 @@ contract. See [Solid Objects in the browser](#solid-objects-in-the-browser).
 - [Operations](#operations)
 - [Design provenance](#design-provenance)
 - [Documentation](#documentation)
+- [Status](#status)
 - [License](#license)
 
 ## The programming model
@@ -177,7 +169,7 @@ committed state are the same argument.
 Not worth it for a plain counter, a single-row update inside one transaction, a
 stateless job, bulk ingestion or a data-parallel pipeline, CPU-heavy work, a
 large JSON document that belongs in normalized rows, globally placed edge
-state, or a global rate-limit counter that every request touches. One hot
+state, or a rate-limit counter that every request touches. One hot
 identity is serialized on purpose, so making everything one identity makes a
 queue. Split an identity only when the domain can tolerate independent
 ordering and transactions.
@@ -221,15 +213,26 @@ Durable Objects:
 | Multiplayer, presence, or collaboration | Room, session, or document    | Joins, moves, and edits commit in order; subscribers refresh from committed state           |
 | Reservations and expiring holds         | Show, resource, or stock item | Availability checks and holds cannot interleave; a durable reminder can release an old hold |
 | Checkout and account workflows          | Cart, order, account, device  | The current step, retries, and effect results return to the same ordered mailbox            |
-| Per-key rate limits                     | API key, account, or device   | Token checks and decrements are serialized; a reminder can refill the bucket                |
+| Quotas and expiring limits              | API key, account, or device   | Low-rate quota checks and decrements are serialized; a reminder can refill the bucket       |
 | Stateful agent sessions                 | Agent session                 | Messages and tool results apply in order and pending work survives a worker exit            |
 
 The common shape is one durable coordination boundary with an application
 defined identity. Work for that identity is serialized, while unrelated rooms,
-carts, accounts, or sessions can progress concurrently. A single global rate
-limiter or another very hot identity is a poor fit because it becomes an
-intentional bottleneck. If one ordinary row transaction solves the problem,
-prefer that. See [Choosing Solid Objects](docs/fit.md) for the longer guide.
+carts, accounts, or sessions can progress concurrently. Any very hot identity is
+a poor fit, because it becomes an intentional bottleneck.
+
+Two of those rows have a limit. A quota fits when one identity checks it a few
+times per minute, because each check is one durable ordered message with a
+retained history row. A limiter that every request to that identity touches
+does not fit here. That high-QPS shape is what
+[Solid Objects Pro](https://solidobjects.pro/) targets.
+
+A workflow fits when one entity owns the mutable state and its mailbox holds
+the step order. A durable execution engine that replays named steps from a step
+log is a different tool.
+
+If one ordinary row transaction solves the problem, prefer that. See
+[Choosing Solid Objects](docs/fit.md) for the longer guide.
 
 ## Measured behavior
 
@@ -539,6 +542,16 @@ TypeScript package in the deployed Node and SQLite topology above.
 - [Releases](https://github.com/cardmagic/solid-objects-js/releases)
 - [Contributing](CONTRIBUTING.md)
 - [Security policy](SECURITY.md)
+
+## Status
+
+**Early release:** the correctness core has automated coverage. That coverage
+includes the supported databases, the Chromium browser client, the browser
+runtime, process recovery, and the packaged artifacts. The TypeScript
+implementation is still new. There is one deployed first-party reference
+application. There is no measured scale and no third-party production use yet.
+Read the [delivery boundaries](#delivery-boundaries) before you use it for
+important data.
 
 ## License
 

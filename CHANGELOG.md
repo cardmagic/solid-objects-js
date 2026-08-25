@@ -1,5 +1,27 @@
 # Changelog
 
+## Unreleased
+
+- Align the use-case claims with the Ruby gem. The README table sold per-key
+  rate limits, while the Ruby fit guide called a rate limiter an anti-pattern.
+  Both projects now draw one line: a low-rate quota that a reminder refills
+  fits, because each check is one durable ordered message, and a limiter that
+  every request touches does not.
+- Point the high-QPS reader at [Solid Objects Pro](https://solidobjects.pro/)
+  from the rate-limit sentence in the README and `docs/fit.md`, and name what
+  it adds for that shape: grouped commits and ephemeral operations. The README
+  states that it ships for the Rails gem today and that the Node build is in
+  development.
+- Move the early-release caveat off the first screen. It is now a `Status`
+  section at the end of the README, with a table-of-contents entry, which
+  matches where the Ruby gem keeps the same statement. The first screen keeps
+  the transaction caveat, because that one changes whether a reader should
+  install anything.
+- State the workflow limit next to the workflow row instead of only in
+  `docs/fit.md`. A workflow fits when one entity owns the mutable state and its
+  mailbox holds the step order. A durable execution engine that replays named
+  steps from a step log is a different tool.
+
 ## 0.14.3 - 2026-08-25
 
 - Rewrite the first screen around the objection a reader actually has. The
