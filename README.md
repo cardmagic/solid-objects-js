@@ -360,8 +360,12 @@ send is not part of the write: if the process dies after the database commits
 and before the send goes out, the tab keeps a wrong number and nothing corrects
 it.
 
-An observable is the alternative. The value is published once per change, in
-commit order, from the same turn that saved the change.
+An observable is the alternative. The change and its publication commit
+together, so no crash can leave one without the other. A worker delivers the
+publication afterwards, claiming rows in actor revision order, and subscribers
+reject a duplicate or stale revision. Delivery is still at least once, so the
+guarantee is that a subscriber cannot end up on an older value, not that a
+value is sent exactly once.
 
 Actors opt into browser-visible dependencies. In `0.13`, an unwrapped
 observable triggers invalidation without storing or sending its value. Use
