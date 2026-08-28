@@ -1,8 +1,8 @@
 # Public API reference
 
 The package exports one server entry point plus database, wake-up, and browser
-subpaths. TypeScript declaration files remain the source of truth for exact
-generic signatures; this index explains the supported role of every export.
+subpaths. The TypeScript declaration files are authoritative for exact generic
+signatures. This index explains the supported role of every export.
 
 ## `solid-objects`
 

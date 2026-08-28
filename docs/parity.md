@@ -1,8 +1,8 @@
 # Design parity ledger
 
 This ledger tracks capability parity with the Ruby `solid_objects` gem.
-Parity means preserving a capability and its correctness or security boundary,
-not copying a Rails API into Node.
+Parity preserves a capability and its correctness or security boundary. It does
+not copy a Rails API into Node.
 
 Reference: Ruby `solid_objects` 0.14.0. The JavaScript package began at the
 Ruby design's `0.12` capability generation; that version number did not imply
@@ -151,8 +151,8 @@ signal-consuming renderers track actors with no manual registration. No
 Ruby row exists because the slot it fills is already native in Rails:
 the gem's Turbo and Action Cable component surface re-renders partials
 from the same committed observables. Each runtime renders with its
-ecosystem's primitive; the guarantee — views track committed state under
-revision fencing and the same privacy model — is what parity preserves.
+ecosystem's primitive. Parity here preserves the guarantee: views track
+committed state under revision fencing and the same privacy model.
 
 ## Shared capability: the transmit family
 
@@ -163,7 +163,7 @@ from proposals [#47](https://github.com/cardmagic/solid-objects-ruby/issues/47)
 and [#48](https://github.com/cardmagic/solid-objects-ruby/issues/48)):
 `SolidObjects::Transmission.receive` is the ingest, and `Actor#transmit`
 with `register_transmit` is the staging side. Identifiers differ by
-runtime idiom; the wire contract is what both sides guarantee:
+runtime idiom, but both sides guarantee the same wire contract:
 
 - envelope keys are camelCase (`effectId`, `actorType`, `actorId`,
   `operation`, and an optional `arguments` that defaults to an empty
