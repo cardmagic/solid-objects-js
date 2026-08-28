@@ -1,7 +1,7 @@
 # Benchmarks
 
-The benchmark harness measures committed actor operations. It is intended to
-show tradeoffs and catch large regressions, not to predict application capacity.
+The benchmark harness measures committed actor operations. It shows tradeoffs
+and catches large regressions. It does not predict application capacity.
 
 ## Idle polling
 

@@ -58,12 +58,12 @@
 
 - At-least-once execution means actor code may begin more than once. State and
   staged intents from a failed turn roll back, but arbitrary external work does
-  not. External systems need stable idempotency keys. This clause is
-  observable, not decorative: `pnpm run test:at-least-once` crashes an
-  effect worker between the sink write and the acknowledgement, restarts
-  it, and shows the sink reading 2 with deduplication off — then shows a
-  guard on the stable effect id absorbing the same duplicate, with the
-  sink reading 1. The state commit happens exactly once in both runs.
+  not. External systems need stable idempotency keys. A test shows this
+  clause: `pnpm run test:at-least-once` crashes an effect worker between
+  the sink write and the acknowledgement, restarts it, and shows the sink
+  reading 2 with deduplication off. It then shows a guard on the stable
+  effect id absorbing the same duplicate, with the sink reading 1. The
+  state commit happens exactly once in both runs.
 - The activation fence protects the Solid Objects commit. It cannot revoke or
   undo network calls, files, emails, payments, or other external effects.
 - One identity processes one write operation at a time. This is the ordering
@@ -74,8 +74,8 @@
   Once newer code persists a state version, older code rejects that actor.
 - The application owns HTTP, WebSocket authentication, rendering, process
   placement, capacity, database backups, and database failover.
-- Redis and PostgreSQL notifications reduce wake-up latency but do not replace
-  durable polling or become a source of truth.
+- Redis and PostgreSQL notifications reduce wake-up latency. They do not
+  replace durable polling, and they hold no authoritative state.
 - The browser platform has no `AsyncLocalStorage`. Its context store covers
   only the synchronous part of a callback. After the first `await` inside an
   actor operation, the ambient guards (`applicationWritesForbidden()` and the

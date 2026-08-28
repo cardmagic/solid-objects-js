@@ -7,7 +7,7 @@ Open Source Durable Objects for JavaScript, in the SQL database you already run.
 No daemon, no broker, and no new datastore.
 
 Build addressable TypeScript objects with serialized calls and durable state on
-SQLite, PostgreSQL, or MySQL. You don't need Cloudflare for this.
+SQLite, PostgreSQL, or MySQL, without a Cloudflare account.
 
 Concurrent calls for one identity cannot overwrite each other. Calls for
 different identities can run at the same time.
@@ -107,20 +107,23 @@ and commit one state transition at a time, even when different requests or
 Node.js processes submit them concurrently, so the guard on `remaining` cannot
 oversell.
 
-That example wants three things from the same number. It must never go below
-zero. It must give the seat back if the buyer does not pay within ten minutes.
-It must show the current count to everyone watching the page.
+The example needs three behaviors from the same number:
 
-The first is one UPDATE statement. The second is an `expiresAt` column plus a
-sweeper. The third is a push on every code path that changes the number. The
-combination is what costs, not any one of them. Here the guard, the ten-minute
-alarm, and the published count are one class, and they commit together.
+- the count must never go below zero;
+- the seat must return if the buyer does not pay within ten minutes; and
+- every open page must show the current count.
+
+Written by hand, the first needs one UPDATE statement, the second needs an
+`expiresAt` column and a sweeper, and the third needs a push on every code path
+that changes the number. These three must agree with each other. In the example
+above the guard, the alarm, and the published count are one class, and they
+commit in one transaction.
 
 `install()` prepares the database and starts nothing. The example above finishes
 because the caller's own path executes each call. A process serves background
 work only after `runtime.run(signal)` starts its roles, so a process that
-installs and then waits never claims a ready message. Nothing is lost while no
-process runs. The message stays ready until one does.
+installs and then waits never claims a ready message. No message is lost while
+no process runs. The message stays ready until a process starts.
 
 ```typescript
 const controller = new AbortController()
@@ -130,24 +133,24 @@ await runtime.run(controller.signal)
 
 ## Why not just use transactions?
 
-Often you should. If the whole job is read a row, decide, write it back, and
-answer the request, then a transaction with `SELECT ... FOR UPDATE` does that
-and you need nothing else installed. In the browser, `navigator.locks` is the
-same answer. Reach for those first.
+Often you should. If the whole job is to read a row, decide, write it back, and
+answer the request, then a transaction with `SELECT ... FOR UPDATE` does that,
+and you install nothing else. In the browser, `navigator.locks` does the same
+work.
 
-The argument for an actor is scope, not discipline. A lock is scoped to one
-transaction, on one connection, in one process. The ticket sale above leaves
-that scope on one line: the hold expires in ten minutes, and no transaction
-stays open for ten minutes. A `setTimeout` does not cover it either, because it
-dies with the process.
+An actor helps when the work goes outside the scope of a lock. A lock holds for
+one transaction, on one connection, in one process. The ticket sale above goes
+outside that scope on one line: the hold expires in ten minutes, and no
+transaction stays open for ten minutes. A `setTimeout` does not cover it
+either, because it stops with the process.
 
-Any column named `expiresAt`, `scheduledAt`, or `nextRunAt` is evidence that
-the critical section already outlived the lock that was supposed to cover it.
-What follows such a column is a sweeper that looks for due rows, and then a
-race between that sweeper and the next writer of the same row. The column, the
-sweeper, and the race are what a Solid Objects actor replaces.
+A column named `expiresAt`, `scheduledAt`, or `nextRunAt` shows that the
+critical section already outlived the lock that was supposed to cover it. Such
+a column usually comes with a sweeper that looks for due rows, and the sweeper
+can race the next writer of the same row. A Solid Objects actor replaces the
+column, the sweeper, and the race.
 
-Three cases a lock cannot reach:
+A lock cannot reach three cases:
 
 - work that fires at a future moment, when no transaction of yours is open;
 - work that must survive a process restart, which rules out an in-process
@@ -155,27 +158,26 @@ Three cases a lock cannot reach:
 - a fan-in whose critical section spans many jobs over minutes, such as an
   import that counts its own chunks as each one finishes.
 
-If it all happens inside one request, use a lock. If something has to happen
-later, or has to survive a restart, that is when this is worth installing.
+If all the work happens inside one request, use a lock. Install this package
+when work must happen later, or must survive a restart.
 
 ## Is it worth installing here?
 
-Worth it when several requests, jobs, or processes act on the same cart, room,
-device, event, or session, and each next action needs the last committed state.
-Worth it when that same thing also owns work that fires later, or a number a
-live page must show: per-document reminders and realtime projections of
-committed state are the same argument.
+Install it when several requests, jobs, or processes act on the same cart,
+room, device, event, or session, and each next action needs the last committed
+state. It also helps when that same thing owns work that fires later, or a
+number that a live page must show.
 
-Not worth it for a plain counter, a single-row update inside one transaction, a
-stateless job, bulk ingestion or a data-parallel pipeline, CPU-heavy work, a
-large JSON document that belongs in normalized rows, globally placed edge
-state, or a rate-limit counter that every request touches. One hot
-identity is serialized on purpose, so making everything one identity makes a
-queue. Split an identity only when the domain can tolerate independent
-ordering and transactions.
+Do not install it for a plain counter, a single-row update inside one
+transaction, a stateless job, bulk ingestion or a data-parallel pipeline,
+CPU-heavy work, a large JSON document that belongs in normalized rows, globally
+placed edge state, or a rate-limit counter that every request touches. Solid
+Objects serializes one identity on purpose. If you put all the work in one
+identity, you get a queue. Split an identity only when the domain can tolerate
+independent ordering and transactions.
 
-High-QPS reads and hot identities are where this runtime stops being the right
-tool on its own. [Solid Objects Pro](https://solidobjects.pro/) is a commercial
+This runtime alone does not handle high-QPS reads or hot identities well.
+[Solid Objects Pro](https://solidobjects.pro/) is a commercial
 performance layer for the family that adds grouped commits, which coalesce
 concurrent writes into fewer database commits; optional ephemeral operations,
 which take loss-tolerant calls out of the durable journal; and materialized
@@ -195,18 +197,17 @@ server, container, or configuration:
 npm exec --yes --package=solid-objects@latest -- solid-objects quickstart
 ```
 
-It states its plan, prints the `Counter` class it runs, and asks before doing
-anything. It asserts rather than printing a plausible result, and exits
-non-zero when a check fails. Add `--yes` to skip the question, or `--json` for
-a machine-readable summary.
+It states its plan, prints the `Counter` class it runs, and asks before it does
+anything. It checks each result with an assertion, and it exits non-zero when a
+check fails. Add `--yes` to skip the question, or `--json` for a
+machine-readable summary.
 
 ## What Solid Objects is for
 
 Use Solid Objects when more than one request, job, or process can act on the
 same logical thing. The next action must then use the latest committed state of
-that thing.
-These are the stateful coordination patterns for which people often reach for
-Durable Objects:
+that thing. The table lists stateful coordination patterns that people often
+solve with Durable Objects:
 
 | Pattern                                 | One identity per              | What the object coordinates                                                                 |
 | --------------------------------------- | ----------------------------- | ------------------------------------------------------------------------------------------- |
@@ -216,10 +217,10 @@ Durable Objects:
 | Quotas and expiring limits              | API key, account, or device   | Low-rate quota checks and decrements are serialized; a reminder can refill the bucket       |
 | Stateful agent sessions                 | Agent session                 | Messages and tool results apply in order and pending work survives a worker exit            |
 
-The common shape is one durable coordination boundary with an application
-defined identity. Work for that identity is serialized, while unrelated rooms,
-carts, accounts, or sessions can progress concurrently. Any very hot identity is
-a poor fit, because it becomes an intentional bottleneck.
+Each pattern has one durable coordination boundary with an identity that the
+application chooses. Work for that identity is serialized, while unrelated
+rooms, carts, accounts, or sessions can progress concurrently. A very hot
+identity is a poor fit, because Solid Objects serializes it.
 
 Two of those rows have a limit. A quota fits when one identity checks it a few
 times per minute, because each check is one durable ordered message with a
@@ -247,10 +248,10 @@ operations at client concurrency 16, on August 22, 2026.
 | Idle wake-up to committed result, two processes, polling only |     1,006 ms p50 |
 
 Calls to one identity are serialized on purpose, so per-call latency includes
-the wait behind the other fifteen callers. That last row is the tradeoff to
-know before deploying: use PostgreSQL notifications or the optional Redis
-Pub/Sub when separate processes need low-latency delivery. The same databases
-in Docker Desktop reached 1.8x to 4.9x less throughput.
+the wait behind the other fifteen callers. The last row shows an important
+limit: use PostgreSQL notifications or the optional Redis Pub/Sub when separate
+processes need low-latency delivery. The same databases in Docker Desktop
+reached 1.8x to 4.9x less throughput.
 
 PostgreSQL and MySQL numbers, idle CPU, sources of bias, and the full matrix
 are in [Benchmarks](docs/benchmarks.md). Measure your own deployment shape
@@ -266,7 +267,7 @@ TypeScript, SQLite, `node:http`, and `ws`. Each table code addresses one
 `GameRoom` actor that owns both seats, so mutations share one durable mailbox
 while each player receives a separately authorized projection.
 
-The application and its tests exercise more than a counter-shaped happy path:
+The application and its tests cover more than a simple counter:
 
 | Production concern        | Verifiable application evidence                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
 | ------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -302,8 +303,8 @@ backoff and dead-letters at the limit.
 
 The fence includes the activation owner, token, generation, expiration, and
 claimed message, so a worker that finishes its JavaScript after losing the
-lease cannot commit. The database is the source of truth. Redis is optional
-acceleration, and polling remains the recovery path.
+lease cannot commit. The database holds the authoritative state. Redis only
+accelerates wake-up, and polling remains the recovery path.
 
 [`examples/failure-recovery/demo.ts`](examples/failure-recovery/demo.ts) kills a
 worker mid-turn and shows the survivor finish it.
@@ -329,22 +330,22 @@ and [Errors and recovery](docs/errors-and-recovery.md) covers failure handling.
 ## Realtime committed state
 
 For a like count or a dashboard number, write the row and then send on your own
-socket. That is less code than this library and it works.
+socket. That needs less code than this library, and it is sufficient for that
+case.
 
-It gets harder when several people write to the same record at once. Each
-request builds its payload in its own process and sends it. The lock decided
-who wrote first, but it has no say over which of the two sends arrives last, so
-a viewer can be left looking at the older number. The second gap is that the
-send is not part of the write: if the process dies after the database commits
-and before the send goes out, the tab keeps a wrong number and nothing corrects
-it.
+Two problems occur when several people write to the same record at once. First,
+each request builds its payload in its own process and sends it. The lock sets
+the write order, but it does not set the order in which the two sends arrive,
+so a viewer can keep the older number. Second, the send is not part of the
+write. If the process stops after the database commits and before the send goes
+out, the tab keeps a wrong number, and nothing corrects it.
 
-An observable is the alternative. The change and its publication commit
+An observable prevents both problems. The change and its publication commit
 together, so no crash can leave one without the other. A worker delivers the
 publication afterwards, claiming rows in actor revision order, and subscribers
-reject a duplicate or stale revision. Delivery is still at least once, so the
-guarantee is that a subscriber cannot end up on an older value, not that a
-value is sent exactly once.
+reject a duplicate or stale revision. A subscriber cannot end up on an older
+value. Delivery is still at least once, so Solid Objects does not send a value
+exactly once.
 
 Actors opt into browser-visible dependencies. In `0.13`, an unwrapped
 observable triggers invalidation without storing or sending its value. Use
@@ -413,11 +414,12 @@ holder per origin through the Web Locks API, carries the other tabs' SQL to it
 over a `BroadcastChannel`, and fails over onto the same durable state when the
 holder's tab dies. Use `sqliteWasm` for a single dedicated worker.
 
-Two companions complete the local-first story: `solid-objects/browser/tab-host`
-runs one runtime for all tabs when the application prefers request-level
-routing, and `solid-objects/transmit` drains the transactional effects outbox
-to a server with at-least-once delivery, per-actor order, and an idempotent
-server ingest, so offline writes reconcile when the network returns.
+Two more modules support local-first applications.
+`solid-objects/browser/tab-host` runs one runtime for all tabs when the
+application prefers request-level routing. `solid-objects/transmit` drains the
+transactional effects outbox to a server with at-least-once delivery, per-actor
+order, and an idempotent server ingest, so offline writes reconcile when the
+network returns.
 
 ### The backend can be Rails, not only Node
 
@@ -458,16 +460,16 @@ configuration. Solid Objects serializes by object ID, keeps state in the
 database you already run, and adds a library rather than a service. Cloudflare
 Durable Objects, Rivet, DBOS, and Restate each add a managed runtime or server.
 
-celld and Solid Objects both self-host the Durable Objects model, and the
-difference is what you run. celld runs a daemon that embeds V8 and executes
-Wrangler bundles, gives each object its own SQLite database, replicates that
-database to an object-storage bucket you own, and moves ownership between nodes
-through compare-and-swap on that bucket. Solid Objects runs plain TypeScript
-classes inside your Node processes, adds no daemon, and keeps object state in
-the SQL database the application already operates. Choose celld to run
-Workers-format code across a fleet with bucket-based placement. Choose Solid
-Objects to keep one database, no extra process, and an ordinary Node
-deployment.
+celld and Solid Objects both self-host the Durable Objects model. They differ
+in what you must run. celld runs a daemon that embeds V8 and executes Wrangler
+bundles, gives each object its own SQLite database, replicates that database to
+an object-storage bucket you own, and moves ownership between nodes through
+compare-and-swap on that bucket. Solid Objects runs plain TypeScript classes
+inside your Node processes, adds no daemon, and keeps object state in the SQL
+database the application already operates. celld suits a fleet that must run
+Workers-format code with bucket-based placement; Solid Objects suits an
+application that keeps one database, adds no process, and deploys Node in the
+usual way.
 
 [docs/comparisons.md](docs/comparisons.md) has the full table across eight
 systems, with primary sources for every dimension: realtime projections, edge

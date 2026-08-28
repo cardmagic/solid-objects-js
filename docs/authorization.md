@@ -1,7 +1,7 @@
 # Authorization
 
-Actor identifiers are identifiers, not capabilities. Message, query,
-destruction, subscription, and administration policies deny by default.
+An actor identifier is not a capability. Message, query, destruction,
+subscription, and administration policies deny by default.
 Applications must authorize the current server-side subject at every entry
 point.
 
