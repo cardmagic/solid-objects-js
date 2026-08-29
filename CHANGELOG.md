@@ -1,6 +1,37 @@
 # Changelog
 
-## Unreleased
+## 0.14.4 - 2026-08-29
+
+- Cut the per-turn state traversals from eight to four. The runtime built the
+  whole state image eight times for each committed operation, and nine times
+  for a query, where two are necessary. The commit path now passes the image it
+  already holds to the observables guard, and the query check reads the
+  committed image instead of taking its own. The guard is unchanged: it still
+  reads the state after `observables()` returns, because only that read sees a
+  mutation.
+- Compute the default state once for each registered actor class. Every `send`
+  and every hydration constructed a throwaway actor and serialized its full
+  default state. The constructor must not depend on external state, so one
+  cached image per validated definition is correct. Each caller receives a
+  detached copy.
+- Stop building a string that `normalizeJson` discards. It called
+  `JSON.stringify` on every value, then used the result only when a byte limit
+  was given. `actorState`, `deepCopy`, and `stableJson` all pass no limit.
+- Measured on an Apple M5 with SQLite: 1.2x throughput at 0 KB of state, 1.3x
+  at 16 KB, 1.6x at 128 KB, and 2.1x at 1 MB. See
+  [Large state](docs/benchmarks.md#large-state).
+- Add `warnStateBytes`, a soft threshold that defaults to 128 KB. A commit
+  above it reports one `solid_objects.state.large` instrumentation event with
+  the actor type, the actor ID, the byte count, and the threshold. The runtime
+  reports it only after the commit succeeds, so a turn that rolls back stays
+  silent. The event holds no application state, and the runtime measures the
+  size only when an `instrumentation` callback is configured. `maxStateBytes` keeps its 5 MB hard
+  default, which fails the turn. Throughput at that size is about one operation
+  per second, so the warning names the constraint before an application meets
+  it.
+- Add a `large-state` benchmark scenario, `pnpm run benchmark:large-state`,
+  that reports operations per second at 0 KB, 16 KB, 128 KB, and 1 MB, and
+  document the measured curve in `docs/state-and-lifecycle.md`.
 
 - Align the use-case claims with the Ruby gem. The README table sold per-key
   rate limits, while the Ruby fit guide called a rate limiter an anti-pattern.

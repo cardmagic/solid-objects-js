@@ -22,6 +22,23 @@ export class BenchmarkCounter extends Actor {
   }
 }
 
+export class LargeStateCounter extends Actor {
+  static override readonly actorType = "LargeStateCounter"
+
+  count = 0
+  payload = ""
+
+  resize({ size }: { size: number }): number {
+    this.payload = "s".repeat(size)
+    return this.payload.length
+  }
+
+  increment(): number {
+    this.count += 1
+    return this.count
+  }
+}
+
 export function benchmarkRuntime(options: {
   database: BenchmarkDatabase
   databasePath?: string
@@ -42,6 +59,7 @@ export function benchmarkRuntime(options: {
     authorizeQuery: () => true,
   })
   runtime.register(BenchmarkCounter)
+  runtime.register(LargeStateCounter)
   return runtime
 }
 

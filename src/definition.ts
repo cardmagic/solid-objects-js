@@ -116,8 +116,23 @@ export function validateDefinition<ActorType extends Actor>(
   })
 }
 
+const defaultStates = new WeakMap<ValidatedActorDefinition, string>()
+
+/**
+ * A constructor must not depend on external state, so one default image per
+ * validated definition is correct. The cache holds the encoded image, so every
+ * call parses a detached copy that a caller cannot use to reach the cache.
+ */
 export function initialStateFor(definition: ValidatedActorDefinition): JsonObject {
-  return actorState(new definition.actorClass("__solid_objects_defaults__"), definition.stateKeys)
+  const cached = defaultStates.get(definition)
+  if (cached !== undefined) return JSON.parse(cached) as JsonObject
+
+  const state = actorState(
+    new definition.actorClass("__solid_objects_defaults__"),
+    definition.stateKeys,
+  )
+  defaultStates.set(definition, JSON.stringify(state))
+  return state
 }
 
 export function actorState(actor: Actor, stateKeys?: readonly string[]): JsonObject {
