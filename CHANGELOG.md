@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.14.5 - 2026-08-29
+
+- Record the Ruby state warning in the parity ledger. The row said the Ruby gem
+  has no soft threshold. It carries the same `solid_objects.state.large` event
+  and the same 5 MB hard default from `0.14.3`, as `warn_state_bytes`. Its
+  threshold defaults to 64 KB rather than 128 KB, because the measured Ruby
+  curve falls sooner: the gem keeps 55% of its empty-state throughput at 13 KB
+  of state, where this package keeps 98% at 16 KB. Documentation only; no
+  runtime change.
+
 ## 0.14.4 - 2026-08-29
 
 - Cut the per-turn state traversals from eight to four. The runtime built the
