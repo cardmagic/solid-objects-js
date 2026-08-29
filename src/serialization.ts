@@ -6,13 +6,19 @@ const utf8Encoder = new TextEncoder()
 
 export function normalizeJson(value: unknown, options: { maxBytes?: number } = {}): JsonValue {
   const normalized = normalize(value, 0)
-  const encoded = JSON.stringify(normalized)
 
-  if (options.maxBytes !== undefined && utf8Encoder.encode(encoded).length > options.maxBytes) {
-    throw new PayloadTooLarge(`serialized value exceeds ${options.maxBytes} bytes`)
+  if (options.maxBytes !== undefined) {
+    const encoded = JSON.stringify(normalized)
+    if (utf8ByteLength(encoded) > options.maxBytes) {
+      throw new PayloadTooLarge(`serialized value exceeds ${options.maxBytes} bytes`)
+    }
   }
 
   return normalized
+}
+
+export function utf8ByteLength(value: string): number {
+  return utf8Encoder.encode(value).length
 }
 
 export function jsonObject(

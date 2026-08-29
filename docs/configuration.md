@@ -19,6 +19,7 @@ through `runtime.ref(ActorClass, actorId)`. Both validate options immediately.
 | `maxMailboxLength`                    |                 `10_000` | Positive maximum ready and claimed messages for one actor.                    |
 | `maxPayloadBytes`                     |              `1_048_576` | Positive byte limit for operation arguments and personalized payloads.        |
 | `maxStateBytes`                       |              `5_242_880` | Positive persisted actor-state byte limit.                                    |
+| `warnStateBytes`                      |                `131_072` | Positive persisted actor-state byte threshold that reports one warning.       |
 | `maxResultBytes`                      |              `1_048_576` | Positive operation-result byte limit.                                         |
 | `maxAttempts`                         |                      `5` | Positive maximum operation, effect, and broadcast attempts.                   |
 | `maxMessagesPerActivationPass`        |                     `50` | Positive integer turn budget before fairness yield.                           |
@@ -34,6 +35,15 @@ separate aggregate byte limit. This includes values wrapped in
 names enter the broadcast outbox. `retryDelayMilliseconds` should return a
 non-negative finite number; an invalid application callback will fail the
 affected failure path rather than schedule an invalid timestamp.
+
+`maxStateBytes` is a hard limit that fails the turn. `warnStateBytes` is a soft
+threshold that keeps the turn. A commit above the threshold reports one
+`solid_objects.state.large` instrumentation event with the actor type, the actor
+ID, the byte count, and the threshold. The event holds no application state.
+The runtime measures the size only when an `instrumentation` callback is
+configured. Throughput falls as the persisted state grows, so treat the warning
+as an instruction to divide the actor. See
+[State size and throughput](state-and-lifecycle.md#state-size-and-throughput).
 
 ## Runtime roles and supervision
 

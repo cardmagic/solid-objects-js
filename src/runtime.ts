@@ -93,7 +93,14 @@ import {
   type ResumeReminderOptions,
 } from "./reminder-administration.js"
 import { RetentionManager, type RetentionOptions, type RetentionResult } from "./retention.js"
-import { deepCopy, jsonObject, normalizeJson, readonlyCopy, stableJson } from "./serialization.js"
+import {
+  deepCopy,
+  jsonObject,
+  normalizeJson,
+  readonlyCopy,
+  stableJson,
+  utf8ByteLength,
+} from "./serialization.js"
 import { installSchema } from "./schema.js"
 import type {
   ActorIdentifier,
@@ -786,7 +793,7 @@ export class SolidObjectsRuntime {
       actorId: options.actorId,
       instanceId: instance?.id ?? "0",
       revision: String(instance?.state_revision ?? 0),
-      ...broadcastProjection(this.readObservables(actor, registered.definition)),
+      ...broadcastProjection(this.readObservables({ actor, definition: registered.definition })),
     })
   }
 
@@ -1153,9 +1160,9 @@ export class SolidObjectsRuntime {
     const startedAt = Date.now()
     this.emitInstrumentation("message.started", messageInstrumentation(turn.message))
     try {
-      const oldObservables = this.readObservables(actor, definition)
       stateBefore = deepCopy(actorState(actor, definition.stateKeys))
       const before = stableJson(stateBefore)
+      const oldObservables = this.readObservables({ actor, definition, stateJson: before })
       const query = this.isQuery(definition, turn.message.operation)
       const argumentsValue = jsonObject(JSON.parse(turn.message.arguments))
       const rawResult = await withActorContext(
@@ -1167,7 +1174,11 @@ export class SolidObjectsRuntime {
           return actor.invoke(turn.message.operation, argumentsValue)
         },
       )
-      if (query && stableJson(actorState(actor, definition.stateKeys)) !== before) {
+      const committedState = jsonObject(actorState(actor, definition.stateKeys), {
+        maxBytes: this.settings.maxStateBytes,
+      })
+      const committed = stableJson(committedState)
+      if (query && committed !== before) {
         throw new QueryMutatedState(`query ${turn.message.operation} mutated actor state`)
       }
       if (query && actor.hasIntents()) {
@@ -1176,10 +1187,8 @@ export class SolidObjectsRuntime {
       const result = normalizeJson(rawResult === undefined ? null : rawResult, {
         maxBytes: this.settings.maxResultBytes,
       })
-      const committedState = jsonObject(actorState(actor, definition.stateKeys), {
-        maxBytes: this.settings.maxStateBytes,
-      })
-      const observables = this.readObservables(actor, definition)
+      this.warnAboutLargeState(turn.message, committed)
+      const observables = this.readObservables({ actor, definition, stateJson: committed })
       const changedObservableNames = Object.keys(observables.values).filter(
         (name) =>
           stableJson(observables.values[name]) !== stableJson(oldObservables.values[name]) ||
@@ -1188,7 +1197,7 @@ export class SolidObjectsRuntime {
       const changedProjection = selectBroadcastProjection(observables, changedObservableNames)
       const broadcastProjectionValue =
         changedObservableNames.length > 0 ||
-        (Object.keys(definition.payloads).length > 0 && stableJson(committedState) !== before)
+        (Object.keys(definition.payloads).length > 0 && committed !== before)
           ? changedProjection
           : undefined
       renewalController.abort()
@@ -1809,11 +1818,18 @@ export class SolidObjectsRuntime {
     )
   }
 
-  private readObservables(
-    actor: Actor,
-    definition: ValidatedActorDefinition,
-  ): ObservableProjection {
-    const stateBefore = stableJson(actorState(actor, definition.stateKeys))
+  /**
+   * `stateJson` is the stable encoding of the state at the call, which the
+   * commit path already holds. The guard still reads the state after
+   * `observables()` returns, because only that read sees a mutation.
+   */
+  private readObservables(options: {
+    actor: Actor
+    definition: ValidatedActorDefinition
+    stateJson?: string
+  }): ObservableProjection {
+    const { actor, definition } = options
+    const stateBefore = options.stateJson ?? stableJson(actorState(actor, definition.stateKeys))
     const intentCount = actor.intentCount()
     const values = withActorProjection({ actor, runtime: this }, () => actor.observableValues())
     if (
@@ -1937,6 +1953,24 @@ export class SolidObjectsRuntime {
 
   private isQuery(definition: ValidatedActorDefinition, name: string): boolean {
     return definition.queries.includes(name)
+  }
+
+  /**
+   * The event reports the size of the committed image, never the image itself.
+   * A stable encoding holds the same characters as the stored encoding, so its
+   * byte count is the byte count of the row the runtime writes.
+   */
+  private warnAboutLargeState(message: MessageRow, committed: string): void {
+    if (!this.settings.instrumentation) return
+    const byteCount = utf8ByteLength(committed)
+    if (byteCount <= this.settings.warnStateBytes) return
+
+    this.emitInstrumentation("state.large", {
+      actorType: message.actor_type,
+      actorId: message.actor_id,
+      byteCount,
+      thresholdBytes: this.settings.warnStateBytes,
+    })
   }
 
   private wakeUp(role: WakeUpRole): void {

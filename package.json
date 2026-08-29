@@ -112,6 +112,7 @@
     "test:watch": "vitest",
     "benchmark": "pnpm run build && node benchmarks/run.ts",
     "benchmark:idle": "pnpm run build && node benchmarks/idle.ts",
+    "benchmark:large-state": "pnpm run build && node benchmarks/large-state.ts",
     "pack:check": "pnpm pack --dry-run && node scripts/check-package.mjs",
     "prepack": "pnpm run build"
   },

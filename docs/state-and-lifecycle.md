@@ -18,7 +18,36 @@ fields, then walks its prototype chain to discover methods and getters.
 
 The constructor must establish every persisted field and must not depend on
 external state. Solid Objects invokes it at four points: class validation,
-default creation, state hydration, and snapshot projection.
+default creation, state hydration, and snapshot projection. Because the
+constructor must not depend on external state, the runtime computes the default
+state once for each registered class and gives each caller a detached copy.
+
+## State size and throughput
+
+Solid Objects commits the whole state image on each turn. The turn therefore
+reads, encodes, and writes every persisted field, and its cost grows with the
+size of the state rather than with the size of the change.
+
+Measured on August 29, 2026 on an Apple M5, macOS 26.6, Node.js 24.18.0, and
+SQLite 3.53.1 through `node:sqlite`. One actor, one `increment()` operation,
+sequential turns, 300 measured operations per row, and the `0.14.3` source tree
+with the serialization changes applied.
+
+| Persisted state | ms per operation | Operations per second |
+| --------------: | ---------------: | --------------------: |
+|            0 KB |             1.60 |                   625 |
+|           16 KB |             1.64 |                   611 |
+|          128 KB |             2.53 |                   395 |
+|            1 MB |             9.32 |                   107 |
+
+These are developer-laptop numbers. They show the shape of the curve, not a
+capacity guarantee. See [Benchmarks](benchmarks.md#large-state) for the harness
+and the earlier numbers.
+
+Keep one actor's state small, and divide a large state across more identities.
+`warnStateBytes` reports one `solid_objects.state.large` instrumentation event
+when a committed image passes its threshold, which defaults to 128 KB.
+`maxStateBytes` is the hard limit, and it fails the turn.
 
 ## Observable broadcast modes
 

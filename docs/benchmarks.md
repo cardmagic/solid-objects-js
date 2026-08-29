@@ -43,6 +43,42 @@ The local wake-up keeps the one-process path prompt after backoff. The
 polling-only row is the explicit tradeoff: use PostgreSQL notifications or
 optional Redis Pub/Sub when separate processes need low-latency delivery.
 
+## Large state
+
+The large-state harness measures how the committed state size changes
+throughput. It runs one actor and one `increment()` operation with sequential
+turns, so each row isolates the per-turn serialization and row write:
+
+```bash
+pnpm run benchmark:large-state
+```
+
+Use `--sizes`, `--operations`, and `--warmup` to change the recorded dataset.
+
+Measured on August 29, 2026 on an Apple M5, macOS 26.6, Node.js 24.18.0, and
+SQLite 3.53.1 through `node:sqlite` on a temporary file. Each row is the median
+of three runs of 300 measured operations. The before column used the `0.14.3`
+tree; the after column used the same tree with the redundant per-turn state
+serialization removed.
+
+| Persisted state | Before ms/op | Before ops/s | After ms/op | After ops/s | Gain |
+| --------------: | -----------: | -----------: | ----------: | ----------: | ---: |
+|            0 KB |         1.85 |          540 |        1.60 |         625 | 1.2x |
+|           16 KB |         2.12 |          472 |        1.64 |         611 | 1.3x |
+|          128 KB |         4.01 |          250 |        2.53 |         395 | 1.6x |
+|            1 MB |        19.11 |           52 |        9.32 |         107 | 2.1x |
+
+The before tree traversed the whole state eight times for each committed
+operation, and nine times for a query. The after tree traverses it four times:
+one image for rollback and comparison, one committed image, and one read for
+each of the two observables guards. The remaining cost at 1 MB is the database
+write of a large row, which the whole-image commit model cannot avoid.
+
+The curve, not the ratio, is the operating instruction. Throughput falls by
+about 6x between 0 KB and 1 MB even after the change. Keep one actor's state
+small. See
+[State size and throughput](state-and-lifecycle.md#state-size-and-throughput).
+
 ## Scenarios
 
 - `warm-hot`: all operations target one previously created identity.
@@ -180,6 +216,7 @@ much as the database, so the tables above replace them.
 - Docker Desktop costs between 1.0x and 7.8x of the native throughput. The
   tables above use native servers. See [Virtualization cost](#virtualization-cost).
 - The payload is a small counter, not a representative application state size.
+  See [Large state](#large-state) for the measured effect of state size.
 - The harness measures default durability settings and one client concurrency.
 - Hot-identity results deliberately include serialization and cannot be scaled
   by adding workers.

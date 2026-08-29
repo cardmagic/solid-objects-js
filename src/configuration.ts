@@ -48,6 +48,7 @@ export interface SolidObjectsConfiguration {
   maxMailboxLength?: number
   maxPayloadBytes?: number
   maxStateBytes?: number
+  warnStateBytes?: number
   maxResultBytes?: number
   maxAttempts?: number
   maxMessagesPerActivationPass?: number
@@ -122,6 +123,7 @@ export function buildSettings(configuration: SolidObjectsConfiguration): Runtime
     maxMailboxLength: configuration.maxMailboxLength ?? 10_000,
     maxPayloadBytes: configuration.maxPayloadBytes ?? 1_048_576,
     maxStateBytes: configuration.maxStateBytes ?? 5_242_880,
+    warnStateBytes: configuration.warnStateBytes ?? 131_072,
     maxResultBytes: configuration.maxResultBytes ?? 1_048_576,
     maxAttempts: configuration.maxAttempts ?? 5,
     maxMessagesPerActivationPass: configuration.maxMessagesPerActivationPass ?? 50,
@@ -210,6 +212,7 @@ function validateSettings(settings: RuntimeSettings): void {
     maxMailboxLength: settings.maxMailboxLength,
     maxPayloadBytes: settings.maxPayloadBytes,
     maxStateBytes: settings.maxStateBytes,
+    warnStateBytes: settings.warnStateBytes,
     maxResultBytes: settings.maxResultBytes,
     maxAttempts: settings.maxAttempts,
     maxActivationDurationMilliseconds: settings.maxActivationDurationMilliseconds,
