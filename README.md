@@ -30,6 +30,7 @@ And so much more.
 - [An expiring ticket hold](#an-expiring-ticket-hold)
 - [Why this exists](#why-this-exists)
 - [Good uses](#good-uses)
+- [Solid Objects in the browser](#solid-objects-in-the-browser)
 - [When a transaction is better](#when-a-transaction-is-better)
 - [Guarantees and boundaries](#guarantees-and-boundaries)
 - [Read more](#read-more)
@@ -151,9 +152,79 @@ required. Redis is optional wake-up plumbing, not durable state.
 Different identities can run concurrently. One global identity is merely a
 queue wearing an ambitious name.
 
-Browser support is available without making this README about browser setup:
-the client subscribes to server actors, and the full runtime can run in a browser
-worker on SQLite WASM and OPFS. See the [browser protocol](docs/browser-protocol.md).
+## Solid Objects in the browser
+
+The full runtime runs inside a browser module worker. Actors look exactly
+like they do in Node; the database is SQLite WASM, and persistent storage
+lives in the origin's private file system (OPFS), so actor state survives
+page reloads.
+
+```javascript
+import { Actor, configure, sharedSqliteWasm } from "solid-objects/browser/host"
+
+class Counter extends Actor {
+  static actorType = "Counter"
+
+  count = 0
+
+  increment({ amount = 1 } = {}) {
+    this.count += amount
+    return this.count
+  }
+}
+
+const runtime = configure({
+  database: sharedSqliteWasm({ path: "app.db" }),
+  authorizeMessage: () => true,
+  authorizeQuery: () => true,
+})
+await runtime.install()
+
+await Counter.ref("page-hits").increment()
+```
+
+That code runs identically in every tab. `sharedSqliteWasm` elects one database
+holder per origin through the Web Locks API, carries the other tabs' SQL to it
+over a `BroadcastChannel`, and fails over onto the same durable state when the
+holder's tab dies. Use `sqliteWasm` for a single dedicated worker.
+
+Two more modules support local-first applications.
+`solid-objects/browser/tab-host` runs one runtime for all tabs when the
+application prefers request-level routing. `solid-objects/transmit` drains the
+transactional effects outbox to a server with at-least-once delivery, per-actor
+order, and an idempotent server ingest, so offline writes reconcile when the
+network returns.
+
+### The backend can be Rails, not only Node
+
+The browser runtime does not require a Node server behind it. The transmit wire
+contract is shared with the Ruby gem
+([solid-objects-ruby](https://github.com/cardmagic/solid-objects-ruby)):
+`SolidObjects::Transmission.receive` accepts the same envelopes as the Node
+ingest `receiveTransmitEnvelope`, dedups on the same `transmit:<effectId>` key,
+and both repositories pin the contract with one shared fixture file. A browser
+front end therefore replays its offline writes directly onto Ruby server
+actors, with no Node service in between:
+
+```ruby
+class TransmitController < ApplicationController
+  def create
+    head :forbidden and return unless authenticated_device?
+
+    SolidObjects::Transmission.receive(JSON.parse(request.body.read))
+    head :ok
+  end
+end
+```
+
+The Ruby side of the family shipped in `solid_objects` 0.14.0, released the
+same day as this package's 0.14.0
+([solid-objects-ruby#49](https://github.com/cardmagic/solid-objects-ruby/pull/49)).
+
+The wire shapes are documented in the
+[browser protocol](docs/browser-protocol.md), the API in the
+[public API reference](docs/api.md), and the platform boundaries in
+[supported versions](docs/support.md).
 
 ## When a transaction is better
 
