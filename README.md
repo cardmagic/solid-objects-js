@@ -192,7 +192,7 @@ notes remain in `docs/`, where long documentation can be long on purpose.
 
 ## Status and license
 
-Solid Objects JS 0.14.3 is a pre-1.0 early release. The correctness core has
+Solid Objects JS is a pre-1.0 early release. The correctness core has
 automated coverage across the supported databases, browser runtime, recovery
 paths, and packaged artifact. There is one deployed first-party reference
 application, no measured scale, and no known third-party production use yet.
