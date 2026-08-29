@@ -30,8 +30,8 @@ size of the state rather than with the size of the change.
 
 Measured on August 29, 2026 on an Apple M5, macOS 26.6, Node.js 24.18.0, and
 SQLite 3.53.1 through `node:sqlite`. One actor, one `increment()` operation,
-sequential turns, 300 measured operations per row, and the `0.14.3` source tree
-with the serialization changes applied.
+sequential turns, 300 measured operations per row, and the `0.14.4` source
+tree.
 
 | Persisted state | ms per operation | Operations per second |
 | --------------: | ---------------: | --------------------: |

@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.14.4 - 2026-08-29
 
 - Cut the per-turn state traversals from eight to four. The runtime built the
   whole state image eight times for each committed operation, and nine times

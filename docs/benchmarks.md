@@ -58,8 +58,8 @@ Use `--sizes`, `--operations`, and `--warmup` to change the recorded dataset.
 Measured on August 29, 2026 on an Apple M5, macOS 26.6, Node.js 24.18.0, and
 SQLite 3.53.1 through `node:sqlite` on a temporary file. Each row is the median
 of three runs of 300 measured operations. The before column used the `0.14.3`
-tree; the after column used the same tree with the redundant per-turn state
-serialization removed.
+tree; the after column used the `0.14.4` tree, which removes the redundant
+per-turn state serialization.
 
 | Persisted state | Before ms/op | Before ops/s | After ms/op | After ops/s | Gain |
 | --------------: | -----------: | -----------: | ----------: | ----------: | ---: |
