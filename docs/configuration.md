@@ -39,7 +39,9 @@ affected failure path rather than schedule an invalid timestamp.
 `maxStateBytes` is a hard limit that fails the turn. `warnStateBytes` is a soft
 threshold that keeps the turn. A commit above the threshold reports one
 `solid_objects.state.large` instrumentation event with the actor type, the actor
-ID, the byte count, and the threshold. The event holds no application state.
+ID, the byte count, and the threshold. The runtime reports it only after the
+commit succeeds, so a turn that rolls back stays silent. The event holds no
+application state.
 The runtime measures the size only when an `instrumentation` callback is
 configured. Throughput falls as the persisted state grows, so treat the warning
 as an instruction to divide the actor. See

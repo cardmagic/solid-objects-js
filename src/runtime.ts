@@ -1187,7 +1187,6 @@ export class SolidObjectsRuntime {
       const result = normalizeJson(rawResult === undefined ? null : rawResult, {
         maxBytes: this.settings.maxResultBytes,
       })
-      this.warnAboutLargeState(turn.message, committed)
       const observables = this.readObservables({ actor, definition, stateJson: committed })
       const changedObservableNames = Object.keys(observables.values).filter(
         (name) =>
@@ -1257,6 +1256,7 @@ export class SolidObjectsRuntime {
           nextRunAt: new Date(replacement.nextRunAtMilliseconds).toISOString(),
         })
       }
+      this.warnAboutLargeState(turn.message, committed)
       this.emitInstrumentation("message.completed", {
         ...messageInstrumentation(turn.message),
         durationMilliseconds: Date.now() - startedAt,
@@ -1958,7 +1958,8 @@ export class SolidObjectsRuntime {
   /**
    * The event reports the size of the committed image, never the image itself.
    * A stable encoding holds the same characters as the stored encoding, so its
-   * byte count is the byte count of the row the runtime writes.
+   * byte count is the byte count of the row the runtime writes. The caller
+   * reports only after the commit succeeds, so a rolled-back turn stays silent.
    */
   private warnAboutLargeState(message: MessageRow, committed: string): void {
     if (!this.settings.instrumentation) return

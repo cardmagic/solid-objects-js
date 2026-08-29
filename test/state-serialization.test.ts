@@ -59,6 +59,12 @@ class LargeStateActor extends Actor {
     this.payload = "s".repeat(size)
     return this.payload.length
   }
+
+  growThenFailTheCommit({ size }: { size: number }): number {
+    this.payload = "s".repeat(size)
+    this.commitAction("explode")
+    return this.payload.length
+  }
 }
 
 let runtime: SolidObjectsRuntime | undefined
@@ -196,6 +202,25 @@ describe("large committed state warning", () => {
 
     const warning = events.find((event) => event.name === "solid_objects.state.large")
     expect(JSON.stringify(warning?.attributes)).not.toContain("ss")
+  })
+
+  it("stays silent when the commit fails and the state is rolled back", async () => {
+    const events: InstrumentationEvent[] = []
+    runtime = configuredRuntime({
+      warnStateBytes: 256,
+      instrumentation: (event) => events.push(event),
+    })
+    runtime.register(LargeStateActor)
+    runtime.registerCommitAction("explode", () => {
+      throw new Error("the commit action failed")
+    })
+    await runtime.install()
+
+    await runtime.ref(LargeStateActor, "rolled-back").send.growThenFailTheCommit({ size: 1_024 })
+    await runtime.worker().runUntilIdle()
+
+    expect(events.map((event) => event.name)).toContain("solid_objects.message.failed")
+    expect(events.filter((event) => event.name === "solid_objects.state.large")).toHaveLength(0)
   })
 
   it("stays silent below the threshold", async () => {

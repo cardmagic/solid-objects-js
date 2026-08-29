@@ -22,9 +22,10 @@
   [Large state](docs/benchmarks.md#large-state).
 - Add `warnStateBytes`, a soft threshold that defaults to 128 KB. A commit
   above it reports one `solid_objects.state.large` instrumentation event with
-  the actor type, the actor ID, the byte count, and the threshold. The event
-  holds no application state, and the runtime measures the size only when an
-  `instrumentation` callback is configured. `maxStateBytes` keeps its 5 MB hard
+  the actor type, the actor ID, the byte count, and the threshold. The runtime
+  reports it only after the commit succeeds, so a turn that rolls back stays
+  silent. The event holds no application state, and the runtime measures the
+  size only when an `instrumentation` callback is configured. `maxStateBytes` keeps its 5 MB hard
   default, which fails the turn. Throughput at that size is about one operation
   per second, so the warning names the constraint before an application meets
   it.
