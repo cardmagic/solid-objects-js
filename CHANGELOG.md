@@ -4,11 +4,13 @@
 
 - Poll effects, reminders, and broadcasts through ordered indexes installed by
   schema migration 8. PostgreSQL and MySQL claim one row with
-  `FOR UPDATE SKIP LOCKED`; SQLite keeps its serialized transaction path. The
-  broadcast revision guard has its own `(instance_id, state_revision, status)`
-  index instead of rescanning the outbox for every candidate. Claim transactions
-  use read committed isolation on PostgreSQL and MySQL so preceding recovery
-  work cannot turn row skipping into InnoDB gap-lock contention.
+  `FOR UPDATE SKIP LOCKED`; candidate probes avoid joins and load actor identity
+  by primary key after the claim. SQLite keeps its serialized transaction path.
+  The broadcast revision guard has its own
+  `(instance_id, state_revision, status)` index instead of rescanning the outbox
+  for every candidate. Claim transactions use read committed isolation on
+  PostgreSQL and MySQL so preceding recovery work cannot turn row skipping into
+  InnoDB gap-lock contention.
 - Replace bulk broadcast and reminder recovery updates with separate available
   and stale probes, then claim the oldest locked candidate across each pair.
   This preserves global delivery order, per-instance broadcast revision order,

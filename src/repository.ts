@@ -1363,10 +1363,9 @@ export class Repository {
            )`,
           [staleAt],
         )
-        const effect = await connection.get<EffectRow>(
-          `SELECT effects.*, instances.actor_type, instances.actor_id
+        const effect = await connection.get<EffectCandidate>(
+          `SELECT effects.*
            FROM ${this.table("effects")} effects
-           JOIN ${this.table("instances")} instances ON instances.id = effects.instance_id
            WHERE effects.status = 'pending' AND effects.available_at_ms <= ?
            ORDER BY effects.available_at_ms, effects.id
            LIMIT 1${this.claimLockClause()}`,
@@ -1380,10 +1379,14 @@ export class Repository {
           [processId, effect.id],
         )
         if (claimed.changes !== 1) return undefined
-        effect.status = "processing"
-        effect.claimed_by = processId
-        effect.attempt_count = Number(effect.attempt_count) + 1
-        return effect
+        const identity = await this.loadActorIdentity(connection, effect.instance_id)
+        return {
+          ...effect,
+          ...identity,
+          status: "processing",
+          claimed_by: processId,
+          attempt_count: Number(effect.attempt_count) + 1,
+        }
       },
       { isolationLevel: "read_committed" },
     )
@@ -1482,9 +1485,13 @@ export class Repository {
           staleAt,
         })
         if (claimed.changes !== 1) return undefined
-        reminder.claimed_by = processId
-        reminder.claimed_at_ms = databaseNow
-        return reminder
+        const identity = await this.loadActorIdentity(connection, reminder.instance_id)
+        return {
+          ...reminder,
+          ...identity,
+          claimed_by: processId,
+          claimed_at_ms: databaseNow,
+        }
       },
       { isolationLevel: "read_committed" },
     )
@@ -1493,11 +1500,10 @@ export class Repository {
   private findAvailableReminder(
     connection: DatabaseConnection,
     dueAt: number,
-  ): Promise<ReminderRow | undefined> {
-    return connection.get<ReminderRow>(
-      `SELECT reminders.*, instances.actor_type, instances.actor_id
+  ): Promise<ReminderCandidate | undefined> {
+    return connection.get<ReminderCandidate>(
+      `SELECT reminders.*
        FROM ${this.table("reminders")} reminders
-       JOIN ${this.table("instances")} instances ON instances.id = reminders.instance_id
        WHERE reminders.status = 'scheduled' AND reminders.run_at_ms <= ?
          AND reminders.claimed_by IS NULL
        ORDER BY reminders.run_at_ms, reminders.id
@@ -1510,12 +1516,11 @@ export class Repository {
     connection: DatabaseConnection
     dueAt: number
     staleAt: number
-  }): Promise<ReminderRow | undefined> {
+  }): Promise<ReminderCandidate | undefined> {
     const { connection, dueAt, staleAt } = options
-    return connection.get<ReminderRow>(
-      `SELECT reminders.*, instances.actor_type, instances.actor_id
+    return connection.get<ReminderCandidate>(
+      `SELECT reminders.*
        FROM ${this.table("reminders")} reminders
-       JOIN ${this.table("instances")} instances ON instances.id = reminders.instance_id
        WHERE reminders.status = 'scheduled' AND reminders.run_at_ms <= ?
          AND reminders.claimed_by IS NOT NULL AND (
            reminders.claimed_at_ms <= ? OR NOT EXISTS (
@@ -1532,7 +1537,7 @@ export class Repository {
 
   private claimReminderCandidate(options: {
     connection: DatabaseConnection
-    reminder: ReminderRow
+    reminder: ReminderCandidate
     processId: string
     claimedAt: number
     staleAt: number
@@ -1760,6 +1765,18 @@ export class Repository {
     return " FOR UPDATE SKIP LOCKED"
   }
 
+  private async loadActorIdentity(
+    connection: DatabaseConnection,
+    instanceId: string,
+  ): Promise<ActorIdentity> {
+    const identity = await connection.get<ActorIdentity>(
+      `SELECT actor_type, actor_id FROM ${this.table("instances")} WHERE id = ?`,
+      [instanceId],
+    )
+    if (!identity) throw new Error("claimed outbox instance does not exist")
+    return identity
+  }
+
   private findInstance(options: {
     connection: DatabaseConnection
     actorType: string
@@ -1842,6 +1859,9 @@ export class Repository {
 }
 
 type ClaimableBroadcast = BroadcastRow & { status: "pending" | "processing" }
+type ActorIdentity = Pick<InstanceRow, "actor_type" | "actor_id">
+type EffectCandidate = Omit<EffectRow, keyof ActorIdentity>
+type ReminderCandidate = Omit<ReminderRow, keyof ActorIdentity>
 
 function earliestBroadcast(
   first: ClaimableBroadcast | undefined,
@@ -1856,9 +1876,9 @@ function earliestBroadcast(
 }
 
 function earliestReminder(
-  first: ReminderRow | undefined,
-  second: ReminderRow | undefined,
-): ReminderRow | undefined {
+  first: ReminderCandidate | undefined,
+  second: ReminderCandidate | undefined,
+): ReminderCandidate | undefined {
   if (!first) return second
   if (!second) return first
   const runAtDifference = Number(first.run_at_ms) - Number(second.run_at_ms)

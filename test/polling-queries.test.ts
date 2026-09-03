@@ -26,6 +26,7 @@ describe("polling queries", () => {
       /FROM solid_objects_(effects|reminders|broadcasts) /.test(statement),
     )
     expect(pollingStatements).toHaveLength(5)
+    for (const statement of pollingStatements) expect(statement).not.toMatch(/\bJOIN\b/)
     expect(pollingStatements).toEqual(
       expect.arrayContaining([
         expect.stringMatching(
