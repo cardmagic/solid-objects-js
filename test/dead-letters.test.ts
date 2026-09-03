@@ -151,9 +151,41 @@ describe("schema migrations", () => {
     const broadcastColumns = await runtime.settings.database.connection((connection) =>
       connection.all<{ name: string }>("PRAGMA table_info(solid_objects_broadcasts)"),
     )
-    expect(versions.map(({ version }) => Number(version))).toEqual([1, 2, 3, 4, 5, 6, 7])
+    expect(versions.map(({ version }) => Number(version))).toEqual([1, 2, 3, 4, 5, 6, 7, 8])
     expect(deadLetterColumns.map(({ name }) => name)).toContain("retried_message_id")
     expect(broadcastColumns.map(({ name }) => name)).toContain("invalidations")
+    expect(await installedPollingIndexes(runtime)).toEqual(POLLING_INDEX_COLUMNS)
+  })
+
+  it("adds polling indexes to an existing version-seven database", async () => {
+    const directory = mkdtempSync(join(tmpdir(), "solid-objects-schema-"))
+    temporaryDirectories.push(directory)
+    const path = join(directory, "database.sqlite3")
+    runtime = configuredRuntime({ database: sqlite({ path }) })
+    await runtime.install()
+    await runtime.close()
+    runtime = undefined
+    const database = new DatabaseSync(path)
+    database.exec(`
+      DELETE FROM solid_objects_schema_migrations WHERE version = 8;
+      DROP INDEX solid_objects_effects_poll;
+      DROP INDEX solid_objects_reminders_due;
+      DROP INDEX solid_objects_broadcasts_poll;
+      DROP INDEX solid_objects_broadcasts_instance_revision;
+    `)
+    database.close()
+    runtime = configuredRuntime({ database: sqlite({ path }) })
+
+    await runtime.install()
+    await runtime.install()
+
+    const versions = await runtime.settings.database.connection((connection) =>
+      connection.all<{ version: number | bigint }>(
+        "SELECT version FROM solid_objects_schema_migrations ORDER BY version",
+      ),
+    )
+    expect(versions.map(({ version }) => Number(version))).toEqual([1, 2, 3, 4, 5, 6, 7, 8])
+    expect(await installedPollingIndexes(runtime)).toEqual(POLLING_INDEX_COLUMNS)
   })
 
   it("preserves version-two request IDs as legacy idempotency keys", async () => {
@@ -193,6 +225,30 @@ describe("schema migrations", () => {
     expect(duplicate.id).toBe(message.id)
   })
 })
+
+const POLLING_INDEX_COLUMNS = {
+  solid_objects_effects_poll: ["status", "available_at_ms", "id"],
+  solid_objects_reminders_due: ["status", "run_at_ms", "id"],
+  solid_objects_broadcasts_poll: ["status", "available_at_ms", "id"],
+  solid_objects_broadcasts_instance_revision: ["instance_id", "state_revision", "status"],
+}
+
+async function installedPollingIndexes(
+  currentRuntime: SolidObjectsRuntime,
+): Promise<Record<string, string[]>> {
+  return currentRuntime.settings.database.connection(async (connection) =>
+    Object.fromEntries(
+      await Promise.all(
+        Object.keys(POLLING_INDEX_COLUMNS).map(async (name) => [
+          name,
+          (await connection.all<{ name: string }>(`PRAGMA index_info(${name})`)).map(
+            ({ name: columnName }) => columnName,
+          ),
+        ]),
+      ),
+    ),
+  )
+}
 
 async function createDeadLetter(currentRuntime: SolidObjectsRuntime) {
   const message = await PoisonActor.ref("one").send.run({ source: "test" })

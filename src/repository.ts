@@ -1348,42 +1348,45 @@ export class Repository {
   }
 
   async claimEffect(processId: string): Promise<EffectRow | undefined> {
-    return this.settings.database.transaction(async (connection) => {
-      const now = await connection.nowMilliseconds()
-      const staleAt = now - this.settings.processAliveThresholdMilliseconds
-      await connection.run(
-        `UPDATE ${this.table("effects")} SET status = 'pending', claimed_by = NULL
-         WHERE status = 'processing' AND (
-           claimed_by IS NULL OR NOT EXISTS (
-             SELECT 1 FROM ${this.table("processes")} processes
-             WHERE processes.id = ${this.table("effects")}.claimed_by
-               AND processes.shutdown_state = 'running' AND processes.heartbeat_at_ms > ?
-           )
-         )`,
-        [staleAt],
-      )
-      const effect = await connection.get<EffectRow>(
-        `SELECT effects.*, instances.actor_type, instances.actor_id
-         FROM ${this.table("effects")} effects
-         JOIN ${this.table("instances")} instances ON instances.id = effects.instance_id
-         WHERE effects.status = 'pending' AND effects.available_at_ms <= ?
-         ORDER BY effects.available_at_ms, effects.id
-         LIMIT 1`,
-        [now],
-      )
-      if (!effect) return undefined
-      const claimed = await connection.run(
-        `UPDATE ${this.table("effects")}
-         SET status = 'processing', claimed_by = ?, attempt_count = attempt_count + 1
-         WHERE id = ? AND status = 'pending'`,
-        [processId, effect.id],
-      )
-      if (claimed.changes !== 1) return undefined
-      effect.status = "processing"
-      effect.claimed_by = processId
-      effect.attempt_count = Number(effect.attempt_count) + 1
-      return effect
-    })
+    return this.settings.database.transaction(
+      async (connection) => {
+        const now = await connection.nowMilliseconds()
+        const staleAt = now - this.settings.processAliveThresholdMilliseconds
+        await connection.run(
+          `UPDATE ${this.table("effects")} SET status = 'pending', claimed_by = NULL
+           WHERE status = 'processing' AND (
+             claimed_by IS NULL OR NOT EXISTS (
+               SELECT 1 FROM ${this.table("processes")} processes
+               WHERE processes.id = ${this.table("effects")}.claimed_by
+                 AND processes.shutdown_state = 'running' AND processes.heartbeat_at_ms > ?
+             )
+           )`,
+          [staleAt],
+        )
+        const effect = await connection.get<EffectRow>(
+          `SELECT effects.*, instances.actor_type, instances.actor_id
+           FROM ${this.table("effects")} effects
+           JOIN ${this.table("instances")} instances ON instances.id = effects.instance_id
+           WHERE effects.status = 'pending' AND effects.available_at_ms <= ?
+           ORDER BY effects.available_at_ms, effects.id
+           LIMIT 1${this.claimLockClause()}`,
+          [now],
+        )
+        if (!effect) return undefined
+        const claimed = await connection.run(
+          `UPDATE ${this.table("effects")}
+           SET status = 'processing', claimed_by = ?, attempt_count = attempt_count + 1
+           WHERE id = ? AND status = 'pending'`,
+          [processId, effect.id],
+        )
+        if (claimed.changes !== 1) return undefined
+        effect.status = "processing"
+        effect.claimed_by = processId
+        effect.attempt_count = Number(effect.attempt_count) + 1
+        return effect
+      },
+      { isolationLevel: "read_committed" },
+    )
   }
 
   async completeEffect(effect: EffectRow, result: JsonValue): Promise<void> {
@@ -1462,42 +1465,97 @@ export class Repository {
     processId: string,
     options: { nowMilliseconds?: number } = {},
   ): Promise<ReminderRow | undefined> {
-    return this.settings.database.transaction(async (connection) => {
-      const databaseNow = await connection.nowMilliseconds()
-      const dueAt = options.nowMilliseconds ?? databaseNow
-      const staleAt = databaseNow - this.settings.processAliveThresholdMilliseconds
-      await connection.run(
-        `UPDATE ${this.table("reminders")} SET claimed_by = NULL, claimed_at_ms = NULL
-         WHERE claimed_by IS NOT NULL AND (
-           claimed_at_ms <= ? OR NOT EXISTS (
+    return this.settings.database.transaction(
+      async (connection) => {
+        const databaseNow = await connection.nowMilliseconds()
+        const dueAt = options.nowMilliseconds ?? databaseNow
+        const staleAt = databaseNow - this.settings.processAliveThresholdMilliseconds
+        const available = await this.findAvailableReminder(connection, dueAt)
+        const stale = await this.findStaleReminder({ connection, dueAt, staleAt })
+        const reminder = earliestReminder(available, stale)
+        if (!reminder) return undefined
+        const claimed = await this.claimReminderCandidate({
+          connection,
+          reminder,
+          processId,
+          claimedAt: databaseNow,
+          staleAt,
+        })
+        if (claimed.changes !== 1) return undefined
+        reminder.claimed_by = processId
+        reminder.claimed_at_ms = databaseNow
+        return reminder
+      },
+      { isolationLevel: "read_committed" },
+    )
+  }
+
+  private findAvailableReminder(
+    connection: DatabaseConnection,
+    dueAt: number,
+  ): Promise<ReminderRow | undefined> {
+    return connection.get<ReminderRow>(
+      `SELECT reminders.*, instances.actor_type, instances.actor_id
+       FROM ${this.table("reminders")} reminders
+       JOIN ${this.table("instances")} instances ON instances.id = reminders.instance_id
+       WHERE reminders.status = 'scheduled' AND reminders.run_at_ms <= ?
+         AND reminders.claimed_by IS NULL
+       ORDER BY reminders.run_at_ms, reminders.id
+       LIMIT 1${this.claimLockClause()}`,
+      [dueAt],
+    )
+  }
+
+  private findStaleReminder(options: {
+    connection: DatabaseConnection
+    dueAt: number
+    staleAt: number
+  }): Promise<ReminderRow | undefined> {
+    const { connection, dueAt, staleAt } = options
+    return connection.get<ReminderRow>(
+      `SELECT reminders.*, instances.actor_type, instances.actor_id
+       FROM ${this.table("reminders")} reminders
+       JOIN ${this.table("instances")} instances ON instances.id = reminders.instance_id
+       WHERE reminders.status = 'scheduled' AND reminders.run_at_ms <= ?
+         AND reminders.claimed_by IS NOT NULL AND (
+           reminders.claimed_at_ms <= ? OR NOT EXISTS (
              SELECT 1 FROM ${this.table("processes")} processes
-             WHERE processes.id = ${this.table("reminders")}.claimed_by
+             WHERE processes.id = reminders.claimed_by
                AND processes.shutdown_state = 'running' AND processes.heartbeat_at_ms > ?
            )
-         )`,
-        [staleAt, staleAt],
-      )
-      const reminder = await connection.get<ReminderRow>(
-        `SELECT reminders.*, instances.actor_type, instances.actor_id
-         FROM ${this.table("reminders")} reminders
-         JOIN ${this.table("instances")} instances ON instances.id = reminders.instance_id
-         WHERE reminders.status = 'scheduled' AND reminders.run_at_ms <= ?
-           AND reminders.claimed_by IS NULL
-         ORDER BY reminders.run_at_ms, reminders.id
-         LIMIT 1`,
-        [dueAt],
-      )
-      if (!reminder) return undefined
-      const claimed = await connection.run(
+         )
+       ORDER BY reminders.run_at_ms, reminders.id
+       LIMIT 1${this.claimLockClause()}`,
+      [dueAt, staleAt, staleAt],
+    )
+  }
+
+  private claimReminderCandidate(options: {
+    connection: DatabaseConnection
+    reminder: ReminderRow
+    processId: string
+    claimedAt: number
+    staleAt: number
+  }): Promise<{ changes: number }> {
+    const { connection, reminder, processId, claimedAt, staleAt } = options
+    if (reminder.claimed_by === null) {
+      return connection.run(
         `UPDATE ${this.table("reminders")} SET claimed_by = ?, claimed_at_ms = ?
          WHERE id = ? AND status = 'scheduled' AND claimed_by IS NULL`,
-        [processId, databaseNow, reminder.id],
+        [processId, claimedAt, reminder.id],
       )
-      if (claimed.changes !== 1) return undefined
-      reminder.claimed_by = processId
-      reminder.claimed_at_ms = databaseNow
-      return reminder
-    })
+    }
+    return connection.run(
+      `UPDATE ${this.table("reminders")} SET claimed_by = ?, claimed_at_ms = ?
+       WHERE id = ? AND status = 'scheduled' AND claimed_by = ? AND (
+         claimed_at_ms <= ? OR NOT EXISTS (
+           SELECT 1 FROM ${this.table("processes")} processes
+           WHERE processes.id = ${this.table("reminders")}.claimed_by
+             AND processes.shutdown_state = 'running' AND processes.heartbeat_at_ms > ?
+         )
+       )`,
+      [processId, claimedAt, reminder.id, reminder.claimed_by, staleAt, staleAt],
+    )
   }
 
   async enqueueReminder(
@@ -1570,46 +1628,101 @@ export class Repository {
   }
 
   async claimBroadcast(processId: string): Promise<BroadcastRow | undefined> {
-    return this.settings.database.transaction(async (connection) => {
-      const now = await connection.nowMilliseconds()
-      const staleAt = now - this.settings.processAliveThresholdMilliseconds
-      await connection.run(
-        `UPDATE ${this.table("broadcasts")} SET status = 'pending', claimed_by = NULL
-         WHERE status = 'processing' AND (
-           claimed_by IS NULL OR NOT EXISTS (
-             SELECT 1 FROM ${this.table("processes")} processes
-             WHERE processes.id = ${this.table("broadcasts")}.claimed_by
-               AND processes.shutdown_state = 'running' AND processes.heartbeat_at_ms > ?
-           )
-         )`,
-        [staleAt],
-      )
-      const broadcast = await connection.get<BroadcastRow>(
-        `SELECT broadcasts.* FROM ${this.table("broadcasts")} broadcasts
-         WHERE broadcasts.status = 'pending' AND broadcasts.available_at_ms <= ?
-           AND NOT EXISTS (
-             SELECT 1 FROM ${this.table("broadcasts")} earlier
-             WHERE earlier.instance_id = broadcasts.instance_id
-               AND earlier.state_revision < broadcasts.state_revision
-               AND earlier.status IN ('pending', 'processing')
-           )
-         ORDER BY broadcasts.available_at_ms, broadcasts.id
-         LIMIT 1`,
-        [now],
-      )
-      if (!broadcast) return undefined
-      const claimed = await connection.run(
+    return this.settings.database.transaction(
+      async (connection) => {
+        const now = await connection.nowMilliseconds()
+        const staleAt = now - this.settings.processAliveThresholdMilliseconds
+        const pending = await this.findPendingBroadcast(connection, now)
+        const stale = await this.findStaleBroadcast(connection, staleAt)
+        const broadcast = earliestBroadcast(pending, stale)
+        if (!broadcast) return undefined
+        const claimed = await this.claimBroadcastCandidate({
+          connection,
+          broadcast,
+          processId,
+          staleAt,
+        })
+        if (claimed.changes !== 1) return undefined
+        broadcast.status = "processing"
+        broadcast.claimed_by = processId
+        broadcast.attempt_count = Number(broadcast.attempt_count) + 1
+        return broadcast
+      },
+      { isolationLevel: "read_committed" },
+    )
+  }
+
+  private findPendingBroadcast(
+    connection: DatabaseConnection,
+    now: number,
+  ): Promise<ClaimableBroadcast | undefined> {
+    return connection.get<ClaimableBroadcast>(
+      `SELECT broadcasts.* FROM ${this.table("broadcasts")} broadcasts
+       WHERE broadcasts.status = 'pending' AND broadcasts.available_at_ms <= ?
+         AND NOT EXISTS (
+           SELECT 1 FROM ${this.table("broadcasts")} earlier
+           WHERE earlier.instance_id = broadcasts.instance_id
+             AND earlier.state_revision < broadcasts.state_revision
+             AND earlier.status IN ('pending', 'processing')
+         )
+       ORDER BY broadcasts.available_at_ms, broadcasts.id
+       LIMIT 1${this.claimLockClause()}`,
+      [now],
+    )
+  }
+
+  private findStaleBroadcast(
+    connection: DatabaseConnection,
+    staleAt: number,
+  ): Promise<ClaimableBroadcast | undefined> {
+    return connection.get<ClaimableBroadcast>(
+      `SELECT broadcasts.* FROM ${this.table("broadcasts")} broadcasts
+       WHERE broadcasts.status = 'processing' AND (
+         broadcasts.claimed_by IS NULL OR NOT EXISTS (
+           SELECT 1 FROM ${this.table("processes")} processes
+           WHERE processes.id = broadcasts.claimed_by
+             AND processes.shutdown_state = 'running' AND processes.heartbeat_at_ms > ?
+         )
+       )
+         AND NOT EXISTS (
+           SELECT 1 FROM ${this.table("broadcasts")} earlier
+           WHERE earlier.instance_id = broadcasts.instance_id
+             AND earlier.state_revision < broadcasts.state_revision
+             AND earlier.status IN ('pending', 'processing')
+         )
+       ORDER BY broadcasts.available_at_ms, broadcasts.id
+       LIMIT 1${this.claimLockClause()}`,
+      [staleAt],
+    )
+  }
+
+  private claimBroadcastCandidate(options: {
+    connection: DatabaseConnection
+    broadcast: ClaimableBroadcast
+    processId: string
+    staleAt: number
+  }): Promise<{ changes: number }> {
+    const { connection, broadcast, processId, staleAt } = options
+    if (broadcast.status === "pending") {
+      return connection.run(
         `UPDATE ${this.table("broadcasts")}
          SET status = 'processing', claimed_by = ?, attempt_count = attempt_count + 1
          WHERE id = ? AND status = 'pending'`,
         [processId, broadcast.id],
       )
-      if (claimed.changes !== 1) return undefined
-      broadcast.status = "processing"
-      broadcast.claimed_by = processId
-      broadcast.attempt_count = Number(broadcast.attempt_count) + 1
-      return broadcast
-    })
+    }
+    return connection.run(
+      `UPDATE ${this.table("broadcasts")}
+       SET claimed_by = ?, attempt_count = attempt_count + 1
+       WHERE id = ? AND status = 'processing' AND (
+         claimed_by IS NULL OR NOT EXISTS (
+           SELECT 1 FROM ${this.table("processes")} processes
+           WHERE processes.id = ${this.table("broadcasts")}.claimed_by
+             AND processes.shutdown_state = 'running' AND processes.heartbeat_at_ms > ?
+         )
+       )`,
+      [processId, broadcast.id, staleAt],
+    )
   }
 
   async completeBroadcast(broadcast: BroadcastRow): Promise<void> {
@@ -1640,6 +1753,11 @@ export class Repository {
       )
       if (updated.changes !== 1) throw new LostActivation("broadcast claim no longer matches")
     })
+  }
+
+  private claimLockClause(): string {
+    if (this.settings.database.family === "sqlite") return ""
+    return " FOR UPDATE SKIP LOCKED"
   }
 
   private findInstance(options: {
@@ -1721,6 +1839,32 @@ export class Repository {
       turn.message.id,
     ])
   }
+}
+
+type ClaimableBroadcast = BroadcastRow & { status: "pending" | "processing" }
+
+function earliestBroadcast(
+  first: ClaimableBroadcast | undefined,
+  second: ClaimableBroadcast | undefined,
+): ClaimableBroadcast | undefined {
+  if (!first) return second
+  if (!second) return first
+  const availableAtDifference = Number(first.available_at_ms) - Number(second.available_at_ms)
+  if (availableAtDifference < 0) return first
+  if (availableAtDifference > 0) return second
+  return first.id < second.id ? first : second
+}
+
+function earliestReminder(
+  first: ReminderRow | undefined,
+  second: ReminderRow | undefined,
+): ReminderRow | undefined {
+  if (!first) return second
+  if (!second) return first
+  const runAtDifference = Number(first.run_at_ms) - Number(second.run_at_ms)
+  if (runAtDifference < 0) return first
+  if (runAtDifference > 0) return second
+  return first.id < second.id ? first : second
 }
 
 function nextReminderRun(options: {

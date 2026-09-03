@@ -15,6 +15,7 @@ import { DatabaseDeadlineExceeded } from "../src/errors.js"
 import { withDatabaseDeadline } from "../src/database/deadline.js"
 import type { JsonObject } from "../src/types.js"
 import { createDashboard } from "../src/web/index.js"
+import { PausingClaimDatabase } from "./support/pausing-claim-database.js"
 
 const connectionString = process.env.SOLID_OBJECTS_DATABASE_URL
 const describePostgreSQL = connectionString?.startsWith("postgresql:") ? describe : describe.skip
@@ -166,6 +167,48 @@ describe("PostgreSQL SQL parameters", () => {
 })
 
 describePostgreSQL("PostgreSQL adapter", () => {
+  it("lets concurrent broadcast claimants skip locked work", async () => {
+    if (!connectionString) throw new Error("PostgreSQL connection string is required")
+    database = postgresql({ connectionString, maximumConnections: 5 })
+    const pausingDatabase = new PausingClaimDatabase({
+      database,
+      table: "broadcasts",
+      pollingQueriesBeforePause: 2,
+    })
+    runtime = configure({
+      database: pausingDatabase,
+      tableNamePrefix: "postgresql_test_",
+      authorizeMessage: () => true,
+      authorizeQuery: () => true,
+      authorizeDestroy: () => true,
+      broadcast: async () => {},
+      logger: quietLogger,
+    })
+    runtime.register(PostgreSQLWorkflow)
+    await runtime.install()
+    await PostgreSQLWorkflow.ref(`first-${crypto.randomUUID()}`).start()
+    await PostgreSQLWorkflow.ref(`second-${crypto.randomUUID()}`).start()
+    await runtime.repository.registerProcess("first-broadcast-worker", "broadcast_worker")
+    await runtime.repository.registerProcess("second-broadcast-worker", "broadcast_worker")
+
+    const firstClaim = runtime.repository.claimBroadcast("first-broadcast-worker")
+    await pausingDatabase.waitUntilClaimLocked()
+    const secondAttempt = await withDatabaseDeadline({ timeoutMilliseconds: 1_000 }, () =>
+      runtime!.repository.claimBroadcast("second-broadcast-worker"),
+    ).then(
+      (value) => ({ value }),
+      (error: unknown) => ({ error }),
+    )
+    pausingDatabase.resume()
+    const first = await firstClaim
+    if ("error" in secondAttempt) throw secondAttempt.error
+    const second = secondAttempt.value
+
+    expect(first).toBeDefined()
+    expect(second).toBeDefined()
+    expect(second?.id).not.toBe(first?.id)
+  })
+
   it("stages, drains, and ingests transmit envelopes on PostgreSQL", async () => {
     if (!connectionString) throw new Error("PostgreSQL connection string is required")
     const localDatabase = postgresql({ connectionString, maximumConnections: 5 })

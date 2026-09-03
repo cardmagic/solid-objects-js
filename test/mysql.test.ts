@@ -8,6 +8,7 @@ import { DatabaseDeadlineExceeded } from "../src/errors.js"
 import { withDatabaseDeadline } from "../src/database/deadline.js"
 import type { JsonObject } from "../src/types.js"
 import { createDashboard } from "../src/web/index.js"
+import { PausingClaimDatabase } from "./support/pausing-claim-database.js"
 
 const connectionString = process.env.SOLID_OBJECTS_DATABASE_URL
 class TransmitProofCounter extends Actor {
@@ -132,6 +133,128 @@ describe("MySQL SQL compatibility", () => {
 })
 
 describeMySQL("MySQL adapter", () => {
+  it("lets concurrent effect claimants skip locked work", async () => {
+    if (!connectionString) throw new Error("MySQL connection string is required")
+    database = mysql({ connectionString, maximumConnections: 5 })
+    const pausingDatabase = new PausingClaimDatabase({ database, table: "effects" })
+    runtime = configure({
+      database: pausingDatabase,
+      tableNamePrefix: "mysql_test_",
+      authorizeMessage: () => true,
+      authorizeQuery: () => true,
+      authorizeDestroy: () => true,
+      logger: quietLogger,
+    })
+    runtime.register(MySQLWorkflow)
+    await runtime.install()
+    await MySQLWorkflow.ref(`first-${crypto.randomUUID()}`).start()
+    await MySQLWorkflow.ref(`second-${crypto.randomUUID()}`).start()
+    await runtime.repository.registerProcess("first-effect-worker", "effect_worker")
+    await runtime.repository.registerProcess("second-effect-worker", "effect_worker")
+
+    const firstClaim = runtime.repository.claimEffect("first-effect-worker")
+    await pausingDatabase.waitUntilClaimLocked()
+    const secondAttempt = await withDatabaseDeadline({ timeoutMilliseconds: 1_000 }, () =>
+      runtime!.repository.claimEffect("second-effect-worker"),
+    ).then(
+      (value) => ({ value }),
+      (error: unknown) => ({ error }),
+    )
+    pausingDatabase.resume()
+    const first = await firstClaim
+    if ("error" in secondAttempt) throw secondAttempt.error
+    const second = secondAttempt.value
+
+    expect(first).toBeDefined()
+    expect(second).toBeDefined()
+    expect(second?.id).not.toBe(first?.id)
+  })
+
+  it("lets concurrent reminder claimants skip locked work", async () => {
+    if (!connectionString) throw new Error("MySQL connection string is required")
+    database = mysql({ connectionString, maximumConnections: 5 })
+    const pausingDatabase = new PausingClaimDatabase({ database, table: "reminders" })
+    runtime = configure({
+      database: pausingDatabase,
+      tableNamePrefix: "mysql_test_",
+      authorizeMessage: () => true,
+      authorizeQuery: () => true,
+      authorizeDestroy: () => true,
+      logger: quietLogger,
+    })
+    runtime.register(MySQLWorkflow)
+    await runtime.install()
+    await MySQLWorkflow.ref(`first-${crypto.randomUUID()}`).start()
+    await MySQLWorkflow.ref(`second-${crypto.randomUUID()}`).start()
+    await runtime.repository.registerProcess("first-reminder-worker", "reminder_worker")
+    await runtime.repository.registerProcess("second-reminder-worker", "reminder_worker")
+    const reminders = await runtime.settings.database.connection((connection) =>
+      connection.all<{ id: string }>(
+        `SELECT id FROM ${runtime?.repository.table("reminders")} WHERE status = 'scheduled'`,
+      ),
+    )
+    expect(reminders).toHaveLength(2)
+
+    const firstClaim = runtime.repository.claimReminder("first-reminder-worker")
+    await pausingDatabase.waitUntilClaimLocked()
+    const secondAttempt = await withDatabaseDeadline({ timeoutMilliseconds: 1_000 }, () =>
+      runtime!.repository.claimReminder("second-reminder-worker"),
+    ).then(
+      (value) => ({ value }),
+      (error: unknown) => ({ error }),
+    )
+    pausingDatabase.resume()
+    const first = await firstClaim
+    if ("error" in secondAttempt) throw secondAttempt.error
+    const second = secondAttempt.value
+
+    expect(first).toBeDefined()
+    expect(second).toBeDefined()
+    expect(second?.id).not.toBe(first?.id)
+  })
+
+  it("lets concurrent broadcast claimants skip locked work", async () => {
+    if (!connectionString) throw new Error("MySQL connection string is required")
+    database = mysql({ connectionString, maximumConnections: 5 })
+    const pausingDatabase = new PausingClaimDatabase({
+      database,
+      table: "broadcasts",
+      pollingQueriesBeforePause: 2,
+    })
+    runtime = configure({
+      database: pausingDatabase,
+      tableNamePrefix: "mysql_test_",
+      authorizeMessage: () => true,
+      authorizeQuery: () => true,
+      authorizeDestroy: () => true,
+      broadcast: async () => {},
+      logger: quietLogger,
+    })
+    runtime.register(MySQLWorkflow)
+    await runtime.install()
+    await MySQLWorkflow.ref(`first-${crypto.randomUUID()}`).start()
+    await MySQLWorkflow.ref(`second-${crypto.randomUUID()}`).start()
+    await runtime.repository.registerProcess("first-broadcast-worker", "broadcast_worker")
+    await runtime.repository.registerProcess("second-broadcast-worker", "broadcast_worker")
+
+    const firstClaim = runtime.repository.claimBroadcast("first-broadcast-worker")
+    await pausingDatabase.waitUntilClaimLocked()
+    const secondAttempt = await withDatabaseDeadline({ timeoutMilliseconds: 1_000 }, () =>
+      runtime!.repository.claimBroadcast("second-broadcast-worker"),
+    ).then(
+      (value) => ({ value }),
+      (error: unknown) => ({ error }),
+    )
+    pausingDatabase.resume()
+    const first = await firstClaim
+    if ("error" in secondAttempt) throw secondAttempt.error
+    const second = secondAttempt.value
+
+    expect(first).toBeDefined()
+    expect(second).toBeDefined()
+    expect(second?.id).not.toBe(first?.id)
+  })
+
   it("stages, drains, and ingests transmit envelopes on MySQL", async () => {
     if (!connectionString) throw new Error("MySQL connection string is required")
     const localDatabase = mysql({ connectionString, maximumConnections: 5 })

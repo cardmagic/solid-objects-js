@@ -1,7 +1,12 @@
 import "../platform/node.js"
 import { Pool, TypeOverrides, types, type PoolClient, type PoolConfig } from "pg"
 import { postgresqlSql } from "./postgresql-sql.js"
-import type { Database, DatabaseConnection, RunResult } from "./types.js"
+import type {
+  Database,
+  DatabaseConnection,
+  DatabaseTransactionOptions,
+  RunResult,
+} from "./types.js"
 import { PostgreSQLWakeUpAdapter, type PostgreSQLWakeUpFailure } from "../wake-up/postgresql.js"
 import {
   acquireBeforeDatabaseDeadline,
@@ -154,6 +159,7 @@ export class PostgreSQLDatabase implements Database {
 
   async transaction<Result>(
     callback: (connection: DatabaseConnection) => Promise<Result>,
+    options: DatabaseTransactionOptions = {},
   ): Promise<Result> {
     return withDatabaseTransaction(this, async () => {
       const deadlineActive = databaseDeadlineRemainingMilliseconds() !== undefined
@@ -162,7 +168,11 @@ export class PostgreSQLDatabase implements Database {
         (lateClient) => lateClient.release(),
       )
       try {
-        await client.query("BEGIN")
+        await client.query(
+          options.isolationLevel === "read_committed"
+            ? "BEGIN ISOLATION LEVEL READ COMMITTED"
+            : "BEGIN",
+        )
         const remaining = requireDatabaseDeadlineRemaining()
         if (remaining !== undefined) {
           await applyPostgreSQLDeadline({ client, milliseconds: remaining, scope: "transaction" })

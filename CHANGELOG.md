@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.14.6 - 2026-09-03
+
+- Poll effects, reminders, and broadcasts through ordered indexes installed by
+  schema migration 8. PostgreSQL and MySQL claim one row with
+  `FOR UPDATE SKIP LOCKED`; SQLite keeps its serialized transaction path. The
+  broadcast revision guard has its own `(instance_id, state_revision, status)`
+  index instead of rescanning the outbox for every candidate. Claim transactions
+  use read committed isolation on PostgreSQL and MySQL so preceding recovery
+  work cannot turn row skipping into InnoDB gap-lock contention.
+- Replace bulk broadcast and reminder recovery updates with separate available
+  and stale probes, then claim the oldest locked candidate across each pair.
+  This preserves global delivery order, per-instance broadcast revision order,
+  stale-process recovery, and at-least-once delivery.
+- On 50,000 production-shaped rows, SQLite, PostgreSQL 18, and MySQL 8.4 all
+  move from scans and explicit sorts to ordered index probes. The worst SQLite
+  broadcast probe fell from 944 ms to 0.018 ms; PostgreSQL's probes finish in
+  0.02-0.09 ms and MySQL's in 0.10-1.2 ms.
+
 ## 0.14.5 - 2026-08-29
 
 - Record the Ruby state warning in the parity ledger. The row said the Ruby gem

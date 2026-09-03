@@ -1,5 +1,5 @@
 import { applicationWritesForbidden } from "./context.js"
-import type { Database, DatabaseConnection } from "./database/types.js"
+import type { Database, DatabaseConnection, DatabaseTransactionOptions } from "./database/types.js"
 import { ApplicationWriteForbidden } from "./errors.js"
 
 export function guardApplicationDatabase(database: Database): Database {
@@ -27,8 +27,9 @@ class GuardedApplicationDatabase implements Database {
 
   transaction<Result>(
     callback: (connection: DatabaseConnection) => Promise<Result>,
+    options: DatabaseTransactionOptions = {},
   ): Promise<Result> {
-    return this.database.transaction((connection) => callback(guardConnection(connection)))
+    return this.database.transaction((connection) => callback(guardConnection(connection)), options)
   }
 
   close(): Promise<void> {

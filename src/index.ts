@@ -133,7 +133,13 @@ export type {
   MessageStatus,
   SnapshotOptions,
 } from "./types.js"
-export type { Database, DatabaseConnection, DatabaseFamily, RunResult } from "./database/types.js"
+export type {
+  Database,
+  DatabaseConnection,
+  DatabaseFamily,
+  DatabaseTransactionOptions,
+  RunResult,
+} from "./database/types.js"
 export {
   ApplicationWriteForbidden,
   ActorCallCycle,
