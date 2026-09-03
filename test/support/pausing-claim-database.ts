@@ -79,7 +79,13 @@ export class PausingClaimDatabase implements Database {
         const row = await connection.get<Row>(sql, parameters)
         if (!isPollingQuery(sql, this.table)) return row
         this.pollingQueryCount += 1
-        if (this.paused || this.pollingQueryCount < this.pollingQueriesBeforePause) return row
+        if (
+          this.paused ||
+          (this.pollingQueryCount < this.pollingQueriesBeforePause &&
+            !isCandidateLockQuery(sql, this.table))
+        ) {
+          return row
+        }
         this.paused = true
         this.resolveClaimLocked()
         await this.resumeClaim
@@ -92,9 +98,28 @@ export class PausingClaimDatabase implements Database {
   }
 }
 
+export async function captureAttempt<Result>(
+  promise: Promise<Result>,
+): Promise<{ value: Result } | { error: Error }> {
+  try {
+    return { value: await promise }
+  } catch (error) {
+    return { error: normalizeError(error) }
+  }
+}
+
 function isPollingQuery(sql: string, table: ClaimTable): boolean {
   return new RegExp(
     `FROM\\s+\\S*${table}\\s+${table}[\\s\\S]*FOR UPDATE SKIP LOCKED\\s*$`,
     "i",
   ).test(sql)
+}
+
+function isCandidateLockQuery(sql: string, table: ClaimTable): boolean {
+  return new RegExp(`WHERE\\s+${table}\\.id\\s*=\\s*\\?`, "i").test(sql)
+}
+
+function normalizeError(error: unknown): Error {
+  if (error instanceof Error) return error
+  return new Error("claim attempt rejected with a non-Error value", { cause: error })
 }

@@ -11,7 +11,7 @@ afterEach(async () => {
 })
 
 describe("polling queries", () => {
-  it("locks one candidate per indexed query without combining recovery paths", async () => {
+  it("keeps ordered probes indexable without combining recovery paths", async () => {
     const database = sqlite({ path: ":memory:" })
     const installer = configuredRuntime(database)
     await installer.install()
@@ -33,19 +33,23 @@ describe("polling queries", () => {
           /WHERE effects\.status = 'pending'.*ORDER BY effects\.available_at_ms, effects\.id LIMIT 1 FOR UPDATE SKIP LOCKED$/,
         ),
         expect.stringMatching(
-          /WHERE reminders\.status = 'scheduled'.*reminders\.claimed_by IS NULL.*ORDER BY reminders\.run_at_ms, reminders\.id LIMIT 1 FOR UPDATE SKIP LOCKED$/,
+          /WHERE reminders\.status = 'scheduled'.*reminders\.claimed_by IS NULL.*ORDER BY reminders\.run_at_ms, reminders\.id LIMIT 1$/,
         ),
         expect.stringMatching(
-          /WHERE reminders\.status = 'scheduled'.*reminders\.claimed_by IS NOT NULL.*ORDER BY reminders\.run_at_ms, reminders\.id LIMIT 1 FOR UPDATE SKIP LOCKED$/,
+          /WHERE reminders\.status = 'scheduled'.*reminders\.claimed_by IS NOT NULL.*ORDER BY reminders\.run_at_ms, reminders\.id LIMIT 1$/,
         ),
         expect.stringMatching(
-          /WHERE broadcasts\.status = 'pending'.*ORDER BY broadcasts\.available_at_ms, broadcasts\.id LIMIT 1 FOR UPDATE SKIP LOCKED$/,
+          /WHERE broadcasts\.status = 'pending'.*ORDER BY broadcasts\.available_at_ms, broadcasts\.id LIMIT 1$/,
         ),
         expect.stringMatching(
-          /WHERE broadcasts\.status = 'processing'.*ORDER BY broadcasts\.available_at_ms, broadcasts\.id LIMIT 1 FOR UPDATE SKIP LOCKED$/,
+          /WHERE broadcasts\.status = 'processing'.*ORDER BY broadcasts\.available_at_ms, broadcasts\.id LIMIT 1$/,
         ),
       ]),
     )
+    const recoveryProbes = pollingStatements.filter(
+      (statement) => !statement.includes("FROM solid_objects_effects effects"),
+    )
+    for (const statement of recoveryProbes) expect(statement).not.toMatch(/FOR UPDATE/)
     const pendingBroadcast = pollingStatements.find((statement) =>
       statement.includes("broadcasts.status = 'pending'"),
     )

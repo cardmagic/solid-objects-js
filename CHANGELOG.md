@@ -12,9 +12,11 @@
   PostgreSQL and MySQL so preceding recovery work cannot turn row skipping into
   InnoDB gap-lock contention.
 - Replace bulk broadcast and reminder recovery updates with separate available
-  and stale probes, then claim the oldest locked candidate across each pair.
-  This preserves global delivery order, per-instance broadcast revision order,
-  stale-process recovery, and at-least-once delivery.
+  and stale probes. Compare category heads without locking them, lock only the
+  oldest candidate by primary key, and retry past work already locked by another
+  claimant. This preserves global delivery order, concurrent progress,
+  per-instance broadcast revision order, stale-process recovery, and
+  at-least-once delivery.
 - On 50,000 production-shaped rows, SQLite, PostgreSQL 18, and MySQL 8.4 all
   move from scans and explicit sorts to ordered index probes. The worst SQLite
   broadcast probe fell from 944 ms to 0.018 ms; PostgreSQL's probes finish in

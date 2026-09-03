@@ -1473,42 +1473,71 @@ export class Repository {
         const databaseNow = await connection.nowMilliseconds()
         const dueAt = options.nowMilliseconds ?? databaseNow
         const staleAt = databaseNow - this.settings.processAliveThresholdMilliseconds
-        const available = await this.findAvailableReminder(connection, dueAt)
-        const stale = await this.findStaleReminder({ connection, dueAt, staleAt })
-        const reminder = earliestReminder(available, stale)
-        if (!reminder) return undefined
-        const claimed = await this.claimReminderCandidate({
-          connection,
-          reminder,
-          processId,
-          claimedAt: databaseNow,
-          staleAt,
-        })
-        if (claimed.changes !== 1) return undefined
-        const identity = await this.loadActorIdentity(connection, reminder.instance_id)
-        return {
-          ...reminder,
-          ...identity,
-          claimed_by: processId,
-          claimed_at_ms: databaseNow,
+        const skippedCandidateIds: string[] = []
+        while (true) {
+          const available = await this.findAvailableReminder({
+            connection,
+            dueAt,
+            skippedCandidateIds,
+          })
+          const stale = await this.findStaleReminder({
+            connection,
+            dueAt,
+            staleAt,
+            skippedCandidateIds,
+          })
+          const candidate = earliestReminder(available, stale)
+          if (!candidate) return undefined
+          const reminder = await this.lockReminderCandidate({
+            connection,
+            candidate,
+            dueAt,
+            staleAt,
+          })
+          if (!reminder) {
+            skippedCandidateIds.push(candidate.id)
+            continue
+          }
+          const claimed = await this.claimReminderCandidate({
+            connection,
+            reminder,
+            processId,
+            claimedAt: databaseNow,
+            staleAt,
+          })
+          if (claimed.changes !== 1) {
+            skippedCandidateIds.push(reminder.id)
+            continue
+          }
+          const identity = await this.loadActorIdentity(connection, reminder.instance_id)
+          return {
+            ...reminder,
+            ...identity,
+            claimed_by: processId,
+            claimed_at_ms: databaseNow,
+          }
         }
       },
       { isolationLevel: "read_committed" },
     )
   }
 
-  private findAvailableReminder(
-    connection: DatabaseConnection,
-    dueAt: number,
-  ): Promise<ReminderCandidate | undefined> {
+  private findAvailableReminder(options: {
+    connection: DatabaseConnection
+    dueAt: number
+    skippedCandidateIds: string[]
+  }): Promise<ReminderCandidate | undefined> {
+    const { connection, dueAt, skippedCandidateIds } = options
+    const exclusion = candidateExclusion("reminders", skippedCandidateIds)
     return connection.get<ReminderCandidate>(
       `SELECT reminders.*
        FROM ${this.table("reminders")} reminders
        WHERE reminders.status = 'scheduled' AND reminders.run_at_ms <= ?
          AND reminders.claimed_by IS NULL
+         ${exclusion.sql}
        ORDER BY reminders.run_at_ms, reminders.id
-       LIMIT 1${this.claimLockClause()}`,
-      [dueAt],
+       LIMIT 1`,
+      [dueAt, ...exclusion.parameters],
     )
   }
 
@@ -1516,8 +1545,10 @@ export class Repository {
     connection: DatabaseConnection
     dueAt: number
     staleAt: number
+    skippedCandidateIds: string[]
   }): Promise<ReminderCandidate | undefined> {
-    const { connection, dueAt, staleAt } = options
+    const { connection, dueAt, staleAt, skippedCandidateIds } = options
+    const exclusion = candidateExclusion("reminders", skippedCandidateIds)
     return connection.get<ReminderCandidate>(
       `SELECT reminders.*
        FROM ${this.table("reminders")} reminders
@@ -1529,9 +1560,41 @@ export class Repository {
                AND processes.shutdown_state = 'running' AND processes.heartbeat_at_ms > ?
            )
          )
+         ${exclusion.sql}
        ORDER BY reminders.run_at_ms, reminders.id
+       LIMIT 1`,
+      [dueAt, staleAt, staleAt, ...exclusion.parameters],
+    )
+  }
+
+  private lockReminderCandidate(options: {
+    connection: DatabaseConnection
+    candidate: ReminderCandidate
+    dueAt: number
+    staleAt: number
+  }): Promise<ReminderCandidate | undefined> {
+    const { connection, candidate, dueAt, staleAt } = options
+    if (candidate.claimed_by === null) {
+      return connection.get<ReminderCandidate>(
+        `SELECT reminders.* FROM ${this.table("reminders")} reminders
+         WHERE reminders.id = ? AND reminders.status = 'scheduled'
+           AND reminders.run_at_ms <= ? AND reminders.claimed_by IS NULL
+         LIMIT 1${this.claimLockClause()}`,
+        [candidate.id, dueAt],
+      )
+    }
+    return connection.get<ReminderCandidate>(
+      `SELECT reminders.* FROM ${this.table("reminders")} reminders
+       WHERE reminders.id = ? AND reminders.status = 'scheduled'
+         AND reminders.run_at_ms <= ? AND reminders.claimed_by IS NOT NULL AND (
+           reminders.claimed_at_ms <= ? OR NOT EXISTS (
+             SELECT 1 FROM ${this.table("processes")} processes
+             WHERE processes.id = reminders.claimed_by
+               AND processes.shutdown_state = 'running' AND processes.heartbeat_at_ms > ?
+           )
+         )
        LIMIT 1${this.claimLockClause()}`,
-      [dueAt, staleAt, staleAt],
+      [candidate.id, dueAt, staleAt, staleAt],
     )
   }
 
@@ -1637,30 +1700,57 @@ export class Repository {
       async (connection) => {
         const now = await connection.nowMilliseconds()
         const staleAt = now - this.settings.processAliveThresholdMilliseconds
-        const pending = await this.findPendingBroadcast(connection, now)
-        const stale = await this.findStaleBroadcast(connection, staleAt)
-        const broadcast = earliestBroadcast(pending, stale)
-        if (!broadcast) return undefined
-        const claimed = await this.claimBroadcastCandidate({
-          connection,
-          broadcast,
-          processId,
-          staleAt,
-        })
-        if (claimed.changes !== 1) return undefined
-        broadcast.status = "processing"
-        broadcast.claimed_by = processId
-        broadcast.attempt_count = Number(broadcast.attempt_count) + 1
-        return broadcast
+        const skippedCandidateIds: string[] = []
+        while (true) {
+          const pending = await this.findPendingBroadcast({
+            connection,
+            now,
+            skippedCandidateIds,
+          })
+          const stale = await this.findStaleBroadcast({
+            connection,
+            staleAt,
+            skippedCandidateIds,
+          })
+          const candidate = earliestBroadcast(pending, stale)
+          if (!candidate) return undefined
+          const broadcast = await this.lockBroadcastCandidate({
+            connection,
+            candidate,
+            now,
+            staleAt,
+          })
+          if (!broadcast) {
+            skippedCandidateIds.push(candidate.id)
+            continue
+          }
+          const claimed = await this.claimBroadcastCandidate({
+            connection,
+            broadcast,
+            processId,
+            staleAt,
+          })
+          if (claimed.changes !== 1) {
+            skippedCandidateIds.push(broadcast.id)
+            continue
+          }
+          broadcast.status = "processing"
+          broadcast.claimed_by = processId
+          broadcast.attempt_count = Number(broadcast.attempt_count) + 1
+          return broadcast
+        }
       },
       { isolationLevel: "read_committed" },
     )
   }
 
-  private findPendingBroadcast(
-    connection: DatabaseConnection,
-    now: number,
-  ): Promise<ClaimableBroadcast | undefined> {
+  private findPendingBroadcast(options: {
+    connection: DatabaseConnection
+    now: number
+    skippedCandidateIds: string[]
+  }): Promise<ClaimableBroadcast | undefined> {
+    const { connection, now, skippedCandidateIds } = options
+    const exclusion = candidateExclusion("broadcasts", skippedCandidateIds)
     return connection.get<ClaimableBroadcast>(
       `SELECT broadcasts.* FROM ${this.table("broadcasts")} broadcasts
        WHERE broadcasts.status = 'pending' AND broadcasts.available_at_ms <= ?
@@ -1670,16 +1760,20 @@ export class Repository {
              AND earlier.state_revision < broadcasts.state_revision
              AND earlier.status IN ('pending', 'processing')
          )
+         ${exclusion.sql}
        ORDER BY broadcasts.available_at_ms, broadcasts.id
-       LIMIT 1${this.claimLockClause()}`,
-      [now],
+       LIMIT 1`,
+      [now, ...exclusion.parameters],
     )
   }
 
-  private findStaleBroadcast(
-    connection: DatabaseConnection,
-    staleAt: number,
-  ): Promise<ClaimableBroadcast | undefined> {
+  private findStaleBroadcast(options: {
+    connection: DatabaseConnection
+    staleAt: number
+    skippedCandidateIds: string[]
+  }): Promise<ClaimableBroadcast | undefined> {
+    const { connection, staleAt, skippedCandidateIds } = options
+    const exclusion = candidateExclusion("broadcasts", skippedCandidateIds)
     return connection.get<ClaimableBroadcast>(
       `SELECT broadcasts.* FROM ${this.table("broadcasts")} broadcasts
        WHERE broadcasts.status = 'processing' AND (
@@ -1695,9 +1789,50 @@ export class Repository {
              AND earlier.state_revision < broadcasts.state_revision
              AND earlier.status IN ('pending', 'processing')
          )
+         ${exclusion.sql}
        ORDER BY broadcasts.available_at_ms, broadcasts.id
+       LIMIT 1`,
+      [staleAt, ...exclusion.parameters],
+    )
+  }
+
+  private lockBroadcastCandidate(options: {
+    connection: DatabaseConnection
+    candidate: ClaimableBroadcast
+    now: number
+    staleAt: number
+  }): Promise<ClaimableBroadcast | undefined> {
+    const { connection, candidate, now, staleAt } = options
+    if (candidate.status === "pending") {
+      return connection.get<ClaimableBroadcast>(
+        `SELECT broadcasts.* FROM ${this.table("broadcasts")} broadcasts
+         WHERE broadcasts.id = ? AND broadcasts.status = 'pending'
+           AND broadcasts.available_at_ms <= ? AND NOT EXISTS (
+             SELECT 1 FROM ${this.table("broadcasts")} earlier
+             WHERE earlier.instance_id = broadcasts.instance_id
+               AND earlier.state_revision < broadcasts.state_revision
+               AND earlier.status IN ('pending', 'processing')
+           )
+         LIMIT 1${this.claimLockClause()}`,
+        [candidate.id, now],
+      )
+    }
+    return connection.get<ClaimableBroadcast>(
+      `SELECT broadcasts.* FROM ${this.table("broadcasts")} broadcasts
+       WHERE broadcasts.id = ? AND broadcasts.status = 'processing' AND (
+         broadcasts.claimed_by IS NULL OR NOT EXISTS (
+           SELECT 1 FROM ${this.table("processes")} processes
+           WHERE processes.id = broadcasts.claimed_by
+             AND processes.shutdown_state = 'running' AND processes.heartbeat_at_ms > ?
+         )
+       ) AND NOT EXISTS (
+         SELECT 1 FROM ${this.table("broadcasts")} earlier
+         WHERE earlier.instance_id = broadcasts.instance_id
+           AND earlier.state_revision < broadcasts.state_revision
+           AND earlier.status IN ('pending', 'processing')
+       )
        LIMIT 1${this.claimLockClause()}`,
-      [staleAt],
+      [candidate.id, staleAt],
     )
   }
 
@@ -1862,6 +1997,18 @@ type ClaimableBroadcast = BroadcastRow & { status: "pending" | "processing" }
 type ActorIdentity = Pick<InstanceRow, "actor_type" | "actor_id">
 type EffectCandidate = Omit<EffectRow, keyof ActorIdentity>
 type ReminderCandidate = Omit<ReminderRow, keyof ActorIdentity>
+
+function candidateExclusion(
+  tableAlias: "broadcasts" | "reminders",
+  skippedCandidateIds: string[],
+): { sql: string; parameters: string[] } {
+  if (skippedCandidateIds.length === 0) return { sql: "", parameters: [] }
+  const placeholders = skippedCandidateIds.map(() => "?").join(", ")
+  return {
+    sql: `AND ${tableAlias}.id NOT IN (${placeholders})`,
+    parameters: skippedCandidateIds,
+  }
+}
 
 function earliestBroadcast(
   first: ClaimableBroadcast | undefined,
