@@ -279,6 +279,28 @@ describe("reminders", () => {
     expect(await alarm.fired).toBe(1)
   })
 
+  it("recovers the oldest reminder across available and stale work", async () => {
+    runtime = configuredRuntime()
+    await runtime.install()
+    await Alarm.ref("stale-oldest").arm()
+    await abandonProcess("abandoned-reminder", "reminder_scheduler")
+    const stale = await runtime.repository.claimReminder("abandoned-reminder")
+    if (!stale) throw new Error("reminder was not claimed")
+    await staleProcess("abandoned-reminder")
+    await Alarm.ref("available-newer").arm()
+    await runtime.settings.database.connection((connection) =>
+      connection.run(
+        `UPDATE ${runtime?.repository.table("reminders")}
+         SET run_at_ms = CASE id WHEN ? THEN 0 ELSE 1 END`,
+        [stale.id],
+      ),
+    )
+
+    const recovered = await runtime.repository.claimReminder("replacement-reminder-worker")
+
+    expect(recovered?.id).toBe(stale.id)
+  })
+
   it("pauses a reminder whose message no longer exists", async () => {
     runtime = configuredRuntime({
       logger: {
@@ -362,6 +384,28 @@ describe("observable broadcasts", () => {
     expect(await runtime.broadcastWorker().runUntilIdle()).toBe(1)
 
     expect(events).toHaveLength(1)
+  })
+
+  it("recovers the oldest broadcast across pending and stale work", async () => {
+    runtime = configuredRuntime({ broadcast: async () => {} })
+    await runtime.install()
+    await ObservableCounter.ref("stale-oldest").increment()
+    await abandonProcess("abandoned-broadcast", "broadcast_worker")
+    const stale = await runtime.repository.claimBroadcast("abandoned-broadcast")
+    if (!stale) throw new Error("broadcast was not claimed")
+    await staleProcess("abandoned-broadcast")
+    await ObservableCounter.ref("pending-newer").increment()
+    await runtime.settings.database.connection((connection) =>
+      connection.run(
+        `UPDATE ${runtime?.repository.table("broadcasts")}
+         SET available_at_ms = CASE actor_id WHEN 'stale-oldest' THEN 0 ELSE 1 END`,
+      ),
+    )
+
+    const recovered = await runtime.repository.claimBroadcast("replacement-broadcast-worker")
+
+    expect(recovered?.id).toBe(stale.id)
+    expect(Number(recovered?.attempt_count)).toBe(2)
   })
 })
 

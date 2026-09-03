@@ -206,8 +206,12 @@ rows for `preview()` and rows actually deleted for `prune()`.
 `InstrumentationEvent` type the host integration contract. `JsonPrimitive`,
 `JsonValue`, `JsonObject`, `DeepReadonly`, `ActorIdentifier`, `MessageContext`,
 `MessageStatus`, and `Logger` are shared types. `Database`,
-`DatabaseConnection`, `DatabaseFamily`, and `RunResult` support custom database
-and commit-action integration.
+`DatabaseConnection`, `DatabaseFamily`, `DatabaseTransactionOptions`, and
+`RunResult` support custom database and commit-action integration. A custom
+PostgreSQL or MySQL adapter must honor
+`transaction(callback, { isolationLevel: "read_committed" })`; outbox claiming
+uses that isolation with row locks to avoid InnoDB gap-lock contention. SQLite
+adapters may treat the option as their ordinary serialized transaction.
 
 `BroadcastEvent.observables` contains changed value-broadcast projections.
 `BroadcastEvent.invalidations` contains changed invalidation-only names. The

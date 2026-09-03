@@ -15,6 +15,7 @@ import { DatabaseDeadlineExceeded } from "../src/errors.js"
 import { withDatabaseDeadline } from "../src/database/deadline.js"
 import type { JsonObject } from "../src/types.js"
 import { createDashboard } from "../src/web/index.js"
+import { captureAttempt, PausingClaimDatabase } from "./support/pausing-claim-database.js"
 
 const connectionString = process.env.SOLID_OBJECTS_DATABASE_URL
 const describePostgreSQL = connectionString?.startsWith("postgresql:") ? describe : describe.skip
@@ -166,6 +167,66 @@ describe("PostgreSQL SQL parameters", () => {
 })
 
 describePostgreSQL("PostgreSQL adapter", () => {
+  it("does not hide broadcast work across concurrent recovery probes", async () => {
+    if (!connectionString) throw new Error("PostgreSQL connection string is required")
+    database = postgresql({ connectionString, maximumConnections: 5 })
+    const pausingDatabase = new PausingClaimDatabase({
+      database,
+      table: "broadcasts",
+      pollingQueriesBeforePause: 2,
+    })
+    runtime = configure({
+      database: pausingDatabase,
+      tableNamePrefix: "postgresql_test_",
+      authorizeMessage: () => true,
+      authorizeQuery: () => true,
+      authorizeDestroy: () => true,
+      broadcast: async () => {},
+      logger: quietLogger,
+    })
+    runtime.register(PostgreSQLWorkflow)
+    await runtime.install()
+    await PostgreSQLWorkflow.ref(`first-${crypto.randomUUID()}`).start()
+    await PostgreSQLWorkflow.ref(`second-${crypto.randomUUID()}`).start()
+    await runtime.repository.registerProcess("first-broadcast-worker", "broadcast_worker")
+    await runtime.repository.registerProcess("second-broadcast-worker", "broadcast_worker")
+    const broadcasts = await runtime.settings.database.connection((connection) =>
+      connection.all<{ id: string }>(
+        `SELECT id FROM ${runtime?.repository.table("broadcasts")} ORDER BY id`,
+      ),
+    )
+    const [staleBroadcast, pendingBroadcast] = broadcasts
+    if (!staleBroadcast || !pendingBroadcast) throw new Error("expected two broadcasts")
+    await runtime.settings.database.connection(async (connection) => {
+      await connection.run(
+        `UPDATE ${runtime?.repository.table("broadcasts")}
+         SET status = 'processing', claimed_by = 'missing-broadcast-worker',
+             attempt_count = 1, available_at_ms = 0
+         WHERE id = ?`,
+        [staleBroadcast.id],
+      )
+      await connection.run(
+        `UPDATE ${runtime?.repository.table("broadcasts")} SET available_at_ms = 1 WHERE id = ?`,
+        [pendingBroadcast.id],
+      )
+    })
+
+    const firstClaim = runtime.repository.claimBroadcast("first-broadcast-worker")
+    await pausingDatabase.waitUntilClaimLocked()
+    const secondAttempt = await captureAttempt(
+      withDatabaseDeadline({ timeoutMilliseconds: 1_000 }, () =>
+        runtime!.repository.claimBroadcast("second-broadcast-worker"),
+      ),
+    )
+    pausingDatabase.resume()
+    const first = await firstClaim
+    if ("error" in secondAttempt) throw secondAttempt.error
+    const second = secondAttempt.value
+
+    expect(first?.id).toBe(staleBroadcast.id)
+    expect(second?.id).toBe(pendingBroadcast.id)
+  })
+
   it("stages, drains, and ingests transmit envelopes on PostgreSQL", async () => {
     if (!connectionString) throw new Error("PostgreSQL connection string is required")
     const localDatabase = postgresql({ connectionString, maximumConnections: 5 })

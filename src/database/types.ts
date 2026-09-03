@@ -5,6 +5,10 @@ export interface RunResult {
   lastInsertId?: string
 }
 
+export interface DatabaseTransactionOptions {
+  isolationLevel?: "read_committed"
+}
+
 export interface DatabaseConnection {
   run(sql: string, parameters?: readonly unknown[]): Promise<RunResult>
   get<Row extends object>(sql: string, parameters?: readonly unknown[]): Promise<Row | undefined>
@@ -19,6 +23,7 @@ export interface Database {
   connection<Result>(callback: (connection: DatabaseConnection) => Promise<Result>): Promise<Result>
   transaction<Result>(
     callback: (connection: DatabaseConnection) => Promise<Result>,
+    options?: DatabaseTransactionOptions,
   ): Promise<Result>
   close(): Promise<void>
 }

@@ -8,7 +8,8 @@ const PROCESS_IDENTITY_VERSION = 4
 const PROCESS_DRAINING_VERSION = 5
 const OBSERVABLE_INVALIDATIONS_VERSION = 6
 const KEYED_REMINDERS_VERSION = 7
-const LATEST_VERSION = KEYED_REMINDERS_VERSION
+const POLLING_INDEXES_VERSION = 8
+const LATEST_VERSION = POLLING_INDEXES_VERSION
 
 export async function installSchema(options: {
   connection: DatabaseConnection
@@ -290,18 +291,42 @@ export async function installSchema(options: {
     })
   }
 
-  if (installedVersions.has(OBSERVABLE_INVALIDATIONS_VERSION)) return
-  await connection.run(
-    `ALTER TABLE ${table("broadcasts")} ADD COLUMN ${family === "postgresql" ? "IF NOT EXISTS " : ""}invalidations ${family === "mysql" ? "LONGTEXT" : "TEXT"}`,
-  )
-  await connection.run(
-    `UPDATE ${table("broadcasts")} SET invalidations = ? WHERE invalidations IS NULL`,
-    ["[]"],
-  )
+  if (!installedVersions.has(OBSERVABLE_INVALIDATIONS_VERSION)) {
+    await connection.run(
+      `ALTER TABLE ${table("broadcasts")} ADD COLUMN ${family === "postgresql" ? "IF NOT EXISTS " : ""}invalidations ${family === "mysql" ? "LONGTEXT" : "TEXT"}`,
+    )
+    await connection.run(
+      `UPDATE ${table("broadcasts")} SET invalidations = ? WHERE invalidations IS NULL`,
+      ["[]"],
+    )
+    await recordMigration({
+      connection,
+      table: table("schema_migrations"),
+      version: OBSERVABLE_INVALIDATIONS_VERSION,
+      schemaIdentity,
+    })
+  }
+
+  if (installedVersions.has(POLLING_INDEXES_VERSION)) return
+  const pollingIndexes = [
+    ["effects", `${prefix}effects_poll`, "status, available_at_ms, id"],
+    ["reminders", `${prefix}reminders_due`, "status, run_at_ms, id"],
+    ["broadcasts", `${prefix}broadcasts_poll`, "status, available_at_ms, id"],
+    ["broadcasts", `${prefix}broadcasts_instance_revision`, "instance_id, state_revision, status"],
+  ] as const
+  for (const [tableName, name, columns] of pollingIndexes) {
+    await createIndex({
+      connection,
+      family,
+      table: table(tableName),
+      name,
+      columns,
+    })
+  }
   await recordMigration({
     connection,
     table: table("schema_migrations"),
-    version: OBSERVABLE_INVALIDATIONS_VERSION,
+    version: POLLING_INDEXES_VERSION,
     schemaIdentity,
   })
 }

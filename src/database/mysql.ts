@@ -6,7 +6,12 @@ import mysqlDriver, {
   type RowDataPacket,
 } from "mysql2/promise"
 import type { ExecuteValues } from "mysql2"
-import type { Database, DatabaseConnection, RunResult } from "./types.js"
+import type {
+  Database,
+  DatabaseConnection,
+  DatabaseTransactionOptions,
+  RunResult,
+} from "./types.js"
 import {
   acquireBeforeDatabaseDeadline,
   databaseDeadlineRemainingMilliseconds,
@@ -152,6 +157,7 @@ export class MySQLDatabase implements Database {
 
   async transaction<Result>(
     callback: (connection: DatabaseConnection) => Promise<Result>,
+    options: DatabaseTransactionOptions = {},
   ): Promise<Result> {
     return withDatabaseTransaction(this, async () => {
       const deadlineActive = databaseDeadlineRemainingMilliseconds() !== undefined
@@ -160,6 +166,9 @@ export class MySQLDatabase implements Database {
         (lateConnection) => lateConnection.release(),
       )
       try {
+        if (options.isolationLevel === "read_committed") {
+          await connection.query("SET TRANSACTION ISOLATION LEVEL READ COMMITTED")
+        }
         await connection.beginTransaction()
         const remaining = requireDatabaseDeadlineRemaining()
         if (remaining !== undefined) {
