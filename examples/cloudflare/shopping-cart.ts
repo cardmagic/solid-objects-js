@@ -22,10 +22,13 @@ export class ShoppingCart extends Actor {
     if (!Number.isSafeInteger(quantity) || quantity <= 0)
       throw new TypeError("quantity must be a positive safe integer")
     const existing = this.items[input.sku]
+    const combinedQuantity = (existing?.quantity ?? 0) + quantity
+    if (!Number.isSafeInteger(combinedQuantity))
+      throw new TypeError("combined quantity must be a positive safe integer")
     this.items[input.sku] = {
       name: input.name,
       priceCents: input.priceCents,
-      quantity: (existing?.quantity ?? 0) + quantity,
+      quantity: combinedQuantity,
     }
     return this.totalCents
   }

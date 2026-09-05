@@ -1031,7 +1031,7 @@ export class ActorEngine {
   }
 }
 
-function errorName(error: unknown): string {
+function errorName<ErrorValue>(error: ErrorValue): string {
   return error instanceof Error ? error.name : "Error"
 }
 

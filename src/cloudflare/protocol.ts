@@ -61,7 +61,7 @@ export function actorName(identity: ActorIdentity): string {
   return JSON.stringify([identity.actorType, String(identity.actorId)])
 }
 
-export function encodeError(error: unknown): Extract<RpcReply, { ok: false }> {
+export function encodeError<ErrorValue>(error: ErrorValue): Extract<RpcReply, { ok: false }> {
   const details: JsonObject = {}
   if (error instanceof errors.Rejected) {
     details.code = error.code

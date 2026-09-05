@@ -399,7 +399,7 @@ function identity(value: ActorIdentity): ActorIdentity {
   return { actorType: value.actorType, actorId: String(value.actorId) }
 }
 
-function context(value: unknown): JsonValue {
+function context<AuthorizationContext>(value: AuthorizationContext | undefined): JsonValue {
   return normalizeJson(value === undefined ? null : value)
 }
 
