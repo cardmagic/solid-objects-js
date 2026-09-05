@@ -5,48 +5,46 @@ import {
   durableObjects,
   type CloudflareConfiguration,
 } from "solid-objects/cloudflare"
-import { Counter } from "./counter.js"
-import type { JsonValue } from "solid-objects/core"
+import { ShoppingCart } from "./shopping-cart.js"
 
 function backend(environment: Env) {
   return durableObjects({ namespace: environment.ACTORS, sessions: environment.SESSIONS })
 }
 
-function publicCounter(input: {
+function publicCart(input: {
   actorType: string
   actorId: string
-  authorizationContext: JsonValue
+  authorizationContext: unknown
 }): boolean {
   return (
-    input.actorType === "Counter" &&
-    input.actorId === "public-demo" &&
+    input.actorType === "ShoppingCart" &&
+    input.actorId === "demo-cart" &&
     input.authorizationContext === "public-demo"
   )
 }
 
 export class Actors extends createDurableObjectsHost<Env>({
-  actors: [Counter],
+  actors: [ShoppingCart],
   configure: (environment): CloudflareConfiguration => ({
     backend: backend(environment),
-    authorizeMessage: publicCounter,
-    authorizeQuery: publicCounter,
-    authorizeSubscription: publicCounter,
+    authorizeMessage: publicCart,
+    authorizeQuery: publicCart,
+    authorizeSubscription: publicCart,
   }),
 }) {}
 
 export class Sessions extends createDurableObjectsSessionHost<Env>({
   backend,
   resolveAuthorizationContext: ({ sessionId }) =>
-    sessionId === "public-demo" ? "public-demo" : null,
+    sessionId === "demo-cart" ? "public-demo" : null,
 }) {}
 
 export default {
   async fetch(request: Request, environment: Env): Promise<Response> {
     const url = new URL(request.url)
     const runtime = createRuntime({ backend: backend(environment) })
-    const counter = runtime
-      .ref(Counter, "public-demo")
-      .with({ authorizationContext: "public-demo" })
+    const cartReference = runtime.ref(ShoppingCart, "demo-cart")
+    const cart = cartReference.with({ authorizationContext: "public-demo" })
     const isWebSocketRequest =
       url.pathname === "/events" && request.headers.get("Upgrade") === "websocket"
     const origin = request.headers.get("Origin")
@@ -54,19 +52,36 @@ export default {
       return new Response("Forbidden", { status: 403 })
     if (isWebSocketRequest)
       return runtime.openWebSocket({
-        sessionId: "public-demo",
+        sessionId: "demo-cart",
         expiresAt: new Date(Date.now() + 3_600_000),
       })
-    if (request.method === "GET" && url.pathname === "/counter")
-      return Response.json({ count: await counter.count })
-    if (request.method === "POST" && url.pathname === "/increment")
-      return Response.json({ count: await counter.increment() })
-    if (request.method === "POST" && url.pathname === "/increment-later") {
-      await counter.incrementLater()
+    if (request.method === "GET" && url.pathname === "/cart")
+      return Response.json(
+        await runtime.snapshot(cartReference, { authorizationContext: "public-demo" }),
+      )
+    if (request.method === "POST" && url.pathname === "/cart/items") {
+      const item = (await request.json()) as {
+        sku: string
+        name: string
+        priceCents: number
+        quantity?: number
+      }
+      return Response.json({ totalCents: await cart.addItem(item) })
+    }
+    if (request.method === "POST" && url.pathname === "/cart/remove") {
+      const item = (await request.json()) as { sku: string }
+      await cart.removeItem(item)
+      return new Response(null, { status: 204 })
+    }
+    if (request.method === "POST" && url.pathname === "/cart/clear-later") {
+      await cart.clearLater()
       return new Response(null, { status: 202 })
     }
-    return new Response("GET /counter; POST /increment; POST /increment-later; WebSocket /events", {
-      status: url.pathname === "/" ? 200 : 404,
-    })
+    return new Response(
+      "GET /cart; POST /cart/items; POST /cart/remove; POST /cart/clear-later; WebSocket /events",
+      {
+        status: url.pathname === "/" ? 200 : 404,
+      },
+    )
   },
 } satisfies ExportedHandler<Env>

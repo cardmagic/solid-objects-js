@@ -6,7 +6,7 @@ and Workers. On Cloudflare, import `createRuntime`, `durableObjects`,
 `solid-objects/cloudflare`.
 
 The [runnable example](../examples/cloudflare/README.md) includes both Durable
-Object classes, Wrangler bindings, migrations, and a public counter.
+Object classes, Wrangler bindings, migrations, and a public shopping cart.
 
 ## Configure the hosts
 

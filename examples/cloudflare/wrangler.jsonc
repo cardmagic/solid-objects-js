@@ -1,6 +1,6 @@
 {
   "$schema": "../../node_modules/wrangler/config-schema.json",
-  "name": "solid-objects-counter",
+  "name": "solid-objects-shopping-cart",
   "main": "worker.ts",
   "compatibility_date": "2026-09-04",
   "compatibility_flags": ["nodejs_compat"],
