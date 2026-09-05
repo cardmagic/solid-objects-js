@@ -1,0 +1,12 @@
+{
+  "extends": "./tsconfig.cloudflare.json",
+  "compilerOptions": {
+    "types": ["node", "@cloudflare/workers-types"],
+    "baseUrl": ".",
+    "paths": {
+      "solid-objects/core": ["./src/core.ts"],
+      "solid-objects/cloudflare": ["./src/cloudflare/index.ts"]
+    }
+  },
+  "include": ["examples/cloudflare/**/*.ts"]
+}

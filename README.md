@@ -5,6 +5,10 @@
 
 **Open Source Durable Objects in your Node app.**
 
+Deploying on Cloudflare? The [Durable Objects backend](docs/cloudflare.md) runs
+the same actor API on Workers, with durable mailboxes, alarms, and browser
+subscriptions. Start with the [Cloudflare example](examples/cloudflare/README.md).
+
 In a shopping cart, paying twice at the same time is a big problem. The payment provider might time out, and your Node site could be restarting before recovery finishes.
 
 To deal with this safely, you often need logic scattered between 7-10 files like database row locks, Redis locks, delayed jobs, retries, and cleanup code to keep that process straight. They are not all large, but they must agree about the same payment state and failure rules. That coordination is the difficult part.

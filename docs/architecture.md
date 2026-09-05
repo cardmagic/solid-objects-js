@@ -144,6 +144,8 @@ at-least-once delivery and retry backoff. Per-actor order comes from an
 ordered drain up to the claimed effect's mailbox sequence, and the server
 ingest deduplicates on the effect id through the normal idempotency-key path.
 
-Solid Objects provides database-backed state coordination for Node.js and the
-browser. It does not reproduce Cloudflare's placement or edge-runtime
-guarantees.
+The SQL runtime provides database-backed coordination for Node.js and the
+browser. The optional [Cloudflare backend](cloudflare.md) uses native Durable
+Objects for placement, private SQLite storage, activation, alarms, and
+hibernating browser connections. Its runtime boundary shares actor evaluation
+without importing SQL workers or their process/lease administration.

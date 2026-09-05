@@ -1,6 +1,6 @@
 import type { Actor, ActorClass } from "./actor.js"
 import { SyncInsideTransaction, UnknownOperation } from "./errors.js"
-import type { SolidObjectsRuntime } from "./runtime.js"
+import type { ActorRuntime } from "./actor-runtime.js"
 import type {
   AsyncInvocationOptions,
   DeepReadonly,
@@ -107,7 +107,7 @@ export type ActorInvoker<ActorType extends Actor> = DirectMessages<ActorType> &
   DirectQueries<ActorType>
 
 export class MessageReference<Result = unknown> {
-  private readonly runtime: SolidObjectsRuntime
+  private readonly runtime: ActorRuntime
   private readonly databaseTransactionActive: () => boolean
   readonly id: string
   readonly requestId: string
@@ -117,7 +117,7 @@ export class MessageReference<Result = unknown> {
   private readonly operation: string
 
   constructor(options: {
-    runtime: SolidObjectsRuntime
+    runtime: ActorRuntime
     id: string
     requestId: string
     actorType: string
@@ -188,7 +188,7 @@ export function installLiveSignals(factory: LiveSignalsFactory): void {
 
 export class ActorReferenceCore<ActorType extends Actor> {
   readonly send: ActorMessageSender<ActorType>
-  readonly runtime: SolidObjectsRuntime
+  readonly runtime: ActorRuntime
   readonly actorClass: ActorClass<ActorType>
   readonly actorType: string
   readonly actorId: string
@@ -196,7 +196,7 @@ export class ActorReferenceCore<ActorType extends Actor> {
   readonly queries: ReadonlySet<string>
 
   constructor(options: {
-    runtime: SolidObjectsRuntime
+    runtime: ActorRuntime
     actorClass: ActorClass<ActorType>
     actorType: string
     actorId: string
@@ -238,7 +238,7 @@ export class ActorReferenceCore<ActorType extends Actor> {
 }
 
 export function createActorReference<ActorType extends Actor>(options: {
-  runtime: SolidObjectsRuntime
+  runtime: ActorRuntime
   actorClass: ActorClass<ActorType>
   actorType: string
   actorId: string

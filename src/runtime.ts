@@ -124,6 +124,7 @@ import { EffectWorker } from "./effect-worker.js"
 import type { WakeUpRole } from "./wake-up.js"
 import { withDatabaseDeadline } from "./database/deadline.js"
 import type { DatabaseConnection } from "./database/types.js"
+import { evaluateActorTurn, readActorObservables } from "./turn.js"
 
 interface RegisteredActor {
   actorClass: ActorClass
@@ -483,13 +484,7 @@ export class SolidObjectsRuntime {
     try {
       finalSnapshot = await withDatabaseDeadline(
         { timeoutMilliseconds: Math.max(this.settings.syncPollingIntervalMilliseconds, 100) },
-        async () => {
-          const message = await this.repository.findMessage(messageReference.id)
-          return {
-            message,
-            status: message ? await this.repository.messageStatus(message.id) : "unknown",
-          }
-        },
+        () => this.repository.messageSnapshot(messageReference.id),
       )
     } catch (error) {
       if (!(error instanceof DatabaseDeadlineExceeded)) throw error
@@ -518,13 +513,9 @@ export class SolidObjectsRuntime {
     deadline: number,
   ): Promise<{ message: MessageRow | undefined; status: MessageStatus }> {
     const remaining = Math.max(Math.floor(deadline - performance.now()), 0)
-    return withDatabaseDeadline({ timeoutMilliseconds: remaining }, async () => {
-      const message = await this.repository.findMessage(messageReference.id)
-      return {
-        message,
-        status: message ? await this.repository.messageStatus(message.id) : "unknown",
-      }
-    })
+    return withDatabaseDeadline({ timeoutMilliseconds: remaining }, () =>
+      this.repository.messageSnapshot(messageReference.id),
+    )
   }
 
   private async syncTimeout(
@@ -1161,44 +1152,21 @@ export class SolidObjectsRuntime {
     this.emitInstrumentation("message.started", messageInstrumentation(turn.message))
     try {
       stateBefore = deepCopy(actorState(actor, definition.stateKeys))
-      const before = stableJson(stateBefore)
-      const oldObservables = this.readObservables({ actor, definition, stateJson: before })
-      const query = this.isQuery(definition, turn.message.operation)
-      const argumentsValue = jsonObject(JSON.parse(turn.message.arguments))
-      const rawResult = await withActorContext(
-        { actor, runtime: this, message: messageContext },
-        async () => {
-          if (definition.stateKeys.includes(turn.message.operation)) {
-            return (actor as unknown as Record<string, unknown>)[turn.message.operation]
-          }
-          return actor.invoke(turn.message.operation, argumentsValue)
-        },
-      )
-      const committedState = jsonObject(actorState(actor, definition.stateKeys), {
-        maxBytes: this.settings.maxStateBytes,
+      const evaluated = await evaluateActorTurn({
+        actor,
+        definition,
+        runtime: this,
+        message: messageContext,
+        operation: turn.message.operation,
+        argumentsValue: jsonObject(JSON.parse(turn.message.arguments)),
+        stateBefore,
+        maxStateBytes: this.settings.maxStateBytes,
+        maxResultBytes: this.settings.maxResultBytes,
       })
-      const committed = stableJson(committedState)
-      if (query && committed !== before) {
-        throw new QueryMutatedState(`query ${turn.message.operation} mutated actor state`)
-      }
-      if (query && actor.hasIntents()) {
-        throw new QueryMutatedState(`query ${turn.message.operation} staged durable work`)
-      }
-      const result = normalizeJson(rawResult === undefined ? null : rawResult, {
-        maxBytes: this.settings.maxResultBytes,
-      })
-      const observables = this.readObservables({ actor, definition, stateJson: committed })
-      const changedObservableNames = Object.keys(observables.values).filter(
-        (name) =>
-          stableJson(observables.values[name]) !== stableJson(oldObservables.values[name]) ||
-          observables.modes[name] !== oldObservables.modes[name],
-      )
-      const changedProjection = selectBroadcastProjection(observables, changedObservableNames)
-      const broadcastProjectionValue =
-        changedObservableNames.length > 0 ||
-        (Object.keys(definition.payloads).length > 0 && committed !== before)
-          ? changedProjection
-          : undefined
+      const committedState = evaluated.state
+      const committed = evaluated.stateJson
+      const result = evaluated.result
+      const broadcastProjectionValue = evaluated.broadcast
       renewalController.abort()
       await renewal
       if (renewalError) throw renewalError
@@ -1828,17 +1796,7 @@ export class SolidObjectsRuntime {
     definition: ValidatedActorDefinition
     stateJson?: string
   }): ObservableProjection {
-    const { actor, definition } = options
-    const stateBefore = options.stateJson ?? stableJson(actorState(actor, definition.stateKeys))
-    const intentCount = actor.intentCount()
-    const values = withActorProjection({ actor, runtime: this }, () => actor.observableValues())
-    if (
-      stableJson(actorState(actor, definition.stateKeys)) !== stateBefore ||
-      actor.intentCount() !== intentCount
-    ) {
-      throw new QueryMutatedState("observables must not mutate actor state or stage durable work")
-    }
-    return values
+    return readActorObservables({ ...options, runtime: this })
   }
 
   private validatePayloadNames(

@@ -40,6 +40,10 @@ such boundary between a gem and its dependents.
 
 ## Runtime and correctness
 
+SQL waiters read results and status from one statement. Ruby already checks
+completion and returns the result from the same loaded message; no Ruby change
+is needed for the JavaScript stale-result race fix.
+
 | Capability                                                                                                    | Status  | TypeScript shape or remaining work                                                                                                                                                                                                                                                                                                     |
 | ------------------------------------------------------------------------------------------------------------- | ------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Actor registry, durable identity, JSON state, and adjacent state migrations                                   | Native  | Ordinary classes, static actor types, inferred state, explicit migrations, and isolated runtime context across every actor-instance callback.                                                                                                                                                                                          |
@@ -179,6 +183,21 @@ sides of the repository boundary. Manual cross-runtime QA (Node to Rails
 and Rails to Node) ran in solid-objects-ruby#49; the one disagreement it
 found (the optional `arguments` default) is fixed and pinned by the shared
 fixture.
+
+## JavaScript-only: Cloudflare hosting
+
+The experimental `solid-objects/cloudflare` backend hosts each actor identity
+in a SQLite-backed Durable Object. Portable actor definitions, turn evaluation,
+state migrations, and authorization are shared with the SQL runtime. Alarms
+drive durable mailbox/outbox recovery, and session Durable Objects host
+hibernating browser subscriptions.
+
+Ruby hosting on Cloudflare is **Not applicable**. This backend introduces no
+change to Ruby's SQL behavior or roadmap. Its JavaScript support is **Partial**
+until deployed failover and soak validation completes. Shared SQL transactions,
+commit actions, fleet administration, reconciliation, and the SQL dashboard
+are explicit unsupported capabilities. The [backend matrix](cloudflare.md#capability-boundaries)
+records these boundaries separately from SQL-runtime parity.
 
 ## Rails-specific surfaces
 

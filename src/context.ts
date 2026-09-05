@@ -1,18 +1,18 @@
 import { createContextStore } from "./platform/context-store.js"
 import type { Actor } from "./actor.js"
-import type { SolidObjectsRuntime } from "./runtime.js"
+import type { ActorRuntime } from "./actor-runtime.js"
 import type { MessageContext } from "./types.js"
 
 interface ExecutionContext {
   actor?: Actor
-  runtime?: SolidObjectsRuntime
+  runtime?: ActorRuntime
   message?: MessageContext
   applicationWritesForbidden?: true
 }
 
 interface ActorExecutionContext {
   actor: Actor
-  runtime: SolidObjectsRuntime
+  runtime: ActorRuntime
   message?: MessageContext
 }
 
@@ -22,7 +22,7 @@ export function currentActor(): Actor | undefined {
   return storage.getStore()?.actor
 }
 
-export function currentRuntime(): SolidObjectsRuntime | undefined {
+export function currentRuntime(): ActorRuntime | undefined {
   return storage.getStore()?.runtime
 }
 
@@ -42,7 +42,7 @@ export function withActorContext<Result>(
 }
 
 export function withActorProjection<Result>(
-  context: { actor: Actor; runtime: SolidObjectsRuntime },
+  context: { actor: Actor; runtime: ActorRuntime },
   callback: () => Result,
 ): Result {
   return storage.run({ ...context, applicationWritesForbidden: true }, callback)
@@ -50,4 +50,8 @@ export function withActorProjection<Result>(
 
 export function withApplicationWritesForbidden<Result>(callback: () => Result): Result {
   return storage.run({ ...storage.getStore(), applicationWritesForbidden: true }, callback)
+}
+
+export function withRuntime<Result>(runtime: ActorRuntime, callback: () => Result): Result {
+  return storage.run({ ...storage.getStore(), runtime }, callback)
 }

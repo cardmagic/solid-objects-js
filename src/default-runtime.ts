@@ -1,16 +1,16 @@
-import type { SolidObjectsRuntime } from "./runtime.js"
+import type { ActorRuntime } from "./actor-runtime.js"
 
-let runtime: SolidObjectsRuntime | undefined
+let runtime: ActorRuntime | undefined
 
-export function setDefaultRuntime(value: SolidObjectsRuntime): void {
+export function setDefaultRuntime(value: ActorRuntime): void {
   runtime = value
 }
 
-export function getDefaultRuntime(): SolidObjectsRuntime {
+export function getDefaultRuntime(): ActorRuntime {
   if (!runtime) throw new Error("SolidObjects.configure must be called before Actor.ref")
   return runtime
 }
 
-export function clearDefaultRuntime(value?: SolidObjectsRuntime): void {
+export function clearDefaultRuntime(value?: ActorRuntime): void {
   if (value === undefined || runtime === value) runtime = undefined
 }

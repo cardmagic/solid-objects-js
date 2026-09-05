@@ -1,0 +1,14 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "lib": ["ES2024"],
+    "types": ["node", "@cloudflare/workers-types", "@cloudflare/vitest-plugin/types"],
+    "paths": {
+      "solid-objects/core": ["./src/core.ts"],
+      "solid-objects/cloudflare": ["./src/cloudflare/index.ts"]
+    },
+    "noEmit": true
+  },
+  "include": ["src/cloudflare/**/*.ts", "test/cloudflare/**/*.ts", "vitest.cloudflare.config.ts"],
+  "exclude": []
+}

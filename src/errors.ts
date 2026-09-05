@@ -7,6 +7,15 @@ export class SolidObjectsError extends Error {
   }
 }
 export class NonRetryableError extends SolidObjectsError {}
+export class UnsupportedCapability extends NonRetryableError {}
+export class EnqueueOutcomeUnknown extends SolidObjectsError {
+  constructor(
+    readonly details: { actorType: string; actorId: string; requestId: string },
+    options?: ErrorOptions,
+  ) {
+    super("message acceptance is unknown; recover using lookupMessage and the request ID", options)
+  }
+}
 export class UnsupportedDatabase extends SolidObjectsError {}
 export class DatabaseDeadlineExceeded extends SolidObjectsError {}
 export class SyncEnqueueTimeout extends SolidObjectsError {

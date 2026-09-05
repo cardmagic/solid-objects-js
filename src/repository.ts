@@ -26,7 +26,7 @@ import type {
 } from "./records.js"
 import { jsonObject, normalizeJson } from "./serialization.js"
 import type { RetentionTarget } from "./retention.js"
-import type { JsonObject, JsonValue } from "./types.js"
+import type { JsonObject, JsonValue, MessageStatus } from "./types.js"
 import { VERSION } from "./version.js"
 
 export interface SyncDiagnosticsRecord {
@@ -890,6 +890,27 @@ export class Repository {
     return this.settings.database.connection((connection) =>
       connection.get<MessageRow>(`SELECT * FROM ${this.table("messages")} WHERE id = ?`, [id]),
     )
+  }
+
+  async messageSnapshot(
+    id: string,
+  ): Promise<{ message: MessageRow | undefined; status: MessageStatus }> {
+    return this.settings.database.connection(async (connection) => {
+      const row = await connection.get<MessageRow & { membership_status: MessageStatus }>(
+        `SELECT messages.*, CASE
+          WHEN messages.rejection IS NOT NULL THEN 'rejected'
+          WHEN EXISTS (SELECT 1 FROM ${this.table("dead_letters")} WHERE message_id = messages.id) THEN 'dead'
+          WHEN messages.completed_at_ms IS NOT NULL THEN 'completed'
+          WHEN EXISTS (SELECT 1 FROM ${this.table("claimed_messages")} WHERE message_id = messages.id) THEN 'claimed'
+          WHEN EXISTS (SELECT 1 FROM ${this.table("ready_messages")} WHERE message_id = messages.id) THEN 'ready'
+          ELSE 'unknown' END AS membership_status
+         FROM ${this.table("messages")} messages WHERE messages.id = ?`,
+        [id],
+      )
+      if (!row) return { message: undefined, status: "unknown" }
+      const { membership_status: status, ...message } = row
+      return { message, status }
+    })
   }
 
   async messageStatus(
