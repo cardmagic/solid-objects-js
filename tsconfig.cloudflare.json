@@ -1,0 +1,10 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "lib": ["ES2024"],
+    "types": ["node", "@cloudflare/workers-types", "@cloudflare/vitest-plugin/types"],
+    "noEmit": true
+  },
+  "include": ["src/cloudflare/**/*.ts", "test/cloudflare/**/*.ts", "vitest.cloudflare.config.ts"],
+  "exclude": []
+}

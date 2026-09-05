@@ -11,6 +11,7 @@ const documentationPaths = [
   "docs/authorization.md",
   "docs/browser-protocol.md",
   "docs/configuration.md",
+  "docs/cloudflare.md",
   "docs/correctness.md",
   "docs/dashboard.md",
   "docs/errors-and-recovery.md",
@@ -54,6 +55,7 @@ const configurationReference = await readFile(
 )
 const entryPoints = [
   "src/index.ts",
+  "src/cloudflare/index.ts",
   "src/database/sqlite.ts",
   "src/database/sqlite-wasm.ts",
   "src/database/shared-sqlite-wasm.ts",

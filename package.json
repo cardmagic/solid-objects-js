@@ -38,6 +38,14 @@
     "MIT-LICENSE"
   ],
   "exports": {
+    "./core": {
+      "types": "./dist/core.d.ts",
+      "import": "./dist/core.js"
+    },
+    "./cloudflare": {
+      "types": "./dist/cloudflare/index.d.ts",
+      "import": "./dist/cloudflare/index.js"
+    },
     ".": {
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
@@ -92,8 +100,12 @@
     }
   },
   "scripts": {
-    "build": "pnpm run clean && tsc -p tsconfig.build.json && tsc -p tsconfig.quickstart-build.json && node scripts/prepare-executable.mjs",
-    "check": "pnpm run check:parameters && pnpm run check:documentation && pnpm run check:browser-imports && tsc -p tsconfig.json --noEmit && tsc -p tsconfig.examples.json --noEmit",
+    "test:cloudflare": "vitest run --config vitest.cloudflare.config.ts",
+    "dev:cloudflare": "wrangler dev --config examples/cloudflare/wrangler.jsonc",
+    "deploy:cloudflare": "wrangler deploy --config examples/cloudflare/wrangler.jsonc",
+    "check:cloudflare": "node scripts/check-cloudflare-imports.mjs && tsc -p tsconfig.cloudflare-example.json --noEmit && wrangler deploy --dry-run --config examples/cloudflare/wrangler.jsonc",
+    "build": "pnpm run clean && tsc -p tsconfig.build.json && tsc -p tsconfig.cloudflare-build.json && tsc -p tsconfig.quickstart-build.json && node scripts/prepare-executable.mjs",
+    "check": "pnpm run check:parameters && pnpm run check:documentation && pnpm run check:browser-imports && tsc -p tsconfig.json --noEmit && tsc -p tsconfig.examples.json --noEmit && tsc -p tsconfig.cloudflare.json --noEmit",
     "check:browser-imports": "node scripts/check-browser-imports.mjs",
     "check:documentation": "node scripts/check-documentation.mjs",
     "check:parameters": "node scripts/check-parameter-style.mjs",
@@ -117,6 +129,8 @@
     "prepack": "pnpm run build"
   },
   "devDependencies": {
+    "@cloudflare/vitest-plugin": "^1.1.4",
+    "@cloudflare/workers-types": "^5.20260904.1",
     "@playwright/test": "^1.62.1",
     "@sqlite.org/sqlite-wasm": "3.53.0-build1",
     "@types/node": "^24.0.0",
@@ -130,14 +144,15 @@
     "signal-polyfill": "^0.2.2",
     "typescript": "^5.9.0",
     "vitest": "^4.1.10",
+    "wrangler": "^4.129.0",
     "ws": "^8.21.3"
   },
   "peerDependencies": {
     "@sqlite.org/sqlite-wasm": ">=3.50.0-build1",
-    "signal-polyfill": ">=0.2.2",
     "mysql2": "^3.23.3",
     "pg": "^8.23.0",
-    "redis": "^6.2.1"
+    "redis": "^6.2.1",
+    "signal-polyfill": ">=0.2.2"
   },
   "peerDependenciesMeta": {
     "@sqlite.org/sqlite-wasm": {

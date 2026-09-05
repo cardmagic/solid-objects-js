@@ -23,6 +23,8 @@ jobs:
       - run: pnpm run check
       - run: pnpm run test:coverage
       - run: pnpm run build
+      - run: pnpm run test:cloudflare
+      - run: pnpm run check:cloudflare
       - run: pnpm run pack:check
       - run: pnpm run test:package
       - run: pnpm run test:recovery

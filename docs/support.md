@@ -2,17 +2,18 @@
 
 ## Runtime support
 
-| Component       | Supported or tested range                                   |
-| --------------- | ----------------------------------------------------------- |
-| Node.js         | 24.4.0 or newer; CI runs 24.4.0 and 24.15.0                 |
-| TypeScript      | 5.9 or newer for TypeScript applications                    |
-| SQLite          | Node's built-in `node:sqlite` on the supported Node runtime |
-| PostgreSQL      | 14 or newer; CI runs 14 and 18                              |
-| MySQL           | 8.0 or newer with InnoDB; CI runs 8.0 and 8.4               |
-| Redis wake-up   | Optional; CI runs Redis 7                                   |
-| Browser client  | Chromium through Playwright                                 |
-| SQLite WASM     | `@sqlite.org/sqlite-wasm` 3.50 or newer; optional           |
-| Browser runtime | Chromium through Playwright; OPFS for persistent storage    |
+| Component          | Supported or tested range                                          |
+| ------------------ | ------------------------------------------------------------------ |
+| Node.js            | 24.4.0 or newer; CI runs 24.4.0 and 24.15.0                        |
+| TypeScript         | 5.9 or newer for TypeScript applications                           |
+| SQLite             | Node's built-in `node:sqlite` on the supported Node runtime        |
+| PostgreSQL         | 14 or newer; CI runs 14 and 18                                     |
+| MySQL              | 8.0 or newer with InnoDB; CI runs 8.0 and 8.4                      |
+| Redis wake-up      | Optional; CI runs Redis 7                                          |
+| Browser client     | Chromium through Playwright                                        |
+| SQLite WASM        | `@sqlite.org/sqlite-wasm` 3.50 or newer; optional                  |
+| Browser runtime    | Chromium through Playwright; OPFS for persistent storage           |
+| Cloudflare runtime | Experimental; Workers integration tests and Wrangler bundle checks |
 
 The package is ESM-only. PostgreSQL, MySQL, Redis, and SQLite WASM require
 their optional peer dependency. The Node SQLite adapter has no driver

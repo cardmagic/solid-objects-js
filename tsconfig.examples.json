@@ -10,5 +10,6 @@
       "solid-objects/database/mysql": ["./src/database/mysql.ts"]
     }
   },
-  "include": ["examples/**/*.ts", "benchmarks/**/*.ts"]
+  "include": ["examples/**/*.ts", "benchmarks/**/*.ts"],
+  "exclude": ["examples/cloudflare"]
 }

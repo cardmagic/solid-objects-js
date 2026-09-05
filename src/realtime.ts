@@ -1,6 +1,23 @@
 import type { InvalidationEnvelope, RealtimeEnvelope } from "./browser/index.js"
 import type { BroadcastEvent } from "./configuration.js"
-import type { SolidObjectsRuntime } from "./runtime.js"
+import type { PayloadEnvelope } from "./browser/index.js"
+import type { JsonObject } from "./types.js"
+
+export interface RealtimeRuntime {
+  subscriptionSnapshot(options: {
+    actorType: string
+    actorId: string
+    authorizationContext: unknown
+    onAuthorized?: () => void
+  }): Promise<BroadcastEvent>
+  subscriptionPayloads(options: {
+    actorType: string
+    actorId: string
+    payloadNames: readonly string[]
+    authorizationContext: unknown
+  }): Promise<PayloadEnvelope[]>
+  emitInstrumentation(name: string, attributes: JsonObject): void
+}
 
 const MAXIMUM_PAYLOADS_PER_SUBSCRIPTION = 50
 
@@ -26,7 +43,7 @@ export interface RealtimeSession {
 export class RealtimeManager {
   private readonly subscriptions = new Map<string, Set<ManagedRealtimeSession>>()
 
-  constructor(private readonly runtime: SolidObjectsRuntime) {}
+  constructor(private readonly runtime: RealtimeRuntime) {}
 
   connect<AuthorizationContext>(
     options: RealtimeConnectionOptions<AuthorizationContext>,

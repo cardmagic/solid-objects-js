@@ -9,5 +9,5 @@
     "stripInternal": true
   },
   "include": ["src/**/*.ts"],
-  "exclude": ["test"]
+  "exclude": ["test", "src/cloudflare"]
 }

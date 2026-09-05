@@ -64,7 +64,7 @@ export class SolidObjectsBrowserClient {
   connect(): void {
     if (this.#socket && this.#socket.readyState < WebSocket.CLOSING) return
     const socket =
-      this.#options.createWebSocket?.(this.#options.url) ?? new WebSocket(this.#options.url)
+      this.#options.createWebSocket?.(this.#options.url) ?? new WebSocket(String(this.#options.url))
     socket.addEventListener("open", () => {
       for (const subscription of this.#subscriptions.values()) this.sendSubscription(subscription)
     })

@@ -4,6 +4,28 @@ The package exports one server entry point plus database, wake-up, and browser
 subpaths. The TypeScript declaration files are authoritative for exact generic
 signatures. This index explains the supported role of every export.
 
+## `solid-objects/core` and `solid-objects/cloudflare`
+
+`solid-objects/core` exports portable actor definitions, errors, reference types,
+the `ActorRuntime` interface, and request-scoped `withRuntime(runtime, callback)`.
+It does not initialize a Node platform or SQL driver.
+
+`solid-objects/cloudflare` exports `CloudflareRuntime` and `createRuntime({ backend })`,
+`durableObjects({ namespace, sessions })`, `createDurableObjectsHost({ actors, configure })`,
+and `createDurableObjectsSessionHost({ backend, resolveAuthorizationContext, maxSubscriptions })`.
+`CloudflareConfiguration` supplies host policies, limits, instrumentation, and effects.
+`DurableObjectsBackend`, `ActorNamespace`, and `SessionNamespace` describe the bindings.
+
+Actor references retain the operation, snapshot, send, and message-result APIs.
+`lookupMessage()` recovers acceptance by request ID; `actorAdministration()` provides
+bounded per-actor dead-letter and reminder operations. `openWebSocket()` bridges an
+authenticated HTTP upgrade to a session Durable Object.
+
+`EnqueueOutcomeUnknown` reports ambiguous RPC acceptance and carries recovery
+identifiers. `UnsupportedCapability` rejects facilities requiring the shared SQL
+runtime. See [Cloudflare Durable Objects](cloudflare.md) for configuration,
+authorization, capability boundaries, and release validation.
+
 ## `solid-objects`
 
 ### Runtime and actors

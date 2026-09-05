@@ -27,6 +27,10 @@ try {
   const packagedPaths = new Set(packed.files.map((file) => file.path))
   for (const expectedPath of [
     "dist/index.js",
+    "dist/core.js",
+    "dist/cloudflare/index.js",
+    "dist/cloudflare/host.d.ts",
+    "docs/cloudflare.md",
     "dist/executable.js",
     "dist/examples/sqlite-quickstart.js",
     "examples/sqlite-quickstart.ts",

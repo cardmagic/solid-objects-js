@@ -1,5 +1,21 @@
 # Changelog
 
+## Unreleased
+
+- Read SQL message results and completion status in one statement so concurrent
+  completion cannot return a stale `null` result.
+- Add `solid-objects/core` and the Cloudflare Durable Objects runtime backend.
+  Each actor identity owns SQLite state, a durable mailbox, retry state,
+  reminders, and effect/message outboxes. Request IDs recover ambiguous RPC
+  acceptance; incarnation and execution generations fence stale commits.
+- Add hibernating session Durable Objects for existing browser subscriptions,
+  including multi-actor connections, fresh authorization, personalized payloads,
+  revision fencing, and durable subscription cleanup.
+- Share actor turn evaluation across SQL and Cloudflare. Keep Workers types and
+  imports separate from the Node target. Add Workers integration tests, a
+  runnable example, bundle checks, and an explicit backend capability matrix.
+  The Cloudflare backend is experimental pending deployed failover/soak testing.
+
 ## 0.14.6 - 2026-09-03
 
 - Poll effects, reminders, and broadcasts through ordered indexes installed by
