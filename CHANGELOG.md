@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.14.7 - 2026-09-05
 
 - Read SQL message results and completion status in one statement so concurrent
   completion cannot return a stale `null` result.
