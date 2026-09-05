@@ -13,6 +13,7 @@ import type {
   DestroyOptions,
   InvocationOptions,
   JsonObject,
+  JsonValue,
   Logger,
   MessageStatus,
   SnapshotOptions,
@@ -30,13 +31,13 @@ export interface ActorRuntime {
     actorClass: ActorClass<ActorType>,
     actorId: ActorIdentifier,
   ): ActorReference<ActorType>
-  invoke<Result = unknown>(options: {
+  invoke<Result = JsonValue>(options: {
     reference: ActorReferenceCore<Actor>
     operation: string
     argumentsValue?: JsonObject
     options?: InvocationOptions
   }): Promise<DeepReadonly<Result>>
-  sendMessage<Result = unknown>(options: {
+  sendMessage<Result = JsonValue>(options: {
     reference: ActorReferenceCore<Actor>
     operation: string
     argumentsValue?: JsonObject

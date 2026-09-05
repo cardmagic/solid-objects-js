@@ -2,6 +2,7 @@ import type { Instance, Message, Outbox, Reminder, Subscription } from "./record
 import type { CloudflareSettings } from "./configuration.js"
 import { PayloadTooLarge } from "../errors.js"
 import { utf8ByteLength } from "../serialization.js"
+type EncodableValue = object | string | number | boolean | null
 
 export class ActorStorage {
   constructor(
@@ -74,7 +75,7 @@ export class ActorStorage {
     return row ? (JSON.parse(row.value) as Value) : undefined
   }
 
-  saveMetadata(key: string, value: unknown): void {
+  saveMetadata(key: string, value: EncodableValue): void {
     this.storage.sql.exec(
       "INSERT INTO metadata(key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value",
       key,
@@ -264,7 +265,7 @@ export class ActorStorage {
   }
 }
 
-function encodedRecord(value: unknown, indexedValues: string[]): string {
+function encodedRecord(value: EncodableValue, indexedValues: string[]): string {
   const encoded = JSON.stringify(value)
   const size = indexedValues.reduce(
     (total, value) => total + utf8ByteLength(value),

@@ -6,6 +6,7 @@ import {
   type CloudflareConfiguration,
 } from "solid-objects/cloudflare"
 import { Counter } from "./counter.js"
+import type { JsonValue } from "solid-objects/core"
 
 function backend(environment: Env) {
   return durableObjects({ namespace: environment.ACTORS, sessions: environment.SESSIONS })
@@ -14,7 +15,7 @@ function backend(environment: Env) {
 function publicCounter(input: {
   actorType: string
   actorId: string
-  authorizationContext: unknown
+  authorizationContext: JsonValue
 }): boolean {
   return (
     input.actorType === "Counter" &&
@@ -46,15 +47,16 @@ export default {
     const counter = runtime
       .ref(Counter, "public-demo")
       .with({ authorizationContext: "public-demo" })
-    if (url.pathname === "/events" && request.headers.get("Upgrade") === "websocket") {
-      const origin = request.headers.get("Origin")
-      if (origin !== null && origin !== url.origin)
-        return new Response("Forbidden", { status: 403 })
+    const isWebSocketRequest =
+      url.pathname === "/events" && request.headers.get("Upgrade") === "websocket"
+    const origin = request.headers.get("Origin")
+    if (isWebSocketRequest && origin !== null && origin !== url.origin)
+      return new Response("Forbidden", { status: 403 })
+    if (isWebSocketRequest)
       return runtime.openWebSocket({
         sessionId: "public-demo",
         expiresAt: new Date(Date.now() + 3_600_000),
       })
-    }
     if (request.method === "GET" && url.pathname === "/counter")
       return Response.json({ count: await counter.count })
     if (request.method === "POST" && url.pathname === "/increment")

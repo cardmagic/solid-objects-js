@@ -75,7 +75,7 @@ export class CloudflareRuntime implements ActorRuntime {
     })
   }
 
-  async invoke<Result = unknown>(options: {
+  async invoke<Result = JsonValue>(options: {
     reference: ActorReferenceCore<Actor>
     operation: string
     argumentsValue?: JsonObject
@@ -98,7 +98,7 @@ export class CloudflareRuntime implements ActorRuntime {
     })
   }
 
-  async sendMessage<Result = unknown>(options: {
+  async sendMessage<Result = JsonValue>(options: {
     reference: ActorReferenceCore<Actor>
     operation: string
     argumentsValue?: JsonObject
@@ -115,8 +115,8 @@ export class CloudflareRuntime implements ActorRuntime {
     })
   }
 
-  async lookupMessage<Result = unknown>(
-    options: ActorIdentity & { requestId: string; authorizationContext?: unknown },
+  async lookupMessage<Result = JsonValue>(
+    options: ActorIdentity & { requestId: string; authorizationContext?: JsonValue },
   ): Promise<MessageReference<Result> | undefined> {
     const value = await this.call({
       ...identity(options),
@@ -226,7 +226,7 @@ export class CloudflareRuntime implements ActorRuntime {
     )
   }
 
-  actorAdministration(options: ActorIdentity & { authorizationContext?: unknown }) {
+  actorAdministration(options: ActorIdentity & { authorizationContext?: JsonValue }) {
     const call = (payload: JsonObject) =>
       this.call({
         ...identity(options),

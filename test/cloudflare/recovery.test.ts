@@ -127,6 +127,15 @@ describe("Cloudflare recovery and fencing", () => {
       state.storage.sql.exec<{ id: string }>("SELECT id FROM outboxes WHERE kind = 'effect'").one(),
     )
     expect(deliveries.get(outbox.id)).toBe(2)
+    const statuses = await runInDurableObject(stub("repeat-effect"), (_object, state) =>
+      state.storage.sql
+        .exec<{ kind: string; status: string }>("SELECT kind, status FROM outboxes ORDER BY kind")
+        .toArray(),
+    )
+    expect(statuses).toEqual([
+      { kind: "effect", status: "completed" },
+      { kind: "effect-callback", status: "completed" },
+    ])
   })
 
   it("deduplicates destination acceptance after an outbound acknowledgement is lost", async () => {

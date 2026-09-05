@@ -38,7 +38,7 @@ export interface Outbox {
   id: string
   incarnation: string
   messageId: string
-  kind: "effect" | "outbound" | "broadcast"
+  kind: "effect" | "effect-callback" | "outbound" | "broadcast"
   destination: string
   sequence: string
   payload: JsonObject

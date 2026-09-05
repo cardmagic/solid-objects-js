@@ -695,7 +695,7 @@ export class ActorEngine {
   private addOutbox(options: {
     id: string
     instance: Instance
-    message: Message
+    message: Pick<Message, "id" | "sequence">
     kind: Outbox["kind"]
     destination: string
     payload: JsonObject
@@ -747,6 +747,23 @@ export class ActorEngine {
         result = normalizeJson(value === undefined ? null : value, {
           maxBytes: this.settings.maxResultBytes,
         })
+      } else if (outbox.kind === "effect-callback") {
+        await callHost({
+          backend: this.settings.backend,
+          request: {
+            actorType: instance.actorType,
+            actorId: instance.actorId,
+            method: "internal",
+            authorizationContext: null,
+            payload: {
+              requestId: outbox.id,
+              operation: String(outbox.payload.operation),
+              arguments: jsonObject(outbox.payload.arguments),
+              availableAt: Date.now(),
+              idempotencyKey: outbox.id,
+            },
+          },
+        })
       } else if (outbox.kind === "outbound") {
         await callHost({
           backend: this.settings.backend,
@@ -785,7 +802,7 @@ export class ActorEngine {
         outbox.completedAt = Date.now()
         this.store.saveOutbox(outbox)
         if (outbox.kind === "effect")
-          this.effectCallback({
+          this.stageEffectCallback({
             instance,
             outbox,
             result,
@@ -805,7 +822,7 @@ export class ActorEngine {
         outbox.availableAt = Date.now() + this.retryDelay(outbox.attempt)
         this.store.saveOutbox(outbox)
         if (exhausted && outbox.kind === "effect")
-          this.effectCallback({
+          this.stageEffectCallback({
             instance,
             outbox,
             result: outbox.error,
@@ -831,19 +848,23 @@ export class ActorEngine {
     )
   }
 
-  private effectCallback(options: {
+  private stageEffectCallback(options: {
     instance: Instance
     outbox: Outbox
     result: JsonValue
     operation: JsonValue | undefined
   }): void {
     if (typeof options.operation !== "string") return
-    this.enqueue({
-      ...options.instance,
-      method: "internal",
-      authorizationContext: null,
+    this.addOutbox({
+      id: `${options.outbox.id}:callback`,
+      instance: options.instance,
+      message: {
+        id: options.outbox.messageId,
+        sequence: options.outbox.sequence,
+      },
+      kind: "effect-callback",
+      destination: actorName(options.instance),
       payload: {
-        requestId: `${options.outbox.id}:callback`,
         operation: options.operation,
         arguments: {
           effectId: options.outbox.id,
@@ -852,8 +873,6 @@ export class ActorEngine {
             ? { error: options.result }
             : { result: options.result }),
         },
-        idempotencyKey: `${options.outbox.id}:callback`,
-        availableAt: Date.now(),
       },
     })
   }

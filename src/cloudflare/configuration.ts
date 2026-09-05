@@ -1,11 +1,11 @@
 import type { SolidObjectsConfiguration } from "../configuration.js"
-import type { EffectContext, JsonObject, Logger } from "../types.js"
+import type { EffectContext, JsonObject, JsonValue, Logger } from "../types.js"
 import type { DurableObjectsBackend } from "./protocol.js"
 
 export type EffectHandler = (
   argumentsValue: JsonObject,
   context: EffectContext,
-) => unknown | Promise<unknown>
+) => JsonValue | void | Promise<JsonValue | void>
 
 export type CloudflareConfiguration = Pick<
   SolidObjectsConfiguration,
