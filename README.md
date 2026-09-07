@@ -138,8 +138,7 @@ policies must bind actor IDs and operations to the authenticated user or tenant.
 
 The handwritten version usually starts with a row lock. Then it gains an
 `expiresAt` column, a sweeper, retries, per-room ordering, and a broadcast path
-that must agree with the write. The original transaction has developed a robust
-interplay with four other subsystems.
+that must agree with the write. The original transaction now depends on four other subsystems.
 
 Solid Objects makes the application-defined identity the coordination boundary.
 Its state, mailbox, retries, reminders, and staged consequences live in SQLite,
@@ -153,8 +152,7 @@ required. Redis is optional wake-up plumbing, not durable state.
 - Accounts, devices, and long-lived jobs whose next action depends on committed state.
 - Realtime multi-user state where publications must follow committed revisions.
 
-Different identities can run concurrently. One global identity is merely a
-queue wearing an ambitious name.
+Different identities can run concurrently. One global identity serializes everything.
 
 ## Solid Objects in the browser
 
@@ -233,7 +231,7 @@ The wire shapes are documented in the
 ## When a transaction is better
 
 Often. If all the work happens in one request, use a transaction, constraint, or
-`SELECT ... FOR UPDATE`. It is smaller, faster, and does not need a manifesto.
+`SELECT ... FOR UPDATE`. It is smaller and faster.
 
 Use Solid Objects when the critical section outlives that transaction: work
 must happen later, survive a restart, or remain ordered across several requests
@@ -250,7 +248,7 @@ or jobs. A plain counter is not a reason to install this package.
 - Background work needs `runtime.run(signal)`. If no process is running, committed work waits in SQL rather than disappearing.
 - Your application still owns authorization, database backups, failover, WebSocket transport, and capacity planning.
 
-Exactly once remains absent, despite its excellent branding. Read the
+There is no exactly-once delivery. Read the
 [correctness contract](docs/correctness.md) before using important data.
 
 ## Read more
