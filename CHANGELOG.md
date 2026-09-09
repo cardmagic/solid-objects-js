@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.14.8 - 2026-09-09
+
+- Hold the actor instance and message claim locks through every fenced commit
+  on PostgreSQL and MySQL. Lease recovery and stale-process cleanup revalidate
+  those rows after waiting, so they cannot requeue a message that completed in
+  the meantime.
+
 ## 0.14.7 - 2026-09-05
 
 - Read SQL message results and completion status in one statement so concurrent
