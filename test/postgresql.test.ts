@@ -206,23 +206,27 @@ describePostgreSQL("PostgreSQL adapter", () => {
     const firstWorker = runtime.worker()
     const firstRun = firstWorker.runOnce()
     await commitStarted.promise
-    await waitForActivationExpiration(runtime, PostgreSQLFencedCommitActor.actorType, actorId)
-    await runtime.repository.registerProcess("replacement-worker", "worker")
-    const replacementClaim = runtime.repository.claim("replacement-worker")
-    const replacementBeforeRelease = await Promise.race([
-      replacementClaim.then(() => "settled" as const),
-      delay(50).then(() => "pending" as const),
-    ])
-    releaseCommit.resolve()
+    try {
+      await waitForActivationExpiration(runtime, PostgreSQLFencedCommitActor.actorType, actorId)
+      await runtime.repository.registerProcess("replacement-worker", "worker")
+      const replacementClaim = runtime.repository.claim("replacement-worker")
+      const replacementBeforeRelease = await Promise.race([
+        replacementClaim.then(() => "settled" as const),
+        delay(50).then(() => "pending" as const),
+      ])
+      releaseCommit.resolve()
 
-    const [firstResult, replacement] = await Promise.all([firstRun, replacementClaim])
-    await firstWorker.stop()
+      const [firstResult, replacement] = await Promise.all([firstRun, replacementClaim])
+      await firstWorker.stop()
 
-    expect(replacementBeforeRelease).toBe("pending")
-    expect(firstResult).toBe(1)
-    expect(replacement).toBeUndefined()
-    await expect(message.result()).resolves.toBe(1)
-  })
+      expect(replacementBeforeRelease).toBe("pending")
+      expect(firstResult).toBe(1)
+      expect(replacement).toBeUndefined()
+      await expect(message.result()).resolves.toBe(1)
+    } finally {
+      releaseCommit.resolve()
+    }
+  }, 15_000)
 
   it("does not requeue a commit after process cleanup waits for it", async () => {
     if (!connectionString) throw new Error("PostgreSQL connection string is required")
@@ -249,28 +253,32 @@ describePostgreSQL("PostgreSQL adapter", () => {
     const firstWorker = runtime.worker()
     const firstRun = firstWorker.runOnce()
     await commitStarted.promise
-    const processCleanup = runtime.repository.stopProcess(firstWorker.processId)
-    const cleanupBeforeRelease = await Promise.race([
-      processCleanup.then(() => "settled" as const),
-      delay(50).then(() => "pending" as const),
-    ])
-    releaseCommit.resolve()
+    try {
+      const processCleanup = runtime.repository.stopProcess(firstWorker.processId)
+      const cleanupBeforeRelease = await Promise.race([
+        processCleanup.then(() => "settled" as const),
+        delay(50).then(() => "pending" as const),
+      ])
+      releaseCommit.resolve()
 
-    const [firstResult] = await Promise.all([firstRun, processCleanup])
-    const ready = await database.connection((connection) =>
-      connection.get<{ found: number | bigint }>(
-        `SELECT 1 AS found FROM ${runtime?.repository.table("ready_messages")}
-         WHERE message_id = ?`,
-        [message.id],
-      ),
-    )
-    await firstWorker.stop()
+      const [firstResult] = await Promise.all([firstRun, processCleanup])
+      const ready = await database.connection((connection) =>
+        connection.get<{ found: number | bigint }>(
+          `SELECT 1 AS found FROM ${runtime?.repository.table("ready_messages")}
+           WHERE message_id = ?`,
+          [message.id],
+        ),
+      )
+      await firstWorker.stop()
 
-    expect(cleanupBeforeRelease).toBe("pending")
-    expect(firstResult).toBe(1)
-    expect(ready).toBeUndefined()
-    await expect(message.result()).resolves.toBe(1)
-  })
+      expect(cleanupBeforeRelease).toBe("pending")
+      expect(firstResult).toBe(1)
+      expect(ready).toBeUndefined()
+      await expect(message.result()).resolves.toBe(1)
+    } finally {
+      releaseCommit.resolve()
+    }
+  }, 15_000)
 
   it("does not hide broadcast work across concurrent recovery probes", async () => {
     if (!connectionString) throw new Error("PostgreSQL connection string is required")

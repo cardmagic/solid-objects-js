@@ -172,23 +172,27 @@ describeMySQL("MySQL adapter", () => {
     const firstWorker = runtime.worker()
     const firstRun = firstWorker.runOnce()
     await commitStarted.promise
-    await waitForActivationExpiration(runtime, MySQLFencedCommitActor.actorType, actorId)
-    await runtime.repository.registerProcess("replacement-worker", "worker")
-    const replacementClaim = runtime.repository.claim("replacement-worker")
-    const replacementBeforeRelease = await Promise.race([
-      replacementClaim.then(() => "settled" as const),
-      delay(50).then(() => "pending" as const),
-    ])
-    releaseCommit.resolve()
+    try {
+      await waitForActivationExpiration(runtime, MySQLFencedCommitActor.actorType, actorId)
+      await runtime.repository.registerProcess("replacement-worker", "worker")
+      const replacementClaim = runtime.repository.claim("replacement-worker")
+      const replacementBeforeRelease = await Promise.race([
+        replacementClaim.then(() => "settled" as const),
+        delay(50).then(() => "pending" as const),
+      ])
+      releaseCommit.resolve()
 
-    const [firstResult, replacement] = await Promise.all([firstRun, replacementClaim])
-    await firstWorker.stop()
+      const [firstResult, replacement] = await Promise.all([firstRun, replacementClaim])
+      await firstWorker.stop()
 
-    expect(replacementBeforeRelease).toBe("pending")
-    expect(firstResult).toBe(1)
-    expect(replacement).toBeUndefined()
-    await expect(message.result()).resolves.toBe(1)
-  })
+      expect(replacementBeforeRelease).toBe("pending")
+      expect(firstResult).toBe(1)
+      expect(replacement).toBeUndefined()
+      await expect(message.result()).resolves.toBe(1)
+    } finally {
+      releaseCommit.resolve()
+    }
+  }, 15_000)
 
   it("lets concurrent effect claimants skip locked work", async () => {
     if (!connectionString) throw new Error("MySQL connection string is required")
