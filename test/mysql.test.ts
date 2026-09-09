@@ -194,6 +194,58 @@ describeMySQL("MySQL adapter", () => {
     }
   }, 15_000)
 
+  it("does not requeue a commit after process cleanup waits for it", async () => {
+    if (!connectionString) throw new Error("MySQL connection string is required")
+    database = mysql({ connectionString, maximumConnections: 5 })
+    runtime = configure({
+      database,
+      tableNamePrefix: "mysql_test_",
+      authorizeMessage: () => true,
+      authorizeQuery: () => true,
+      authorizeDestroy: () => true,
+      logger: quietLogger,
+    })
+    runtime.register(MySQLFencedCommitActor)
+    const commitStarted = deferred()
+    const releaseCommit = deferred()
+    runtime.registerCommitAction("pause_fenced_commit", async () => {
+      commitStarted.resolve()
+      await releaseCommit.promise
+    })
+    await runtime.install()
+    const message = await MySQLFencedCommitActor.ref(
+      `process-cleanup-${crypto.randomUUID()}`,
+    ).send.increment()
+    const firstWorker = runtime.worker()
+    const firstRun = firstWorker.runOnce()
+    await commitStarted.promise
+    try {
+      const processCleanup = runtime.repository.stopProcess(firstWorker.processId)
+      const cleanupBeforeRelease = await Promise.race([
+        processCleanup.then(() => "settled" as const),
+        delay(50).then(() => "pending" as const),
+      ])
+      releaseCommit.resolve()
+
+      const [firstResult] = await Promise.all([firstRun, processCleanup])
+      const ready = await database.connection((connection) =>
+        connection.get<{ found: number | bigint }>(
+          `SELECT 1 AS found FROM ${runtime?.repository.table("ready_messages")}
+           WHERE message_id = ?`,
+          [message.id],
+        ),
+      )
+      await firstWorker.stop()
+
+      expect(cleanupBeforeRelease).toBe("pending")
+      expect(firstResult).toBe(1)
+      expect(ready).toBeUndefined()
+      await expect(message.result()).resolves.toBe(1)
+    } finally {
+      releaseCommit.resolve()
+    }
+  }, 15_000)
+
   it("lets concurrent effect claimants skip locked work", async () => {
     if (!connectionString) throw new Error("MySQL connection string is required")
     database = mysql({ connectionString, maximumConnections: 5 })

@@ -215,26 +215,25 @@ export class Repository {
          VALUES (?, ?, ?, ?) ON CONFLICT(message_id) DO NOTHING`,
         [claim.message_id, claim.instance_id, currentClaim.sequence, now],
       )
-      if (
+      const ownsActivation =
         instance.activation_owner_id === processId &&
         instance.activation_token === currentClaim.activation_token &&
         BigInt(instance.activation_generation) === BigInt(currentClaim.activation_generation)
-      ) {
-        await connection.run(
-          `UPDATE ${this.table("instances")}
-           SET activation_owner_id = NULL, activation_token = NULL,
-             activation_expires_at_ms = NULL, updated_at_ms = ?
-           WHERE id = ? AND activation_owner_id = ? AND activation_token = ?
-             AND activation_generation = ?`,
-          [
-            now,
-            claim.instance_id,
-            processId,
-            currentClaim.activation_token,
-            currentClaim.activation_generation,
-          ],
-        )
-      }
+      if (!ownsActivation) continue
+      await connection.run(
+        `UPDATE ${this.table("instances")}
+         SET activation_owner_id = NULL, activation_token = NULL,
+           activation_expires_at_ms = NULL, updated_at_ms = ?
+         WHERE id = ? AND activation_owner_id = ? AND activation_token = ?
+           AND activation_generation = ?`,
+        [
+          now,
+          claim.instance_id,
+          processId,
+          currentClaim.activation_token,
+          currentClaim.activation_generation,
+        ],
+      )
     }
     await connection.run(
       `UPDATE ${this.table("instances")}
