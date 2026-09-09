@@ -43,6 +43,21 @@ export interface SyncDiagnosticsRecord {
   nowMilliseconds: number
 }
 
+interface ActivationFenceRow {
+  activation_owner_id: string | null
+  activation_token: string | null
+  activation_generation: number | bigint
+  activation_expires_at_ms: number | bigint | null
+}
+
+interface MessageClaimFenceRow {
+  instance_id: string
+  sequence: number | bigint
+  process_id: string
+  activation_token: string
+  activation_generation: number | bigint
+}
+
 export class Repository {
   constructor(private readonly settings: RuntimeSettings) {}
 
@@ -165,22 +180,61 @@ export class Repository {
     const claims = await connection.all<{
       message_id: string
       instance_id: string
-      sequence: number | bigint
     }>(
-      `SELECT message_id, instance_id, sequence
+      `SELECT message_id, instance_id
        FROM ${this.table("claimed_messages")} WHERE process_id = ?`,
       [processId],
     )
     for (const claim of claims) {
-      await connection.run(`DELETE FROM ${this.table("claimed_messages")} WHERE message_id = ?`, [
-        claim.message_id,
-      ])
+      const instance = await this.lockActivationFence(connection, claim.instance_id)
+      if (!instance) continue
+      const currentClaim = await this.lockMessageClaim(connection, claim.message_id)
+      if (
+        !currentClaim ||
+        currentClaim.instance_id !== claim.instance_id ||
+        currentClaim.process_id !== processId
+      ) {
+        continue
+      }
+      const removed = await connection.run(
+        `DELETE FROM ${this.table("claimed_messages")}
+         WHERE message_id = ? AND instance_id = ? AND process_id = ? AND activation_token = ?
+           AND activation_generation = ?`,
+        [
+          claim.message_id,
+          claim.instance_id,
+          processId,
+          currentClaim.activation_token,
+          currentClaim.activation_generation,
+        ],
+      )
+      if (removed.changes !== 1) continue
       await connection.run(
         `INSERT INTO ${this.table("ready_messages")}
          (message_id, instance_id, sequence, available_at_ms)
          VALUES (?, ?, ?, ?) ON CONFLICT(message_id) DO NOTHING`,
-        [claim.message_id, claim.instance_id, claim.sequence, now],
+        [claim.message_id, claim.instance_id, currentClaim.sequence, now],
       )
+      if (
+        instance.activation_owner_id === processId &&
+        instance.activation_token === currentClaim.activation_token &&
+        BigInt(instance.activation_generation) === BigInt(currentClaim.activation_generation)
+      ) {
+        await connection.run(
+          `UPDATE ${this.table("instances")}
+           SET activation_owner_id = NULL, activation_token = NULL,
+             activation_expires_at_ms = NULL, updated_at_ms = ?
+           WHERE id = ? AND activation_owner_id = ? AND activation_token = ?
+             AND activation_generation = ?`,
+          [
+            now,
+            claim.instance_id,
+            processId,
+            currentClaim.activation_token,
+            currentClaim.activation_generation,
+          ],
+        )
+      }
     }
     await connection.run(
       `UPDATE ${this.table("instances")}
@@ -1921,6 +1975,35 @@ export class Repository {
     return " FOR UPDATE SKIP LOCKED"
   }
 
+  private rowLockClause(): string {
+    if (this.settings.database.family === "sqlite") return ""
+    return " FOR UPDATE"
+  }
+
+  private lockActivationFence(
+    connection: DatabaseConnection,
+    instanceId: string,
+  ): Promise<ActivationFenceRow | undefined> {
+    return connection.get<ActivationFenceRow>(
+      `SELECT activation_owner_id, activation_token, activation_generation,
+         activation_expires_at_ms
+       FROM ${this.table("instances")} WHERE id = ?${this.rowLockClause()}`,
+      [instanceId],
+    )
+  }
+
+  private lockMessageClaim(
+    connection: DatabaseConnection,
+    messageId: string,
+  ): Promise<MessageClaimFenceRow | undefined> {
+    return connection.get<MessageClaimFenceRow>(
+      `SELECT instance_id, sequence, process_id, activation_token, activation_generation
+       FROM ${this.table("claimed_messages")}
+       WHERE message_id = ?${this.rowLockClause()}`,
+      [messageId],
+    )
+  }
+
   private async loadActorIdentity(
     connection: DatabaseConnection,
     instanceId: string,
@@ -1961,45 +2044,84 @@ export class Repository {
       [now],
     )
     for (const claim of expired) {
-      await connection.run(`DELETE FROM ${this.table("claimed_messages")} WHERE message_id = ?`, [
-        claim.message_id,
-      ])
+      const instance = await this.lockActivationFence(connection, claim.instance_id)
+      if (
+        !instance ||
+        instance.activation_expires_at_ms === null ||
+        Number(instance.activation_expires_at_ms) > now
+      ) {
+        continue
+      }
+      const currentClaim = await this.lockMessageClaim(connection, claim.message_id)
+      if (
+        !currentClaim ||
+        currentClaim.instance_id !== claim.instance_id ||
+        currentClaim.process_id !== instance.activation_owner_id ||
+        currentClaim.activation_token !== instance.activation_token ||
+        BigInt(currentClaim.activation_generation) !== BigInt(instance.activation_generation)
+      ) {
+        continue
+      }
+      const removed = await connection.run(
+        `DELETE FROM ${this.table("claimed_messages")}
+         WHERE message_id = ? AND instance_id = ? AND process_id = ? AND activation_token = ?
+           AND activation_generation = ?`,
+        [
+          claim.message_id,
+          claim.instance_id,
+          currentClaim.process_id,
+          currentClaim.activation_token,
+          currentClaim.activation_generation,
+        ],
+      )
+      if (removed.changes !== 1) continue
       await connection.run(
         `INSERT INTO ${this.table("ready_messages")}(message_id, instance_id, sequence, available_at_ms)
          VALUES (?, ?, ?, ?) ON CONFLICT(message_id) DO NOTHING`,
-        [claim.message_id, claim.instance_id, claim.sequence, now],
+        [claim.message_id, claim.instance_id, currentClaim.sequence, now],
       )
-      await connection.run(
+      const released = await connection.run(
         `UPDATE ${this.table("instances")}
          SET activation_owner_id = NULL, activation_token = NULL, activation_expires_at_ms = NULL,
-           updated_at_ms = ? WHERE id = ?`,
-        [now, claim.instance_id],
+           updated_at_ms = ?
+         WHERE id = ? AND activation_owner_id = ? AND activation_token = ?
+           AND activation_generation = ? AND activation_expires_at_ms <= ?`,
+        [
+          now,
+          claim.instance_id,
+          currentClaim.process_id,
+          currentClaim.activation_token,
+          currentClaim.activation_generation,
+          now,
+        ],
       )
+      if (released.changes !== 1) throw new Error("expired activation could not be released")
     }
   }
 
   private async assertFence(connection: DatabaseConnection, turn: ClaimedTurn): Promise<number> {
+    const instance = await this.lockActivationFence(connection, turn.instance.id)
     const now = await connection.nowMilliseconds()
-    const fence = await connection.get<{ found: number | bigint }>(
-      `SELECT 1 AS found FROM ${this.table("instances")} instances
-       JOIN ${this.table("claimed_messages")} claimed ON claimed.instance_id = instances.id
-       WHERE instances.id = ? AND instances.activation_owner_id = ? AND instances.activation_token = ?
-         AND instances.activation_generation = ? AND instances.activation_expires_at_ms > ?
-         AND claimed.message_id = ? AND claimed.process_id = ? AND claimed.activation_token = ?
-         AND claimed.activation_generation = ?`,
-      [
-        turn.instance.id,
-        turn.processId,
-        turn.activationToken,
-        turn.activationGeneration,
-        now,
-        turn.message.id,
-        turn.processId,
-        turn.activationToken,
-        turn.activationGeneration,
-      ],
-    )
-    if (!fence) throw new LostActivation("activation fence no longer matches")
+    if (
+      !instance ||
+      instance.activation_owner_id !== turn.processId ||
+      instance.activation_token !== turn.activationToken ||
+      BigInt(instance.activation_generation) !== turn.activationGeneration ||
+      instance.activation_expires_at_ms === null ||
+      Number(instance.activation_expires_at_ms) <= now
+    ) {
+      throw new LostActivation("activation fence no longer matches")
+    }
+    const claim = await this.lockMessageClaim(connection, turn.message.id)
+    if (
+      !claim ||
+      claim.instance_id !== turn.instance.id ||
+      claim.process_id !== turn.processId ||
+      claim.activation_token !== turn.activationToken ||
+      BigInt(claim.activation_generation) !== turn.activationGeneration
+    ) {
+      throw new LostActivation("message claim no longer matches")
+    }
     return now
   }
 

@@ -9,6 +9,7 @@ import { withDatabaseDeadline } from "../src/database/deadline.js"
 import type { JsonObject } from "../src/types.js"
 import { createDashboard } from "../src/web/index.js"
 import { captureAttempt, PausingClaimDatabase } from "./support/pausing-claim-database.js"
+import { deferred, delay, waitForActivationExpiration } from "./support/fenced-commit.js"
 
 const connectionString = process.env.SOLID_OBJECTS_DATABASE_URL
 class TransmitProofCounter extends Actor {
@@ -94,6 +95,18 @@ class MySQLMigratingActor extends Actor {
   }
 }
 
+class MySQLFencedCommitActor extends Actor {
+  static override readonly actorType = "MySQLFencedCommitActor"
+
+  count = 0
+
+  increment(): number {
+    this.count += 1
+    this.commitAction("pause_fenced_commit")
+    return this.count
+  }
+}
+
 let runtime: SolidObjectsRuntime | undefined
 let database: MySQLDatabase | undefined
 
@@ -133,6 +146,50 @@ describe("MySQL SQL compatibility", () => {
 })
 
 describeMySQL("MySQL adapter", () => {
+  it("keeps a fenced commit exclusive after its lease expires", async () => {
+    if (!connectionString) throw new Error("MySQL connection string is required")
+    database = mysql({ connectionString, maximumConnections: 5 })
+    runtime = configure({
+      database,
+      tableNamePrefix: "mysql_test_",
+      authorizeMessage: () => true,
+      authorizeQuery: () => true,
+      authorizeDestroy: () => true,
+      leaseDurationMilliseconds: 100,
+      leaseRenewalIntervalMilliseconds: 20,
+      logger: quietLogger,
+    })
+    runtime.register(MySQLFencedCommitActor)
+    const commitStarted = deferred()
+    const releaseCommit = deferred()
+    runtime.registerCommitAction("pause_fenced_commit", async () => {
+      commitStarted.resolve()
+      await releaseCommit.promise
+    })
+    await runtime.install()
+    const actorId = `fenced-${crypto.randomUUID()}`
+    const message = await MySQLFencedCommitActor.ref(actorId).send.increment()
+    const firstWorker = runtime.worker()
+    const firstRun = firstWorker.runOnce()
+    await commitStarted.promise
+    await waitForActivationExpiration(runtime, MySQLFencedCommitActor.actorType, actorId)
+    await runtime.repository.registerProcess("replacement-worker", "worker")
+    const replacementClaim = runtime.repository.claim("replacement-worker")
+    const replacementBeforeRelease = await Promise.race([
+      replacementClaim.then(() => "settled" as const),
+      delay(50).then(() => "pending" as const),
+    ])
+    releaseCommit.resolve()
+
+    const [firstResult, replacement] = await Promise.all([firstRun, replacementClaim])
+    await firstWorker.stop()
+
+    expect(replacementBeforeRelease).toBe("pending")
+    expect(firstResult).toBe(1)
+    expect(replacement).toBeUndefined()
+    await expect(message.result()).resolves.toBe(1)
+  })
+
   it("lets concurrent effect claimants skip locked work", async () => {
     if (!connectionString) throw new Error("MySQL connection string is required")
     database = mysql({ connectionString, maximumConnections: 5 })
