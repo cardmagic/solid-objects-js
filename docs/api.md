@@ -69,6 +69,10 @@ createdAtMs }` shape returned by `SolidObjectsRuntime.snapshotWithIncarnation`.
 `PayloadBroadcasts`, and `PayloadBroadcastValue` describe actor-declared
 transactional work and typed personalized projections.
 
+`EffectFailurePayload<Arguments>`, `EffectSuccessPayload<Arguments, Result>`,
+and `SerializedError` describe effect callback messages. They are also exported
+from the browser-safe `solid-objects/core` entry point.
+
 `observables()` returns a flat object. Unwrapped values are invalidation-only:
 their real values participate in change detection, but only their names enter
 the durable envelope. Use an explicit marker when wire behavior matters:
@@ -154,6 +158,60 @@ drain everything that is due when it fires. That costs one row instead of one
 row per item. It also cannot strand an entry when the runtime coalesces an
 occurrence. Prefer it for a large queue of interchangeable items. Prefer `key`
 when one item needs an alarm that you can move on its own.
+
+### Typing your onFailure handler
+
+An effect callback is an ordinary actor operation. Its payload always includes
+the stable `effectId` and the original serialized `arguments`, including `{}`
+when the effect was emitted without arguments. Use the exported types when a
+watchdog or failure handler needs to correlate work with the current generation:
+
+```typescript
+import { Actor, type EffectFailurePayload, type EffectSuccessPayload } from "solid-objects"
+
+type RunArguments = { generation: number }
+
+class ChatRun extends Actor {
+  static override readonly actorType = "ChatRun"
+  generation = 0
+  status = "idle"
+  reply = ""
+
+  start(): void {
+    this.emit("run_model", {
+      arguments: { generation: ++this.generation },
+      onSuccess: "finishTurn",
+      onFailure: "failTurn",
+    })
+  }
+
+  failTurn({ arguments: original, error }: EffectFailurePayload<RunArguments>): void {
+    if (original.generation !== this.generation) return
+    this.status = `${error.name}: ${error.message}`
+  }
+
+  finishTurn({
+    arguments: original,
+    result,
+  }: EffectSuccessPayload<RunArguments, { reply: string }>): void {
+    if (original.generation !== this.generation) return
+    this.status = "finished"
+    this.reply = result.reply
+  }
+}
+```
+
+Failure payloads contain `error: SerializedError`, with string `name` and
+`message` fields. They do not include a stack or cause. Success payloads contain
+`result`, which can be any JSON value; an undefined effect return becomes
+`null`. The default argument type is `JsonObject` and the default success result
+type is `JsonValue`. Declare argument shapes with a JSON-compatible type alias.
+
+These types describe the SQL and Cloudflare callback envelopes. Error messages
+for non-Error throws retain each backend's existing serialization behavior.
+The generic parameters express your application's contract; they do not add
+runtime validation or infer types from `registerEffect()`. Keep registered
+effect results and the handler's declared argument/result types in agreement.
 
 ### Runtime managers
 

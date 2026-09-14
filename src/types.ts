@@ -2,6 +2,26 @@ export type JsonPrimitive = null | boolean | number | string
 export type JsonValue = JsonPrimitive | JsonValue[] | { [key: string]: JsonValue }
 export type JsonObject = { [key: string]: JsonValue }
 
+export type SerializedError = {
+  name: string
+  message: string
+}
+
+export type EffectFailurePayload<Arguments extends JsonObject = JsonObject> = {
+  effectId: string
+  arguments: Arguments
+  error: SerializedError
+}
+
+export type EffectSuccessPayload<
+  Arguments extends JsonObject = JsonObject,
+  Result extends JsonValue = JsonValue,
+> = {
+  effectId: string
+  arguments: Arguments
+  result: Result
+}
+
 export type DeepReadonly<Value> = Value extends JsonPrimitive
   ? Value
   : Value extends readonly (infer Item)[]

@@ -1,4 +1,11 @@
-import { Actor, broadcastValue, NonRetryableError } from "../../src/core.js"
+import {
+  Actor,
+  broadcastValue,
+  NonRetryableError,
+  type EffectFailurePayload,
+  type EffectSuccessPayload,
+  type JsonObject,
+} from "../../src/core.js"
 import { PortableCounter } from "../support/portable-actor.js"
 import {
   createDurableObjectsHost,
@@ -142,8 +149,33 @@ export class VersionedCounter extends Actor {
   }
 }
 
+export class EffectCallbacks extends Actor {
+  static override readonly actorType = "EffectCallbacks"
+  received: (EffectSuccessPayload | EffectFailurePayload)[] = []
+
+  start(argumentsValue: JsonObject): void {
+    this.emit("callbackValue", {
+      arguments: argumentsValue,
+      onSuccess: "succeeded",
+      onFailure: "failed",
+    })
+  }
+
+  startEmpty(): void {
+    this.emit("callbackEmpty", { onSuccess: "succeeded" })
+  }
+
+  succeeded(payload: EffectSuccessPayload): void {
+    this.received.push(payload)
+  }
+
+  failed(payload: EffectFailurePayload): void {
+    this.received.push(payload)
+  }
+}
+
 export class Actors extends createDurableObjectsHost<Env>({
-  actors: [Counter, PortableCounter, VersionedCounter],
+  actors: [Counter, PortableCounter, VersionedCounter, EffectCallbacks],
   configure: (environment) => ({
     backend: durableObjects({
       namespace: {
@@ -172,6 +204,16 @@ export class Actors extends createDurableObjectsHost<Env>({
     authorizeAdministration: (input) => input.authorizationContext === "allowed",
     retryDelayMilliseconds: () => 10,
     effects: {
+      callbackEmpty: (_arguments, context) => {
+        deliveries.set(context.id, context.attempt)
+      },
+      callbackValue: (argumentsValue, context) => {
+        deliveries.set(context.id, context.attempt)
+        if (argumentsValue.mode === "retry") throw new Error("exhausted")
+        if (argumentsValue.mode === "terminal") throw new NonRetryableError("terminal")
+        if (argumentsValue.mode === "non-error") throw "offline"
+        return argumentsValue.result
+      },
       increment: () => ({ accepted: true }),
       slow: async (_arguments, context) => {
         await waitForGate(context.actorId)

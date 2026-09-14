@@ -28,7 +28,13 @@ import {
 } from "../errors.js"
 import { deepCopy, jsonObject, normalizeJson, stableJson } from "../serialization.js"
 import { evaluateActorTurn, readActorObservables, selectActorBroadcast } from "../turn.js"
-import type { JsonObject, JsonValue } from "../types.js"
+import type {
+  EffectFailurePayload,
+  EffectSuccessPayload,
+  JsonObject,
+  JsonValue,
+  SerializedError,
+} from "../types.js"
 import type { CloudflareSettings } from "./configuration.js"
 import { actorName, callHost, type ActorIdentity, type HostRequest } from "./protocol.js"
 import type { Instance, Message, Outbox, Reminder, Subscription } from "./records.js"
@@ -805,7 +811,7 @@ export class ActorEngine {
           this.stageEffectCallback({
             instance,
             outbox,
-            result,
+            outcome: { result },
             operation: outbox.payload.successOperation,
           })
       })
@@ -815,17 +821,18 @@ export class ActorEngine {
         const exhausted =
           error instanceof NonRetryableError || outbox.attempt >= this.settings.maxAttempts
         outbox.status = exhausted ? "dead" : "pending"
-        outbox.error = {
+        const errorRecord: SerializedError = {
           name: errorName(error),
           message: error instanceof Error ? error.message : "delivery failed",
         }
+        outbox.error = errorRecord
         outbox.availableAt = Date.now() + this.retryDelay(outbox.attempt)
         this.store.saveOutbox(outbox)
         if (exhausted && outbox.kind === "effect")
           this.stageEffectCallback({
             instance,
             outbox,
-            result: outbox.error,
+            outcome: { error: errorRecord },
             operation: outbox.payload.failureOperation,
           })
       })
@@ -851,7 +858,7 @@ export class ActorEngine {
   private stageEffectCallback(options: {
     instance: Instance
     outbox: Outbox
-    result: JsonValue
+    outcome: Pick<EffectSuccessPayload, "result"> | Pick<EffectFailurePayload, "error">
     operation: JsonValue | undefined
   }): void {
     if (typeof options.operation !== "string") return
@@ -868,11 +875,9 @@ export class ActorEngine {
         operation: options.operation,
         arguments: {
           effectId: options.outbox.id,
-          arguments: options.outbox.payload.arguments!,
-          ...(options.outbox.status === "dead"
-            ? { error: options.result }
-            : { result: options.result }),
-        },
+          arguments: options.outbox.payload.arguments as JsonObject,
+          ...options.outcome,
+        } satisfies EffectSuccessPayload | EffectFailurePayload,
       },
     })
   }

@@ -1,5 +1,5 @@
 import assert from "node:assert/strict"
-import { mkdtemp, mkdir, readFile, rm } from "node:fs/promises"
+import { mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join, resolve } from "node:path"
 import { spawn } from "node:child_process"
@@ -56,6 +56,29 @@ try {
     await readFile(join(projectDirectory, "node_modules/solid-objects/package.json"), "utf8"),
   )
   assert.equal(installedPackage.version, packageDefinition.version)
+
+  const consumerPath = join(projectDirectory, "effect-payload-consumer.mts")
+  await writeFile(
+    consumerPath,
+    await readFile(join(repositoryRoot, "test/fixtures/effect-payload-consumer.mts")),
+  )
+  await run(
+    process.execPath,
+    [
+      join(repositoryRoot, "node_modules/typescript/bin/tsc"),
+      "--noEmit",
+      "--strict",
+      "--noUncheckedIndexedAccess",
+      "--exactOptionalPropertyTypes",
+      "--skipLibCheck",
+      "--module",
+      "NodeNext",
+      "--target",
+      "ES2024",
+      consumerPath,
+    ],
+    { cwd: projectDirectory },
+  )
 
   const resolvedModule = (
     await run(
