@@ -6,6 +6,11 @@
   root and core entry points. Check SQL and Cloudflare callback construction
   against the same contracts without changing the delivered messages.
 
+- Infer operation names and arguments for schedule/transmit calls inside actor
+  methods and check literal effect callback names. Export `ScheduledOperationsFor`
+  and `EffectOptions`; retain explicit dynamic-name paths and runtime validation.
+  Legacy schedule/transmit override annotations require a compatibility decision.
+
 ## 0.14.8 - 2026-09-09
 
 - Hold the actor instance and message claim locks through every fenced commit

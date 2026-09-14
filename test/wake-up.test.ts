@@ -27,7 +27,7 @@ class WakeSource extends Actor {
   createWork(): void {
     this.count += 1
     this.emit("wakeEffect")
-    this.schedule({ at: new Date(Date.now() + 60_000) }).createWork!()
+    this.schedule({ at: new Date(Date.now() + 60_000) }).createWork()
     this.sendTo(WakeTarget.ref("target")).receive()
   }
 

@@ -29,7 +29,10 @@ function findViolations(filePath) {
   const violations = []
 
   function visit(node) {
-    if (ts.isFunctionLike(node) && node.parameters.length > 2) {
+    if (
+      ts.isFunctionLike(node) &&
+      node.parameters.filter((parameter) => parameter.name.getText(source) !== "this").length > 2
+    ) {
       const position = source.getLineAndCharacterOfPosition(node.getStart(source))
       const name =
         node.name?.getText(source) ??

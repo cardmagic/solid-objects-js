@@ -103,7 +103,7 @@ class Alarm extends Actor {
   fired = 0
 
   arm(): void {
-    this.schedule({ at: new Date(0) }).fire!()
+    this.schedule({ at: new Date(0) }).fire()
   }
 
   fire(): void {
