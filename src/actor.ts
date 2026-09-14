@@ -59,8 +59,9 @@ export interface EffectOptions<Success extends string = string, Failure extends 
   onFailure?: Exclude<Failure, keyof Actor | "onActivate" | "onDeactivate">
 }
 
-type CallbackActor<Callback extends string> = Actor &
-  (string extends Callback ? unknown : Record<Callback, (...argumentsValue: any[]) => unknown>)
+type CallbackActor<Callback extends string> = string extends Callback
+  ? Actor
+  : Actor & Record<Callback, (...argumentsValue: never[]) => void>
 
 type InferredActor<Keys extends PropertyKey, ActorType> = Actor &
   Pick<
@@ -237,7 +238,7 @@ export abstract class Actor {
   }
 
   transmit<Keys extends keyof this, ActorType>(
-    this: Actor & Record<Keys, unknown> & (Partial<ActorType> | NoInfer<this>),
+    this: Actor & Pick<this, Keys> & (Partial<ActorType> | NoInfer<this>),
   ): ScheduledOperationsFor<InferredActor<Keys, ActorType>>
   transmit(): ScheduledOperations {
     return createStagedOperationMap(this.#operations, (operation, argumentsValue) => {
@@ -254,7 +255,7 @@ export abstract class Actor {
 
   /** See docs/api.md for when to give a reminder a key. */
   schedule<Keys extends keyof this, ActorType>(
-    this: Actor & Record<Keys, unknown> & (Partial<ActorType> | NoInfer<this>),
+    this: Actor & Pick<this, Keys> & (Partial<ActorType> | NoInfer<this>),
     options: ReminderOptions,
   ): ScheduledOperationsFor<InferredActor<Keys, ActorType>>
   schedule(options: ReminderOptions): ScheduledOperations {

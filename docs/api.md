@@ -250,7 +250,9 @@ class ChatRun extends Actor {
 Misspelled operations/callbacks, state properties, queries, and Actor infrastructure
 are rejected. `emit` checks each callback independently: widening one callback to
 `string` does not disable literal checking of the other. A deliberately widened
-`string` callback retains runtime validation. Effect and commit-action names remain
+`string` callback retains runtime validation. Object properties can also widen to
+`string`; preserve literals with `as const` or specialize `EffectOptions` to keep
+static checking when options are stored in a variable. Effect and commit-action names remain
 strings because their registries are runtime-wide; inferring registered names needs
 a separate registry typing design.
 

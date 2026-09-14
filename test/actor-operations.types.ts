@@ -126,3 +126,11 @@ export class ExistingOverride extends Actor {
     return super.schedule(options)
   }
 }
+
+export function scheduleConstrainedActor<
+  ActorType extends Actor & { recoverIfStuck(argumentsValue: { generation: number }): void },
+>(actor: ActorType): void {
+  actor.schedule({ at: new Date(0) }).recoverIfStuck({ generation: 1 })
+  // @ts-expect-error generic receiver retains its argument constraint
+  actor.schedule({ at: new Date(0) }).recoverIfStuck({ generation: "1" })
+}
