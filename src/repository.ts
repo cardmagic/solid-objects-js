@@ -35,6 +35,7 @@ import type {
   SerializedError,
 } from "./types.js"
 import { VERSION } from "./version.js"
+import { EffectRecoveryCoordinator } from "./effect-recovery-coordinator.js"
 
 export interface SyncDiagnosticsRecord {
   message: MessageRow
@@ -162,6 +163,7 @@ export class Repository {
   }
 
   async cleanupStaleProcesses(): Promise<number> {
+    await this.effectRecoveryCoordinator().recoverAvailable()
     return this.settings.database.transaction(async (connection) => {
       const now = await connection.nowMilliseconds()
       const staleAt = now - this.settings.processAliveThresholdMilliseconds
@@ -251,7 +253,10 @@ export class Repository {
     )
     await connection.run(
       `UPDATE ${this.table("effects")} SET status = 'pending', claimed_by = NULL
-       WHERE status = 'processing' AND claimed_by = ?`,
+       WHERE status = 'processing' AND claimed_by = ? AND NOT EXISTS (
+         SELECT 1 FROM ${this.table("effect_recoveries")} recoveries
+         WHERE recoveries.effect_id = ${this.table("effects")}.id AND recoveries.recovery_operation IS NOT NULL
+       )`,
       [processId],
     )
     await connection.run(
@@ -266,9 +271,9 @@ export class Repository {
     )
     await connection.run(
       `UPDATE ${this.table("processes")}
-       SET shutdown_state = 'stopped', stopped_at_ms = ?, heartbeat_at_ms = ?
+       SET shutdown_state = 'stopped', stopped_at_ms = ?
        WHERE id = ? AND shutdown_state <> 'stopped'`,
-      [now, now, processId],
+      [now, processId],
     )
   }
 
@@ -719,13 +724,14 @@ export class Repository {
       ])
 
       for (const effect of input.intents.effects) {
+        const effectId = effect.id ?? randomUUID()
         await connection.run(
           `INSERT INTO ${this.table("effects")}
            (id, message_id, instance_id, name, arguments, success_operation, failure_operation,
             status, max_attempts, available_at_ms)
            VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?)`,
           [
-            randomUUID(),
+            effectId,
             turn.message.id,
             turn.instance.id,
             effect.name,
@@ -736,7 +742,27 @@ export class Repository {
             now,
           ],
         )
+        if (effect.recoveryOperation !== undefined || effect.statusOperation !== undefined) {
+          await connection.run(
+            `INSERT INTO ${this.table("effect_recoveries")}
+            (effect_id, instance_id, recovery_operation, status_operation, recovery_timeout_ms)
+            VALUES (?, ?, ?, ?, ?)`,
+            [
+              effectId,
+              turn.instance.id,
+              effect.recoveryOperation ?? null,
+              effect.statusOperation ?? null,
+              effect.recoveryTimeoutMilliseconds ?? null,
+            ],
+          )
+        }
       }
+
+      await this.effectRecoveryCoordinator().check({
+        connection,
+        origin: turn.instance,
+        intents: input.intents.effectRecoveries ?? [],
+      })
 
       for (const reminder of input.intents.reminders) {
         const existing = await connection.get<{ id: string; run_at_ms: number | bigint }>(
@@ -1373,6 +1399,9 @@ export class Repository {
     const table = this.table("processes")
     return {
       sql: `${table}.shutdown_state = 'stopped'
+        AND NOT EXISTS (
+          SELECT 1 FROM ${this.table("effects")} effects WHERE effects.claimed_by = ${table}.id
+        )
         AND ${table}.stopped_at_ms IS NOT NULL
         AND ${table}.stopped_at_ms < ?
         AND NOT EXISTS (
@@ -1413,6 +1442,7 @@ export class Repository {
 
   async resetForTesting(): Promise<void> {
     const tables = [
+      "effect_recoveries",
       "dead_letters",
       "claimed_messages",
       "ready_messages",
@@ -1429,13 +1459,17 @@ export class Repository {
   }
 
   async claimEffect(processId: string): Promise<EffectRow | undefined> {
+    await this.effectRecoveryCoordinator().recoverAvailable()
     return this.settings.database.transaction(
       async (connection) => {
         const now = await connection.nowMilliseconds()
         const staleAt = now - this.settings.processAliveThresholdMilliseconds
         await connection.run(
           `UPDATE ${this.table("effects")} SET status = 'pending', claimed_by = NULL
-           WHERE status = 'processing' AND (
+           WHERE status = 'processing' AND NOT EXISTS (
+             SELECT 1 FROM ${this.table("effect_recoveries")} recoveries
+             WHERE recoveries.effect_id = ${this.table("effects")}.id AND recoveries.recovery_operation IS NOT NULL
+           ) AND (
              claimed_by IS NULL OR NOT EXISTS (
                SELECT 1 FROM ${this.table("processes")} processes
                WHERE processes.id = ${this.table("effects")}.claimed_by
@@ -1475,6 +1509,8 @@ export class Repository {
 
   async completeEffect(effect: EffectRow, result: JsonValue): Promise<void> {
     await this.settings.database.transaction(async (connection) => {
+      if (!(await this.lockActivationFence(connection, effect.instance_id)))
+        throw new LostActivation("effect origin no longer exists")
       const now = await connection.nowMilliseconds()
       const updated = await connection.run(
         `UPDATE ${this.table("effects")}
@@ -1507,6 +1543,8 @@ export class Repository {
   }): Promise<void> {
     const { effect, error, retryable } = options
     await this.settings.database.transaction(async (connection) => {
+      if (!(await this.lockActivationFence(connection, effect.instance_id)))
+        throw new LostActivation("effect origin no longer exists")
       const now = await connection.nowMilliseconds()
       const errorRecord = safeError(error)
       const exhausted = !retryable || Number(effect.attempt_count) >= Number(effect.max_attempts)
@@ -1979,6 +2017,13 @@ export class Repository {
   private claimLockClause(): string {
     if (this.settings.database.family === "sqlite") return ""
     return " FOR UPDATE SKIP LOCKED"
+  }
+
+  private effectRecoveryCoordinator(): EffectRecoveryCoordinator {
+    return new EffectRecoveryCoordinator({
+      settings: this.settings,
+      enqueue: (connection, input) => this.enqueueInTransaction(connection, input),
+    })
   }
 
   private rowLockClause(): string {

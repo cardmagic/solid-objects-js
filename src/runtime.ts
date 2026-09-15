@@ -122,6 +122,7 @@ import { SolidObjectsTestHelper } from "./test-helper.js"
 import { waitFor, Worker } from "./worker.js"
 import { EffectWorker } from "./effect-worker.js"
 import type { WakeUpRole } from "./wake-up.js"
+import { notifyWakeUp } from "./wake-up-notification.js"
 import { withDatabaseDeadline } from "./database/deadline.js"
 import type { DatabaseConnection } from "./database/types.js"
 import { evaluateActorTurn, readActorObservables } from "./turn.js"
@@ -1210,7 +1211,8 @@ export class SolidObjectsRuntime {
           }
         },
       })
-      if (intents.outboundMessages.length > 0) this.wakeUp("actors")
+      if (intents.outboundMessages.length > 0 || (intents.effectRecoveries?.length ?? 0) > 0)
+        this.wakeUp("actors")
       if (intents.effects.length > 0) this.wakeUp("effects")
       if (intents.reminders.length > 0) this.wakeUp("reminders")
       if (broadcastProjectionValue !== undefined) this.wakeUp("broadcasts")
@@ -1933,21 +1935,7 @@ export class SolidObjectsRuntime {
   }
 
   private wakeUp(role: WakeUpRole): void {
-    try {
-      Promise.resolve(this.settings.wakeUp.notify(role)).catch((error: unknown) => {
-        this.logWakeUpFailure(role, error)
-      })
-    } catch (error) {
-      this.logWakeUpFailure(role, error)
-    }
-  }
-
-  private logWakeUpFailure(role: WakeUpRole, error: unknown): void {
-    this.settings.logger.error({
-      event: "solid_objects.wake_up.failed",
-      role,
-      errorName: error instanceof Error ? error.name : "Error",
-    })
+    notifyWakeUp({ adapter: this.settings.wakeUp, logger: this.settings.logger, role })
   }
 
   private async authorize(options: {

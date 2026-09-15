@@ -7,6 +7,21 @@ const authorizationContext = "allowed"
 const runtime = () => createRuntime({ backend: durableObjects({ namespace: env.ACTORS }) })
 
 describe("Cloudflare effect payloads", () => {
+  it.each(["startRecoverable", "startStatusOnly", "checkRecovery"] as const)(
+    "rejects unsupported %s before committing state or effects",
+    async (operation) => {
+      const reference = runtime().ref(EffectCallbacks, `unsupported-${operation}`)
+      await expect(reference.with({ authorizationContext })[operation]()).rejects.toMatchObject({
+        name: "MessageFailed",
+        details: {
+          name: "UnsupportedCapability",
+          message: "the Durable Objects backend does not support process-heartbeat effect recovery",
+        },
+      })
+      expect((await reference.snapshot({ authorizationContext })).effectHandle).toBeNull()
+      expect((await reference.snapshot({ authorizationContext })).received).toEqual([])
+    },
+  )
   it.each([null, false, 42, "reply", ["reply"], { reply: "done" }])(
     "delivers the complete success envelope for %j",
     async (result) => {
@@ -20,6 +35,9 @@ describe("Cloudflare effect payloads", () => {
         .toEqual([{ effectId: expect.any(String), arguments: argumentsValue, result }])
       const [payload] = (await reference.snapshot({ authorizationContext })).received
       expect(deliveries.get(payload!.effectId)).toBe(1)
+      expect((await reference.snapshot({ authorizationContext })).effectHandle).toEqual({
+        id: payload!.effectId,
+      })
     },
   )
 

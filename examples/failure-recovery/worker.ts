@@ -1,6 +1,6 @@
 import { createRuntime } from "solid-objects"
 import { sqlite } from "solid-objects/database/sqlite"
-import { RecoveryCounter } from "./actor.ts"
+import { RecoverableReport, RecoveryCounter } from "./actor.ts"
 
 const databasePath = requiredArgument(2)
 const runtime = createRuntime({
@@ -24,7 +24,15 @@ const runtime = createRuntime({
 })
 
 runtime.register(RecoveryCounter)
+runtime.register(RecoverableReport)
 await runtime.install()
+if (process.argv[3] === "retire-effects") {
+  await runtime.repository.cleanupStaleProcesses()
+  process.send?.({ event: "effects.retired" })
+  await new Promise<void>(() => {
+    process.on("message", () => {})
+  })
+}
 const worker = runtime.worker()
 
 try {

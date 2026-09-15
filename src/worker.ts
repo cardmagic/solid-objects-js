@@ -332,6 +332,15 @@ async function heartbeatUntilStopped(options: {
   while (!signal.aborted) {
     await waitFor(runtime.settings.processHeartbeatIntervalMilliseconds, signal)
     if (signal.aborted) return
-    await runtime.repository.heartbeatProcess(processId)
+    try {
+      await runtime.repository.heartbeatProcess(processId)
+    } catch (error) {
+      const attributes = { processId, errorName: error instanceof Error ? error.name : "Error" }
+      runtime.settings.logger.warn({
+        event: "solid_objects.process.heartbeat_failed",
+        ...attributes,
+      })
+      runtime.emitInstrumentation("process.heartbeat_failed", attributes)
+    }
   }
 }

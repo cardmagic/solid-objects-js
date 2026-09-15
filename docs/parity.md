@@ -217,3 +217,21 @@ Rails generators, Active Record models/controllers, Turbo rendering, and
 Action Cable are not copied into this package. The Rack dashboard is represented
 by the framework-neutral Fetch and Node adapter, renderer callbacks, and the
 same authorization and CSRF boundaries.
+
+## Effect recovery
+
+Both runtimes maintain heartbeats during effect execution and retry failed
+updates at the configured interval, reporting `process.heartbeat_failed`.
+
+| Capability                                      | Status         | Contract                                                                                                                             |
+| ----------------------------------------------- | -------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| Abandoned SQL effect recovery                   | Native         | Stable emit handles, automatic retirement, staged status checks, durable callbacks, and extending heartbeat grace in both languages. |
+| Shared process-heartbeat recovery on Cloudflare | Not applicable | Durable Objects has no shared SQL process registry; recovery options and intents fail before commit.                                 |
+
+SQL effect recovery uses the same contract in Ruby and JavaScript: one `emit`
+returns a stable handle; `onRecovery`/`on_recovery` opts into atomic retirement
+and a durable callback; optional `onStatus`/`on_status` answers explicit staged
+checks. Per-effect recovery timeouts extend the runtime heartbeat threshold
+(milliseconds in JS, seconds in Ruby). Cloudflare returns emit handles but rejects
+process-heartbeat recovery options and intents before commit. See
+[the transaction protocol](effect-recovery.md).

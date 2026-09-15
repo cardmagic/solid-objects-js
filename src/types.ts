@@ -2,6 +2,8 @@ export type JsonPrimitive = null | boolean | number | string
 export type JsonValue = JsonPrimitive | JsonValue[] | { [key: string]: JsonValue }
 export type JsonObject = { [key: string]: JsonValue }
 
+export type EffectHandle = { readonly id: string }
+
 export type SerializedError = {
   name: string
   message: string

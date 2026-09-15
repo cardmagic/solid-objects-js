@@ -126,6 +126,7 @@ export type {
   DestroyOptions,
   EffectContext,
   EffectFailurePayload,
+  EffectHandle,
   EffectSuccessPayload,
   InvocationOptions,
   JsonObject,
@@ -180,3 +181,4 @@ export {
   UnknownReminder,
   UnsupportedDatabase,
 } from "./errors.js"
+export * from "./effect-recovery.js"

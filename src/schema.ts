@@ -9,7 +9,8 @@ const PROCESS_DRAINING_VERSION = 5
 const OBSERVABLE_INVALIDATIONS_VERSION = 6
 const KEYED_REMINDERS_VERSION = 7
 const POLLING_INDEXES_VERSION = 8
-const LATEST_VERSION = POLLING_INDEXES_VERSION
+const EFFECT_RECOVERY_VERSION = 9
+const LATEST_VERSION = EFFECT_RECOVERY_VERSION
 
 export async function installSchema(options: {
   connection: DatabaseConnection
@@ -303,6 +304,31 @@ export async function installSchema(options: {
       connection,
       table: table("schema_migrations"),
       version: OBSERVABLE_INVALIDATIONS_VERSION,
+      schemaIdentity,
+    })
+  }
+
+  await createTable(`CREATE TABLE IF NOT EXISTS ${table("effect_recoveries")} (
+    effect_id TEXT PRIMARY KEY,
+    instance_id TEXT NOT NULL,
+    recovery_operation TEXT,
+    status_operation TEXT,
+    recovery_timeout_ms INTEGER CHECK (recovery_timeout_ms IS NULL OR recovery_timeout_ms > 0),
+    retired_at_ms INTEGER,
+    FOREIGN KEY (instance_id) REFERENCES ${table("instances")}(id) ON DELETE CASCADE
+  ) STRICT`)
+  await createIndex({
+    connection,
+    family,
+    table: table("effect_recoveries"),
+    name: `${prefix}effect_recoveries_instance`,
+    columns: "instance_id",
+  })
+  if (!installedVersions.has(EFFECT_RECOVERY_VERSION)) {
+    await recordMigration({
+      connection,
+      table: table("schema_migrations"),
+      version: EFFECT_RECOVERY_VERSION,
       schemaIdentity,
     })
   }
