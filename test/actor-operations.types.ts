@@ -119,7 +119,7 @@ export function genericActor<ActorType extends Actor>(actor: ActorType, callback
 
 export class ExistingOverride extends Actor {
   override emit(name: string, options: { onFailure?: string } = {}) {
-    super.emit(name, options)
+    return super.emit(name, options)
   }
   // @ts-expect-error broad legacy override cannot promise concrete operation keys
   override schedule(options: { at: Date }): ScheduledOperations {

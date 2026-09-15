@@ -4,6 +4,7 @@ import {
   NonRetryableError,
   type EffectFailurePayload,
   type EffectSuccessPayload,
+  type EffectHandle,
   type JsonObject,
 } from "../../src/core.js"
 import { PortableCounter } from "../support/portable-actor.js"
@@ -152,9 +153,10 @@ export class VersionedCounter extends Actor {
 export class EffectCallbacks extends Actor {
   static override readonly actorType = "EffectCallbacks"
   received: (EffectSuccessPayload | EffectFailurePayload)[] = []
+  effectHandle: EffectHandle | null = null
 
   start(argumentsValue: JsonObject): void {
-    this.emit("callbackValue", {
+    this.effectHandle = this.emit("callbackValue", {
       arguments: argumentsValue,
       onSuccess: "succeeded",
       onFailure: "failed",
@@ -162,8 +164,22 @@ export class EffectCallbacks extends Actor {
   }
 
   startEmpty(): void {
-    this.emit("callbackEmpty", { onSuccess: "succeeded" })
+    this.effectHandle = this.emit("callbackEmpty", { onSuccess: "succeeded" })
   }
+
+  startRecoverable(): void {
+    this.effectHandle = this.emit("callbackEmpty", { onRecovery: "recover" })
+  }
+
+  startStatusOnly(): void {
+    this.effectHandle = this.emit("callbackEmpty", { onStatus: "inspect" })
+  }
+
+  checkRecovery(): void {
+    this.requestEffectRecovery({ id: "unsupported" })
+  }
+  recover(): void {}
+  inspect(): void {}
 
   succeeded(payload: EffectSuccessPayload): void {
     this.received.push(payload)

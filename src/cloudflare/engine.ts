@@ -542,6 +542,19 @@ export class ActorEngine {
         maxResultBytes: this.settings.maxResultBytes,
       })
       const intents = actor.drainIntents()
+      if (
+        intents.effectRecoveries?.length ||
+        intents.effects.some(
+          (effect) =>
+            effect.recoveryOperation !== undefined ||
+            effect.statusOperation !== undefined ||
+            effect.recoveryTimeoutMilliseconds !== undefined,
+        )
+      ) {
+        throw new UnsupportedCapability(
+          "the Durable Objects backend does not support process-heartbeat effect recovery",
+        )
+      }
       if (intents.commitActions.length > 0)
         throw new UnsupportedCapability("the Durable Objects backend does not support commitAction")
       await this.store.atomic(() => {
@@ -639,7 +652,7 @@ export class ActorEngine {
   }): void {
     const { instance, message, intents, broadcast } = options
     for (const effect of intents.effects) {
-      const id = crypto.randomUUID()
+      const id = effect.id ?? crypto.randomUUID()
       this.addOutbox({
         id,
         instance,

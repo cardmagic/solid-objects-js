@@ -1,5 +1,6 @@
 export * from "./actor.js"
 export * from "./errors.js"
+export * from "./effect-recovery.js"
 export type * from "./types.js"
 export type * from "./reference.js"
 export type { ActorRuntime } from "./actor-runtime.js"

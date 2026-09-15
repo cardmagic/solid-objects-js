@@ -77,6 +77,14 @@ const EXPECTED_COLUMNS: Readonly<Record<string, readonly string[]>> = {
   ],
   reminders: ["id", "instance_id", "operation", "message_operation", "run_at_ms", "status"],
   effects: ["id", "message_id", "instance_id", "name", "status", "available_at_ms"],
+  effect_recoveries: [
+    "effect_id",
+    "instance_id",
+    "recovery_operation",
+    "status_operation",
+    "recovery_timeout_ms",
+    "retired_at_ms",
+  ],
   broadcasts: [
     "id",
     "message_id",
@@ -202,11 +210,11 @@ export class Doctor {
           message: `incompatible schema identity ${wrongIdentity.schema_identity}`,
         })
       }
-      if (versions.join(",") !== "1,2,3,4,5,6,7,8") {
+      if (versions.join(",") !== "1,2,3,4,5,6,7,8,9") {
         return check({
           name: "schema",
           status: "fail",
-          message: `expected schema migrations 1, 2, 3, 4, 5, 6, 7, 8; found ${versions.join(", ")}`,
+          message: `expected schema migrations 1, 2, 3, 4, 5, 6, 7, 8, 9; found ${versions.join(", ")}`,
         })
       }
       return check({

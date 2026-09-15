@@ -3,6 +3,7 @@ import { getDefaultRuntime } from "./default-runtime.js"
 import type { StateMigration } from "./definition.js"
 import { InvalidRejectionCode, Rejected, UnknownOperation } from "./errors.js"
 import { TRANSMIT_EFFECT } from "./transmit-effect.js"
+import { randomUUID } from "./platform/uuid.js"
 import {
   createStagedOperationMap,
   createStagedOperations,
@@ -12,7 +13,13 @@ import {
   type StagedOperations,
 } from "./reference.js"
 import { jsonObject, normalizeJson } from "./serialization.js"
-import type { ActorIdentifier, JsonObject, JsonValue, MessageContext } from "./types.js"
+import type {
+  ActorIdentifier,
+  EffectHandle,
+  JsonObject,
+  JsonValue,
+  MessageContext,
+} from "./types.js"
 
 const observableBroadcastMode = Symbol("solid-objects.observable-broadcast-mode")
 
@@ -47,16 +54,33 @@ export type PayloadBroadcasts<ActorType extends Actor, AuthorizationContext> = R
 >
 
 export interface EffectIntent {
+  id?: string
   name: string
   arguments: JsonObject
   successOperation?: string
   failureOperation?: string
+  recoveryOperation?: string
+  statusOperation?: string
+  recoveryTimeoutMilliseconds?: number
 }
 
-export interface EffectOptions<Success extends string = string, Failure extends string = Success> {
+export interface EffectOptions<
+  Success extends string = string,
+  Failure extends string = Success,
+  Recovery extends string = string,
+  Status extends string = string,
+> {
   arguments?: Record<string, unknown>
   onSuccess?: Exclude<Success, keyof Actor | "onActivate" | "onDeactivate">
   onFailure?: Exclude<Failure, keyof Actor | "onActivate" | "onDeactivate">
+  onRecovery?: Exclude<Recovery, keyof Actor | "onActivate" | "onDeactivate">
+  onStatus?: Exclude<Status, keyof Actor | "onActivate" | "onDeactivate">
+  recoveryTimeoutMilliseconds?: number
+}
+
+export interface EffectRecoveryIntent {
+  effectId: string
+  requestId: string
 }
 
 type CallbackActor<Callback extends string> = string extends Callback
@@ -95,6 +119,7 @@ export interface OutboundMessageIntent {
 
 export interface ActorIntents {
   effects: EffectIntent[]
+  effectRecoveries?: EffectRecoveryIntent[]
   commitActions: CommitActionIntent[]
   reminders: ReminderIntent[]
   outboundMessages: OutboundMessageIntent[]
@@ -219,22 +244,63 @@ export abstract class Actor {
     })
   }
 
-  emit<const Success extends string = never, const Failure extends string = never>(
-    this: CallbackActor<NoInfer<Success>> & CallbackActor<NoInfer<Failure>>,
+  emit<
+    const Success extends string = never,
+    const Failure extends string = never,
+    const Recovery extends string = never,
+    const Status extends string = never,
+  >(
+    this: CallbackActor<NoInfer<Success>> &
+      CallbackActor<NoInfer<Failure>> &
+      CallbackActor<NoInfer<Recovery>> &
+      CallbackActor<NoInfer<Status>>,
     name: string,
-    options: EffectOptions<Success, Failure> = {},
-  ): void {
-    for (const callback of [options.onSuccess, options.onFailure]) {
+    options: EffectOptions<Success, Failure, Recovery, Status> = {},
+  ): EffectHandle {
+    for (const callback of [
+      options.onSuccess,
+      options.onFailure,
+      options.onRecovery,
+      options.onStatus,
+    ]) {
       if (callback !== undefined && !this.#operations.has(String(callback))) {
         throw new UnknownOperation(`unknown effect callback operation ${JSON.stringify(callback)}`)
       }
     }
+    const timeout = options.recoveryTimeoutMilliseconds
+    if (timeout !== undefined) {
+      if (!Number.isSafeInteger(timeout) || timeout <= 0)
+        throw new TypeError("recoveryTimeoutMilliseconds must be a positive safe integer")
+      if (options.onRecovery === undefined)
+        throw new TypeError("recoveryTimeoutMilliseconds requires onRecovery")
+    }
+    const id = randomUUID()
     this.#intents.effects.push({
+      id,
       name,
       arguments: jsonObject(options.arguments ?? {}),
       ...(options.onSuccess === undefined ? {} : { successOperation: String(options.onSuccess) }),
       ...(options.onFailure === undefined ? {} : { failureOperation: String(options.onFailure) }),
+      ...(options.onRecovery === undefined
+        ? {}
+        : { recoveryOperation: String(options.onRecovery) }),
+      ...(options.onStatus === undefined ? {} : { statusOperation: String(options.onStatus) }),
+      ...(timeout === undefined ? {} : { recoveryTimeoutMilliseconds: timeout }),
     })
+    return { id }
+  }
+
+  requestEffectRecovery(handle: EffectHandle): void {
+    if (
+      typeof handle !== "object" ||
+      handle === null ||
+      typeof handle.id !== "string" ||
+      handle.id.length === 0
+    ) {
+      throw new TypeError("effect recovery requires an effect handle")
+    }
+    this.#intents.effectRecoveries ??= []
+    this.#intents.effectRecoveries.push({ effectId: handle.id, requestId: randomUUID() })
   }
 
   transmit<Keys extends keyof this, ActorType>(
@@ -338,6 +404,7 @@ export abstract class Actor {
   drainIntents(): ActorIntents {
     return {
       effects: this.#intents.effects.splice(0),
+      effectRecoveries: this.#intents.effectRecoveries?.splice(0) ?? [],
       commitActions: this.#intents.commitActions.splice(0),
       reminders: this.#intents.reminders.splice(0),
       outboundMessages: this.#intents.outboundMessages.splice(0),

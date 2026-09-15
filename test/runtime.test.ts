@@ -310,9 +310,11 @@ describe("actor reminders", () => {
     expect(() => actor.emit("effect", { onFailure: unknownCallback })).toThrow(UnknownOperation)
     expect(() => actor.emit("effect", { onSuccess: unknownCallback })).toThrow(UnknownOperation)
     expect(actor.hasIntents()).toBe(false)
-    expect(actor.emit("effect", { onSuccess: "increment", onFailure: "increment" })).toBeUndefined()
+    const handle = actor.emit("effect", { onSuccess: "increment", onFailure: "increment" })
+    expect(handle.id).toEqual(expect.any(String))
     expect(actor.drainIntents().effects).toEqual([
       {
+        id: handle.id,
         name: "effect",
         arguments: {},
         successOperation: "increment",

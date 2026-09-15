@@ -162,6 +162,140 @@ row per item. It also cannot strand an entry when the runtime coalesces an
 occurrence. Prefer it for a large queue of interchangeable items. Prefer `key`
 when one item needs an alarm that you can move on its own.
 
+### Recovering abandoned effects
+
+`emit` returns an `EffectHandle` (`{ id: string }`) on every successful call. Save
+it in actor state to identify that exact persisted effect. The handle, state,
+effect, and callback bindings commit together; a rejected turn persists none of
+them. Existing callers can ignore the handle. Overrides and wrappers that
+previously returned `void` must return `super.emit(...)`; explicit
+`return this.emit(...)` and code expecting `undefined` need updating.
+
+`onRecovery` opts a SQL effect into automatic retirement when its processing
+owner stops heartbeating. `onStatus` is independent and optional: it only receives
+responses to `requestEffectRecovery(handle)`, which requires both bindings.
+Register both callbacks in `emit`; requests cannot rebind them. Requests stage an
+intent in the current actor's fenced commit and perform no synchronous database
+lookup inside the actor method. Only the originating instance can use its handle.
+
+`recoveryTimeoutMilliseconds` is an optional positive safe integer requiring
+`onRecovery`. The effective freshness window is the greater of that persisted
+override and the runtime's current `processAliveThresholdMilliseconds` (default
+60,000). It can extend the window, never shorten it. It measures time since the
+owner's database heartbeat, not effect duration or progress. An owner that keeps
+heartbeating protects its effect indefinitely.
+
+`EffectRetiredPayload<Arguments>` is the `onRecovery` envelope: `effectId`, original
+`arguments`, and `outcome: EffectRecoveryOutcome.Retired`. No outcome guard is
+needed in that callback. `EffectRecoveryPayload<Arguments, Result>` is the
+discriminated union received by `onStatus`. `EffectRecoveryOutcome` is a frozen
+constant object and a derived string-union type, exported from root and core.
+
+| Constant         | Outcome            | Meaning                                                            |
+| ---------------- | ------------------ | ------------------------------------------------------------------ |
+| `Retired`        | `"retired"`        | This check retired the abandoned processing effect.                |
+| `Deferred`       | `"deferred"`       | Owner is fresh; preserve its claim and attempts.                   |
+| `Pending`        | `"pending"`        | Initial execution or retry remains with the scheduler.             |
+| `Completed`      | `"completed"`      | Includes original arguments and recorded result, including `null`. |
+| `Dead`           | `"dead"`           | Preserve the existing terminal failure and failure callback.       |
+| `AlreadyRetired` | `"alreadyRetired"` | An earlier decision retired it; no new recovery notification.      |
+| `Missing`        | `"missing"`        | Owned routing metadata remains but the effect was pruned.          |
+
+Every outcome includes `effectId`. Retired and completed require original
+arguments; other outcomes may include retained arguments. Only completed has a
+successful `result`. Database errors propagate as errors, never as missing or
+abandoned outcomes. Unknown, foreign, and expired handles fail without exposing
+another actor's effects or recreating a destroyed actor.
+
+Automatic retirement sends only `onRecovery`. A winning explicit check enqueues
+`onRecovery` first and its separate `onStatus` response second in one transaction.
+Only `onRecovery` should emit replacement work. A completed status can repair an
+outcome notification using the same guarded helper as `onSuccess`:
+
+```ts
+import {
+  Actor,
+  EffectRecoveryOutcome,
+  type EffectHandle,
+  type EffectRetiredPayload,
+  type EffectRecoveryPayload,
+  type EffectSuccessPayload,
+  type JsonValue,
+} from "solid-objects"
+
+type ReportArguments = { revision: number }
+type ReportResult = { artifactKey: string }
+
+class ReportExport extends Actor {
+  static override readonly actorType = "ReportExport"
+  revision = 0
+  exportEffect: EffectHandle | null = null
+  artifactKey = ""
+  appliedEffectId: string | null = null
+
+  start(): void {
+    this.exportEffect = this.emit("build_report", {
+      arguments: { revision: ++this.revision },
+      onSuccess: "exportFinished",
+      onFailure: "exportFailed",
+      onRecovery: "recoverExport",
+      onStatus: "inspectExport",
+      recoveryTimeoutMilliseconds: 120_000,
+    })
+    this.schedule({ at: new Date(Date.now() + 30_000), key: "export-watchdog" }).watchdog()
+  }
+
+  watchdog(): void {
+    if (this.exportEffect) this.requestEffectRecovery(this.exportEffect)
+  }
+
+  recoverExport(payload: EffectRetiredPayload<ReportArguments>): void {
+    if (payload.effectId !== this.exportEffect?.id || payload.arguments.revision !== this.revision)
+      return
+    this.start()
+  }
+
+  exportFinished(payload: EffectSuccessPayload<ReportArguments, ReportResult>): void {
+    this.applyExportResult(payload)
+  }
+
+  exportFailed(_payload: JsonValue): void {}
+
+  inspectExport(payload: EffectRecoveryPayload<ReportArguments, ReportResult>): void {
+    if (payload.effectId !== this.exportEffect?.id) return
+    if (payload.outcome === EffectRecoveryOutcome.Completed) this.applyExportResult(payload)
+    if (
+      payload.outcome === EffectRecoveryOutcome.Deferred ||
+      payload.outcome === EffectRecoveryOutcome.Pending
+    ) {
+      this.schedule({ at: new Date(Date.now() + 30_000), key: "export-watchdog" }).watchdog()
+    }
+  }
+
+  private applyExportResult(payload: EffectSuccessPayload<ReportArguments, ReportResult>): void {
+    if (payload.effectId !== this.exportEffect?.id || payload.arguments.revision !== this.revision)
+      return
+    if (this.appliedEffectId === payload.effectId) return
+    this.artifactKey = payload.result.artifactKey
+    this.appliedEffectId = payload.effectId
+  }
+}
+```
+
+Routing metadata remains until the originating instance is destroyed or pruned;
+it survives effect/message pruning but does not pin the instance. Checks after
+that boundary fail. Callback delivery and idempotency follow durable mailbox
+retention. Retirement survives a crash before callback delivery.
+
+The Durable Objects backend returns ordinary emit handles using its outbox ID,
+but rejects recovery callbacks, timeouts, and recovery intents before committing
+the actor turn: it has no shared SQL process-heartbeat registry. See
+[effect recovery coordination](effect-recovery.md) for transaction and lock order.
+
+**External actions still require idempotency.** Retirement fences library state;
+it does not cancel the previous JavaScript handler or prove its remote request
+stopped. It does not provide exactly-once external execution.
+
 ### Typing your onFailure handler
 
 An effect callback is an ordinary actor operation. Its payload always includes

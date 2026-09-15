@@ -1,5 +1,16 @@
 # Changelog
 
+## Unreleased
+
+- Return a stable `EffectHandle` from every `emit`. Overrides/wrappers must
+  return the handle; code expecting `void`/`undefined` needs migration.
+- Add SQL effect recovery coordination with `onRecovery`, optional `onStatus`,
+  staged `requestEffectRecovery`, and an extending `recoveryTimeoutMilliseconds`.
+  Retirement and durable callbacks share the claim-locking transaction. Export
+  typed outcome constants and callback envelopes. Install schema migration 9
+  before running this version. Cloudflare returns emit handles and rejects the
+  unsupported process-heartbeat recovery options before commit.
+
 ## 0.14.9 - 2026-09-14
 
 - Export effect failure/success payload types and `SerializedError` from the
