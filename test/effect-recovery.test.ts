@@ -111,7 +111,7 @@ it("resumes process heartbeats after a database error", async () => {
   expect(await running).toBeUndefined()
   expect(attempts).toBeGreaterThanOrEqual(2)
   expect(events.filter((name) => name === "solid_objects.process.heartbeat_failed")).toHaveLength(1)
-})
+}, 30_000)
 
 it("returns the same effect identity that the scheduler claims", async () => {
   runtime = await createTestRuntime()

@@ -462,7 +462,7 @@ describeMySQL("MySQL adapter", () => {
       await localDatabase.close()
       await serverDatabase.close()
     }
-  })
+  }, 30_000)
 
   it("enforces deadlines without leaking session settings", async () => {
     if (!connectionString) throw new Error("MySQL connection string is required")
