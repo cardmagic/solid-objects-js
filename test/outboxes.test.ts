@@ -4,6 +4,7 @@ import type { BroadcastEvent, SolidObjectsConfiguration } from "../src/configura
 import { NonRetryableError } from "../src/errors.js"
 import { configure, type SolidObjectsRuntime } from "../src/runtime.js"
 import { sqlite } from "../src/database/sqlite.js"
+import type { EffectFailurePayload, EffectSuccessPayload, JsonObject } from "../src/index.js"
 
 class Checkout extends Actor {
   static override readonly actorType = "Checkout"
@@ -24,18 +25,39 @@ class Checkout extends Actor {
   paymentSucceeded({
     arguments: effectArguments,
     result,
-  }: {
-    effectId: string
-    arguments: { paymentId: string }
-    result: { receipt: string }
-  }): void {
+  }: EffectSuccessPayload<{ paymentId: string }, { receipt: string }>): void {
     this.status = "paid"
     this.effectResult = `${effectArguments.paymentId}:${result.receipt}`
   }
 
-  paymentFailed({ arguments: effectArguments }: { arguments: { paymentId: string } }): void {
+  paymentFailed({ arguments: effectArguments }: EffectFailurePayload<{ paymentId: string }>): void {
     this.status = "failed"
     this.failedPaymentId = effectArguments.paymentId
+  }
+}
+
+class EffectCallbacks extends Actor {
+  static override readonly actorType = "EffectCallbacks"
+  received: (EffectSuccessPayload | EffectFailurePayload)[] = []
+
+  start({ arguments: argumentsValue }: { arguments: JsonObject }): void {
+    this.emit("callbackValue", {
+      arguments: argumentsValue,
+      onSuccess: "succeeded",
+      onFailure: "failed",
+    })
+  }
+
+  startEmpty(): void {
+    this.emit("callbackValue", { onSuccess: "succeeded", onFailure: "failed" })
+  }
+
+  succeeded(payload: EffectSuccessPayload): void {
+    this.received.push(payload)
+  }
+
+  failed(payload: EffectFailurePayload): void {
+    this.received.push(payload)
   }
 }
 
@@ -121,6 +143,64 @@ afterEach(async () => {
 })
 
 describe("durable effects", () => {
+  it.each([
+    { result: undefined, expected: null },
+    { result: null, expected: null },
+    { result: false, expected: false },
+    { result: 42, expected: 42 },
+    { result: "reply", expected: "reply" },
+    { result: ["reply"], expected: ["reply"] },
+    { result: { reply: "done" }, expected: { reply: "done" } },
+  ])("delivers the complete success envelope for $result", async ({ result, expected }) => {
+    runtime = configuredRuntime()
+    let effectId = ""
+    runtime.registerEffect("callbackValue", (_arguments, context) => {
+      effectId = context.id
+      return result
+    })
+    await runtime.install()
+    const actor = EffectCallbacks.ref("success")
+    await actor.start({ arguments: { generation: 2, nested: { retained: true } } })
+    await runtime.effectWorker().runUntilIdle()
+    await runtime.worker().runUntilIdle()
+
+    expect(effectId).not.toBe("")
+    expect(await actor.received).toEqual([
+      { effectId, arguments: { generation: 2, nested: { retained: true } }, result: expected },
+    ])
+  })
+
+  it.each([
+    { error: new Error("exhausted"), attempts: 2, name: "Error", message: "exhausted" },
+    {
+      error: new NonRetryableError("terminal"),
+      attempts: 1,
+      name: "NonRetryableError",
+      message: "terminal",
+    },
+    { error: "offline", attempts: 2, name: "Error", message: "offline" },
+  ])("delivers the complete failure envelope for $name/$message", async (options) => {
+    runtime = configuredRuntime({ maxAttempts: 2, retryDelayMilliseconds: () => 0 })
+    let effectId = ""
+    let attempts = 0
+    runtime.registerEffect("callbackValue", (_arguments, context) => {
+      effectId = context.id
+      attempts += 1
+      throw options.error
+    })
+    await runtime.install()
+    const actor = EffectCallbacks.ref("failure")
+    await actor.startEmpty()
+    await runtime.effectWorker().runUntilIdle()
+    await runtime.worker().runUntilIdle()
+
+    expect(effectId).not.toBe("")
+    expect(attempts).toBe(options.attempts)
+    expect(await actor.received).toEqual([
+      { effectId, arguments: {}, error: { name: options.name, message: options.message } },
+    ])
+  })
+
   it("correlates concurrent effect callbacks with their staged arguments", async () => {
     runtime = configuredRuntime()
     runtime.registerEffect("correlatedEffect", ({ correlationId }) => {

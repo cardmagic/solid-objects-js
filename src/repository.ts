@@ -26,7 +26,14 @@ import type {
 } from "./records.js"
 import { jsonObject, normalizeJson } from "./serialization.js"
 import type { RetentionTarget } from "./retention.js"
-import type { JsonObject, JsonValue, MessageStatus } from "./types.js"
+import type {
+  EffectFailurePayload,
+  EffectSuccessPayload,
+  JsonObject,
+  JsonValue,
+  MessageStatus,
+  SerializedError,
+} from "./types.js"
 import { VERSION } from "./version.js"
 
 export interface SyncDiagnosticsRecord {
@@ -1486,7 +1493,7 @@ export class Repository {
           effectId: effect.id,
           arguments: jsonObject(JSON.parse(effect.arguments)),
           result,
-        }),
+        } satisfies EffectSuccessPayload),
         idempotencyKey: `effect:${effect.id}:success`,
       })
       void now
@@ -1532,7 +1539,7 @@ export class Repository {
           effectId: effect.id,
           arguments: jsonObject(JSON.parse(effect.arguments)),
           error: errorRecord,
-        }),
+        } satisfies EffectFailurePayload),
         idempotencyKey: `effect:${effect.id}:failure`,
       })
     })
@@ -2188,11 +2195,17 @@ function nextReminderRun(options: {
   return previousRun + (Math.floor((now - previousRun) / interval) + 1) * interval
 }
 
-function safeError(error: unknown): Record<string, JsonValue> {
+function safeError(error: unknown): SerializedError {
   if (error instanceof Error) {
-    return jsonObject({ name: error.name, message: error.message })
+    return jsonObject({
+      name: error.name,
+      message: error.message,
+    } satisfies SerializedError) as SerializedError
   }
-  return jsonObject({ name: "Error", message: String(normalizeJson(error)) })
+  return jsonObject({
+    name: "Error",
+    message: String(normalizeJson(error)),
+  } satisfies SerializedError) as SerializedError
 }
 
 function retentionPolicy(options: {

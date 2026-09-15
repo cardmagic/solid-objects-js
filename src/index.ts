@@ -123,6 +123,8 @@ export type {
   DeepReadonly,
   DestroyOptions,
   EffectContext,
+  EffectFailurePayload,
+  EffectSuccessPayload,
   InvocationOptions,
   JsonObject,
   JsonPrimitive,
@@ -131,6 +133,7 @@ export type {
   LongRunningComponent,
   MessageContext,
   MessageStatus,
+  SerializedError,
   SnapshotOptions,
 } from "./types.js"
 export type {

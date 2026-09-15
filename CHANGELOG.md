@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- Export effect failure/success payload types and `SerializedError` from the
+  root and core entry points. Check SQL and Cloudflare callback construction
+  against the same contracts without changing the delivered messages.
+
 ## 0.14.8 - 2026-09-09
 
 - Hold the actor instance and message claim locks through every fenced commit
