@@ -277,7 +277,10 @@ it("surfaces an owner query failure without deciding abandonment", async () => {
         run: connection.run.bind(connection),
         all: connection.all.bind(connection),
         nowMilliseconds: connection.nowMilliseconds.bind(connection),
-        get: <Row extends object>(sql: string, parameters?: readonly unknown[]) =>
+        get: <Row extends object>(
+          sql: string,
+          parameters?: Parameters<DatabaseConnection["get"]>[1],
+        ) =>
           connection.get<Row>(
             sql.includes(runtime!.repository.table("processes"))
               ? `SELECT absent_recovery_column FROM ${runtime!.repository.table("processes")}`
