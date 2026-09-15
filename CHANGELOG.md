@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.15.0 - 2026-09-15
 
 - Return a stable `EffectHandle` from every `emit`. Overrides/wrappers must
   return the handle; code expecting `void`/`undefined` needs migration.
