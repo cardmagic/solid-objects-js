@@ -220,6 +220,9 @@ same authorization and CSRF boundaries.
 
 ## Effect recovery
 
+Both runtimes maintain heartbeats during effect execution and retry failed
+updates at the configured interval, reporting `process.heartbeat_failed`.
+
 | Capability                                      | Status         | Contract                                                                                                                             |
 | ----------------------------------------------- | -------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
 | Abandoned SQL effect recovery                   | Native         | Stable emit handles, automatic retirement, staged status checks, durable callbacks, and extending heartbeat grace in both languages. |

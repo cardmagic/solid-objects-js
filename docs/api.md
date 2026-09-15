@@ -185,6 +185,11 @@ override and the runtime's current `processAliveThresholdMilliseconds` (default
 owner's database heartbeat, not effect duration or progress. An owner that keeps
 heartbeating protects its effect indefinitely.
 
+Heartbeat update errors emit `solid_objects.process.heartbeat_failed` and retry
+at the configured interval without consuming effect attempts. An outage lasting
+beyond the freshness window can still permit recovery; this does not cancel
+external work or extend the timeout.
+
 `EffectRetiredPayload<Arguments>` is the `onRecovery` envelope: `effectId`, original
 `arguments`, and `outcome: EffectRecoveryOutcome.Retired`. No outcome guard is
 needed in that callback. `EffectRecoveryPayload<Arguments, Result>` is the

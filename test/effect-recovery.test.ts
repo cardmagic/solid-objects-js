@@ -18,6 +18,7 @@ import type { EffectRow } from "../src/records.js"
 import { Repository } from "../src/repository.js"
 import { PausingClaimDatabase } from "./support/pausing-claim-database.js"
 import { deferred } from "./support/fenced-commit.js"
+import { withProcessHeartbeat } from "../src/worker.js"
 
 class ReportExport extends Actor {
   static override readonly actorType = "ReportExport"
@@ -70,6 +71,46 @@ afterEach(async () => {
   await runtime?.repository.resetForTesting()
   await runtime?.close()
   runtime = undefined
+})
+
+it("resumes process heartbeats after a database error", async () => {
+  runtime = await createTestRuntime()
+  runtime.settings.processHeartbeatIntervalMilliseconds = 10
+  const resumed = deferred()
+  const release = deferred()
+  const events: string[] = []
+  runtime.settings.instrumentation = ({ name }) => events.push(name)
+  await runtime.repository.registerProcess("transient-owner", "effect")
+  const heartbeatProcess = runtime.repository.heartbeatProcess.bind(runtime.repository)
+  let attempts = 0
+  runtime.repository.heartbeatProcess = async (processId) => {
+    attempts += 1
+    if (attempts === 1)
+      await runtime!.settings.database.connection((connection) =>
+        connection.run(
+          `SELECT absent_heartbeat_column FROM ${runtime!.repository.table("processes")}`,
+        ),
+      )
+    await heartbeatProcess(processId)
+    resumed.resolve()
+  }
+  const running = withProcessHeartbeat({
+    runtime,
+    processId: "transient-owner",
+    operation: () => release.promise,
+  }).catch((error) => {
+    if (error instanceof Error) return error
+    throw error
+  })
+  try {
+    await withDeadline(resumed.promise, "heartbeat did not resume after the database error")
+  } finally {
+    release.resolve()
+    await running
+  }
+  expect(await running).toBeUndefined()
+  expect(attempts).toBeGreaterThanOrEqual(2)
+  expect(events.filter((name) => name === "solid_objects.process.heartbeat_failed")).toHaveLength(1)
 })
 
 it("returns the same effect identity that the scheduler claims", async () => {
@@ -540,16 +581,16 @@ it.skipIf(!process.env.SOLID_OBJECTS_DATABASE_URL?.startsWith("postgresql:"))(
   },
 )
 
-async function withDeadline<Value>(promise: Promise<Value>): Promise<Value> {
+async function withDeadline<Value>(
+  promise: Promise<Value>,
+  message = "independent work blocked on a fresh recovery candidate",
+): Promise<Value> {
   let timer: ReturnType<typeof setTimeout> | undefined
   try {
     return await Promise.race([
       promise,
       new Promise<never>((_, reject) => {
-        timer = setTimeout(
-          () => reject(new Error("independent work blocked on a fresh recovery candidate")),
-          2_000,
-        )
+        timer = setTimeout(() => reject(new Error(message)), 2_000)
       }),
     ])
   } finally {

@@ -2,6 +2,8 @@
 
 ## 0.15.0 - 2026-09-15
 
+- Report transient process-heartbeat errors and keep retrying while effects run,
+  so one failed update cannot permanently disable owner freshness maintenance.
 - Return a stable `EffectHandle` from every `emit`. Overrides/wrappers must
   return the handle; code expecting `void`/`undefined` needs migration.
 - Add SQL effect recovery coordination with `onRecovery`, optional `onStatus`,
