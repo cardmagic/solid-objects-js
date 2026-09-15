@@ -13,7 +13,7 @@ import type {
 import type { EffectRecoveryPayload, EffectRetiredPayload } from "../src/effect-recovery.js"
 import { LostActivation, MailboxFull } from "../src/errors.js"
 import { EffectRecoveryCoordinator } from "../src/effect-recovery-coordinator.js"
-import type { DatabaseConnection } from "../src/database/types.js"
+import type { Database, DatabaseConnection } from "../src/database/types.js"
 import type { EffectRow } from "../src/records.js"
 import { Repository } from "../src/repository.js"
 import { PausingClaimDatabase } from "./support/pausing-claim-database.js"
@@ -337,13 +337,16 @@ it("requires recovery opt-in for a timeout and both bindings for an explicit che
   expect(await storedEffect(effect!.id)).toMatchObject({ status: "pending" })
 })
 
-async function createTestRuntime(): Promise<SolidObjectsRuntime> {
+function createTestDatabase(): Database {
   const connectionString = process.env.SOLID_OBJECTS_DATABASE_URL
-  const database = connectionString?.startsWith("postgresql:")
-    ? postgresql({ connectionString, maximumConnections: 8 })
-    : connectionString?.startsWith("mysql:")
-      ? mysql({ connectionString })
-      : sqlite({ path: ":memory:" })
+  if (connectionString?.startsWith("postgresql:"))
+    return postgresql({ connectionString, maximumConnections: 8 })
+  if (connectionString?.startsWith("mysql:")) return mysql({ connectionString })
+  return sqlite({ path: ":memory:" })
+}
+
+async function createTestRuntime(): Promise<SolidObjectsRuntime> {
+  const database = createTestDatabase()
   const created = createRuntime({
     database,
     tableNamePrefix: "recovery_test_",
