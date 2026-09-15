@@ -3,6 +3,7 @@ import { Actor } from "../src/actor.js"
 import { configure, createRuntime, type SolidObjectsRuntime } from "../src/runtime.js"
 import type { SolidObjectsConfiguration } from "../src/configuration.js"
 import { sqlite } from "../src/database/sqlite.js"
+import type { ScheduledOperations } from "../src/reference.js"
 import { UnknownOperation } from "../src/errors.js"
 import type { MessageReference } from "../src/reference.js"
 
@@ -33,31 +34,35 @@ class Counter extends Actor {
       at: new Date("2030-01-02T03:04:05.000Z"),
       everyMilliseconds: 60_000,
       missed: "all",
-    }).increment!({ amount })
+    }).increment({ amount })
   }
 
   armKeyed({ item, at }: { item: string; at: number }): void {
-    this.schedule({ at: new Date(at), key: item }).increment!({ amount: 1 })
+    this.schedule({ at: new Date(at), key: item }).increment({ amount: 1 })
   }
 
   armEmptyKey(): void {
-    this.schedule({ at: new Date("2030-01-02T03:04:05.000Z"), key: "" }).increment!({ amount: 1 })
+    this.schedule({ at: new Date("2030-01-02T03:04:05.000Z"), key: "" }).increment({ amount: 1 })
   }
 
   armOversizedKey(): void {
-    this.schedule({ at: new Date("2030-01-02T03:04:05.000Z"), key: "k".repeat(300) }).increment!({
+    this.schedule({ at: new Date("2030-01-02T03:04:05.000Z"), key: "k".repeat(300) }).increment({
       amount: 1,
     })
   }
 
   armSeparatorKey(): void {
-    this.schedule({ at: new Date("2030-01-02T03:04:05.000Z"), key: "group:7" }).increment!({
+    this.schedule({ at: new Date("2030-01-02T03:04:05.000Z"), key: "group:7" }).increment({
       amount: 1,
     })
   }
 
   armUnknown(): void {
-    this.schedule({ at: new Date("2030-01-02T03:04:05.000Z") }).missing!()
+    const actor: Actor = this
+    const operations: ScheduledOperations = actor.schedule({
+      at: new Date("2030-01-02T03:04:05.000Z"),
+    })
+    operations.missing!()
   }
 }
 
@@ -297,6 +302,25 @@ describe("actor-owned delivery", () => {
 })
 
 describe("actor reminders", () => {
+  it("preserves dynamic callback validation before staging", () => {
+    const actor = new Counter("callbacks")
+    actor.prepare(new Set(["increment"]))
+    const unknownCallback: string = "missing"
+
+    expect(() => actor.emit("effect", { onFailure: unknownCallback })).toThrow(UnknownOperation)
+    expect(() => actor.emit("effect", { onSuccess: unknownCallback })).toThrow(UnknownOperation)
+    expect(actor.hasIntents()).toBe(false)
+    expect(actor.emit("effect", { onSuccess: "increment", onFailure: "increment" })).toBeUndefined()
+    expect(actor.drainIntents().effects).toEqual([
+      {
+        name: "effect",
+        arguments: {},
+        successOperation: "increment",
+        failureOperation: "increment",
+      },
+    ])
+  })
+
   it("stages the selected message and its arguments", async () => {
     runtime = configuredRuntime()
     await runtime.install()

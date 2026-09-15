@@ -28,7 +28,7 @@ class TransmitCounter extends Actor {
 
   increment({ amount = 1 }: { amount?: number } = {}): number {
     this.value += amount
-    this.transmit().increment!({ amount })
+    this.transmit().increment({ amount })
     return this.value
   }
 }

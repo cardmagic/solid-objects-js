@@ -11,7 +11,7 @@ class ReminderActor extends Actor {
   count = 0
 
   arm({ at }: { at: string }): void {
-    this.schedule({ at: new Date(at) }).increment!()
+    this.schedule({ at: new Date(at) }).increment()
   }
 
   increment(): void {

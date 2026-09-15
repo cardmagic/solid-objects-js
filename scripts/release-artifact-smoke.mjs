@@ -52,6 +52,30 @@ try {
   await run("npm", ["init", "--yes"], { cwd: projectDirectory })
   await run("npm", ["install", "--ignore-scripts", tarballPath], { cwd: projectDirectory })
 
+  await writeFile(
+    join(projectDirectory, "actor-operations-consumer.mts"),
+    await readFile(join(repositoryRoot, "test/fixtures/actor-operations-consumer.mts")),
+  )
+  await run(
+    process.execPath,
+    [
+      join(repositoryRoot, "node_modules/typescript/bin/tsc"),
+      "--noEmit",
+      "--strict",
+      "--noUncheckedIndexedAccess",
+      "--exactOptionalPropertyTypes",
+      "--target",
+      "ES2024",
+      "--module",
+      "NodeNext",
+      "--moduleResolution",
+      "NodeNext",
+      "--skipLibCheck",
+      "actor-operations-consumer.mts",
+    ],
+    { cwd: projectDirectory },
+  )
+
   const installedPackage = JSON.parse(
     await readFile(join(projectDirectory, "node_modules/solid-objects/package.json"), "utf8"),
   )

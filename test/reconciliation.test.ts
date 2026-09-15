@@ -24,7 +24,7 @@ class ReconciledActor extends Actor {
   }
 
   scheduleCheck(): void {
-    this.schedule({ at: new Date(Date.now() + 86_400_000) }).check!()
+    this.schedule({ at: new Date(Date.now() + 86_400_000) }).check()
   }
 
   check(): void {}

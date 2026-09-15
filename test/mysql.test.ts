@@ -21,7 +21,7 @@ class TransmitProofCounter extends Actor {
   increment({ amount = 1 }: { amount?: number } = {}): number {
     this.count += amount
     this.applied = [...this.applied, amount]
-    this.transmit().increment!({ amount })
+    this.transmit().increment({ amount })
     return this.count
   }
 }
@@ -52,7 +52,7 @@ class MySQLWorkflow extends Actor {
   start(): void {
     this.count += 1
     this.emit("echo", { arguments: { value: "effect" }, onSuccess: "effectSucceeded" })
-    this.schedule({ at: new Date(0) }).reminderFired!({ value: "reminder" })
+    this.schedule({ at: new Date(0) }).reminderFired({ value: "reminder" })
   }
 
   effectSucceeded({ result }: { result: string }): void {

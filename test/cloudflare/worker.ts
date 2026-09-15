@@ -63,7 +63,7 @@ export class Counter extends Actor {
   }
 
   arm(options: { at: number }): void {
-    this.schedule({ at: new Date(options.at) }).increment!()
+    this.schedule({ at: new Date(options.at) }).increment()
   }
 
   forward(options: { target: string }): void {
@@ -96,7 +96,7 @@ export class Counter extends Actor {
     this.count = 100
     this.emit("increment")
     this.sendTo(Counter.ref("should-not-receive")).increment()
-    this.schedule({ at: new Date(0) }).increment!()
+    this.schedule({ at: new Date(0) }).increment()
     throw new NonRetryableError("rollback staged work")
   }
 
@@ -115,7 +115,7 @@ export class Counter extends Actor {
       at: new Date(options.at),
       everyMilliseconds: options.interval,
       missed: options.missed,
-    }).increment!()
+    }).increment()
   }
 
   effect(): void {

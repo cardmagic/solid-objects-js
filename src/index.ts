@@ -8,6 +8,7 @@ export {
   type ActorIntents,
   type CommitActionIntent,
   type EffectIntent,
+  type EffectOptions,
   type OutboundMessageIntent,
   type OutboundMessageOptions,
   type ObservableBroadcast,
@@ -104,6 +105,7 @@ export {
   type ActorReference,
   type ActorSnapshot,
   type ScheduledOperations,
+  type ScheduledOperationsFor,
   type StagedOperations,
 } from "./reference.js"
 export type {

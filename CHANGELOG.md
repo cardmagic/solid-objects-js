@@ -1,10 +1,16 @@
 # Changelog
 
-## Unreleased
+## 0.14.9 - 2026-09-14
 
 - Export effect failure/success payload types and `SerializedError` from the
   root and core entry points. Check SQL and Cloudflare callback construction
   against the same contracts without changing the delivered messages.
+- Infer operation names and arguments for schedule/transmit calls inside actor
+  methods and check literal effect callback names. Export `ScheduledOperationsFor`
+  and `EffectOptions`; retain explicit dynamic-name paths and runtime validation.
+  Subclasses with explicit legacy `ScheduledOperations` return annotations on
+  `schedule` or `transmit` must update their override signatures to match the
+  generic Actor methods.
 
 ## 0.14.8 - 2026-09-09
 

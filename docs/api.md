@@ -54,8 +54,11 @@ authorization, capability boundaries, and release validation.
 - `reference.live`: read-only live signals for an actor, enabled by the
   `solid-objects/signals` entry point documented below.
 - `ActorClass`, `ActorReference`, `ActorMessageSender`, `ActorSnapshot`,
-  `ActorOperationNames`, `ActorQueryNames`, `StagedOperations`, and
-  `ScheduledOperations`: inferred actor-class and fluent-dispatch types.
+  `ActorOperationNames`, `ActorQueryNames`, `StagedOperations`,
+  `ScheduledOperationsFor`, and `ScheduledOperations`: inferred actor-class and
+  fluent-dispatch types, plus the legacy dynamic scheduling map.
+- `EffectOptions`: effect arguments and independently checked success/failure
+  callback names. Effect names themselves belong to the runtime's global registry.
 - `SnapshotWithIncarnation`: the `{ snapshot, instanceId, revision,
 createdAtMs }` shape returned by `SolidObjectsRuntime.snapshotWithIncarnation`.
 - `MessageReference`: immutable durable message identity with `id`,
@@ -130,7 +133,7 @@ operation. If you arm one alarm per queued item, only the last one remains:
 // Wrong. Every entry overwrites the previous entry's alarm.
 add({ entry }: { entry: Entry }): void {
   this.entries = [...this.entries, entry]
-  this.schedule({ at: new Date(entry.waitUntil) }).deliver!()
+  this.schedule({ at: new Date(entry.waitUntil) }).deliver()
 }
 ```
 
@@ -140,7 +143,7 @@ own identifier for the item and names that item's alarm, so each item gets one:
 ```typescript
 add({ entry }: { entry: Entry }): void {
   this.entries = [...this.entries, entry]
-  this.schedule({ at: new Date(entry.waitUntil), key: entry.id }).deliver!()
+  this.schedule({ at: new Date(entry.waitUntil), key: entry.id }).deliver()
 }
 ```
 
@@ -212,6 +215,61 @@ for non-Error throws retain each backend's existing serialization behavior.
 The generic parameters express your application's contract; they do not add
 runtime validation or infer types from `registerEffect()`. Keep registered
 effect results and the handler's declared argument/result types in agreement.
+
+### Typed operation references
+
+`schedule` and `transmit` infer this actor's operation names and arguments, including
+inside actor methods and for inherited application operations. The returned
+`ScheduledOperationsFor<ActorType>` values return `void` and preserve required,
+optional, and zero-argument operation signatures. No non-null assertion is needed:
+
+```typescript
+class ChatRun extends Actor {
+  generation = 0
+  status = "idle"
+
+  start({ generation }: { generation: number }): void {
+    this.generation = generation
+    this.schedule({ at: new Date(Date.now() + 60_000), key: "watchdog" }).recoverIfStuck({
+      generation,
+    })
+    this.emit("run_model", { arguments: { generation }, onFailure: "failTurn" })
+  }
+
+  recoverIfStuck({ generation }: { generation: number }): void {
+    if (generation !== this.generation) return
+    this.status = "recovering"
+  }
+
+  failTurn({ error }: { error: { message: string } }): void {
+    this.status = error.message
+  }
+}
+```
+
+Misspelled operations/callbacks, state properties, queries, and Actor infrastructure
+are rejected. `emit` checks each callback independently: widening one callback to
+`string` does not disable literal checking of the other. A deliberately widened
+`string` callback retains runtime validation. Object properties can also widen to
+`string`; preserve literals with `as const` or specialize `EffectOptions` to keep
+static checking when options are stored in a variable. Effect and commit-action names remain
+strings because their registries are runtime-wide; inferring registered names needs
+a separate registry typing design.
+
+For deliberately dynamic scheduling, retain the exported legacy map explicitly:
+
+```typescript
+const dynamicActor: Actor = this
+const operations: ScheduledOperations = dynamicActor.schedule({ at: deadline })
+operations[operationName]!({ generation })
+```
+
+This opts out of operation-name and argument inference and retains the existing
+runtime operation checks. Direct calls, queries, and `sendTo` keep their inference.
+Subclasses that override `schedule` or `transmit` with an explicit legacy
+`ScheduledOperations` return annotation must update their override signatures to
+match the generic Actor methods. This is a compile-time compatibility change;
+runtime scheduling and transmission behavior are unchanged.
 
 ### Runtime managers
 

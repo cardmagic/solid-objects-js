@@ -29,6 +29,13 @@ such boundary between a gem and its dependents.
 
 ## Status vocabulary
 
+Operation-reference typing is runtime-specific: TypeScript infers scheduled and
+transmitted operations from the concrete receiver, and checks literal effect
+callback names. Ruby offers opt-in RBS generation from declared application types
+in [solid-objects-ruby#66](https://github.com/cardmagic/solid-objects-ruby/pull/66).
+Both preserve runtime operation validation and global effect/commit-action names;
+this does not imply automatic TypeScript-style inference in Ruby.
+
 - **Native**: the TypeScript runtime provides the capability in a Node-native
   shape.
 - **Partial**: the core exists, but an important Ruby guarantee or operational

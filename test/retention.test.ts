@@ -25,7 +25,7 @@ class RetentionActor extends Actor {
   }
 
   scheduleIncrement(): void {
-    this.schedule({ at: new Date(Date.now() + DAY) }).increment!()
+    this.schedule({ at: new Date(Date.now() + DAY) }).increment()
   }
 }
 

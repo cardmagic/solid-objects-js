@@ -22,7 +22,7 @@ type DataKeys<Value> = {
 
 export type ActorOperationNames<ActorType extends Actor> = Exclude<
   Extract<FunctionKeys<ActorType>, string>,
-  Extract<keyof Actor, string>
+  Extract<keyof Actor, string> | "onActivate" | "onDeactivate"
 >
 
 export type ActorQueryNames<ActorType extends Actor> = Exclude<
@@ -94,6 +94,10 @@ export type StagedOperations<ActorType extends Actor> = {
 
 export interface ScheduledOperations {
   [operation: string]: (argumentsValue?: Record<string, unknown>) => void
+}
+
+export type ScheduledOperationsFor<ActorType extends Actor> = {
+  [Key in ActorOperationNames<ActorType>]: StagedMethod<ActorType[Key]>
 }
 
 export type ActorReference<ActorType extends Actor> = ActorReferenceCore<ActorType> &

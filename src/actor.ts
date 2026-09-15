@@ -8,6 +8,7 @@ import {
   createStagedOperations,
   type ActorReference,
   type ScheduledOperations,
+  type ScheduledOperationsFor,
   type StagedOperations,
 } from "./reference.js"
 import { jsonObject, normalizeJson } from "./serialization.js"
@@ -51,6 +52,22 @@ export interface EffectIntent {
   successOperation?: string
   failureOperation?: string
 }
+
+export interface EffectOptions<Success extends string = string, Failure extends string = Success> {
+  arguments?: Record<string, unknown>
+  onSuccess?: Exclude<Success, keyof Actor | "onActivate" | "onDeactivate">
+  onFailure?: Exclude<Failure, keyof Actor | "onActivate" | "onDeactivate">
+}
+
+type CallbackActor<Callback extends string> = string extends Callback
+  ? Actor
+  : Actor & Record<Callback, (...argumentsValue: never[]) => void>
+
+type InferredActor<Keys extends PropertyKey, ActorType> = Actor &
+  Pick<
+    ActorType,
+    Extract<Exclude<Keys, keyof Actor | "onActivate" | "onDeactivate">, keyof ActorType>
+  >
 
 export interface CommitActionIntent {
   name: string
@@ -202,13 +219,10 @@ export abstract class Actor {
     })
   }
 
-  emit(
+  emit<const Success extends string = never, const Failure extends string = never>(
+    this: CallbackActor<NoInfer<Success>> & CallbackActor<NoInfer<Failure>>,
     name: string,
-    options: {
-      arguments?: Record<string, unknown>
-      onSuccess?: string
-      onFailure?: string
-    } = {},
+    options: EffectOptions<Success, Failure> = {},
   ): void {
     for (const callback of [options.onSuccess, options.onFailure]) {
       if (callback !== undefined && !this.#operations.has(String(callback))) {
@@ -223,6 +237,9 @@ export abstract class Actor {
     })
   }
 
+  transmit<Keys extends keyof this, ActorType>(
+    this: Actor & Pick<this, Keys> & (Partial<ActorType> | NoInfer<this>),
+  ): ScheduledOperationsFor<InferredActor<Keys, ActorType>>
   transmit(): ScheduledOperations {
     return createStagedOperationMap(this.#operations, (operation, argumentsValue) => {
       this.#intents.effects.push({
@@ -237,6 +254,10 @@ export abstract class Actor {
   }
 
   /** See docs/api.md for when to give a reminder a key. */
+  schedule<Keys extends keyof this, ActorType>(
+    this: Actor & Pick<this, Keys> & (Partial<ActorType> | NoInfer<this>),
+    options: ReminderOptions,
+  ): ScheduledOperationsFor<InferredActor<Keys, ActorType>>
   schedule(options: ReminderOptions): ScheduledOperations {
     const atMilliseconds = options.at.getTime()
     if (!Number.isFinite(atMilliseconds)) throw new TypeError("reminder time must be valid")
