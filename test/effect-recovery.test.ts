@@ -11,10 +11,13 @@ import type {
   JsonObject,
 } from "../src/types.js"
 import type { EffectRecoveryPayload, EffectRetiredPayload } from "../src/effect-recovery.js"
-import { LostActivation } from "../src/errors.js"
+import { LostActivation, MailboxFull } from "../src/errors.js"
 import { EffectRecoveryCoordinator } from "../src/effect-recovery-coordinator.js"
 import type { DatabaseConnection } from "../src/database/types.js"
 import type { EffectRow } from "../src/records.js"
+import { Repository } from "../src/repository.js"
+import { PausingClaimDatabase } from "./support/pausing-claim-database.js"
+import { deferred } from "./support/fenced-commit.js"
 
 class ReportExport extends Actor {
   static override readonly actorType = "ReportExport"
@@ -41,6 +44,13 @@ class ReportExport extends Actor {
   check(): void {
     if (this.exportEffect) this.requestEffectRecovery(this.exportEffect)
   }
+
+  startStatusOnly(): void {
+    this.exportEffect = this.emit("build_report", {
+      arguments: { revision: 1 },
+      onStatus: "inspect",
+    })
+  }
   recover(payload: EffectRetiredPayload): void {
     this.notifications.push({ kind: "recovery", ...payload })
   }
@@ -59,6 +69,7 @@ let runtime: SolidObjectsRuntime | undefined
 afterEach(async () => {
   await runtime?.repository.resetForTesting()
   await runtime?.close()
+  runtime = undefined
 })
 
 it("returns the same effect identity that the scheduler claims", async () => {
@@ -82,7 +93,9 @@ it("retires abandoned processing effects before the scheduler can reclaim them",
     ),
   )
   await runtime.repository.registerProcess("replacement", "effect")
+  const wakeUp = await runtime.settings.wakeUp.watch("actors")
   expect(await runtime.repository.claimEffect("replacement")).toBeUndefined()
+  expect(await wakeUp.wait({ timeoutMilliseconds: 0 })).toBe(true)
   const notifications = await runtime.settings.database.connection((connection) =>
     connection.all<{ arguments: string }>(
       `SELECT arguments FROM ${runtime!.repository.table("messages")} WHERE operation = 'recover'`,
@@ -109,8 +122,8 @@ it("defers indefinitely for a fresh heartbeat without consuming an attempt", asy
   expect(await storedEffect(effect.id)).toMatchObject({
     status: "processing",
     claimed_by: "owner",
-    attempt_count: 1n,
   })
+  expect(Number((await storedEffect(effect.id))!.attempt_count)).toBe(1)
 })
 
 it("preserves a longer grace after ordinary cleanup stops the owner", async () => {
@@ -129,7 +142,8 @@ it("keeps pending retries with the existing scheduler", async () => {
   await runtime!.repository.failEffect({ effect, error: new Error("retry"), retryable: true })
   await runtime!.ref(ReportExport, "export").check()
   expect((await messages("inspect"))[0]).toMatchObject({ effectId: effect.id, outcome: "pending" })
-  expect(await storedEffect(effect.id)).toMatchObject({ status: "pending", attempt_count: 1n })
+  expect(await storedEffect(effect.id)).toMatchObject({ status: "pending" })
+  expect(Number((await storedEffect(effect.id))!.attempt_count)).toBe(1)
   expect(await messages("recover")).toHaveLength(0)
 })
 
@@ -226,6 +240,100 @@ it("reports missing from the owned binding without exposing another actor", asyn
   ).rejects.toThrow("owned handle")
 })
 
+it("rolls back both callbacks when only one mailbox slot remains", async () => {
+  const effect = await processingEffect()
+  await ageOwner(70_000)
+  runtime!.settings.maxMailboxLength = 1
+  const coordinator = new EffectRecoveryCoordinator({
+    settings: runtime!.settings,
+    enqueue: (connection, input) => runtime!.repository.enqueueInTransaction(connection, input),
+  })
+  await expect(
+    runtime!.settings.database.transaction(async (connection) => {
+      const origin = await lockOrigin({ connection, effect })
+      await coordinator.check({
+        connection,
+        origin,
+        intents: [{ effectId: effect.id, requestId: "full" }],
+      })
+    }),
+  ).rejects.toBeInstanceOf(MailboxFull)
+  expect(await storedEffect(effect.id)).toMatchObject({ status: "processing", claimed_by: "owner" })
+  expect(await messages("recover")).toHaveLength(0)
+  expect(await messages("inspect")).toHaveLength(0)
+})
+
+it("surfaces an owner query failure without deciding abandonment", async () => {
+  const effect = await processingEffect()
+  await ageOwner(70_000)
+  const coordinator = new EffectRecoveryCoordinator({
+    settings: runtime!.settings,
+    enqueue: (connection, input) => runtime!.repository.enqueueInTransaction(connection, input),
+  })
+  await expect(
+    runtime!.settings.database.transaction(async (connection) => {
+      const origin = await lockOrigin({ connection, effect })
+      const failingConnection: DatabaseConnection = {
+        run: connection.run.bind(connection),
+        all: connection.all.bind(connection),
+        nowMilliseconds: connection.nowMilliseconds.bind(connection),
+        get: <Row extends object>(sql: string, parameters?: readonly unknown[]) =>
+          connection.get<Row>(
+            sql.includes(runtime!.repository.table("processes"))
+              ? `SELECT absent_recovery_column FROM ${runtime!.repository.table("processes")}`
+              : sql,
+            parameters,
+          ),
+      }
+      await coordinator.check({
+        connection: failingConnection,
+        origin,
+        intents: [{ effectId: effect.id, requestId: "lookup-error" }],
+      })
+    }),
+  ).rejects.toThrow()
+  expect(await storedEffect(effect.id)).toMatchObject({ status: "processing", claimed_by: "owner" })
+  expect(await messages("recover")).toHaveLength(0)
+  expect(await messages("inspect")).toHaveLength(0)
+})
+
+it.each([0, -1, Infinity, NaN, 1.5, Number.MAX_SAFE_INTEGER + 1])(
+  "rejects invalid recovery timeout %s before staging",
+  (timeout) => {
+    const actor = new ReportExport("invalid")
+    actor.prepare(new Set(["recover", "inspect", "finished", "failed"]))
+    expect(() => actor.startRecoverable({ timeoutMilliseconds: timeout })).toThrow(TypeError)
+    expect(actor.hasIntents()).toBe(false)
+  },
+)
+
+it("requires recovery opt-in for a timeout and both bindings for an explicit check", async () => {
+  const actor = new ReportExport("invalid")
+  expect(() => actor.emit("build_report", { recoveryTimeoutMilliseconds: 120_000 })).toThrow(
+    "requires onRecovery",
+  )
+  runtime = await createTestRuntime()
+  await runtime.ref(ReportExport, "export").start()
+  const effect = await runtime.settings.database.connection((connection) =>
+    connection.get<EffectRow>(`SELECT * FROM ${runtime!.repository.table("effects")}`),
+  )
+  const coordinator = new EffectRecoveryCoordinator({
+    settings: runtime.settings,
+    enqueue: (connection, input) => runtime!.repository.enqueueInTransaction(connection, input),
+  })
+  await expect(
+    runtime.settings.database.transaction(async (connection) => {
+      const origin = await lockOrigin({ connection, effect: effect! })
+      await coordinator.check({
+        connection,
+        origin,
+        intents: [{ effectId: effect!.id, requestId: "unbound" }],
+      })
+    }),
+  ).rejects.toThrow("onRecovery and onStatus")
+  expect(await storedEffect(effect!.id)).toMatchObject({ status: "pending" })
+})
+
 async function createTestRuntime(): Promise<SolidObjectsRuntime> {
   const connectionString = process.env.SOLID_OBJECTS_DATABASE_URL
   const database = connectionString?.startsWith("postgresql:")
@@ -247,6 +355,48 @@ async function createTestRuntime(): Promise<SolidObjectsRuntime> {
   return created
 }
 
+it("does not opt a status-only effect into retirement", async () => {
+  runtime = await createTestRuntime()
+  await runtime.ref(ReportExport, "export").startStatusOnly()
+  await runtime.repository.registerProcess("owner", "effect")
+  const effect = await runtime.repository.claimEffect("owner")
+  await ageOwner(70_000)
+  await runtime.repository.registerProcess("new-owner", "effect")
+  const reclaimed = await runtime.repository.claimEffect("new-owner")
+  expect(reclaimed?.id).toBe(effect?.id)
+  expect(reclaimed?.claimed_by).toBe("new-owner")
+  expect(await messages("recover")).toHaveLength(0)
+  expect(await messages("inspect")).toHaveLength(0)
+})
+
+it("applies the current runtime floor and handles a missing processing owner", async () => {
+  const effect = await processingEffect({ timeoutMilliseconds: 1 })
+  await ageOwner(70_000)
+  runtime!.settings.processAliveThresholdMilliseconds = 120_000
+  expect(await runtime!.repository.claimEffect("owner")).toBeUndefined()
+  expect(await storedEffect(effect.id)).toMatchObject({ status: "processing", claimed_by: "owner" })
+  await runtime!.settings.database.connection((connection) =>
+    connection.run(
+      `UPDATE ${runtime!.repository.table("effects")} SET claimed_by = NULL WHERE id = ?`,
+      [effect.id],
+    ),
+  )
+  expect(await runtime!.repository.claimEffect("owner")).toBeUndefined()
+  expect(await messages("recover")).toHaveLength(1)
+})
+
+it("bounds each automatic pass and revisits remaining abandoned effects", async () => {
+  await processingEffect()
+  await runtime!.ref(ReportExport, "other").startRecoverable()
+  expect(await runtime!.repository.claimEffect("owner")).toBeDefined()
+  await ageOwner(70_000)
+  runtime!.settings.claimScanLimit = 1
+  expect(await runtime!.repository.claimEffect("owner")).toBeUndefined()
+  expect(await messages("recover")).toHaveLength(1)
+  expect(await runtime!.repository.claimEffect("owner")).toBeUndefined()
+  expect(await messages("recover")).toHaveLength(2)
+})
+
 it.skipIf(!process.env.SOLID_OBJECTS_DATABASE_URL?.startsWith("postgresql:"))(
   "locks the origin before the effect when completion races retirement",
   async () => {
@@ -256,13 +406,14 @@ it.skipIf(!process.env.SOLID_OBJECTS_DATABASE_URL?.startsWith("postgresql:"))(
       settings: runtime!.settings,
       enqueue: (connection, input) => runtime!.repository.enqueueInTransaction(connection, input),
     })
-    let completion: Promise<unknown> = Promise.resolve()
+    let completion: Promise<void | Error> = Promise.resolve()
     await runtime!.settings.database.transaction(async (connection) => {
       const origin = await lockOrigin({ connection, effect })
       const process = await connection.get<{ id: number }>("SELECT pg_backend_pid() AS id")
-      completion = runtime!.repository
-        .completeEffect(effect, "late")
-        .catch((error: unknown) => error)
+      completion = runtime!.repository.completeEffect(effect, "late").catch((error) => {
+        if (!(error instanceof Error)) throw new TypeError("completion rejected without an Error")
+        return error
+      })
       await waitForBlockedTransaction({ connection, processId: process!.id })
       await coordinator.check({
         connection,
@@ -362,6 +513,44 @@ async function processingEffect(
   return effect
 }
 
+it.skipIf(!process.env.SOLID_OBJECTS_DATABASE_URL?.startsWith("postgresql:"))(
+  "claiming pending work does not wait on a fresh recovery candidate",
+  async () => {
+    const effect = await processingEffect({ timeoutMilliseconds: 120_000 })
+    await ageOwner(75_000)
+    await runtime!.ref(ReportExport, "other").start()
+    await runtime!.repository.registerProcess("other-owner", "effect")
+    let claim: Promise<EffectRow | undefined> = Promise.resolve(undefined)
+    try {
+      await runtime!.settings.database.transaction(async (connection) => {
+        await lockOrigin({ connection, effect })
+        claim = runtime!.repository.claimEffect("other-owner")
+        const selected = await withDeadline(claim)
+        expect(selected?.actor_id).toBe("other")
+      })
+    } finally {
+      await claim
+    }
+  },
+)
+
+async function withDeadline<Value>(promise: Promise<Value>): Promise<Value> {
+  let timer: ReturnType<typeof setTimeout> | undefined
+  try {
+    return await Promise.race([
+      promise,
+      new Promise<never>((_, reject) => {
+        timer = setTimeout(
+          () => reject(new Error("independent work blocked on a fresh recovery candidate")),
+          2_000,
+        )
+      }),
+    ])
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
 async function ageOwner(milliseconds: number): Promise<void> {
   await runtime!.settings.database.connection(async (connection) => {
     const now = await connection.nowMilliseconds()
@@ -371,6 +560,113 @@ async function ageOwner(milliseconds: number): Promise<void> {
     )
   })
 }
+
+it.skipIf(!process.env.SOLID_OBJECTS_DATABASE_URL?.startsWith("postgresql:"))(
+  "rechecks ownership when a pending claim wins before the recovery check",
+  async () => {
+    runtime = await createTestRuntime()
+    await runtime.ref(ReportExport, "export").startRecoverable()
+    const handle = await runtime.ref(ReportExport, "export").exportEffect
+    const effect = await storedEffect(handle!.id)
+    await runtime.repository.registerProcess("owner", "effect")
+    const pausedDatabase = new PausingClaimDatabase({
+      database: runtime.settings.database,
+      table: "effects",
+    })
+    const claimant = new Repository({ ...runtime.settings, database: pausedDatabase })
+    const claim = claimant.claimEffect("owner")
+    const originLocked = deferred()
+    const coordinator = new EffectRecoveryCoordinator({
+      settings: runtime.settings,
+      enqueue: (connection, input) => runtime!.repository.enqueueInTransaction(connection, input),
+    })
+    try {
+      await pausedDatabase.waitUntilClaimLocked()
+      const recovery = runtime.settings.database.transaction(async (connection) => {
+        const origin = await lockOrigin({ connection, effect: effect! })
+        originLocked.resolve()
+        await coordinator.check({
+          connection,
+          origin,
+          intents: [{ effectId: effect!.id, requestId: "claim-wins" }],
+        })
+      })
+      await originLocked.promise
+      pausedDatabase.resume()
+      await Promise.all([claim, recovery])
+      expect((await messages("inspect"))[0]).toMatchObject({ outcome: "deferred" })
+      expect(await messages("recover")).toHaveLength(0)
+    } finally {
+      pausedDatabase.resume()
+      await claim
+    }
+  },
+)
+
+it.skipIf(!process.env.SOLID_OBJECTS_DATABASE_URL?.startsWith("postgresql:"))(
+  "leaves a pending effect claimable after the recovery check wins",
+  async () => {
+    runtime = await createTestRuntime()
+    await runtime.ref(ReportExport, "export").startRecoverable()
+    const handle = await runtime.ref(ReportExport, "export").exportEffect
+    const effect = await storedEffect(handle!.id)
+    await runtime.repository.registerProcess("owner", "effect")
+    const coordinator = new EffectRecoveryCoordinator({
+      settings: runtime.settings,
+      enqueue: (connection, input) => runtime!.repository.enqueueInTransaction(connection, input),
+    })
+    await runtime.settings.database.transaction(async (connection) => {
+      const origin = await lockOrigin({ connection, effect: effect! })
+      await coordinator.check({
+        connection,
+        origin,
+        intents: [{ effectId: effect!.id, requestId: "check-wins" }],
+      })
+      expect(await runtime!.repository.claimEffect("owner")).toBeUndefined()
+    })
+    expect((await runtime.repository.claimEffect("owner"))?.id).toBe(effect!.id)
+    expect((await messages("inspect"))[0]).toMatchObject({ outcome: "pending" })
+    expect(await messages("recover")).toHaveLength(0)
+  },
+)
+
+it.skipIf(!process.env.SOLID_OBJECTS_DATABASE_URL?.startsWith("postgresql:"))(
+  "concurrent explicit checks and a replay share one retirement",
+  async () => {
+    const effect = await processingEffect()
+    await ageOwner(70_000)
+    const coordinator = new EffectRecoveryCoordinator({
+      settings: runtime!.settings,
+      enqueue: (connection, input) => runtime!.repository.enqueueInTransaction(connection, input),
+    })
+    const check = (requestId: string) =>
+      runtime!.settings.database.transaction(async (connection) => {
+        const origin = await lockOrigin({ connection, effect })
+        await coordinator.check({
+          connection,
+          origin,
+          intents: [{ effectId: effect.id, requestId }],
+        })
+      })
+    let checks: Promise<void[]> = Promise.resolve([])
+    try {
+      await runtime!.settings.database.transaction(async (connection) => {
+        await lockOrigin({ connection, effect })
+        const process = await connection.get<{ id: number }>("SELECT pg_backend_pid() AS id")
+        checks = Promise.all([check("one"), check("two")])
+        await waitForBlockedTransaction({ connection, processId: process!.id, count: 2 })
+      })
+    } finally {
+      await checks
+    }
+    await check("one")
+    expect(await messages("recover")).toHaveLength(1)
+    expect((await messages("inspect")).map((payload) => payload.outcome)).toEqual([
+      "retired",
+      "alreadyRetired",
+    ])
+  },
+)
 
 function storedEffect(id: string): Promise<EffectRow | undefined> {
   return runtime!.settings.database.connection((connection) =>

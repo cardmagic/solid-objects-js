@@ -9,6 +9,7 @@ import {
 } from "./effect-recovery.js"
 import type { EffectRow, EnqueueInput, MessageRow, ProcessRow } from "./records.js"
 import { jsonObject, normalizeJson } from "./serialization.js"
+import { notifyWakeUp } from "./wake-up-notification.js"
 
 interface RecoveryBinding {
   effect_id: string
@@ -34,16 +35,23 @@ export class EffectRecoveryCoordinator {
   ) {}
 
   async recoverAvailable(): Promise<void> {
-    const candidates = await this.options.settings.database.connection((connection) =>
-      connection.all<RecoveryBinding>(
+    const candidates = await this.options.settings.database.connection(async (connection) => {
+      const now = await connection.nowMilliseconds()
+      const threshold = this.options.settings.processAliveThresholdMilliseconds
+      return connection.all<RecoveryBinding>(
         `SELECT recoveries.* FROM ${this.table("effect_recoveries")} recoveries
        JOIN ${this.table("effects")} effects ON effects.id = recoveries.effect_id
+       LEFT JOIN ${this.table("processes")} owners ON owners.id = effects.claimed_by
        WHERE recoveries.retired_at_ms IS NULL AND recoveries.recovery_operation IS NOT NULL
-         AND effects.status = 'processing' ORDER BY recoveries.instance_id, recoveries.effect_id`,
-      ),
-    )
+         AND effects.status = 'processing'
+         AND (owners.id IS NULL OR owners.heartbeat_at_ms <= ? -
+           CASE WHEN recoveries.recovery_timeout_ms > ? THEN recoveries.recovery_timeout_ms ELSE ? END)
+         ORDER BY recoveries.instance_id, recoveries.effect_id LIMIT ?`,
+        [now, threshold, threshold, this.options.settings.claimScanLimit],
+      )
+    })
     for (const candidate of candidates) {
-      await this.options.settings.database.transaction(async (connection) => {
+      const retired = await this.options.settings.database.transaction(async (connection) => {
         const origin = await connection.get<Origin>(
           `SELECT id, actor_type, actor_id FROM ${this.table("instances")} WHERE id = ?${this.lockClause()}`,
           [candidate.instance_id],
@@ -75,7 +83,14 @@ export class EffectRecoveryCoordinator {
         const now = await connection.nowMilliseconds()
         if (this.ownerFresh({ binding, owner, now })) return
         await this.retire({ connection, origin, binding, effect, now })
+        return true
       })
+      if (retired)
+        notifyWakeUp({
+          adapter: this.options.settings.wakeUp,
+          logger: this.options.settings.logger,
+          role: "actors",
+        })
     }
   }
 

@@ -7,7 +7,7 @@ import { fileURLToPath } from "node:url"
 import { fork, type ChildProcess } from "node:child_process"
 import { createRuntime, type ActorReference, type MessageReference } from "solid-objects"
 import { sqlite } from "solid-objects/database/sqlite"
-import { RecoveryCounter } from "./actor.ts"
+import { RecoverableReport, RecoveryCounter } from "./actor.ts"
 import {
   assertSerializedExecution,
   parseSerializationEvent,
@@ -46,11 +46,15 @@ const runtime = createRuntime({
 
 try {
   runtime.register(RecoveryCounter)
+  runtime.register(RecoverableReport)
   await runtime.install()
   const serialization = await proveSerialization()
   const crash = await proveCrashRecovery()
   const fencing = await proveFencing()
-  process.stdout.write(`${JSON.stringify({ serialization, crash, fencing }, null, 2)}\n`)
+  const effectRecovery = await proveEffectRecovery()
+  process.stdout.write(
+    `${JSON.stringify({ serialization, crash, fencing, effectRecovery }, null, 2)}\n`,
+  )
 } finally {
   await runtime.close()
   await rm(directory, { recursive: true })
@@ -140,15 +144,51 @@ async function recoveryResult(options: {
   return { attempts, finalState: snapshot.count, repeatedEffects: effects.length }
 }
 
-function spawnWorker(): {
+async function proveEffectRecovery(): Promise<{ recoveryCallbacks: number }> {
+  const reference = runtime.ref(RecoverableReport, "report")
+  await reference.start()
+  await runtime.repository.registerProcess("abandoned-effect-owner", "effect")
+  const effect = await runtime.repository.claimEffect("abandoned-effect-owner")
+  assert.ok(effect)
+  await runtime.settings.database.connection((connection) =>
+    connection.run(
+      `UPDATE ${runtime.repository.table("processes")} SET heartbeat_at_ms = 0 WHERE id = ?`,
+      ["abandoned-effect-owner"],
+    ),
+  )
+  const retiringWorker = spawnWorker({ mode: "retire-effects" })
+  const stopped = retiringWorker.finished.catch(() => undefined)
+  try {
+    await Promise.race([
+      retiringWorker.waitFor((message) => message.event === "effects.retired"),
+      retiringWorker.finished.then(() => {
+        throw new Error("worker exited before retirement")
+      }),
+    ])
+  } finally {
+    retiringWorker.child.kill("SIGKILL")
+    await stopped
+  }
+  assert.equal((await reference.snapshot()).recoveryCount, 0)
+  await spawnWorker().finished
+  assert.equal((await reference.snapshot()).recoveryCount, 1)
+  assert.equal(await runtime.repository.claimEffect("abandoned-effect-owner"), undefined)
+  return { recoveryCallbacks: 1 }
+}
+
+function spawnWorker(options: { mode?: "retire-effects" } = {}): {
   child: ChildProcess
   finished: Promise<void>
   waitFor(predicate: (message: WorkerMessage) => boolean): Promise<WorkerMessage>
 } {
-  const child = fork(fileURLToPath(new URL("./worker.ts", import.meta.url)), [databasePath], {
-    cwd: fileURLToPath(new URL("../..", import.meta.url)),
-    stdio: ["ignore", "pipe", "pipe", "ipc"],
-  })
+  const child = fork(
+    fileURLToPath(new URL("./worker.ts", import.meta.url)),
+    [databasePath, ...(options.mode ? [options.mode] : [])],
+    {
+      cwd: fileURLToPath(new URL("../..", import.meta.url)),
+      stdio: ["ignore", "pipe", "pipe", "ipc"],
+    },
+  )
   const messages: WorkerMessage[] = []
   const listeners = new Set<(message: WorkerMessage) => void>()
   let stderr = ""

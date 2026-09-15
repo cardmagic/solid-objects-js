@@ -10,8 +10,11 @@ optional recovery/status binding together. `requestEffectRecovery` stages a
 check on that same transaction connection. It never opens another transaction
 while an application commit action holds locks.
 
-Automatic polling checks processing effects with `onRecovery` in one independent
-transaction per candidate. Candidate reads are hints only. Lock order is origin
+Automatic polling checks at most `claimScanLimit` stale candidates per pass,
+prefiltering with database time, owner heartbeat, and the effective timeout. It
+does not lock fresh owners or their actors, even when the global liveness floor
+has elapsed but an effect's extended grace has not. Each candidate gets one
+independent transaction; unlocked candidate reads remain hints only. Lock order is origin
 instance, effects ordered by ID, recovery bindings ordered by effect ID, then
 current owner processes ordered by ID. Explicit batches acquire all effect and
 binding locks before any process locks. Completion/failure lock the instance
@@ -39,7 +42,9 @@ A winning explicit check additionally enqueues its separate status response,
 after recovery, keyed by `effect:<id>:check:<internal-request-id>`. Failure of
 either insertion rolls the transaction back. Multiple checks share one durable
 retirement, with one response per request. A crash after commit cannot lose the
-recovery callback. Wake-up signals are hints; mailbox polling provides delivery.
+recovery callback. Successful retirement wakes actor workers after commit.
+Wake-up failures are logged without changing the committed decision; mailbox
+polling provides delivery.
 
 Bindings belong to the exact originating instance, survive effect/message
 pruning, and cascade when the instance is deleted. They neither pin instances nor

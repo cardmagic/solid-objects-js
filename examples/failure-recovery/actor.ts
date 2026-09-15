@@ -1,6 +1,24 @@
 import { appendFile, access, writeFile } from "node:fs/promises"
 import { join } from "node:path"
-import { Actor } from "solid-objects"
+import { Actor, type EffectHandle, type EffectRetiredPayload } from "solid-objects"
+
+export class RecoverableReport extends Actor {
+  static override readonly actorType = "RecoverableReport"
+  exportEffect: EffectHandle | null = null
+  recoveryCount = 0
+
+  start(): void {
+    this.exportEffect = this.emit("build_report", {
+      arguments: { revision: 1 },
+      onRecovery: "recoverExport",
+    })
+  }
+
+  recoverExport(payload: EffectRetiredPayload<{ revision: number }>): void {
+    if (payload.effectId !== this.exportEffect?.id || payload.arguments.revision !== 1) return
+    this.recoveryCount += 1
+  }
+}
 
 export class RecoveryCounter extends Actor {
   static override readonly actorType = "RecoveryCounter"

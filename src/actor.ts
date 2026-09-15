@@ -268,12 +268,10 @@ export abstract class Actor {
       }
     }
     const timeout = options.recoveryTimeoutMilliseconds
-    if (timeout !== undefined) {
-      if (!Number.isSafeInteger(timeout) || timeout <= 0)
-        throw new TypeError("recoveryTimeoutMilliseconds must be a positive safe integer")
-      if (options.onRecovery === undefined)
-        throw new TypeError("recoveryTimeoutMilliseconds requires onRecovery")
-    }
+    if (timeout !== undefined && (!Number.isSafeInteger(timeout) || timeout <= 0))
+      throw new TypeError("recoveryTimeoutMilliseconds must be a positive safe integer")
+    if (timeout !== undefined && options.onRecovery === undefined)
+      throw new TypeError("recoveryTimeoutMilliseconds requires onRecovery")
     const id = randomUUID()
     this.#intents.effects.push({
       id,
