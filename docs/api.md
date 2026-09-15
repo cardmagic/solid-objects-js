@@ -267,8 +267,9 @@ operations[operationName]!({ generation })
 This opts out of operation-name and argument inference and retains the existing
 runtime operation checks. Direct calls, queries, and `sendTo` keep their inference.
 Subclasses that override `schedule` or `transmit` with an explicit legacy
-`ScheduledOperations` return annotation need an updated override signature; that
-compatibility adjustment is being reviewed separately from runtime behavior.
+`ScheduledOperations` return annotation must update their override signatures to
+match the generic Actor methods. This is a compile-time compatibility change;
+runtime scheduling and transmission behavior are unchanged.
 
 ### Runtime managers
 
