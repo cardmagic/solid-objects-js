@@ -11,6 +11,7 @@ import { createRuntime, type SolidObjectsRuntime } from "../src/runtime.js"
 
 const PREFIX = "retention_index_test_"
 const DAY = 24 * 60 * 60 * 1_000
+type RetentionQueryPlanRow = { key?: string | null; detail?: string; "QUERY PLAN"?: string }
 let runtime: SolidObjectsRuntime | undefined
 
 afterEach(async () => {
@@ -52,14 +53,16 @@ it.each(["fresh installation", "version-nine upgrade", "interrupted upgrade"])(
         "00001999",
       ])
     })
-    if (scenario === "version-nine upgrade" || scenario === "interrupted upgrade") {
+    if (scenario === "version-nine upgrade") {
       await database.connection(async (connection) => {
-        if (scenario === "version-nine upgrade") {
-          const tableClause = database.family === "mysql" ? ` ON ${PREFIX}instances` : ""
-          await connection.run(`DROP INDEX ${PREFIX}instances_retention${tableClause}`)
-        }
-        await connection.run(`DELETE FROM ${PREFIX}schema_migrations WHERE version = 10`)
+        const tableClause = database.family === "mysql" ? ` ON ${PREFIX}instances` : ""
+        await connection.run(`DROP INDEX ${PREFIX}instances_retention${tableClause}`)
       })
+    }
+    if (scenario === "version-nine upgrade" || scenario === "interrupted upgrade") {
+      await database.connection((connection) =>
+        connection.run(`DELETE FROM ${PREFIX}schema_migrations WHERE version = 10`),
+      )
       await runtime.install()
       await runtime.install()
     }
@@ -154,7 +157,7 @@ function testDatabase(): Database {
 class RetentionPlanDatabase implements Database {
   readonly family: Database["family"]
   readonly schemaIdentity: string
-  readonly plans: Record<string, unknown>[][] = []
+  readonly plans: RetentionQueryPlanRow[][] = []
 
   constructor(private readonly database: Database) {
     this.family = database.family
@@ -175,16 +178,17 @@ class RetentionPlanDatabase implements Database {
       (connection) =>
         callback({
           run: (sql, parameters) => connection.run(sql, parameters),
-          get: <Row extends object>(sql: string, parameters?: readonly unknown[]) =>
-            connection.get<Row>(sql, parameters),
-          all: async <Row extends object>(sql: string, parameters?: readonly unknown[]) => {
+          get: <Row extends object>(sql, parameters) => connection.get<Row>(sql, parameters),
+          all: async <Row extends object>(sql, parameters) => {
             if (sql.startsWith(`SELECT id FROM ${PREFIX}instances WHERE`)) {
               const explain = {
                 sqlite: "EXPLAIN QUERY PLAN",
                 mysql: "EXPLAIN FORMAT=TRADITIONAL",
                 postgresql: "EXPLAIN",
               }[this.family]
-              this.plans.push(await connection.all(`${explain} ${sql}`, parameters))
+              this.plans.push(
+                await connection.all<RetentionQueryPlanRow>(`${explain} ${sql}`, parameters),
+              )
             }
             return connection.all<Row>(sql, parameters)
           },
