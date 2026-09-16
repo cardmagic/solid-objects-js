@@ -22,17 +22,15 @@ afterEach(async () => {
   }
 })
 
-it.each(["fresh installation", "version-nine upgrade", "interrupted upgrade", "multiple policies"])(
+it.each(["fresh installation", "version-nine upgrade", "interrupted upgrade"])(
   "uses the retention index to find rare expired instances after %s",
   async (scenario) => {
     const database = new RetentionPlanDatabase(testDatabase())
-    const policies: Record<string, number> = { RetentionActor: DAY }
-    if (scenario === "multiple policies") policies.OtherRetentionActor = 2 * DAY
     runtime = createRuntime({
       database,
       tableNamePrefix: PREFIX,
       authorizeAdministration: () => true,
-      instanceRetentionByActorType: policies,
+      instanceRetentionByActorType: { RetentionActor: DAY },
     })
     await runtime.install()
     await database.transaction(async (connection) => {
@@ -40,7 +38,7 @@ it.each(["fresh installation", "version-nine upgrade", "interrupted upgrade", "m
       for (let offset = 0; offset < 2_000; offset += 250) {
         const parameters = Array.from({ length: 250 }, (_, index) => {
           const identity = String(offset + index).padStart(8, "0")
-          return [identity, "RetentionActor", identity, "{}", 1, now, now]
+          return [identity, "RetentionActor", identity, "{}", 1, now - 3 * DAY, now]
         })
         await connection.run(
           `INSERT INTO ${PREFIX}instances
@@ -53,14 +51,6 @@ it.each(["fresh installation", "version-nine upgrade", "interrupted upgrade", "m
         now - 2 * DAY,
         "00001999",
       ])
-      if (scenario === "multiple policies") {
-        await connection.run(
-          `INSERT INTO ${PREFIX}instances
-         (id, actor_type, actor_id, state, state_version, created_at_ms, updated_at_ms)
-         VALUES (?, ?, ?, ?, ?, ?, ?)`,
-          ["other", "OtherRetentionActor", "other", "{}", 1, now - 3 * DAY, now - 3 * DAY],
-        )
-      }
     })
     if (scenario === "version-nine upgrade" || scenario === "interrupted upgrade") {
       await database.connection(async (connection) => {
@@ -81,11 +71,11 @@ it.each(["fresh installation", "version-nine upgrade", "interrupted upgrade", "m
 
     expect(await runtime.retention.preview({ target: "instances" })).toEqual({
       target: "instances",
-      count: Object.keys(policies).length,
+      count: 1,
     })
     expect(await runtime.retention.prune({ target: "instances" })).toEqual({
       target: "instances",
-      count: Object.keys(policies).length,
+      count: 1,
     })
     expect(database.plans).toHaveLength(2)
     const planColumn =
@@ -110,6 +100,48 @@ it.each(["fresh installation", "version-nine upgrade", "interrupted upgrade", "m
   },
   30_000,
 )
+
+it("preserves distinct actor policies and unconfigured instances with the retention index", async () => {
+  const database = testDatabase()
+  runtime = createRuntime({
+    database,
+    tableNamePrefix: PREFIX,
+    authorizeAdministration: () => true,
+    instanceRetentionByActorType: { RetentionActor: DAY, OtherRetentionActor: 2 * DAY },
+  })
+  await runtime.install()
+  await database.transaction(async (connection) => {
+    const now = await connection.nowMilliseconds()
+    const cases = [
+      { identity: "expired", actorType: "RetentionActor", age: 2 * DAY },
+      { identity: "recent", actorType: "RetentionActor", age: DAY / 2 },
+      { identity: "other-expired", actorType: "OtherRetentionActor", age: 3 * DAY },
+      { identity: "other-retained", actorType: "OtherRetentionActor", age: 1.5 * DAY },
+      { identity: "unconfigured", actorType: "UnconfiguredActor", age: 3 * DAY },
+    ]
+    for (const { identity, actorType, age } of cases) {
+      await connection.run(
+        `INSERT INTO ${PREFIX}instances
+         (id, actor_type, actor_id, state, state_version, created_at_ms, updated_at_ms)
+         VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        [identity, actorType, identity, "{}", 1, now - 3 * DAY, now - age],
+      )
+    }
+  })
+
+  expect(await runtime.retention.preview({ target: "instances" })).toEqual({
+    target: "instances",
+    count: 2,
+  })
+  expect(await runtime.retention.prune({ target: "instances" })).toEqual({
+    target: "instances",
+    count: 2,
+  })
+  const remaining = await database.connection((connection) =>
+    connection.all<{ id: string }>(`SELECT id FROM ${PREFIX}instances ORDER BY id`),
+  )
+  expect(remaining.map(({ id }) => id)).toEqual(["other-retained", "recent", "unconfigured"])
+}, 30_000)
 
 function testDatabase(): Database {
   const connectionString = process.env.SOLID_OBJECTS_DATABASE_URL
