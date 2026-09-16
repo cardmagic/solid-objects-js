@@ -80,10 +80,11 @@ it.each(["fresh installation", "version-nine upgrade", "interrupted upgrade"])(
       target: "instances",
       count: 1,
     })
-    expect(database.plans).toHaveLength(2)
+    expect(database.previewPlans).toHaveLength(1)
+    expect(database.pruningPlans).toHaveLength(2)
     const planColumn =
       database.family === "mysql" ? "key" : database.family === "sqlite" ? "detail" : "QUERY PLAN"
-    for (const plan of database.plans) {
+    for (const plan of [...database.previewPlans, ...database.pruningPlans]) {
       expect(plan.map((row) => String(row[planColumn])).join("\n")).toContain(
         `${PREFIX}instances_retention`,
       )
@@ -157,7 +158,8 @@ function testDatabase(): Database {
 class RetentionPlanDatabase implements Database {
   readonly family: Database["family"]
   readonly schemaIdentity: string
-  readonly plans: RetentionQueryPlanRow[][] = []
+  readonly previewPlans: RetentionQueryPlanRow[][] = []
+  readonly pruningPlans: RetentionQueryPlanRow[][] = []
 
   constructor(private readonly database: Database) {
     this.family = database.family
@@ -167,7 +169,7 @@ class RetentionPlanDatabase implements Database {
   connection<Result>(
     callback: (connection: DatabaseConnection) => Promise<Result>,
   ): Promise<Result> {
-    return this.database.connection(callback)
+    return this.database.connection((connection) => callback(this.recordingConnection(connection)))
   }
 
   transaction<Result>(
@@ -175,32 +177,49 @@ class RetentionPlanDatabase implements Database {
     options?: DatabaseTransactionOptions,
   ): Promise<Result> {
     return this.database.transaction(
-      (connection) =>
-        callback({
-          run: (sql, parameters) => connection.run(sql, parameters),
-          get: connection.get.bind(connection),
-          all: async <Row extends object>(
-            ...[sql, parameters]: Parameters<DatabaseConnection["all"]>
-          ) => {
-            if (sql.startsWith(`SELECT id FROM ${PREFIX}instances WHERE`)) {
-              const explain = {
-                sqlite: "EXPLAIN QUERY PLAN",
-                mysql: "EXPLAIN FORMAT=TRADITIONAL",
-                postgresql: "EXPLAIN",
-              }[this.family]
-              this.plans.push(
-                await connection.all<RetentionQueryPlanRow>(`${explain} ${sql}`, parameters),
-              )
-            }
-            return connection.all<Row>(sql, parameters)
-          },
-          nowMilliseconds: () => connection.nowMilliseconds(),
-        }),
+      (connection) => callback(this.recordingConnection(connection)),
       options,
     )
   }
 
   close(): Promise<void> {
     return this.database.close()
+  }
+
+  private recordingConnection(connection: DatabaseConnection): DatabaseConnection {
+    const explainStatement = {
+      sqlite: "EXPLAIN QUERY PLAN",
+      mysql: "EXPLAIN FORMAT=TRADITIONAL",
+      postgresql: "EXPLAIN",
+    }[this.family]
+    const explain = (options: {
+      sql: string
+      parameters: Parameters<DatabaseConnection["all"]>[1]
+    }) =>
+      connection.all<RetentionQueryPlanRow>(
+        `${explainStatement} ${options.sql}`,
+        options.parameters,
+      )
+
+    return {
+      run: (sql, parameters) => connection.run(sql, parameters),
+      get: async <Row extends object>(
+        ...[sql, parameters]: Parameters<DatabaseConnection["get"]>
+      ) => {
+        if (sql.startsWith(`SELECT COUNT(*) AS count FROM ${PREFIX}instances WHERE`)) {
+          this.previewPlans.push(await explain({ sql, parameters }))
+        }
+        return connection.get<Row>(sql, parameters)
+      },
+      all: async <Row extends object>(
+        ...[sql, parameters]: Parameters<DatabaseConnection["all"]>
+      ) => {
+        if (sql.startsWith(`SELECT id FROM ${PREFIX}instances WHERE`)) {
+          this.pruningPlans.push(await explain({ sql, parameters }))
+        }
+        return connection.all<Row>(sql, parameters)
+      },
+      nowMilliseconds: () => connection.nowMilliseconds(),
+    }
   }
 }
