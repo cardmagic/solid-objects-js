@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.15.1 - 2026-09-16
 
 - Index opt-in instance expiration by actor type and update time so pruning
   can find expired instances without scanning retained history. Install schema
