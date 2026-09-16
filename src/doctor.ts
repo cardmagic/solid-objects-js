@@ -210,11 +210,11 @@ export class Doctor {
           message: `incompatible schema identity ${wrongIdentity.schema_identity}`,
         })
       }
-      if (versions.join(",") !== "1,2,3,4,5,6,7,8,9") {
+      if (versions.join(",") !== "1,2,3,4,5,6,7,8,9,10") {
         return check({
           name: "schema",
           status: "fail",
-          message: `expected schema migrations 1, 2, 3, 4, 5, 6, 7, 8, 9; found ${versions.join(", ")}`,
+          message: `expected schema migrations 1, 2, 3, 4, 5, 6, 7, 8, 9, 10; found ${versions.join(", ")}`,
         })
       }
       return check({

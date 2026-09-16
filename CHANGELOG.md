@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+- Index opt-in instance expiration by actor type and update time so pruning
+  can find expired instances without scanning retained history. Install schema
+  migration 10 before running this version. Retention policies, timestamps,
+  pending-work protections, and deletion order are unchanged.
+
 ## 0.15.0 - 2026-09-15
 
 - Report transient process-heartbeat errors and keep retrying while effects run,
