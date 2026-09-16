@@ -178,8 +178,10 @@ class RetentionPlanDatabase implements Database {
       (connection) =>
         callback({
           run: (sql, parameters) => connection.run(sql, parameters),
-          get: <Row extends object>(sql, parameters) => connection.get<Row>(sql, parameters),
-          all: async <Row extends object>(sql, parameters) => {
+          get: connection.get.bind(connection),
+          all: async <Row extends object>(
+            ...[sql, parameters]: Parameters<DatabaseConnection["all"]>
+          ) => {
             if (sql.startsWith(`SELECT id FROM ${PREFIX}instances WHERE`)) {
               const explain = {
                 sqlite: "EXPLAIN QUERY PLAN",
