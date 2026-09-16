@@ -10,7 +10,8 @@ const OBSERVABLE_INVALIDATIONS_VERSION = 6
 const KEYED_REMINDERS_VERSION = 7
 const POLLING_INDEXES_VERSION = 8
 const EFFECT_RECOVERY_VERSION = 9
-const LATEST_VERSION = EFFECT_RECOVERY_VERSION
+const INSTANCE_RETENTION_INDEX_VERSION = 10
+const LATEST_VERSION = INSTANCE_RETENTION_INDEX_VERSION
 
 export async function installSchema(options: {
   connection: DatabaseConnection
@@ -329,6 +330,22 @@ export async function installSchema(options: {
       connection,
       table: table("schema_migrations"),
       version: EFFECT_RECOVERY_VERSION,
+      schemaIdentity,
+    })
+  }
+
+  if (!installedVersions.has(INSTANCE_RETENTION_INDEX_VERSION)) {
+    await createIndex({
+      connection,
+      family,
+      table: table("instances"),
+      name: `${prefix}instances_retention`,
+      columns: "actor_type, updated_at_ms, id",
+    })
+    await recordMigration({
+      connection,
+      table: table("schema_migrations"),
+      version: INSTANCE_RETENTION_INDEX_VERSION,
       schemaIdentity,
     })
   }

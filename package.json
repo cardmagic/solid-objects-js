@@ -1,6 +1,6 @@
 {
   "name": "solid-objects",
-  "version": "0.15.0",
+  "version": "0.15.1",
   "description": "Race-free realtime state per application identity, backed by your SQL database",
   "type": "module",
   "license": "MIT",
@@ -115,8 +115,8 @@
     "test": "vitest run",
     "test:browser": "pnpm run build && playwright test",
     "test:coverage": "vitest run --coverage",
-    "test:postgresql": "vitest run test/postgresql.test.ts test/effect-recovery.test.ts",
-    "test:mysql": "vitest run test/mysql.test.ts test/effect-recovery.test.ts",
+    "test:postgresql": "vitest run test/postgresql.test.ts test/effect-recovery.test.ts test/instance-retention.test.ts",
+    "test:mysql": "vitest run test/mysql.test.ts test/effect-recovery.test.ts test/instance-retention.test.ts",
     "test:package": "node scripts/release-artifact-smoke.mjs",
     "test:recovery": "pnpm run build && node examples/failure-recovery/demo.ts",
     "test:at-least-once": "pnpm run build && node examples/at-least-once/demo.ts",
