@@ -180,6 +180,49 @@ describe("PostgreSQL SQL parameters", () => {
 })
 
 describePostgreSQL("PostgreSQL adapter", () => {
+  it("creates one instance when nested callers race to enqueue to a new actor", async () => {
+    if (!connectionString) throw new Error("PostgreSQL connection string is required")
+    database = postgresql({ connectionString, maximumConnections: 16 })
+    runtime = configure({
+      database,
+      tableNamePrefix: "postgresql_test_",
+      authorizeMessage: () => true,
+      authorizeQuery: () => true,
+      logger: quietLogger,
+    })
+    runtime.register(PostgreSQLCounter)
+    await runtime.install()
+    const repository = runtime.repository
+    const actorId = `create-race-${crypto.randomUUID()}`
+
+    const outcomes = await Promise.all(
+      Array.from({ length: 8 }, (_, index) =>
+        database!
+          .transaction((connection) =>
+            repository.enqueueInTransaction(connection, {
+              actorType: PostgreSQLCounter.actorType,
+              actorId,
+              operation: "increment",
+              deliveryMode: "async",
+              arguments: {},
+              idempotencyKey: `race-${index}`,
+            }),
+          )
+          .then((message) => ({ sequence: Number(message.sequence) }))
+          .catch((error: { code?: string }) => ({ code: error.code ?? String(error) })),
+      ),
+    )
+
+    const failures = outcomes.filter((outcome) => "code" in outcome)
+    expect(failures).toEqual([])
+    const sequences = outcomes.flatMap((outcome) =>
+      "sequence" in outcome ? [outcome.sequence] : [],
+    )
+    expect(sequences.slice().sort((left, right) => left - right)).toEqual([1, 2, 3, 4, 5, 6, 7, 8])
+    const instance = await repository.findInstanceByIdentity(PostgreSQLCounter.actorType, actorId)
+    expect(instance).toBeDefined()
+  }, 60_000)
+
   it("keeps a fenced commit exclusive after its lease expires", async () => {
     if (!connectionString) throw new Error("PostgreSQL connection string is required")
     database = postgresql({ connectionString, maximumConnections: 5 })
