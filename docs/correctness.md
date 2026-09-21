@@ -5,6 +5,9 @@
 - Delivery is ordered per actor identity and at least once.
 - Different identities may execute concurrently.
 - Sequence allocation and durable enqueue are one transaction.
+- Concurrent callers that create the same actor produce one instance row and
+  distinct sequences. The mailbox locks that row by its primary key, so MySQL
+  does not upgrade a shared lock and the enqueue does not deadlock.
 - A retryable failure rolls state and staged intents back and blocks later work.
 - A stale activation may finish JavaScript but cannot commit.
 - Effects can execute more than once and must deduplicate by their stable id.

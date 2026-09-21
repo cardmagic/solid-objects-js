@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.15.2 - 2026-09-21
+
+- Stop the deadlock between concurrent callers that create the same actor from
+  a transaction of their own. MySQL turns a portable conflict clause into
+  `INSERT IGNORE`, which keeps a shared lock on the identity index, and the
+  mailbox then asked to upgrade that lock. It now reads the winning row in
+  shared mode, selects only its id so the read stays inside the index, and
+  locks the row by its primary key.
+- Read the instance without a lock before the insert, on every database, and
+  take the row lock by primary key rather than by actor type and actor id.
+
 ## 0.15.1 - 2026-09-16
 
 - Index opt-in instance expiration by actor type and update time so pruning

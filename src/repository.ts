@@ -298,13 +298,12 @@ export class Repository {
     input: EnqueueInput,
   ): Promise<MessageRow> {
     const now = await connection.nowMilliseconds()
-    let instance = await this.findInstance({
+    let identified = await this.findInstanceId({
       connection,
       actorType: input.actorType,
       actorId: input.actorId,
-      ...(this.settings.database.family === "postgresql" ? { lock: "update" } : {}),
     })
-    if (!instance) {
+    if (!identified) {
       const instanceId = randomUUID()
       await connection.run(
         `INSERT INTO ${this.table("instances")}
@@ -321,15 +320,18 @@ export class Repository {
           now,
         ],
       )
-    }
-    if (this.settings.database.family === "mysql" || !instance) {
-      instance = await this.findInstance({
+      identified = await this.findInstanceId({
         connection,
         actorType: input.actorType,
         actorId: input.actorId,
-        ...(this.settings.database.family === "sqlite" ? {} : { lock: "update" }),
+        ...(this.settings.database.family === "mysql" ? { lock: "share" as const } : {}),
       })
     }
+    if (!identified) throw new ActorDestroyed("actor disappeared during enqueue")
+    const instance = await connection.get<InstanceRow>(
+      `SELECT * FROM ${this.table("instances")} WHERE id = ?${this.rowLockClause()}`,
+      [identified.id],
+    )
     if (!instance) throw new ActorDestroyed("actor disappeared during enqueue")
 
     if (input.idempotencyKey !== undefined) {
@@ -2071,12 +2073,24 @@ export class Repository {
     connection: DatabaseConnection
     actorType: string
     actorId: string
-    lock?: "update"
   }): Promise<InstanceRow | undefined> {
     const { connection, actorType, actorId } = options
     return connection.get<InstanceRow>(
-      `SELECT * FROM ${this.table("instances")} WHERE actor_type = ? AND actor_id = ?${
-        options.lock === "update" ? " FOR UPDATE" : ""
+      `SELECT * FROM ${this.table("instances")} WHERE actor_type = ? AND actor_id = ?`,
+      [actorType, actorId],
+    )
+  }
+
+  private findInstanceId(options: {
+    connection: DatabaseConnection
+    actorType: string
+    actorId: string
+    lock?: "share"
+  }): Promise<{ id: string } | undefined> {
+    const { connection, actorType, actorId } = options
+    return connection.get<{ id: string }>(
+      `SELECT id FROM ${this.table("instances")} WHERE actor_type = ? AND actor_id = ?${
+        options.lock === "share" ? " FOR SHARE" : ""
       }`,
       [actorType, actorId],
     )
