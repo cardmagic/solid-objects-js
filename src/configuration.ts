@@ -1,7 +1,9 @@
 import { InvalidActor } from "./errors.js"
 import type { Database } from "./database/types.js"
 import type { DeepReadonly, JsonObject, JsonValue, Logger, LongRunningComponent } from "./types.js"
-import { WAKE_UP_NAMES, type WakeUpName, type WakeUpSetting } from "./wake-up.js"
+import { WAKE_UP_NAMES, type WakeUpAdapter, type WakeUpSetting } from "./wake-up.js"
+
+const wakeUpNames: readonly string[] = WAKE_UP_NAMES
 
 export interface AuthorizationInput {
   actorType: string
@@ -192,17 +194,20 @@ export function validateComponent(component: LongRunningComponent): void {
 }
 
 function validateWakeUp(setting: WakeUpSetting): void {
-  if (typeof setting !== "string") {
-    for (const name of ["watch", "notify", "close"] as const) {
-      if (typeof setting[name] !== "function") throw new TypeError(`wakeUp must implement ${name}`)
-    }
-    return
-  }
-  if (WAKE_UP_NAMES.includes(setting as WakeUpName)) return
+  if (typeof setting !== "string") return validateWakeUpAdapter(setting)
+  if (wakeUpNames.includes(setting)) return
 
   throw new TypeError(
     `unknown wakeUp ${JSON.stringify(setting)}, expected one of ${WAKE_UP_NAMES.join(", ")} or an adapter`,
   )
+}
+
+function validateWakeUpAdapter(adapter: WakeUpAdapter): void {
+  for (const name of ["watch", "notify", "close"] as const) {
+    if (typeof adapter[name] === "function") continue
+
+    throw new TypeError(`wakeUp must implement ${name}`)
+  }
 }
 
 function validateSettings(settings: RuntimeSettings): void {

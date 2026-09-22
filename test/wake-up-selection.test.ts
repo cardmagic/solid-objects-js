@@ -13,6 +13,7 @@ import {
   type NotificationWakeUpAdapter,
   type WakeUpAdapter,
   type WakeUpRole,
+  type WakeUpSetting,
   type WakeUpWatch,
 } from "../src/wake-up.js"
 import { selectWakeUp } from "../src/wake-up-selection.js"
@@ -114,9 +115,9 @@ afterEach(async () => {
   delete process.env["SOLID_OBJECTS_REDIS_URL"]
 })
 
-function selectionOptions(options: { database: Database; setting?: unknown }) {
+function selectionOptions(options: { database: Database; setting?: WakeUpSetting }) {
   return {
-    setting: (options.setting ?? "automatic") as never,
+    setting: options.setting ?? "automatic",
     database: options.database,
     idlePollingIntervalMilliseconds: 1_000,
     logger: silentLogger,
@@ -175,7 +176,10 @@ describe("wake-up selection", () => {
     const database = sqlite({ path: ":memory:" })
 
     await expect(
-      selectWakeUp(selectionOptions({ database, setting: "carrier_pigeon" })),
+      selectWakeUp({
+        ...selectionOptions({ database }),
+        setting: "carrier_pigeon" as WakeUpSetting,
+      }),
     ).rejects.toThrow(/carrier_pigeon/)
     await database.close()
   })
