@@ -673,6 +673,11 @@ export class ActorEngine {
       })
     }
     for (const intent of intents.reminders) {
+      if ("cancel" in intent) {
+        if (intent.cancel === "all") this.store.deleteRemindersFor(intent.operation)
+        else this.store.deleteReminder(intent.name)
+        continue
+      }
       this.store.saveReminder({
         name: intent.name,
         generation: crypto.randomUUID(),

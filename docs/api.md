@@ -68,9 +68,12 @@ createdAtMs }` shape returned by `SolidObjectsRuntime.snapshotWithIncarnation`.
   schedule that the reference methods use.
 
 `ActorIntents`, `EffectIntent`, `CommitActionIntent`, `ReminderIntent`,
+`UnscheduleIntent`, `UnscheduleAllIntent`, `ReminderMutation`,
 `OutboundMessageIntent`, `ReminderOptions`, `OutboundMessageOptions`,
 `PayloadBroadcasts`, and `PayloadBroadcastValue` describe actor-declared
-transactional work and typed personalized projections.
+transactional work and typed personalized projections. `ReminderMutation` is the
+union of one scheduled reminder and the two cancellations, held in one list so
+they apply in the order the turn called them.
 
 `EffectFailurePayload<Arguments>`, `EffectSuccessPayload<Arguments, Result>`,
 and `SerializedError` describe effect callback messages. They are also exported
@@ -161,6 +164,49 @@ drain everything that is due when it fires. That costs one row instead of one
 row per item. It also cannot strand an entry when the runtime coalesces an
 occurrence. Prefer it for a large queue of interchangeable items. Prefer `key`
 when one item needs an alarm that you can move on its own.
+
+#### Cancelling a reminder
+
+`schedule()` returns a `ReminderHandle` (`{ name: string }`) naming the alarm it
+armed. `unschedule()` cancels one alarm, by operation, by operation and key, or
+by that handle. `unscheduleAll()` cancels every key of one operation.
+
+```typescript
+class Subscription extends Actor {
+  chase: ReminderHandle | null = null
+
+  convertToPaid(): void {
+    this.status = "active"
+    this.unschedule("trialExpired")
+    this.chase = this.schedule({ at: renewal, everyMilliseconds: MONTH }).chargeRenewal()
+  }
+
+  cancelled(): void {
+    if (this.chase) this.unschedule(this.chase)
+  }
+
+  shipped({ carrierId }: { carrierId: string }): void {
+    this.unschedule("chaseCarrier", { key: carrierId })
+  }
+
+  stopChasing(): void {
+    this.unscheduleAll("chaseCarrier")
+  }
+}
+```
+
+A cancellation is staged like a schedule, so it commits with the state change
+that decided it and a turn that throws cancels nothing. Both apply in the order
+the turn called them, so cancelling and then scheduling the same name leaves it
+armed at the new time.
+
+Cancelling an alarm that does not exist is not an error. `unschedule()` returns
+nothing, because it stages an intent rather than applying one, and an answer
+given at call time could be stale by the time the turn commits.
+
+A handle is a plain object, so it survives in actor state and still cancels
+after a deactivation. Passing a handle together with `key` is a `TypeError`,
+because the handle already names the key.
 
 ### Recovering abandoned effects
 

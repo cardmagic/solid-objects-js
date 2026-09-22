@@ -4,6 +4,8 @@ export type JsonObject = { [key: string]: JsonValue }
 
 export type EffectHandle = { readonly id: string }
 
+export type ReminderHandle = { readonly name: string }
+
 export type SerializedError = {
   name: string
   message: string

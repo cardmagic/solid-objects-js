@@ -767,6 +767,15 @@ export class Repository {
       })
 
       for (const reminder of input.intents.reminders) {
+        if ("cancel" in reminder) {
+          const column = reminder.cancel === "all" ? "message_operation" : "operation"
+          const value = reminder.cancel === "all" ? reminder.operation : reminder.name
+          await connection.run(
+            `DELETE FROM ${this.table("reminders")} WHERE instance_id = ? AND ${column} = ?`,
+            [turn.instance.id, value],
+          )
+          continue
+        }
         const existing = await connection.get<{ id: string; run_at_ms: number | bigint }>(
           `SELECT id, run_at_ms FROM ${this.table("reminders")}
            WHERE instance_id = ? AND operation = ?`,

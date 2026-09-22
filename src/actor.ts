@@ -9,6 +9,7 @@ import {
   createStagedOperations,
   type ActorReference,
   type ScheduledOperations,
+  type StagedOperationMap,
   type ScheduledOperationsFor,
   type StagedOperations,
 } from "./reference.js"
@@ -17,6 +18,7 @@ import type {
   ActorIdentifier,
   EffectHandle,
   JsonObject,
+  ReminderHandle,
   JsonValue,
   MessageContext,
 } from "./types.js"
@@ -108,6 +110,18 @@ export interface ReminderIntent {
   missedPolicy: "all" | "latest"
 }
 
+export interface UnscheduleIntent {
+  cancel: "one"
+  name: string
+}
+
+export interface UnscheduleAllIntent {
+  cancel: "all"
+  operation: string
+}
+
+export type ReminderMutation = ReminderIntent | UnscheduleIntent | UnscheduleAllIntent
+
 export interface OutboundMessageIntent {
   actorType: string
   actorId: string
@@ -121,7 +135,7 @@ export interface ActorIntents {
   effects: EffectIntent[]
   effectRecoveries?: EffectRecoveryIntent[]
   commitActions: CommitActionIntent[]
-  reminders: ReminderIntent[]
+  reminders: ReminderMutation[]
   outboundMessages: OutboundMessageIntent[]
 }
 
@@ -304,7 +318,7 @@ export abstract class Actor {
   transmit<Keys extends keyof this, ActorType>(
     this: Actor & Pick<this, Keys> & (Partial<ActorType> | NoInfer<this>),
   ): ScheduledOperationsFor<InferredActor<Keys, ActorType>>
-  transmit(): ScheduledOperations {
+  transmit(): StagedOperationMap {
     return createStagedOperationMap(this.#operations, (operation, argumentsValue) => {
       this.#intents.effects.push({
         name: TRANSMIT_EFFECT,
@@ -331,8 +345,9 @@ export abstract class Actor {
     const key = validatedReminderKey(options.key)
 
     return createStagedOperationMap(this.#operations, (operation, argumentsValue) => {
+      const name = reminderName(operation, key)
       this.#intents.reminders.push({
-        name: reminderName(operation, key),
+        name,
         operation,
         atMilliseconds,
         arguments: jsonObject(argumentsValue),
@@ -341,7 +356,29 @@ export abstract class Actor {
           ? {}
           : { intervalMilliseconds: options.everyMilliseconds }),
       })
+      return { name }
     })
+  }
+
+  unschedule(operationOrHandle: string | ReminderHandle, options: { key?: string | number } = {}) {
+    if (typeof operationOrHandle === "object" && operationOrHandle !== null) {
+      if (options.key !== undefined) {
+        throw new TypeError("a reminder handle already names its key")
+      }
+      const name = (operationOrHandle as ReminderHandle).name
+      if (typeof name !== "string" || name.length === 0) {
+        throw new TypeError("unschedule requires a reminder handle returned by schedule")
+      }
+      this.#intents.reminders.push({ cancel: "one", name })
+      return
+    }
+
+    const key = validatedReminderKey(options.key)
+    this.#intents.reminders.push({ cancel: "one", name: reminderName(operationOrHandle, key) })
+  }
+
+  unscheduleAll(operation: string) {
+    this.#intents.reminders.push({ cancel: "all", operation })
   }
 
   sendTo<TargetActor extends Actor>(

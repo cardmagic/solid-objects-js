@@ -1,5 +1,18 @@
 # Changelog
 
+## Unreleased
+
+- Add reminder cancellation. `unschedule()` removes one alarm by operation, by
+  operation and key, or by the handle `schedule()` now returns.
+  `unscheduleAll()` removes every key of one operation. Both stage an intent
+  beside the schedules, so they apply in the order the turn called them, commit
+  with the state change that decided them, and cancel nothing when a turn
+  throws. Cancellation works on the SQL backends and on Durable Objects.
+- `schedule()` now returns a `ReminderHandle` (`{ name: string }`) instead of
+  `void`. A handle is a plain object, so it survives in actor state and still
+  cancels after a deactivation. Code that assigned the result to `void` needs
+  updating, as `emit` required in 0.15.0.
+
 ## 0.15.2 - 2026-09-21
 
 - Stop the deadlock between concurrent callers that create the same actor from

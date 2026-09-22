@@ -58,6 +58,29 @@ describe("Durable Objects runtime", () => {
     expect(await runtime().ref(Counter, "destination").with({ authorizationContext }).count).toBe(1)
   })
 
+  it("cancels reminders before the alarm fires", async () => {
+    const reference = runtime().ref(Counter, "cancelled").with({ authorizationContext })
+    await reference.arm({ at: Date.now() + 60_000 })
+    expect(await remainingReminders("cancelled")).toEqual(["increment"])
+
+    await reference.disarm()
+    expect(await remainingReminders("cancelled")).toEqual([])
+
+    const stub = env.ACTORS.getByName(JSON.stringify(["Counter", "cancelled"]))
+    for (let attempt = 0; attempt < 5; attempt += 1) await runDurableObjectAlarm(stub)
+    expect(await runtime().ref(Counter, "cancelled").with({ authorizationContext }).count).toBe(0)
+  })
+
+  it("cancels one keyed reminder and every key of an operation", async () => {
+    const reference = runtime().ref(Counter, "keyed-cancel").with({ authorizationContext })
+    await reference.armKeyed({ at: Date.now() + 60_000, keys: ["a", "b", "c"] })
+    await reference.disarmKey({ key: "b" })
+    expect(await remainingReminders("keyed-cancel")).toEqual(["increment:a", "increment:c"])
+
+    await reference.disarmAll()
+    expect(await remainingReminders("keyed-cancel")).toEqual([])
+  })
+
   it("retains a recoverable accepted message after caller timeout", async () => {
     const reference = runtime().ref(Counter, "delayed")
     const message = await reference.send
@@ -84,3 +107,14 @@ describe("Durable Objects runtime", () => {
     )
   })
 })
+
+async function remainingReminders(actorId: string): Promise<string[]> {
+  const stub = env.ACTORS.getByName(JSON.stringify(["Counter", actorId]))
+  return runInDurableObject(stub, (instance: unknown) => {
+    const storage = (instance as { ctx: { storage: { sql: { exec: Function } } } }).ctx.storage
+    return storage.sql
+      .exec("SELECT name FROM reminders ORDER BY name")
+      .toArray()
+      .map((row: { name: string }) => row.name)
+  })
+}

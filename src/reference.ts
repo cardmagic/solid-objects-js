@@ -10,6 +10,7 @@ import type {
   JsonValue,
   MessageStatus,
   SnapshotOptions,
+  ReminderHandle,
 } from "./types.js"
 
 type FunctionKeys<Value> = {
@@ -70,6 +71,12 @@ type StagedMethod<Method> = Method extends (...argumentsValue: any[]) => any
     : (...argumentsValue: OperationArguments<Method>) => void
   : never
 
+type ScheduledMethod<Method> = Method extends (...argumentsValue: any[]) => any
+  ? [OperationArguments<Method>] extends [never]
+    ? never
+    : (...argumentsValue: OperationArguments<Method>) => ReminderHandle
+  : never
+
 type DirectMessages<ActorType extends Actor> = {
   [Key in ActorOperationNames<ActorType>]: InvokedMethod<ActorType[Key]>
 }
@@ -93,11 +100,15 @@ export type StagedOperations<ActorType extends Actor> = {
 }
 
 export interface ScheduledOperations {
-  [operation: string]: (argumentsValue?: Record<string, unknown>) => void
+  [operation: string]: (argumentsValue?: Record<string, unknown>) => ReminderHandle
 }
 
 export type ScheduledOperationsFor<ActorType extends Actor> = {
-  [Key in ActorOperationNames<ActorType>]: StagedMethod<ActorType[Key]>
+  [Key in ActorOperationNames<ActorType>]: ScheduledMethod<ActorType[Key]>
+}
+
+export interface StagedOperationMap {
+  [operation: string]: (argumentsValue?: Record<string, unknown>) => void
 }
 
 export type ActorReference<ActorType extends Actor> = ActorReferenceCore<ActorType> &
@@ -260,10 +271,10 @@ export function createStagedOperations<ActorType extends Actor>(
   return createStagedOperationMap(operations, dispatch) as unknown as StagedOperations<ActorType>
 }
 
-export function createStagedOperationMap(
+export function createStagedOperationMap<Result>(
   operations: ReadonlySet<string>,
-  dispatch: (operation: string, argumentsValue: JsonObject) => void,
-): ScheduledOperations {
+  dispatch: (operation: string, argumentsValue: JsonObject) => Result,
+): { [operation: string]: (argumentsValue?: Record<string, unknown>) => Result } {
   return new Proxy(
     {},
     {
@@ -274,7 +285,7 @@ export function createStagedOperationMap(
           dispatch(property, operationArguments(argumentsValue))
       },
     },
-  ) as ScheduledOperations
+  ) as { [operation: string]: (argumentsValue?: Record<string, unknown>) => Result }
 }
 
 function createReferenceProxy<ActorType extends Actor>(

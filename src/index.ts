@@ -15,6 +15,9 @@ export {
   type PayloadBroadcasts,
   type PayloadBroadcastValue,
   type ReminderIntent,
+  type ReminderMutation,
+  type UnscheduleAllIntent,
+  type UnscheduleIntent,
   type ReminderOptions,
 } from "./actor.js"
 export {
@@ -127,6 +130,7 @@ export type {
   EffectContext,
   EffectFailurePayload,
   EffectHandle,
+  ReminderHandle,
   EffectSuccessPayload,
   InvocationOptions,
   JsonObject,
