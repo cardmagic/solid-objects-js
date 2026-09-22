@@ -289,6 +289,22 @@ describe("redrive", () => {
     expect(await active.deadLetters.effects.all()).toHaveLength(1)
   })
 
+  it("refuses an unauthorized caller that reaches the manager directly", async () => {
+    const active = configure({
+      database: sqlite({ path: ":memory:" }),
+      authorizeMessage: () => true,
+    })
+    runtime = active
+    await active.install()
+
+    await expect(
+      active.redrives.start({
+        kind: "effect",
+        filters: { actorType: null, failedAfter: null, limit: null },
+      }),
+    ).rejects.toBeInstanceOf(Unauthorized)
+  })
+
   it("refuses an unauthorized caller", async () => {
     const active = configure({
       database: sqlite({ path: ":memory:" }),

@@ -40,6 +40,10 @@ export class RedriveManager {
     filters: RedriveFilters
     authorizationContext?: unknown
   }): Promise<RedriveTask> {
+    await this.runtime.deadLetters.scope(input.kind).authorize({
+      action: "redrive",
+      options: { authorizationContext: input.authorizationContext },
+    })
     const activeScope = await activeScopeFor(input)
     const existing = await this.findRow(activeScope, "active_scope")
     if (existing) return await this.task(existing)

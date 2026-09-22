@@ -87,7 +87,6 @@ export class DeadLetterScope {
   }
 
   async redrive(options: RedriveOptions = {}): Promise<RedriveTask> {
-    await this.authorize({ action: "redrive", options })
     return await this.runtime.redrives.start({
       kind: this.kind,
       filters: {
@@ -204,7 +203,7 @@ export class DeadLetterScope {
     })
   }
 
-  private async authorize(input: {
+  async authorize(input: {
     action: string
     options: AdministrationOptions
     resourceId?: string
