@@ -795,6 +795,12 @@ export class SolidObjectsRuntime {
       definition: registered.definition,
       actorId: options.actorId,
       state,
+      ...(instance === undefined
+        ? {}
+        : {
+            readReminders: async () =>
+              (await this.repository.remindersForInstance(instance.id)).map(scheduledReminderOf),
+          }),
     })
     return readonlyCopy({
       actorType: options.actorType,

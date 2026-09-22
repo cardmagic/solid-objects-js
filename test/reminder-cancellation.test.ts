@@ -78,6 +78,22 @@ class Subscription extends Actor {
   }
 }
 
+class Observed extends Actor {
+  static override readonly actorType = "cancel-observed"
+
+  armed = false
+
+  arm(): void {
+    this.schedule({ at: new Date(Date.UTC(2030, 0, 1)) }).ping()
+  }
+
+  async armedName(): Promise<string | null> {
+    return (await this.reminder("ping"))?.name ?? null
+  }
+
+  ping(): void {}
+}
+
 class Shipment extends Actor {
   static override readonly actorType = "cancel-shipments"
 
@@ -124,6 +140,7 @@ async function start(): Promise<SolidObjectsRuntime> {
   })
   runtime.register(Subscription)
   runtime.register(Shipment)
+  runtime.register(Observed)
   await runtime.install()
   return runtime
 }
@@ -249,6 +266,17 @@ describe("reminder cancellation", () => {
     await reference.dispatch({ carrierIds: ["a", "b", "c"] })
 
     expect(await reference.pendingKeys()).toEqual(["a", "b", "c"])
+  })
+
+  it("reads the schedule from a snapshot projection", async () => {
+    const started = await start()
+    const reference = Observed.ref("one")
+    await reference.arm()
+
+    const snapshot = await started.snapshot(Observed.ref("one"))
+
+    expect(snapshot).toBeDefined()
+    expect(await reference.armedName()).toBe("ping")
   })
 
   it("refuses an unknown operation instead of cancelling nothing", async () => {

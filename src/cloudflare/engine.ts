@@ -375,7 +375,12 @@ export class ActorEngine {
 
   private async snapshot(identity: ActorIdentity): Promise<JsonObject> {
     const { definition, instance, state } = this.committed(identity)
-    const actor = hydrateActor({ definition, actorId: identity.actorId, state })
+    const actor = hydrateActor({
+      definition,
+      actorId: identity.actorId,
+      state,
+      readReminders: this.readReminders,
+    })
     const before = stableJson(actorState(actor, definition.stateKeys))
     const snapshot: JsonObject = { ...state }
     await withActorProjection({ actor, runtime: this.runtime }, async () => {
@@ -407,6 +412,7 @@ export class ActorEngine {
       definition,
       actorId: input.actorId,
       state,
+      readReminders: this.readReminders,
     })
     const identity = {
       actorType: input.actorType,

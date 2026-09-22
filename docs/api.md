@@ -271,8 +271,13 @@ reads sees the alarm gone.
 `key` and `intervalMilliseconds` are `null` rather than `undefined` when absent,
 so a `ScheduledReminder` returns from an operation without a serialization error.
 
-Reading is available during a turn. A projection has no reader and throws, rather
-than reporting an armed alarm as absent.
+Reading is available during a turn and from a snapshot projection, so an
+observable can report what is armed. `reminder()` and `reminders()` refuse an
+operation the actor does not declare, as `schedule()` and `unschedule()` do.
+
+`ScheduledReminder` carries no occurrence count. The SQL backends track one and
+Durable Objects does not, so it is left out rather than reported for one backend
+only.
 
 A cancellation is staged like a schedule, so it commits with the state change
 that decided it and a turn that throws cancels nothing. Both apply in the order
