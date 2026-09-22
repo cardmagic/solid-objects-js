@@ -58,6 +58,7 @@ class NotifyingDatabase implements Database {
       database: Database
       delivers: boolean
       refuses?: boolean
+      unreachable?: boolean
       family?: DatabaseFamily
     },
   ) {
@@ -78,6 +79,7 @@ class NotifyingDatabase implements Database {
   connection<Result>(
     callback: (connection: DatabaseConnection) => Promise<Result>,
   ): Promise<Result> {
+    if (this.options.unreachable) return Promise.reject(new Error("the database is unreachable"))
     return this.options.database.connection((connection) => callback(this.intercept(connection)))
   }
 
@@ -191,6 +193,42 @@ describe("wake-up selection", () => {
     }
   })
 
+  it("opts out of selection when in_process is requested", async () => {
+    const database = sqlite({ path: ":memory:" })
+
+    const selected = await selectWakeUp(selectionOptions({ database, setting: "in_process" }))
+
+    expect(selected.capability.adapter).toBe("in_process")
+    expect(selected.capability.crossesProcesses).toBe(false)
+    expect(selected.capability.reason).toMatch(/requested/i)
+    await database.close()
+  })
+
+  it("selects redis on any database when a url is set", async () => {
+    const inner = sqlite({ path: ":memory:" })
+    const database = new NotifyingDatabase({ database: inner, delivers: true })
+    process.env["SOLID_OBJECTS_REDIS_URL"] = "redis://127.0.0.1:6379/15"
+
+    const selected = await selectWakeUp(selectionOptions({ database }))
+
+    expect(selected.capability.adapter).toBe("redis")
+    expect(selected.capability.crossesProcesses).toBe(true)
+    expect(database.adapters).toHaveLength(0)
+    await selected.adapter.close()
+    await database.close()
+  })
+
+  it("polls when the database cannot answer the probe", async () => {
+    const inner = sqlite({ path: ":memory:" })
+    const database = new NotifyingDatabase({ database: inner, delivers: true, unreachable: true })
+
+    const selected = await selectWakeUp(selectionOptions({ database }))
+
+    expect(selected.capability.adapter).toBe("polling")
+    expect(selected.capability.crossesProcesses).toBe(false)
+    await database.close()
+  })
+
   it("polls and warns when a requested adapter has no notification channel", async () => {
     const database = sqlite({ path: ":memory:" })
     const warnings: { event?: string }[] = []
@@ -234,6 +272,15 @@ describe("wake-up selection", () => {
     expect(selected.capability.reason).toMatch(/SOLID_OBJECTS_REDIS_URL/)
     expect(warnings.map(({ event }) => event)).toEqual(["solid_objects.wake_up.unavailable"])
     await database.close()
+  })
+
+  it("refuses an unknown name when the configuration is built", () => {
+    expect(() =>
+      configure({
+        database: sqlite({ path: ":memory:" }),
+        wakeUp: "carrier_pigeon" as WakeUpSetting,
+      }),
+    ).toThrow(/carrier_pigeon/)
   })
 
   it("refuses an unknown name rather than polling quietly", async () => {
