@@ -551,6 +551,18 @@ Every manager below is available as a property on `SolidObjectsRuntime`; the
 class and result types are also exported for integration typing.
 
 - `runtime.deadLetters` / `DeadLetterManager`: `all()` and idempotent `retry()`.
+- `runtime.deadLetters.effects` and `runtime.deadLetters.broadcasts`: a
+  `DeadLetterScope` for one `DeadLetterKind`. `all()` lists its dead rows as
+  `DeadRow` values, `retry(id)` returns one to pending, and `redrive(options)`
+  moves a whole scope. `RedriveOptions` names `actorType`, `failedAfter`, and
+  `limit`, which become the `RedriveFilters` the task records. `UnknownDeadRow`
+  reports an id that does not exist.
+- `runtime.redrives` / `RedriveManager`: `find(id)`, `all({ status })`,
+  `cancel(id)`, and `advance()`, which moves one bounded batch. A `RedriveTask`
+  carries its id, kind, filters, `RedriveStatus`, `moved`, `remaining`,
+  `startedAt`, `finishedAt`, and its own `cancel()`. `RedriveScheduler` is the
+  component that advances tasks inside `runtime.run()`. `UnknownRedrive` and
+  `RedriveNotStarted` report a missing task and a task that could not open.
 - `runtime.reminders` / `ReminderManager`: cursor-paginated `all()` and
   idempotent paused-alarm `resume()`.
 - `runtime.processes` / `ProcessManager`: immutable role `all()` and stale-owner

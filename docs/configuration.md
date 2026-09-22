@@ -78,15 +78,18 @@ polling remains the correctness path.
 
 ## Retention and cleanup
 
-| Option                                   |     Default | Contract                                                         |
-| ---------------------------------------- | ----------: | ---------------------------------------------------------------- |
-| `retentionIntervalMilliseconds`          | `3_600_000` | Non-negative automatic history-pruning cadence; `0` disables it. |
-| `deadProcessCleanupIntervalMilliseconds` |    `60_000` | Non-negative stale-owner recovery cadence; `0` disables it.      |
-| `messageRetentionMilliseconds`           |     30 days | Positive default completed-message retention.                    |
-| `messageRetentionByActorType`            |        `{}` | Positive per-type message-retention overrides.                   |
-| `instanceRetentionByActorType`           |        `{}` | Positive per-type instance-expiration opt-ins.                   |
-| `processRetentionMilliseconds`           |      7 days | Positive stopped-process retention.                              |
-| `pruneBatchSize`                         |     `1_000` | Positive integer maximum rows rechecked per pruning transaction. |
+| Option                                   |           Default | Contract                                                         |
+| ---------------------------------------- | ----------------: | ---------------------------------------------------------------- |
+| `retentionIntervalMilliseconds`          |       `3_600_000` | Non-negative automatic history-pruning cadence; `0` disables it. |
+| `deadProcessCleanupIntervalMilliseconds` |          `60_000` | Non-negative stale-owner recovery cadence; `0` disables it.      |
+| `messageRetentionMilliseconds`           |           30 days | Positive default completed-message retention.                    |
+| `messageRetentionByActorType`            |              `{}` | Positive per-type message-retention overrides.                   |
+| `instanceRetentionByActorType`           |              `{}` | Positive per-type instance-expiration opt-ins.                   |
+| `processRetentionMilliseconds`           |            7 days | Positive stopped-process retention.                              |
+| `pruneBatchSize`                         |           `1_000` | Positive integer maximum rows rechecked per pruning transaction. |
+| `redriveBatchSize`                       |             `100` | Positive integer rows a redrive moves per transaction.           |
+| `redriveBatchPauseMilliseconds`          |              `50` | Non-negative pause between redrive batches.                      |
+| `administrationIdentity`                 | `String(context)` | Names the operator recorded in an administration event.          |
 
 Automatic retention prunes messages and stopped process records. Actor
 instance expiration remains an explicit administration action even when a type

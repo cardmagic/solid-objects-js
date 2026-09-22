@@ -1140,8 +1140,10 @@ export class Repository {
     id: string
     initialState: JsonObject
     stateVersion: number
+    audit?: (connection: DatabaseConnection) => Promise<void>
   }): Promise<MessageRow> {
     return this.settings.database.transaction(async (connection) => {
+      await options.audit?.(connection)
       const deadLetter = await this.findDeadLetterInConnection(connection, options.id)
       if (!deadLetter) throw new UnknownDeadLetter(`unknown dead letter ${options.id}`)
       if (deadLetter.retried_message_id) {
@@ -1472,6 +1474,8 @@ export class Repository {
 
   async resetForTesting(): Promise<void> {
     const tables = [
+      "administration_events",
+      "redrives",
       "effect_recoveries",
       "dead_letters",
       "claimed_messages",
@@ -1592,9 +1596,14 @@ export class Repository {
 
       const updated = await connection.run(
         `UPDATE ${this.table("effects")}
-         SET status = 'dead', error = ?, claimed_by = NULL
+         SET status = 'dead', error = ?, claimed_by = NULL, failed_at_ms = ?
          WHERE id = ? AND status = 'processing' AND claimed_by = ?`,
-        [JSON.stringify(errorRecord), effect.id, effect.claimed_by],
+        [
+          JSON.stringify(errorRecord),
+          await connection.nowMilliseconds(),
+          effect.id,
+          effect.claimed_by,
+        ],
       )
       if (updated.changes !== 1) throw new LostActivation("effect claim no longer matches")
       if (!effect.failure_operation) return
@@ -2044,9 +2053,17 @@ export class Repository {
         : now + this.settings.retryDelayMilliseconds(Number(broadcast.attempt_count))
       const updated = await connection.run(
         `UPDATE ${this.table("broadcasts")}
-         SET status = ?, error = ?, available_at_ms = ?, claimed_by = NULL
+         SET status = ?, error = ?, available_at_ms = ?, claimed_by = NULL,
+             failed_at_ms = ?
          WHERE id = ? AND status = 'processing' AND claimed_by = ?`,
-        [status, JSON.stringify(safeError(error)), availableAt, broadcast.id, broadcast.claimed_by],
+        [
+          status,
+          JSON.stringify(safeError(error)),
+          availableAt,
+          now,
+          broadcast.id,
+          broadcast.claimed_by,
+        ],
       )
       if (updated.changes !== 1) throw new LostActivation("broadcast claim no longer matches")
     })

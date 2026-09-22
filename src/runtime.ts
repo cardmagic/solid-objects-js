@@ -14,7 +14,10 @@ import {
   withActorProjection,
   withApplicationWritesForbidden,
 } from "./context.js"
+import { randomUUID } from "./platform/uuid.js"
 import { DeadLetterManager, type DeadLetter } from "./dead-letters.js"
+import type { DeadLetterKind, RedriveFilters } from "./dead-letter-scopes.js"
+import { RedriveManager, RedriveScheduler } from "./redrive.js"
 import { Doctor } from "./doctor.js"
 import { clearDefaultRuntime, setDefaultRuntime } from "./default-runtime.js"
 import {
@@ -182,10 +185,20 @@ function scheduledReminderOf(row: ReminderRow): ScheduledReminder {
   }
 }
 
+let administrationEventCounter = 0
+
+function administrationEventId(occurredAtMilliseconds: number): string {
+  administrationEventCounter = (administrationEventCounter + 1) % 1_000_000
+  const stamp = String(occurredAtMilliseconds).padStart(15, "0")
+  const counter = String(administrationEventCounter).padStart(6, "0")
+  return `${stamp}-${counter}-${randomUUID()}`
+}
+
 export class SolidObjectsRuntime {
   readonly settings
   readonly repository
   readonly deadLetters
+  readonly redrives
   readonly reconciliation
   readonly retention
   readonly doctor
@@ -211,6 +224,7 @@ export class SolidObjectsRuntime {
       wakeUpAdapter: () => this.wakeUpAdapter(),
     })
     this.deadLetters = new DeadLetterManager(this)
+    this.redrives = new RedriveManager(this)
     this.reconciliation = new ReconciliationManager(this)
     this.retention = new RetentionManager(this)
     this.doctor = new Doctor(this)
@@ -871,6 +885,42 @@ export class SolidObjectsRuntime {
     return destroyed
   }
 
+  wakeUpAfterRevival(kind: DeadLetterKind): void {
+    this.wakeUp(kind === "effect" ? "effects" : "broadcasts")
+  }
+
+  async administrationIdentity(
+    authorizationContext: AdministrationOptions["authorizationContext"],
+  ): Promise<string | null> {
+    const identity = await this.settings.administrationIdentity(authorizationContext)
+    return identity === null || identity === undefined ? null : String(identity).slice(0, 255)
+  }
+
+  async writeAdministrationEvent(input: {
+    connection: DatabaseConnection
+    action: string
+    kind: string
+    subjectId?: string
+    filters?: RedriveFilters
+    actor: string | null
+  }): Promise<void> {
+    const occurredAt = await input.connection.nowMilliseconds()
+    await input.connection.run(
+      `INSERT INTO ${this.repository.table("administration_events")}
+       (id, action, kind, subject_id, filters, actor, occurred_at_ms)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      [
+        administrationEventId(occurredAt),
+        input.action,
+        input.kind,
+        input.subjectId ?? null,
+        input.filters === undefined ? null : JSON.stringify(input.filters),
+        input.actor,
+        occurredAt,
+      ],
+    )
+  }
+
   async inspectDeadLetters(options: AdministrationOptions = {}): Promise<readonly DeadLetter[]> {
     await this.authorizeAdministration({
       action: "inspect",
@@ -899,10 +949,19 @@ export class SolidObjectsRuntime {
         `unknown dead-letter operation ${JSON.stringify(deadLetter.operation)}`,
       )
     }
+    const actorIdentity = await this.administrationIdentity(options.authorizationContext)
     const message = await this.repository.retryDeadLetter({
       id,
       initialState: initialStateFor(actor.definition),
       stateVersion: actor.definition.stateVersion,
+      audit: (connection) =>
+        this.writeAdministrationEvent({
+          connection,
+          action: "dead_letter.retry",
+          kind: "message",
+          subjectId: id,
+          actor: actorIdentity,
+        }),
     })
     this.emitInstrumentation("dead_letter.retried", {
       deadLetterId: id,
@@ -1634,6 +1693,7 @@ export class SolidObjectsRuntime {
             () => () => this.broadcastWorker(),
           )
         : []),
+      () => new RedriveScheduler(this),
       ...(this.settings.retentionIntervalMilliseconds > 0
         ? [
             () =>
@@ -2043,7 +2103,7 @@ export class SolidObjectsRuntime {
     if (!authorized) throw new Unauthorized(`actor ${kind} is not authorized`)
   }
 
-  private async authorizeAdministration(options: {
+  async authorizeAdministration(options: {
     action: string
     resource: string
     resourceId?: string
