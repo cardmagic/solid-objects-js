@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Refuse an unknown operation in `unschedule()` and `unscheduleAll()`.
+  `schedule()` already threw `UnknownOperation` for one, so a typo cancelled
+  nothing quietly and left a recurring reminder running.
 - Add reminder cancellation. `unschedule()` removes one alarm by operation, by
   operation and key, or by the handle `schedule()` now returns.
   `unscheduleAll()` removes every key of one operation. Both stage an intent

@@ -240,6 +240,11 @@ class Shipment extends Actor {
 }
 ```
 
+`unschedule()` and `unscheduleAll()` refuse an operation the actor does not
+declare, with the `UnknownOperation` that `schedule()` already throws, so a typo
+fails the turn rather than cancelling nothing. A handle skips that check, because
+the `schedule()` call that produced it was already checked.
+
 A cancellation is staged like a schedule, so it commits with the state change
 that decided it and a turn that throws cancels nothing. Both apply in the order
 the turn called them, so cancelling and then scheduling the same name leaves it

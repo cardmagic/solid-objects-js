@@ -46,6 +46,14 @@ class Subscription extends Actor {
     this.unscheduleAll("trialExpired")
   }
 
+  cancelUnknown(): void {
+    this.unschedule("noSuchOperation")
+  }
+
+  cancelAllUnknown(): void {
+    this.unscheduleAll("noSuchOperation")
+  }
+
   cancelBadHandle(): void {
     this.unschedule({ nope: "x" } as unknown as ReminderHandle)
   }
@@ -180,6 +188,17 @@ describe("reminder cancellation", () => {
     )
     expect(rows).toHaveLength(1)
     expect(Number(rows[0]!.run_at_ms)).toBe(Date.UTC(2031, 0, 1))
+  })
+
+  it("refuses an unknown operation instead of cancelling nothing", async () => {
+    const started = await start()
+    const reference = Subscription.ref("alice")
+    await reference.startTrial()
+
+    await expect(reference.cancelUnknown()).rejects.toThrow()
+    await expect(reference.cancelAllUnknown()).rejects.toThrow()
+
+    expect(await reminderNames(started)).toEqual(["trialExpired"])
   })
 
   it("rejects a malformed handle", async () => {

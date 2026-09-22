@@ -364,6 +364,7 @@ export abstract class Actor {
 
   unschedule(operationOrHandle: string | ReminderHandle, options: { key?: string | number } = {}) {
     if (typeof operationOrHandle === "string") {
+      this.#assertOperation(operationOrHandle)
       const key = validatedReminderKey(options.key)
       this.#intents.reminders.push({ cancel: "one", name: reminderName(operationOrHandle, key) })
       return
@@ -379,7 +380,14 @@ export abstract class Actor {
   }
 
   unscheduleAll(operation: string) {
+    this.#assertOperation(operation)
     this.#intents.reminders.push({ cancel: "all", operation })
+  }
+
+  #assertOperation(operation: string): void {
+    if (this.#operations.has(operation)) return
+
+    throw new UnknownOperation(`unknown operation ${JSON.stringify(operation)}`)
   }
 
   sendTo<TargetActor extends Actor>(
