@@ -42,6 +42,10 @@ class Subscription extends Actor {
     throw new Error("turn failed")
   }
 
+  stopAllTrials(): void {
+    this.unscheduleAll("trialExpired")
+  }
+
   cancelBadHandle(): void {
     this.unschedule({ nope: "x" } as unknown as ReminderHandle)
   }
@@ -191,6 +195,34 @@ describe("reminder cancellation", () => {
     await reference.shipped({ carrierId: "b" })
 
     expect(await reminderNames(started)).toEqual(["audit", "chaseCarrier:a", "chaseCarrier:c"])
+  })
+
+  it("cancels a reminder migrated before message_operation existed", async () => {
+    const started = await start()
+    const reference = Subscription.ref("alice")
+    await reference.startTrial()
+    // A row written before the keyed-reminder migration carries no
+    // message_operation, and its name is still the operation.
+    await started.settings.database.connection((connection) =>
+      connection.run(`UPDATE solid_objects_reminders SET message_operation = NULL`),
+    )
+
+    await reference.stopAllTrials()
+
+    expect(await reminderNames(started)).toEqual([])
+  })
+
+  it("a cancel that lands on a claimed occurrence does not fail the scheduler", async () => {
+    const started = await start()
+    const reference = Subscription.ref("alice")
+    await reference.startRecurring()
+
+    const claimed = await started.repository.claimReminder("test-scheduler")
+    expect(claimed).toBeDefined()
+    await reference.convertByName()
+
+    await expect(started.repository.enqueueReminder(claimed!)).resolves.toBe(false)
+    expect(await started.reminderScheduler().runOnce()).toBe(0)
   })
 
   it("cancels every key of one operation", async () => {

@@ -11,6 +11,7 @@ import {
   type ScheduledOperations,
   type StagedOperationMap,
   type ScheduledOperationsFor,
+  type TransmittedOperationsFor,
   type StagedOperations,
 } from "./reference.js"
 import { jsonObject, normalizeJson } from "./serialization.js"
@@ -101,6 +102,7 @@ export interface CommitActionIntent {
 }
 
 export interface ReminderIntent {
+  cancel?: undefined
   /** Without a key this is the operation. */
   name: string
   operation: string
@@ -317,7 +319,7 @@ export abstract class Actor {
 
   transmit<Keys extends keyof this, ActorType>(
     this: Actor & Pick<this, Keys> & (Partial<ActorType> | NoInfer<this>),
-  ): ScheduledOperationsFor<InferredActor<Keys, ActorType>>
+  ): TransmittedOperationsFor<InferredActor<Keys, ActorType>>
   transmit(): StagedOperationMap {
     return createStagedOperationMap(this.#operations, (operation, argumentsValue) => {
       this.#intents.effects.push({
@@ -361,20 +363,19 @@ export abstract class Actor {
   }
 
   unschedule(operationOrHandle: string | ReminderHandle, options: { key?: string | number } = {}) {
-    if (typeof operationOrHandle === "object" && operationOrHandle !== null) {
-      if (options.key !== undefined) {
-        throw new TypeError("a reminder handle already names its key")
-      }
-      const name = (operationOrHandle as ReminderHandle).name
-      if (typeof name !== "string" || name.length === 0) {
-        throw new TypeError("unschedule requires a reminder handle returned by schedule")
-      }
-      this.#intents.reminders.push({ cancel: "one", name })
+    if (typeof operationOrHandle === "string") {
+      const key = validatedReminderKey(options.key)
+      this.#intents.reminders.push({ cancel: "one", name: reminderName(operationOrHandle, key) })
       return
     }
+    if (options.key !== undefined) throw new TypeError("a reminder handle already names its key")
 
-    const key = validatedReminderKey(options.key)
-    this.#intents.reminders.push({ cancel: "one", name: reminderName(operationOrHandle, key) })
+    const name = operationOrHandle?.name
+    if (typeof name !== "string" || name.length === 0) {
+      throw new TypeError("unschedule requires a reminder handle returned by schedule")
+    }
+
+    this.#intents.reminders.push({ cancel: "one", name })
   }
 
   unscheduleAll(operation: string) {

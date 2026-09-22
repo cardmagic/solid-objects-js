@@ -6,8 +6,10 @@
 - Different identities may execute concurrently.
 - Sequence allocation and durable enqueue are one transaction.
 - A reminder can be cancelled. A cancellation commits with the state change that
-  decided it, and applies in the order the turn called it. An occurrence the
-  scheduler already claimed still runs; the cancellation removes later ones.
+  decided it, and applies in the order the turn called it. A cancellation cannot
+  recall an occurrence the scheduler already turned into a message. It does
+  pre-empt one the scheduler claimed but has not yet enqueued, and the scheduler
+  treats that as ordinary work rather than a failure.
 - Concurrent callers that create the same actor produce one instance row and
   distinct sequences. The mailbox locks that row by its primary key, so MySQL
   does not upgrade a shared lock and the enqueue does not deadlock.

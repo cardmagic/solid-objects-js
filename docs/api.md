@@ -45,6 +45,9 @@ authorization, capability boundaries, and release validation.
 - `Actor`: base class providing `ref()`, `actorId`, `currentMessage`,
   `observables()`, `reject()`, `emit()`, `transmit()`, `commitAction()`,
   `schedule()`, `sendTo()`, and protected lifecycle hooks.
+  `ScheduledOperationsFor` types the map `schedule()` returns, whose calls return a
+  `ReminderHandle`. `TransmittedOperationsFor` types the map `transmit()`
+  returns, whose calls return nothing.
 - `broadcastValue(value)`: mark an observable so its changed value enters the
   durable invalidation envelope.
 - `broadcastInvalidation(value)`: compare the real observable value but put

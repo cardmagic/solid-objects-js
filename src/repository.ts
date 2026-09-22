@@ -767,12 +767,18 @@ export class Repository {
       })
 
       for (const reminder of input.intents.reminders) {
-        if ("cancel" in reminder) {
-          const column = reminder.cancel === "all" ? "message_operation" : "operation"
-          const value = reminder.cancel === "all" ? reminder.operation : reminder.name
+        if (reminder.cancel === "all") {
           await connection.run(
-            `DELETE FROM ${this.table("reminders")} WHERE instance_id = ? AND ${column} = ?`,
-            [turn.instance.id, value],
+            `DELETE FROM ${this.table("reminders")}
+             WHERE instance_id = ? AND COALESCE(message_operation, operation) = ?`,
+            [turn.instance.id, reminder.operation],
+          )
+          continue
+        }
+        if (reminder.cancel === "one") {
+          await connection.run(
+            `DELETE FROM ${this.table("reminders")} WHERE instance_id = ? AND operation = ?`,
+            [turn.instance.id, reminder.name],
           )
           continue
         }
@@ -1759,8 +1765,8 @@ export class Repository {
   async enqueueReminder(
     reminder: ReminderRow,
     options: { nowMilliseconds?: number } = {},
-  ): Promise<void> {
-    await this.settings.database.transaction(async (connection) => {
+  ): Promise<boolean> {
+    return this.settings.database.transaction(async (connection) => {
       const now = options.nowMilliseconds ?? (await connection.nowMilliseconds())
       const claimed = await connection.get<ReminderRow>(
         `SELECT reminders.*, instances.actor_type, instances.actor_id
@@ -1769,7 +1775,14 @@ export class Repository {
          WHERE reminders.id = ? AND reminders.status = 'scheduled' AND reminders.claimed_by = ?`,
         [reminder.id, reminder.claimed_by],
       )
-      if (!claimed) throw new LostActivation("reminder claim no longer matches")
+      if (!claimed) {
+        const surviving = await connection.get<{ id: string }>(
+          `SELECT id FROM ${this.table("reminders")} WHERE id = ?`,
+          [reminder.id],
+        )
+        if (!surviving) return false
+        throw new LostActivation("reminder claim no longer matches")
+      }
       await this.enqueueInTransaction(connection, {
         actorType: claimed.actor_type,
         actorId: claimed.actor_id,
@@ -1800,6 +1813,7 @@ export class Repository {
           claimed.claimed_by,
         ],
       )
+      return true
     })
   }
 

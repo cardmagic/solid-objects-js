@@ -109,6 +109,7 @@ export {
   type ActorSnapshot,
   type ScheduledOperations,
   type ScheduledOperationsFor,
+  type TransmittedOperationsFor,
   type StagedOperations,
 } from "./reference.js"
 export type {

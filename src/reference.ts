@@ -107,6 +107,10 @@ export type ScheduledOperationsFor<ActorType extends Actor> = {
   [Key in ActorOperationNames<ActorType>]: ScheduledMethod<ActorType[Key]>
 }
 
+export type TransmittedOperationsFor<ActorType extends Actor> = {
+  [Key in ActorOperationNames<ActorType>]: StagedMethod<ActorType[Key]>
+}
+
 export interface StagedOperationMap {
   [operation: string]: (argumentsValue?: Record<string, unknown>) => void
 }

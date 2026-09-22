@@ -1421,7 +1421,8 @@ export class SolidObjectsRuntime {
     if (!actor.operations.has(dispatchOperation)) {
       throw new UnknownOperation(`unknown reminder operation ${JSON.stringify(dispatchOperation)}`)
     }
-    await this.repository.enqueueReminder(reminder, options)
+    if (!(await this.repository.enqueueReminder(reminder, options))) return
+
     this.wakeUp("actors")
     this.emitInstrumentation("reminder.enqueued", {
       reminderId: reminder.id,

@@ -46,7 +46,7 @@ export class ChatRun extends ParentRun {
     operations.finish()
     operations.optional()
     operations.optional({ generation: 1 })
-    this.transmit().recoverIfStuck({ generation: 1 })
+    expectTypeOf(this.transmit().recoverIfStuck({ generation: 1 })).toEqualTypeOf<void>()
     this.transmit().finish()
     this.transmit().optional()
     this.emit("run_model", { onSuccess: "finish", onFailure: "failTurn" })

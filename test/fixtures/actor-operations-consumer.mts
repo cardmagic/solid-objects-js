@@ -33,7 +33,8 @@ export class ChatRun extends ParentRun {
     this.unscheduleAll("finish")
     operations.finish()
     operations.optional()
-    this.transmit().recoverIfStuck({ generation: 1 })
+    const transmitted: void = this.transmit().recoverIfStuck({ generation: 1 })
+    void transmitted
     this.emit("run_model", { onFailure: "finish" })
     // @ts-expect-error operation typo
     operations.recoverIfStcuk({ generation: 1 })

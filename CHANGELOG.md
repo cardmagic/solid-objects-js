@@ -7,7 +7,9 @@
   `unscheduleAll()` removes every key of one operation. Both stage an intent
   beside the schedules, so they apply in the order the turn called them, commit
   with the state change that decided them, and cancel nothing when a turn
-  throws. Cancellation works on the SQL backends and on Durable Objects.
+  throws. Cancellation works on the SQL backends and on Durable Objects. A
+  cancellation that lands on an occurrence the scheduler claimed but has not yet
+  enqueued pre-empts it, and the scheduler continues rather than failing.
 - `schedule()` now returns a `ReminderHandle` (`{ name: string }`) instead of
   `void`. A handle is a plain object, so it survives in actor state and still
   cancels after a deactivation. Code that assigned the result to `void` needs
