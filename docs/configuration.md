@@ -163,6 +163,13 @@ short capped backoff only when no synchronous deadline is active.
 PostgreSQL notifications, then polling. `"in_process"` opts out, `"postgresql"`
 and `"redis"` force one, and an unknown name throws rather than polls quietly.
 
+A requested adapter that the environment cannot provide polls instead and says
+so. `"postgresql"` on a database with no notification channel, `"redis"` without
+`SOLID_OBJECTS_REDIS_URL`, and a Redis URL without the `redis` package each log
+`solid_objects.wake_up.unavailable` once and report the reason in the
+capability. Only a name that does not exist is refused, because a typo cannot be
+honoured at all.
+
 Selection runs once per runtime, on first use. `runtime.wakeUpCapability()`
 reports what it chose, whether that choice crosses processes, its measured
 floor in milliseconds, and why. The doctor reports the same record, and the

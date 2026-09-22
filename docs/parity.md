@@ -115,11 +115,13 @@ its measured floor, and why, and warns once when live processes share a
 database and the installed adapter cannot reach them. MySQL still polls in both
 runtimes, because MySQL has no notification channel.
 
-Two details differ. `wakeUp: "redis"` without `SOLID_OBJECTS_REDIS_URL` throws
-here, because the `redis` client needs a URL, while the Ruby gem falls back to
-its own default. The pooled-session warning is emitted once per runtime here and
-once per process in Ruby, because this runtime supports several runtimes in one
-process.
+A requested adapter that the environment cannot provide polls instead and says
+so in both runtimes, rather than claim a cross-process wake-up that cannot
+happen. Only a name that does not exist is refused.
+
+One detail differs. The pooled-session warning is emitted once per runtime here
+and once per process in Ruby, because this runtime supports several runtimes in
+one process.
 
 ## Realtime and browser behavior
 

@@ -22,6 +22,12 @@
 - Keep the capability a configured adapter reports about itself. A configured
   `InProcessWakeUpAdapter` now reports `in_process` and warns, rather than
   claim that it crosses processes.
+- Poll rather than pretend when a requested adapter cannot be built.
+  `wakeUp: "postgresql"` on a database with no notification channel,
+  `wakeUp: "redis"` without `SOLID_OBJECTS_REDIS_URL`, and a Redis URL without
+  the `redis` package each log `solid_objects.wake_up.unavailable` once and
+  report the reason in the capability, so the doctor warns rather than claim a
+  cross-process wake-up that cannot happen.
 - Select once per runtime. `runtime.wakeUpAdapter()` memoises the selection, so
   callers that race for the first use share one probe rather than run one each.
 

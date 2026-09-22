@@ -6,7 +6,6 @@ import type {
   DatabaseConnection,
   DatabaseFamily,
   DatabaseTransactionOptions,
-  RunResult,
 } from "../src/database/types.js"
 import { configure, type SolidObjectsRuntime } from "../src/runtime.js"
 import {
@@ -49,16 +48,25 @@ class ProbeWakeUpAdapter implements NotificationWakeUpAdapter {
 }
 
 class NotifyingDatabase implements Database {
-  readonly family: DatabaseFamily = "postgresql"
+  readonly family: DatabaseFamily
   readonly schemaIdentity: string
   readonly adapters: ProbeWakeUpAdapter[] = []
   readonly notifiedChannels: string[] = []
 
-  constructor(private readonly options: { database: Database; delivers: boolean }) {
+  constructor(
+    private readonly options: {
+      database: Database
+      delivers: boolean
+      refuses?: boolean
+      family?: DatabaseFamily
+    },
+  ) {
+    this.family = options.family ?? "postgresql"
     this.schemaIdentity = options.database.schemaIdentity
   }
 
   wakeUp(options: { channelPrefix?: string } = {}): NotificationWakeUpAdapter {
+    if (this.options.refuses) throw new Error("this database refuses a notification adapter")
     const adapter = new ProbeWakeUpAdapter({
       delivers: this.options.delivers,
       channelPrefix: options.channelPrefix ?? "solid_objects",
@@ -86,7 +94,7 @@ class NotifyingDatabase implements Database {
 
   private intercept(connection: DatabaseConnection): DatabaseConnection {
     return {
-      run: (sql: string, parameters: readonly unknown[] = []): Promise<RunResult> => {
+      run: (sql, parameters = []) => {
         if (!sql.includes("pg_notify")) return connection.run(sql, parameters)
         this.notifiedChannels.push(String(parameters[0]))
         return Promise.resolve({ changes: 0 })
@@ -183,6 +191,38 @@ describe("wake-up selection", () => {
     }
   })
 
+  it("polls and warns when a requested adapter has no notification channel", async () => {
+    const database = sqlite({ path: ":memory:" })
+    const warnings: { event?: string }[] = []
+    const logger = { ...silentLogger, warn: (entry: { event?: string }) => warnings.push(entry) }
+
+    const selected = await selectWakeUp({
+      ...selectionOptions({ database, setting: "postgresql" }),
+      logger,
+    })
+
+    expect(selected.capability.adapter).toBe("polling")
+    expect(selected.capability.reason).toMatch(/notification channel/i)
+    expect(warnings.map(({ event }) => event)).toEqual(["solid_objects.wake_up.unavailable"])
+    await database.close()
+  })
+
+  it("polls and warns when redis is requested without a url", async () => {
+    const database = sqlite({ path: ":memory:" })
+    const warnings: { event?: string }[] = []
+    const logger = { ...silentLogger, warn: (entry: { event?: string }) => warnings.push(entry) }
+
+    const selected = await selectWakeUp({
+      ...selectionOptions({ database, setting: "redis" }),
+      logger,
+    })
+
+    expect(selected.capability.adapter).toBe("polling")
+    expect(selected.capability.reason).toMatch(/SOLID_OBJECTS_REDIS_URL/)
+    expect(warnings.map(({ event }) => event)).toEqual(["solid_objects.wake_up.unavailable"])
+    await database.close()
+  })
+
   it("refuses an unknown name rather than polling quietly", async () => {
     const database = sqlite({ path: ":memory:" })
 
@@ -247,8 +287,8 @@ describe("wake-up selection", () => {
   it("warns once about a pooled PostgreSQL session", async () => {
     const inner = sqlite({ path: ":memory:" })
     const database = new NotifyingDatabase({ database: inner, delivers: false })
-    const warnings: unknown[] = []
-    const logger = { ...silentLogger, warn: (entry: unknown) => warnings.push(entry) }
+    const warnings: { event?: string }[] = []
+    const logger = { ...silentLogger, warn: (entry: { event?: string }) => warnings.push(entry) }
 
     await selectWakeUp({ ...selectionOptions({ database }), logger })
 
@@ -283,8 +323,14 @@ describe("runtime wake-up selection", () => {
   it("reports a selection that cannot run once rather than on every commit", async () => {
     const errors: { event?: string }[] = []
     const logger = { ...silentLogger, error: (entry: { event?: string }) => errors.push(entry) }
+    const inner = sqlite({ path: ":memory:" })
     runtime = configure({
-      database: sqlite({ path: ":memory:" }),
+      database: new NotifyingDatabase({
+        database: inner,
+        delivers: true,
+        refuses: true,
+        family: "sqlite",
+      }),
       wakeUp: "postgresql",
       logger,
       authorizeMessage: () => true,

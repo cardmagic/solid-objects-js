@@ -17,6 +17,10 @@ export const PROBE_CHANNEL_PREFIX = "solid_objects_probe"
 
 const PROBE_ROLE = "actors" as const
 
+type NotificationAdapterFactory = (options?: {
+  channelPrefix?: string
+}) => NotificationWakeUpAdapter
+
 export interface SelectedWakeUp {
   readonly adapter: WakeUpAdapter
   readonly capability: WakeUpCapability
@@ -61,49 +65,72 @@ async function named(options: WakeUpSelectionOptions & { name: string }): Promis
       },
     }
   }
-  if (options.name === "postgresql") {
-    return {
-      adapter: notificationAdapter(options.database),
-      capability: {
-        adapter: "postgresql_notify",
-        crossesProcesses: true,
-        measuredFloorMilliseconds: POSTGRESQL_FLOOR_MILLISECONDS,
-        reason: "PostgreSQL LISTEN was requested",
-      },
-    }
-  }
-  if (options.name === "redis") {
-    return await redisSelection({
-      url: requiredRedisUrl(options),
-      reason: "Redis was requested",
-    })
-  }
+  if (options.name === "postgresql") return requestedPostgresql(options)
+  if (options.name === "redis") return await requestedRedis(options)
+
   throw new TypeError(
     `unknown wakeUp ${JSON.stringify(options.name)}, expected one of ${WAKE_UP_NAMES.join(", ")} or an adapter`,
   )
+}
+
+function requestedPostgresql(options: WakeUpSelectionOptions): SelectedWakeUp {
+  const wakeUp = notificationFactory(options.database)
+  if (!wakeUp) {
+    return unavailable({
+      options,
+      reason:
+        `wakeUp "postgresql" needs a database with a notification channel, ` +
+        `and ${options.database.family} provides none`,
+    })
+  }
+  return {
+    adapter: wakeUp(),
+    capability: {
+      adapter: "postgresql_notify",
+      crossesProcesses: true,
+      measuredFloorMilliseconds: POSTGRESQL_FLOOR_MILLISECONDS,
+      reason: "PostgreSQL LISTEN was requested",
+    },
+  }
+}
+
+async function requestedRedis(options: WakeUpSelectionOptions): Promise<SelectedWakeUp> {
+  const url = redisUrl(options)
+  if (url === undefined) {
+    return unavailable({
+      options,
+      reason: `wakeUp "redis" needs ${REDIS_URL_VARIABLE}, which is not set`,
+    })
+  }
+  return await redisSelection({ options, url, reason: "Redis was requested" })
 }
 
 async function automatic(options: WakeUpSelectionOptions): Promise<SelectedWakeUp> {
   const url = redisUrl(options)
   if (url !== undefined) {
     return await redisSelection({
+      options,
       url,
       reason: `${REDIS_URL_VARIABLE} is set, so Redis carries the signal between processes`,
     })
   }
-  if (options.database.family !== "postgresql" || !options.database.wakeUp) {
+  const wakeUp = notificationFactory(options.database)
+  if (options.database.family !== "postgresql" || !wakeUp) {
     return polling({
       idlePollingIntervalMilliseconds: options.idlePollingIntervalMilliseconds,
       reason: `${options.database.family} has no notification channel and ${REDIS_URL_VARIABLE} is not set`,
     })
   }
-  return await postgresqlSelection(options)
+  return await postgresqlSelection({ options, wakeUp })
 }
 
-async function postgresqlSelection(options: WakeUpSelectionOptions): Promise<SelectedWakeUp> {
-  if (!(await notificationsDeliver(options))) return pooled(options)
+async function postgresqlSelection(input: {
+  options: WakeUpSelectionOptions
+  wakeUp: NotificationAdapterFactory
+}): Promise<SelectedWakeUp> {
+  if (!(await notificationsDeliver(input))) return pooled(input.options)
   return {
-    adapter: notificationAdapter(options.database),
+    adapter: input.wakeUp(),
     capability: {
       adapter: "postgresql_notify",
       crossesProcesses: true,
@@ -114,14 +141,17 @@ async function postgresqlSelection(options: WakeUpSelectionOptions): Promise<Sel
   }
 }
 
-async function notificationsDeliver(options: WakeUpSelectionOptions): Promise<boolean> {
-  const probe = notificationAdapter(options.database, { channelPrefix: PROBE_CHANNEL_PREFIX })
+async function notificationsDeliver(input: {
+  options: WakeUpSelectionOptions
+  wakeUp: NotificationAdapterFactory
+}): Promise<boolean> {
+  const probe = input.wakeUp({ channelPrefix: PROBE_CHANNEL_PREFIX })
   try {
     const watch = await probe.watch(PROBE_ROLE)
-    await options.database.connection((connection) =>
+    await input.options.database.connection((connection) =>
       connection.run("SELECT pg_notify(?, ?)", [probe.channelFor(PROBE_ROLE), PROBE_ROLE]),
     )
-    const timeoutMilliseconds = options.probeTimeoutMilliseconds ?? PROBE_TIMEOUT_MILLISECONDS
+    const timeoutMilliseconds = input.options.probeTimeoutMilliseconds ?? PROBE_TIMEOUT_MILLISECONDS
     return (await watch.wait({ timeoutMilliseconds })) === true
   } catch {
     return false
@@ -144,6 +174,14 @@ function pooled(options: WakeUpSelectionOptions): SelectedWakeUp {
   })
 }
 
+function unavailable(input: { options: WakeUpSelectionOptions; reason: string }): SelectedWakeUp {
+  input.options.logger.warn({ event: "solid_objects.wake_up.unavailable", reason: input.reason })
+  return polling({
+    idlePollingIntervalMilliseconds: input.options.idlePollingIntervalMilliseconds,
+    reason: input.reason,
+  })
+}
+
 function polling(input: {
   idlePollingIntervalMilliseconds: number
   reason: string
@@ -159,10 +197,20 @@ function polling(input: {
   }
 }
 
-async function redisSelection(input: { url: string; reason: string }): Promise<SelectedWakeUp> {
-  const { RedisWakeUpAdapter } = await importRedis()
+async function redisSelection(input: {
+  options: WakeUpSelectionOptions
+  url: string
+  reason: string
+}): Promise<SelectedWakeUp> {
+  const redis = await importRedis()
+  if (!redis) {
+    return unavailable({
+      options: input.options,
+      reason: `${REDIS_URL_VARIABLE} is set, and the redis package is not installed`,
+    })
+  }
   return {
-    adapter: new RedisWakeUpAdapter({ url: input.url }),
+    adapter: new redis.RedisWakeUpAdapter({ url: input.url }),
     capability: {
       adapter: "redis",
       crossesProcesses: true,
@@ -172,24 +220,18 @@ async function redisSelection(input: { url: string; reason: string }): Promise<S
   }
 }
 
-async function importRedis(): Promise<typeof import("./wake-up/redis.js")> {
+async function importRedis(): Promise<typeof import("./wake-up/redis.js") | undefined> {
   try {
     return await import("./wake-up/redis.js")
-  } catch (error) {
-    throw new TypeError("the redis package is required for the Redis wake-up adapter", {
-      cause: error,
-    })
+  } catch {
+    return undefined
   }
 }
 
-function notificationAdapter(
-  database: Database,
-  options: { channelPrefix?: string } = {},
-): NotificationWakeUpAdapter {
-  if (!database.wakeUp) {
-    throw new TypeError(`the ${database.family} database does not provide a notification channel`)
-  }
-  return database.wakeUp(options)
+function notificationFactory(database: Database): NotificationAdapterFactory | undefined {
+  const wakeUp = database.wakeUp
+  if (!wakeUp) return undefined
+  return (options) => wakeUp.call(database, options)
 }
 
 function redisUrl(options: WakeUpSelectionOptions): string | undefined {
@@ -200,14 +242,6 @@ function redisUrl(options: WakeUpSelectionOptions): string | undefined {
 
 function environmentRedisUrl(): string | undefined {
   return globalThis.process?.env?.[REDIS_URL_VARIABLE]
-}
-
-function requiredRedisUrl(options: WakeUpSelectionOptions): string {
-  const url = redisUrl(options)
-  if (url === undefined) {
-    throw new TypeError(`wakeUp "redis" requires ${REDIS_URL_VARIABLE} or an explicit adapter`)
-  }
-  return url
 }
 
 async function closeQuietly(adapter: WakeUpAdapter): Promise<void> {
