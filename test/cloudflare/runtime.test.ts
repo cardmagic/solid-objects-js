@@ -110,11 +110,10 @@ describe("Durable Objects runtime", () => {
 
 async function remainingReminders(actorId: string): Promise<string[]> {
   const stub = env.ACTORS.getByName(JSON.stringify(["Counter", actorId]))
-  return runInDurableObject(stub, (instance: unknown) => {
-    const storage = (instance as { ctx: { storage: { sql: { exec: Function } } } }).ctx.storage
-    return storage.sql
-      .exec("SELECT name FROM reminders ORDER BY name")
+  return runInDurableObject(stub, (_object, state) =>
+    state.storage.sql
+      .exec<{ name: string }>("SELECT name FROM reminders ORDER BY name")
       .toArray()
-      .map((row: { name: string }) => row.name)
-  })
+      .map((row) => row.name),
+  )
 }

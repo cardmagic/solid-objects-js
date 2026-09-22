@@ -407,9 +407,11 @@ effect results and the handler's declared argument/result types in agreement.
 ### Typed operation references
 
 `schedule` and `transmit` infer this actor's operation names and arguments, including
-inside actor methods and for inherited application operations. The returned
-`ScheduledOperationsFor<ActorType>` values return `void` and preserve required,
-optional, and zero-argument operation signatures. No non-null assertion is needed:
+inside actor methods and for inherited application operations. A scheduled operation
+call returns a `ReminderHandle`, through `ScheduledOperationsFor<ActorType>`, and a
+transmitted one returns `void`, through `TransmittedOperationsFor<ActorType>`. Both
+preserve required, optional, and zero-argument operation signatures. No non-null
+assertion is needed:
 
 ```typescript
 class ChatRun extends Actor {
