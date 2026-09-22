@@ -13,6 +13,10 @@ class PaymentActor extends Actor {
     this.placed += 1
     this.emit("settle", { arguments: { order: "one" } })
   }
+
+  explode(): void {
+    throw new Error("poison message")
+  }
 }
 
 class ShipmentActor extends Actor {
@@ -289,6 +293,33 @@ describe("redrive", () => {
     expect(await active.deadLetters.effects.all()).toHaveLength(1)
   })
 
+  it("does not let a cancel overwrite a task the runner already finished", async () => {
+    const active = await start()
+    await deadEffects(active, 1)
+    const task = await active.deadLetters.effects.redrive()
+    await drain(active)
+
+    await task.cancel()
+
+    expect((await active.redrives.find(task.id)).status).toBe("completed")
+    expect((await auditRows(active)).map(({ action }) => action)).toEqual([
+      "redrive.start",
+      "redrive.finish",
+    ])
+  })
+
+  it("reports a task as a frozen value", async () => {
+    const active = await start()
+    await deadEffects(active, 1)
+
+    const task = await active.deadLetters.effects.redrive()
+
+    expect(Object.isFrozen(task)).toBe(true)
+    expect(task.kind).toBe("effect")
+    expect(task.startedAt).toBeInstanceOf(Date)
+    expect(task.finishedAt).toBeNull()
+  })
+
   it("refuses an invalid filter rather than redrive everything", async () => {
     const active = await start()
     await deadEffects(active, 2)
@@ -356,6 +387,40 @@ describe("administration audit", () => {
     const events = await auditRows(active)
     expect(events.map(({ action }) => action)).toEqual(["dead_letter.retry", "dead_letter.retry"])
     expect(events[0]).toMatchObject({ kind: "effect", subject_id: id })
+  })
+
+  it("writes one row for a broadcast retry", async () => {
+    const active = await start()
+    await deadBroadcast(active)
+    const dead = await active.deadLetters.broadcasts.all()
+
+    await active.deadLetters.broadcasts.retry(dead[0]!.id)
+
+    const events = await auditRows(active)
+    expect(events).toHaveLength(1)
+    expect(events[0]).toMatchObject({
+      action: "dead_letter.retry",
+      kind: "broadcast",
+      subject_id: dead[0]!.id,
+    })
+  })
+
+  it("writes one row for a message retry", async () => {
+    const active = await start()
+    await active.ref(PaymentActor, "poison").send.explode()
+    await active.worker().runUntilIdle()
+    const letters = await active.deadLetters.all()
+    expect(letters).toHaveLength(1)
+
+    await active.deadLetters.retry(letters[0]!.id)
+
+    const events = await auditRows(active)
+    expect(events).toHaveLength(1)
+    expect(events[0]).toMatchObject({
+      action: "dead_letter.retry",
+      kind: "message",
+      subject_id: letters[0]!.id,
+    })
   })
 
   it("writes one row for each redrive transition", async () => {

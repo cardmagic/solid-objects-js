@@ -949,10 +949,19 @@ export class SolidObjectsRuntime {
         `unknown dead-letter operation ${JSON.stringify(deadLetter.operation)}`,
       )
     }
+    const actorIdentity = await this.administrationIdentity(options.authorizationContext)
     const message = await this.repository.retryDeadLetter({
       id,
       initialState: initialStateFor(actor.definition),
       stateVersion: actor.definition.stateVersion,
+      audit: (connection) =>
+        this.writeAdministrationEvent({
+          connection,
+          action: "dead_letter.retry",
+          kind: "message",
+          subjectId: id,
+          actor: actorIdentity,
+        }),
     })
     this.emitInstrumentation("dead_letter.retried", {
       deadLetterId: id,

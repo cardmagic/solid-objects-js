@@ -1140,8 +1140,10 @@ export class Repository {
     id: string
     initialState: JsonObject
     stateVersion: number
+    audit?: (connection: DatabaseConnection) => Promise<void>
   }): Promise<MessageRow> {
     return this.settings.database.transaction(async (connection) => {
+      await options.audit?.(connection)
       const deadLetter = await this.findDeadLetterInConnection(connection, options.id)
       if (!deadLetter) throw new UnknownDeadLetter(`unknown dead letter ${options.id}`)
       if (deadLetter.retried_message_id) {

@@ -3,6 +3,7 @@ import { Actor } from "../src/actor.js"
 import { sqlite } from "../src/database/sqlite.js"
 import { Unauthorized } from "../src/errors.js"
 import { configure, type SolidObjectsRuntime } from "../src/runtime.js"
+import { TRANSMIT_EFFECT } from "../src/transmit-effect.js"
 
 class OrderActor extends Actor {
   static override readonly actorType = "RedriveOrderActor"
@@ -17,6 +18,10 @@ class OrderActor extends Actor {
 
   touch(): void {
     this.count += 1
+  }
+
+  sendElsewhere(): void {
+    this.transmit().touch()
   }
 
   override observables(): Record<string, unknown> {
@@ -57,6 +62,7 @@ async function start(): Promise<SolidObjectsRuntime> {
     logger: { debug: () => {}, info: () => {}, warn: () => {}, error: () => {} },
   })
   created.registerEffect("settle", (argumentsValue) => settle(argumentsValue))
+  created.registerEffect(TRANSMIT_EFFECT, (argumentsValue) => settle(argumentsValue))
   created.register(OrderActor)
   created.register(PoisonActor)
   await created.install()
@@ -135,6 +141,38 @@ describe("dead-letter scopes", () => {
     deliver = () => {}
     await active.broadcastWorker().runUntilIdle()
     expect(await active.deadLetters.broadcasts.all()).toHaveLength(0)
+  })
+
+  it("replays a dead transmit effect", async () => {
+    const active = await start()
+    const transmitted: Record<string, unknown>[] = []
+    settle = () => {
+      throw new Error("carrier down")
+    }
+    await active.ref(OrderActor, "one").send.sendElsewhere()
+    await active.worker().runUntilIdle()
+    await active.effectWorker().runUntilIdle()
+    const dead = await active.deadLetters.effects.all()
+    expect(dead).toHaveLength(1)
+
+    settle = (argumentsValue) => {
+      transmitted.push(argumentsValue)
+    }
+    await active.deadLetters.effects.retry(dead[0]!.id)
+    await active.effectWorker().runUntilIdle()
+
+    expect(await active.deadLetters.effects.all()).toHaveLength(0)
+    expect(transmitted.map((argumentsValue) => argumentsValue["operation"])).toEqual(["touch"])
+  })
+
+  it("reads only dead rows, not pending ones", async () => {
+    const active = await start()
+    const id = await deadEffect(active)
+    settle = () => {}
+    await active.ref(OrderActor, "two").send.place()
+    await active.worker().runUntilIdle()
+
+    expect((await active.deadLetters.effects.all()).map((row) => row.id)).toEqual([id])
   })
 
   it("reads and retries message dead letters as it always has", async () => {
