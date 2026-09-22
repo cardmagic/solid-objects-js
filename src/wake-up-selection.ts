@@ -190,9 +190,13 @@ function notificationAdapter(
 }
 
 function redisUrl(options: WakeUpSelectionOptions): string | undefined {
-  const value = options.redisUrl ?? process.env[REDIS_URL_VARIABLE]
+  const value = options.redisUrl ?? environmentRedisUrl()
   if (value === undefined || value.length === 0) return undefined
   return value
+}
+
+function environmentRedisUrl(): string | undefined {
+  return globalThis.process?.env?.[REDIS_URL_VARIABLE]
 }
 
 function requiredRedisUrl(options: WakeUpSelectionOptions): string {

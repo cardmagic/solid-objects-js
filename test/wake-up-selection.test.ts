@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from "vitest"
+import { afterEach, describe, expect, it, vi } from "vitest"
 import { sqlite } from "../src/database/sqlite.js"
 import type {
   Database,
@@ -156,6 +156,19 @@ describe("wake-up selection", () => {
     expect(selected.capability.adapter).toBe("configured")
     expect(selected.capability.crossesProcesses).toBe(true)
     await database.close()
+  })
+
+  it("selects where the runtime defines no process global, as a browser does not", async () => {
+    const database = sqlite({ path: ":memory:" })
+    vi.stubGlobal("process", undefined)
+    try {
+      const selected = await selectWakeUp(selectionOptions({ database }))
+
+      expect(selected.capability.adapter).toBe("polling")
+    } finally {
+      vi.unstubAllGlobals()
+      await database.close()
+    }
   })
 
   it("refuses an unknown name rather than polling quietly", async () => {
