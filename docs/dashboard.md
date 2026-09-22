@@ -141,6 +141,15 @@ Dead-letter retry calls `runtime.deadLetters.retry()`. It keeps the durable
 idempotency and the actor-operation validation of that method. If the runtime
 refuses a retry, the detail page shows it with status 422.
 
+Dead effects and broadcasts have the same API, which the dashboard does not yet
+surface. `runtime.deadLetters.effects` and `runtime.deadLetters.broadcasts` read
+and retry their own kind, and `redrive` moves a whole scope as a durable task.
+See [Operations](operations.md) for both.
+
+Every retry and every redrive transition writes one row to
+`solid_objects_administration_events`, holding the action, the kind, the
+subject, and the identity that asked for it.
+
 `HEAD /` performs only a schema reachability query and creates no CSRF session
 state. Use it for liveness checks instead of polling the full dashboard.
 
