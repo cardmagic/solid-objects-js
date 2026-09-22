@@ -34,6 +34,7 @@ import type {
   JsonObject,
   JsonValue,
   SerializedError,
+  ScheduledReminder,
 } from "../types.js"
 import type { CloudflareSettings } from "./configuration.js"
 import { actorName, callHost, type ActorIdentity, type HostRequest } from "./protocol.js"
@@ -357,6 +358,21 @@ export class ActorEngine {
     return { definition, instance, state }
   }
 
+  private readReminders = async (): Promise<ScheduledReminder[]> =>
+    this.store.rows<Reminder>("SELECT record FROM reminders ORDER BY name").map((reminder) => ({
+      name: reminder.name,
+      operation: reminder.operation,
+      key:
+        reminder.name === reminder.operation
+          ? null
+          : reminder.name.slice(reminder.operation.length + 1),
+      runAtMilliseconds: reminder.at,
+      intervalMilliseconds: reminder.interval,
+      missedPolicy: reminder.missed,
+      status: reminder.status,
+      handle: { name: reminder.name },
+    }))
+
   private async snapshot(identity: ActorIdentity): Promise<JsonObject> {
     const { definition, instance, state } = this.committed(identity)
     const actor = hydrateActor({ definition, actorId: identity.actorId, state })
@@ -387,7 +403,11 @@ export class ActorEngine {
   }): Promise<JsonObject> {
     const { input, payloadNames } = options
     const { definition, instance, state } = this.committed(input)
-    const actor = hydrateActor({ definition, actorId: input.actorId, state })
+    const actor = hydrateActor({
+      definition,
+      actorId: input.actorId,
+      state,
+    })
     const identity = {
       actorType: input.actorType,
       actorId: input.actorId,
@@ -486,6 +506,7 @@ export class ActorEngine {
                 storedVersion: instance.stateVersion,
                 storedState: instance.state,
               }),
+              readReminders: this.readReminders,
             })
       if (this.cached?.actor !== actor) {
         await withActorContext({ actor, runtime: this.runtime }, () => actor.activate())

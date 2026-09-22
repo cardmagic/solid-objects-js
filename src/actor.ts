@@ -2,6 +2,7 @@ import { currentMessage, currentRuntime } from "./context.js"
 import { getDefaultRuntime } from "./default-runtime.js"
 import type { StateMigration } from "./definition.js"
 import { InvalidRejectionCode, Rejected, UnknownOperation } from "./errors.js"
+import type { ReminderStatus } from "./reminder-administration.js"
 import { TRANSMIT_EFFECT } from "./transmit-effect.js"
 import { randomUUID } from "./platform/uuid.js"
 import {
@@ -20,6 +21,8 @@ import type {
   EffectHandle,
   JsonObject,
   ReminderHandle,
+  ReminderReader,
+  ScheduledReminder,
   JsonValue,
   MessageContext,
 } from "./types.js"
@@ -179,6 +182,66 @@ function validatedReminderKey(key: string | number | undefined): string | undefi
  * reverse, and it is refused here rather than at the insert, once the turn is
  * already doing work.
  */
+function handleName(handle: ReminderHandle, key: string | number | undefined): string {
+  if (key !== undefined) throw new TypeError("a reminder handle already names its key")
+
+  const name = handle?.name
+  if (typeof name !== "string" || name.length === 0) {
+    throw new TypeError("a reminder handle returned by schedule is required")
+  }
+
+  return name
+}
+
+function reminderKeyOf(name: string, operation: string): string | null {
+  return name === operation ? null : name.slice(operation.length + 1)
+}
+
+function reminderStatusOf(options: {
+  name: string
+  operation: string
+  runAtMilliseconds: number
+  intervalMilliseconds: number | null
+  missedPolicy: "all" | "latest"
+  status: ReminderStatus
+}): ScheduledReminder {
+  return {
+    name: options.name,
+    operation: options.operation,
+    key: reminderKeyOf(options.name, options.operation),
+    runAtMilliseconds: options.runAtMilliseconds,
+    intervalMilliseconds: options.intervalMilliseconds,
+    missedPolicy: options.missedPolicy,
+    status: options.status,
+    handle: { name: options.name },
+  }
+}
+
+function applyReminderIntent(view: Map<string, ScheduledReminder>, intent: ReminderMutation): void {
+  if (intent.cancel === "all") {
+    for (const [name, status] of view) {
+      if (status.operation === intent.operation) view.delete(name)
+    }
+    return
+  }
+  if (intent.cancel === "one") {
+    view.delete(intent.name)
+    return
+  }
+
+  view.set(
+    intent.name,
+    reminderStatusOf({
+      name: intent.name,
+      operation: intent.operation,
+      runAtMilliseconds: intent.atMilliseconds,
+      intervalMilliseconds: intent.intervalMilliseconds ?? null,
+      missedPolicy: intent.missedPolicy,
+      status: "scheduled",
+    }),
+  )
+}
+
 function reminderName(operation: string, key: string | undefined): string {
   if (key === undefined) return operation
 
@@ -211,6 +274,8 @@ export abstract class Actor {
   }
 
   readonly #actorId: string
+  #readReminders: ReminderReader | undefined
+
   readonly #intents: ActorIntents = {
     effects: [],
     commitActions: [],
@@ -363,25 +428,50 @@ export abstract class Actor {
   }
 
   unschedule(operationOrHandle: string | ReminderHandle, options: { key?: string | number } = {}) {
-    if (typeof operationOrHandle === "string") {
-      this.#assertOperation(operationOrHandle)
-      const key = validatedReminderKey(options.key)
-      this.#intents.reminders.push({ cancel: "one", name: reminderName(operationOrHandle, key) })
-      return
-    }
-    if (options.key !== undefined) throw new TypeError("a reminder handle already names its key")
-
-    const name = operationOrHandle?.name
-    if (typeof name !== "string" || name.length === 0) {
-      throw new TypeError("unschedule requires a reminder handle returned by schedule")
-    }
-
-    this.#intents.reminders.push({ cancel: "one", name })
+    this.#intents.reminders.push({
+      cancel: "one",
+      name: this.#reminderNameOf(operationOrHandle, options),
+    })
   }
 
   unscheduleAll(operation: string) {
     this.#assertOperation(operation)
     this.#intents.reminders.push({ cancel: "all", operation })
+  }
+
+  async reminder(
+    operationOrHandle: string | ReminderHandle,
+    options: { key?: string | number } = {},
+  ): Promise<ScheduledReminder | undefined> {
+    return (await this.#reminderView()).get(this.#reminderNameOf(operationOrHandle, options))
+  }
+
+  async reminders(operation: string): Promise<ScheduledReminder[]> {
+    this.#assertOperation(operation)
+    const view = await this.#reminderView()
+    return [...view.values()].filter((status) => status.operation === operation)
+  }
+
+  #reminderNameOf(
+    operationOrHandle: string | ReminderHandle,
+    options: { key?: string | number },
+  ): string {
+    if (typeof operationOrHandle === "string") {
+      this.#assertOperation(operationOrHandle)
+      return reminderName(operationOrHandle, validatedReminderKey(options.key))
+    }
+
+    return handleName(operationOrHandle, options.key)
+  }
+
+  async #reminderView(): Promise<Map<string, ScheduledReminder>> {
+    if (!this.#readReminders) {
+      throw new TypeError("reading reminders is not available outside an actor turn")
+    }
+    const view = new Map<string, ScheduledReminder>()
+    for (const status of await this.#readReminders()) view.set(status.name, status)
+    for (const intent of this.#intents.reminders) applyReminderIntent(view, intent)
+    return view
   }
 
   #assertOperation(operation: string): void {
@@ -413,8 +503,9 @@ export abstract class Actor {
   }
 
   /** @internal */
-  prepare(operations: ReadonlySet<string>): void {
+  prepare(operations: ReadonlySet<string>, readReminders?: ReminderReader): void {
     this.#operations = operations
+    this.#readReminders = readReminders
   }
 
   /** @internal */

@@ -1169,6 +1169,15 @@ export class Repository {
     })
   }
 
+  async remindersForInstance(instanceId: string): Promise<ReminderRow[]> {
+    return this.settings.database.connection((connection) =>
+      connection.all<ReminderRow>(
+        `SELECT * FROM ${this.table("reminders")} WHERE instance_id = ? ORDER BY operation`,
+        [instanceId],
+      ),
+    )
+  }
+
   async findInstanceByIdentity(
     actorType: string,
     actorId: string,

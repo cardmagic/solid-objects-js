@@ -1,3 +1,5 @@
+import type { ReminderStatus } from "./reminder-administration.js"
+
 export type JsonPrimitive = null | boolean | number | string
 export type JsonValue = JsonPrimitive | JsonValue[] | { [key: string]: JsonValue }
 export type JsonObject = { [key: string]: JsonValue }
@@ -5,6 +7,19 @@ export type JsonObject = { [key: string]: JsonValue }
 export type EffectHandle = { readonly id: string }
 
 export type ReminderHandle = { readonly name: string }
+
+export interface ScheduledReminder {
+  readonly name: string
+  readonly operation: string
+  readonly key: string | null
+  readonly runAtMilliseconds: number
+  readonly intervalMilliseconds: number | null
+  readonly missedPolicy: "all" | "latest"
+  readonly status: ReminderStatus
+  readonly handle: ReminderHandle
+}
+
+export type ReminderReader = () => Promise<readonly ScheduledReminder[]>
 
 export type SerializedError = {
   name: string

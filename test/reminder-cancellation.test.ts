@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it } from "vitest"
 import { Actor } from "../src/actor.js"
 import { sqlite } from "../src/database/sqlite.js"
 import { configure, type SolidObjectsRuntime } from "../src/runtime.js"
-import type { ReminderHandle } from "../src/types.js"
+import type { ReminderHandle, ScheduledReminder } from "../src/types.js"
 
 class Subscription extends Actor {
   static override readonly actorType = "cancel-subscriptions"
@@ -46,6 +46,20 @@ class Subscription extends Actor {
     this.unscheduleAll("trialExpired")
   }
 
+  async readTrial(): Promise<ScheduledReminder | null> {
+    return (await this.reminder("trialExpired")) ?? null
+  }
+
+  async readAfterStagedSchedule(): Promise<number | null> {
+    this.schedule({ at: new Date(Date.UTC(2031, 0, 1)) }).trialExpired()
+    return (await this.reminder("trialExpired"))?.runAtMilliseconds ?? null
+  }
+
+  async readAfterStagedCancel(): Promise<boolean> {
+    this.unschedule("trialExpired")
+    return (await this.reminder("trialExpired")) !== undefined
+  }
+
   cancelUnknown(): void {
     this.unschedule("noSuchOperation")
   }
@@ -82,6 +96,10 @@ class Shipment extends Actor {
 
   stopChasing(): void {
     this.unscheduleAll("chaseCarrier")
+  }
+
+  async pendingKeys(): Promise<(string | null)[]> {
+    return (await this.reminders("chaseCarrier")).map((status) => status.key).sort()
   }
 
   chaseCarrier(_options: { carrierId: string }): void {}
@@ -188,6 +206,49 @@ describe("reminder cancellation", () => {
     )
     expect(rows).toHaveLength(1)
     expect(Number(rows[0]!.run_at_ms)).toBe(Date.UTC(2031, 0, 1))
+  })
+
+  it("reads an armed reminder", async () => {
+    await start()
+    const reference = Subscription.ref("alice")
+    await reference.startRecurring()
+
+    expect(await reference.readTrial()).toEqual({
+      name: "trialExpired",
+      operation: "trialExpired",
+      key: null,
+      runAtMilliseconds: expect.any(Number),
+      intervalMilliseconds: 60_000,
+      missedPolicy: "latest",
+      status: "scheduled",
+      handle: { name: "trialExpired" },
+    })
+  })
+
+  it("reads nothing when no reminder is armed", async () => {
+    await start()
+    expect(await Subscription.ref("alice").readTrial()).toBeNull()
+  })
+
+  it("sees a schedule staged earlier in the same turn", async () => {
+    await start()
+    expect(await Subscription.ref("alice").readAfterStagedSchedule()).toBe(Date.UTC(2031, 0, 1))
+  })
+
+  it("sees a cancel staged earlier in the same turn", async () => {
+    await start()
+    const reference = Subscription.ref("alice")
+    await reference.startTrial()
+
+    expect(await reference.readAfterStagedCancel()).toBe(false)
+  })
+
+  it("lists every key of one operation", async () => {
+    await start()
+    const reference = Shipment.ref("truck")
+    await reference.dispatch({ carrierIds: ["a", "b", "c"] })
+
+    expect(await reference.pendingKeys()).toEqual(["a", "b", "c"])
   })
 
   it("refuses an unknown operation instead of cancelling nothing", async () => {

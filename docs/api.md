@@ -70,6 +70,9 @@ createdAtMs }` shape returned by `SolidObjectsRuntime.snapshotWithIncarnation`.
   `DestroyOptions`: the options for authorization, idempotency, time, and
   schedule that the reference methods use.
 
+`ScheduledReminder` is one armed reminder as an actor reads it, and
+`ReminderReader` is how a runtime supplies them.
+
 `ActorIntents`, `EffectIntent`, `CommitActionIntent`, `ReminderIntent`,
 `UnscheduleIntent`, `UnscheduleAllIntent`, `ReminderMutation`,
 `OutboundMessageIntent`, `ReminderOptions`, `OutboundMessageOptions`,
@@ -244,6 +247,32 @@ class Shipment extends Actor {
 declare, with the `UnknownOperation` that `schedule()` already throws, so a typo
 fails the turn rather than cancelling nothing. A handle skips that check, because
 the `schedule()` call that produced it was already checked.
+
+#### Reading the schedule
+
+`reminder()` returns the armed alarm as a `ScheduledReminder`, or `undefined`.
+`reminders()` returns every key of one operation. Both are async, because an
+actor reads its own rows rather than holding them in memory:
+
+```typescript
+async nextChargeAt(): Promise<number | null> {
+  return (await this.reminder("chargeRenewal"))?.runAtMilliseconds ?? null
+}
+
+async pendingCarriers(): Promise<(string | null)[]> {
+  return (await this.reminders("chaseCarrier")).map((reminder) => reminder.key)
+}
+```
+
+A read applies the intents staged so far in the turn, so an actor that schedules
+and then reads sees what the commit will write, and one that cancels and then
+reads sees the alarm gone.
+
+`key` and `intervalMilliseconds` are `null` rather than `undefined` when absent,
+so a `ScheduledReminder` returns from an operation without a serialization error.
+
+Reading is available during a turn. A projection has no reader and throws, rather
+than reporting an armed alarm as absent.
 
 A cancellation is staged like a schedule, so it commits with the state change
 that decided it and a turn that throws cancels nothing. Both apply in the order

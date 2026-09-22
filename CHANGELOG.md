@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Add reminder reading. `reminder()` returns one armed alarm as a
+  `ScheduledReminder`, and `reminders()` lists every key of one operation. Both
+  apply the intents staged so far in the turn, so a read agrees with what the
+  commit will write. Reading works on the SQL backends and on Durable Objects.
 - Refuse an unknown operation in `unschedule()` and `unscheduleAll()`.
   `schedule()` already threw `UnknownOperation` for one, so a typo cancelled
   nothing quietly and left a recurring reminder running.

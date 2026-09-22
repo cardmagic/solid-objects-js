@@ -117,6 +117,7 @@ import type {
   MessageContext,
   MessageStatus,
   SnapshotOptions,
+  ScheduledReminder,
 } from "./types.js"
 import { SolidObjectsTestHelper } from "./test-helper.js"
 import { waitFor, Worker } from "./worker.js"
@@ -164,6 +165,21 @@ type CommitActionHandler = (
   argumentsValue: JsonObject,
   context: CommitActionContext,
 ) => unknown | Promise<unknown>
+
+function scheduledReminderOf(row: ReminderRow): ScheduledReminder {
+  const operation = row.message_operation ?? row.operation
+  const name = row.operation
+  return {
+    name,
+    operation,
+    key: name === operation ? null : name.slice(operation.length + 1),
+    runAtMilliseconds: Number(row.run_at_ms),
+    intervalMilliseconds: row.interval_ms === null ? null : Number(row.interval_ms),
+    missedPolicy: row.missed_policy,
+    status: row.status,
+    handle: { name },
+  }
+}
 
 export class SolidObjectsRuntime {
   readonly settings
@@ -1117,6 +1133,8 @@ export class SolidObjectsRuntime {
           definition,
           actorId: turn.message.actor_id,
           state: deepCopy(state),
+          readReminders: async () =>
+            (await this.repository.remindersForInstance(turn.instance.id)).map(scheduledReminderOf),
         })
     } catch (error) {
       throw new ActorSetupFailed(error)

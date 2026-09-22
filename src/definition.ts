@@ -2,6 +2,7 @@ import { Actor, type ActorClass } from "./actor.js"
 import { withApplicationWritesForbidden } from "./context.js"
 import { ApplicationWriteForbidden, InvalidActor, StateMigrationError } from "./errors.js"
 import { deepCopy, jsonObject, normalizeJson } from "./serialization.js"
+import type { ReminderReader } from "./types.js"
 import type { JsonObject } from "./types.js"
 
 export type PayloadBroadcastHandler = (
@@ -146,10 +147,11 @@ export function hydrateActor<ActorType extends Actor>(options: {
   definition: ValidatedActorDefinition<ActorType>
   actorId: string
   state: JsonObject
+  readReminders?: ReminderReader
 }): ActorType {
   const { definition, actorId, state } = options
   const actor = new definition.actorClass(actorId)
-  actor.prepare(new Set(definition.operations))
+  actor.prepare(new Set(definition.operations), options.readReminders)
   const target = actor as unknown as Record<string, unknown>
   for (const key of definition.stateKeys) target[key] = deepCopy(state[key])
   return actor

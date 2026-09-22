@@ -132,6 +132,8 @@ export type {
   EffectFailurePayload,
   EffectHandle,
   ReminderHandle,
+  ReminderReader,
+  ScheduledReminder,
   EffectSuccessPayload,
   InvocationOptions,
   JsonObject,

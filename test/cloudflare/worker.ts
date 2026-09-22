@@ -73,6 +73,11 @@ export class Counter extends Actor {
     }
   }
 
+  async readArmed(): Promise<{ name: string; interval: number | null } | null> {
+    const found = await this.reminder("increment")
+    return found ? { name: found.name, interval: found.intervalMilliseconds } : null
+  }
+
   disarm(): void {
     this.unschedule("increment")
   }

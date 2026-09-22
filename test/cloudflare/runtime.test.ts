@@ -71,6 +71,15 @@ describe("Durable Objects runtime", () => {
     expect(await runtime().ref(Counter, "cancelled").with({ authorizationContext }).count).toBe(0)
   })
 
+  it("reads its own schedule inside a durable object", async () => {
+    const reference = runtime().ref(Counter, "reads-schedule").with({ authorizationContext })
+    expect(await reference.readArmed()).toBeNull()
+
+    await reference.arm({ at: Date.now() + 60_000 })
+
+    expect(await reference.readArmed()).toEqual({ name: "increment", interval: null })
+  })
+
   it("cancels one keyed reminder and every key of an operation", async () => {
     const reference = runtime().ref(Counter, "keyed-cancel").with({ authorizationContext })
     await reference.armKeyed({ at: Date.now() + 60_000, keys: ["a", "b", "c"] })
