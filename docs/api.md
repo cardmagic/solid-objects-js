@@ -175,17 +175,57 @@ armed. `unschedule()` cancels one alarm, by operation, by operation and key, or
 by that handle. `unscheduleAll()` cancels every key of one operation.
 
 ```typescript
+const MONTH = 30 * 24 * 60 * 60 * 1000
+
 class Subscription extends Actor {
-  chase: ReminderHandle | null = null
+  static override readonly actorType = "subscriptions"
+
+  status = "trialing"
+  renewal: ReminderHandle | null = null
+
+  startTrial(): void {
+    this.schedule({ at: new Date(Date.now() + (14 * MONTH) / 30) }).trialExpired()
+  }
 
   convertToPaid(): void {
     this.status = "active"
     this.unschedule("trialExpired")
-    this.chase = this.schedule({ at: renewal, everyMilliseconds: MONTH }).chargeRenewal()
+    this.renewal = this.schedule({
+      at: new Date(Date.now() + MONTH),
+      everyMilliseconds: MONTH,
+    }).chargeRenewal()
   }
 
   cancelled(): void {
-    if (this.chase) this.unschedule(this.chase)
+    this.status = "cancelled"
+    if (this.renewal) this.unschedule(this.renewal)
+  }
+
+  trialExpired(): void {
+    this.status = "expired"
+  }
+
+  chargeRenewal(): void {}
+}
+```
+
+`this.unschedule(this.renewal)` and `this.unschedule("chargeRenewal")` cancel the
+same alarm. Prefer the handle when the actor already stored one, because it
+cannot drift from the name that armed the reminder.
+
+A keyed alarm cancels by the key that armed it, and `unscheduleAll()` cancels
+every key of one operation:
+
+```typescript
+class Shipment extends Actor {
+  static override readonly actorType = "shipments"
+
+  dispatch({ carrierIds }: { carrierIds: string[] }): void {
+    for (const carrierId of carrierIds) {
+      this.schedule({ at: new Date(Date.now() + MONTH / 30), key: carrierId }).chaseCarrier({
+        carrierId,
+      })
+    }
   }
 
   shipped({ carrierId }: { carrierId: string }): void {
@@ -195,6 +235,8 @@ class Subscription extends Actor {
   stopChasing(): void {
     this.unscheduleAll("chaseCarrier")
   }
+
+  chaseCarrier(_options: { carrierId: string }): void {}
 }
 ```
 
