@@ -1,7 +1,7 @@
 import { InvalidActor } from "./errors.js"
 import type { Database } from "./database/types.js"
 import type { DeepReadonly, JsonObject, JsonValue, Logger, LongRunningComponent } from "./types.js"
-import { InProcessWakeUpAdapter, type WakeUpAdapter } from "./wake-up.js"
+import { WAKE_UP_NAMES, type WakeUpName, type WakeUpSetting } from "./wake-up.js"
 
 export interface AuthorizationInput {
   actorType: string
@@ -79,7 +79,7 @@ export interface SolidObjectsConfiguration {
   authorizeSubscription?: (input: SubscriptionAuthorizationInput) => boolean | Promise<boolean>
   instrumentation?: (event: InstrumentationEvent) => void
   broadcast?: (event: BroadcastEvent) => Promise<void>
-  wakeUp?: WakeUpAdapter
+  wakeUp?: WakeUpSetting
 }
 
 export interface BroadcastEvent {
@@ -97,8 +97,7 @@ export interface RuntimeSettings extends Required<
   logger: Logger
   broadcast?: (event: BroadcastEvent) => Promise<void>
   instrumentation?: (event: InstrumentationEvent) => void
-  wakeUp: WakeUpAdapter
-  wakeUpConfigured: boolean
+  wakeUp: WakeUpSetting
   authorizationPoliciesConfigured: Readonly<Record<string, boolean>>
 }
 
@@ -156,8 +155,7 @@ export function buildSettings(configuration: SolidObjectsConfiguration): Runtime
     processRetentionMilliseconds: configuration.processRetentionMilliseconds ?? 7 * 86_400_000,
     pruneBatchSize: configuration.pruneBatchSize ?? 1_000,
     logger: configuration.logger ?? consoleLogger,
-    wakeUp: configuration.wakeUp ?? new InProcessWakeUpAdapter(),
-    wakeUpConfigured: configuration.wakeUp !== undefined,
+    wakeUp: configuration.wakeUp ?? "automatic",
     authorizeMessage: configuration.authorizeMessage ?? (() => false),
     authorizeQuery: configuration.authorizeQuery ?? (() => false),
     authorizeDestroy: configuration.authorizeDestroy ?? (() => false),
@@ -193,12 +191,22 @@ export function validateComponent(component: LongRunningComponent): void {
   }
 }
 
-function validateSettings(settings: RuntimeSettings): void {
-  for (const name of ["watch", "notify", "close"] as const) {
-    if (typeof settings.wakeUp[name] !== "function") {
-      throw new TypeError(`wakeUp must implement ${name}`)
+function validateWakeUp(setting: WakeUpSetting): void {
+  if (typeof setting !== "string") {
+    for (const name of ["watch", "notify", "close"] as const) {
+      if (typeof setting[name] !== "function") throw new TypeError(`wakeUp must implement ${name}`)
     }
+    return
   }
+  if (WAKE_UP_NAMES.includes(setting as WakeUpName)) return
+
+  throw new TypeError(
+    `unknown wakeUp ${JSON.stringify(setting)}, expected one of ${WAKE_UP_NAMES.join(", ")} or an adapter`,
+  )
+}
+
+function validateSettings(settings: RuntimeSettings): void {
+  validateWakeUp(settings.wakeUp)
   if (!/^[a-z][a-z0-9_]*$/.test(settings.tableNamePrefix)) {
     throw new TypeError("tableNamePrefix must contain lowercase letters, digits, and underscores")
   }

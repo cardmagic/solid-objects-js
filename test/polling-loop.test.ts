@@ -2,7 +2,12 @@ import { afterEach, describe, expect, it, vi } from "vitest"
 import { sqlite } from "../src/database/sqlite.js"
 import { createRuntime, type SolidObjectsRuntime } from "../src/runtime.js"
 import type { InstrumentationEvent } from "../src/configuration.js"
-import type { WakeUpAdapter, WakeUpRole, WakeUpWatch } from "../src/wake-up.js"
+import {
+  InProcessWakeUpAdapter,
+  type WakeUpAdapter,
+  type WakeUpRole,
+  type WakeUpWatch,
+} from "../src/wake-up.js"
 
 let runtime: SolidObjectsRuntime | undefined
 
@@ -364,6 +369,39 @@ describe("idle polling", () => {
     await runtime.warnIfPollingIsOnlyCrossProcessWakeUp()
 
     expect(logger.warn).not.toHaveBeenCalled()
+  })
+
+  it("warns when the configured adapter reports that it stays in one process", async () => {
+    const logger = {
+      debug: vi.fn(),
+      info: vi.fn(),
+      warn: vi.fn(),
+      error: vi.fn(),
+    }
+    runtime = createRuntime({
+      database: sqlite({ path: ":memory:" }),
+      workerCount: 1,
+      effectWorkerCount: 0,
+      reminderSchedulerCount: 0,
+      retentionIntervalMilliseconds: 0,
+      deadProcessCleanupIntervalMilliseconds: 0,
+      logger,
+      wakeUp: new InProcessWakeUpAdapter(),
+    })
+    await runtime.install()
+    await runtime.repository.registerProcess("other-process", "worker")
+    await runtime.settings.database.connection((connection) =>
+      connection.run(
+        `UPDATE ${runtime?.repository.table("processes")} SET host_process_id = ? WHERE id = ?`,
+        [process.pid + 1, "other-process"],
+      ),
+    )
+
+    await runtime.warnIfPollingIsOnlyCrossProcessWakeUp()
+
+    expect(logger.warn).toHaveBeenCalledWith(
+      expect.objectContaining({ event: "solid_objects.polling_only_cross_process_wake_up" }),
+    )
   })
 })
 

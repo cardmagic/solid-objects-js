@@ -664,6 +664,24 @@ wait. `WakeUpWatch.wait()` returns `true` for a notification and `false` for a
 timeout or cancellation. A legacy `void` result remains accepted and preserves
 the fast polling cadence.
 
+`configuration.wakeUp` takes a name or an adapter. `WakeUpSetting` is that
+union, `WakeUpName` is one of `WAKE_UP_NAMES`, and the default is
+`"automatic"`. Selection prefers `SOLID_OBJECTS_REDIS_URL`, then PostgreSQL
+notifications, then polling. An unknown name throws rather than polls.
+
+`selectWakeUp(options)` runs that choice and returns a `SelectedWakeUp`, which
+pairs the adapter with a `WakeUpCapability`. `WakeUpSelectionOptions` names the
+inputs: the setting, the database, the idle polling interval, a logger, and an
+optional Redis URL and probe timeout. `WakeUpCapability` reports
+`WakeUpAdapterName`, whether the adapter crosses processes, the measured floor
+in milliseconds, and the reason. `runtime.wakeUpAdapter()` and
+`runtime.wakeUpCapability()` return the choice, which is made once per runtime.
+
+An adapter may declare its own `capability`, and selection keeps what it
+declares rather than assume. `NotificationWakeUpAdapter` adds
+`channelFor(role)`, which a database that offers a notification channel
+provides through `database.wakeUp(options)`.
+
 ### Errors
 
 The root exports `SolidObjectsError` and its supported subclasses:

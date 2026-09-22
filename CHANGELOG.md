@@ -2,6 +2,29 @@
 
 ## Unreleased
 
+- Select a wake-up adapter automatically. `wakeUp` now takes a name or an
+  adapter, as `config.cache_store` does in Rails, and defaults to
+  `"automatic"`. Selection prefers `SOLID_OBJECTS_REDIS_URL`, then PostgreSQL
+  notifications, then polling. `"in_process"` opts out, and an unknown name
+  throws rather than polls quietly.
+- PostgreSQL applications that configure nothing now use notifications. They
+  gain cross-process wake-up, one dedicated listening client, and one `NOTIFY`
+  per commit. Set `wakeUp: "in_process"` to keep polling.
+- Prove the PostgreSQL notification path before selecting it, because `LISTEN`
+  does not survive a transaction pooler such as PgBouncer. Selection listens on
+  a probe channel, sends one `NOTIFY` from a second connection, and waits up to
+  two seconds for it to arrive. A probe that does not deliver falls back to
+  polling and warns once.
+- Report the resolved choice. `runtime.wakeUpCapability()` names the adapter,
+  whether it crosses processes, its measured floor, and why it was chosen. The
+  doctor reports it as a `wakeUp` check, and the polling-only warning now fires
+  on what was installed rather than on whether a setting was set.
+- Keep the capability a configured adapter reports about itself. A configured
+  `InProcessWakeUpAdapter` now reports `in_process` and warns, rather than
+  claim that it crosses processes.
+- Select once per runtime. `runtime.wakeUpAdapter()` memoises the selection, so
+  callers that race for the first use share one probe rather than run one each.
+
 - Add reminder reading. `reminder()` returns one armed alarm as a
   `ScheduledReminder`, and `reminders()` lists every key of one operation. Both
   apply the intents staged so far in the turn, so a read agrees with what the

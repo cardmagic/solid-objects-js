@@ -75,7 +75,7 @@ export class ReminderScheduler {
     await this.ensureRegistered()
     await this.runtime.warnIfPollingIsOnlyCrossProcessWakeUp()
     while (!signal.aborted && !this.stopping) {
-      const wakeUp = await this.runtime.settings.wakeUp.watch("reminders")
+      const wakeUp = await this.runtime.watchWakeUp("reminders")
       const processed = await this.runOnce()
       if (processed > 0) {
         this.pollingBackoff.reset("work")

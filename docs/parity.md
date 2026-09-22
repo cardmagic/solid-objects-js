@@ -106,11 +106,14 @@ Ruby field names; this does not change runtime delivery semantics.
 | PostgreSQL wake-up       | Native | `database.wakeUp()` uses one dedicated event-driven client, role-specific `LISTEN/NOTIFY`, generation fencing, reconnectable listeners, and durable polling fallback.                                                                                                                                                                                                                 |
 | Redis wake-up            | Native | An optional `redis` peer provides role-specific Pub/Sub over separate lazy publisher/subscriber connections, with bounded failures and durable polling fallback.                                                                                                                                                                                                                      |
 
-Every wake-up adapter above is opt-in. Neither runtime selects one
-automatically. An application that configures nothing keeps polling. Each
-runtime warns once when live processes share a database without a configured
-cross-process adapter. This limit is intentional in both runtimes. It is not a
-gap between them.
+Both runtimes select a wake-up adapter automatically. `wakeUp` takes a name or
+an adapter and defaults to `"automatic"`, which prefers a configured Redis URL,
+then PostgreSQL notifications, then polling. Selection proves the PostgreSQL
+path with a probe notification, because `LISTEN` does not survive a transaction
+pooler. Each runtime reports what it installed, whether that crosses processes,
+its measured floor, and why, and warns once when live processes share a
+database and the installed adapter cannot reach them. MySQL still polls in both
+runtimes, because MySQL has no notification channel.
 
 ## Realtime and browser behavior
 

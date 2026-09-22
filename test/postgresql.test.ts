@@ -729,6 +729,41 @@ describePostgreSQL("PostgreSQL adapter", () => {
     expect(dashboardResponse.status).toBe(200)
     expect(await dashboardResponse.text()).toContain("flow")
   })
+
+  it("selects PostgreSQL notifications after a probe notification arrives", async () => {
+    if (!connectionString) throw new Error("PostgreSQL connection string is required")
+    database = postgresql({ connectionString })
+    runtime = configure({
+      database,
+      tableNamePrefix: "postgresql_test_",
+      authorizeMessage: () => true,
+      logger: quietLogger,
+    })
+
+    const capability = await runtime.wakeUpCapability()
+    const adapter = await runtime.wakeUpAdapter()
+
+    expect(capability.adapter).toBe("postgresql_notify")
+    expect(capability.crossesProcesses).toBe(true)
+    expect(capability.reason).toMatch(/probe notification arrived/i)
+    expect(adapter).toBeInstanceOf(PostgreSQLWakeUpAdapter)
+  })
+
+  it("wakes a listener from a second connection, which a pooled session could not", async () => {
+    if (!connectionString) throw new Error("PostgreSQL connection string is required")
+    database = postgresql({ connectionString })
+    const listener = database.wakeUp({ channelPrefix: "postgresql_probe_test" })
+    try {
+      const watch = await listener.watch("actors")
+      await database.connection((connection) =>
+        connection.run("SELECT pg_notify(?, ?)", [listener.channelFor("actors"), "actors"]),
+      )
+
+      expect(await watch.wait({ timeoutMilliseconds: 2_000 })).toBe(true)
+    } finally {
+      await listener.close()
+    }
+  })
 })
 
 function dashboardContext() {

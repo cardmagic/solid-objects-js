@@ -54,7 +54,7 @@ export class BroadcastWorker {
     await this.ensureRegistered()
     await this.runtime.warnIfPollingIsOnlyCrossProcessWakeUp()
     while (!signal.aborted && !this.stopping) {
-      const wakeUp = await this.runtime.settings.wakeUp.watch("broadcasts")
+      const wakeUp = await this.runtime.watchWakeUp("broadcasts")
       const processed = await this.runOnce()
       if (processed > 0) {
         this.pollingBackoff.reset("work")

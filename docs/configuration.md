@@ -49,19 +49,19 @@ as an instruction to divide the actor. See
 
 ## Runtime roles and supervision
 
-| Option                                      |                  Default | Contract                                                 |
-| ------------------------------------------- | -----------------------: | -------------------------------------------------------- |
-| `workerCount`                               |                      `1` | Non-negative actor workers.                              |
-| `effectWorkerCount`                         |                      `1` | Non-negative effect workers.                             |
-| `broadcastWorkerCount`                      |                      `1` | Non-negative broadcast workers when realtime is enabled. |
-| `reminderSchedulerCount`                    |                      `1` | Non-negative reminder schedulers.                        |
-| `processHeartbeatIntervalMilliseconds`      |                 `15_000` | Positive persisted heartbeat cadence.                    |
-| `processAliveThresholdMilliseconds`         |                 `60_000` | Positive age after which an owner is stale.              |
-| `shutdownTimeoutMilliseconds`               |                 `15_000` | Positive shared graceful-shutdown budget.                |
-| `supervisorRestartDelayMilliseconds`        |                    `100` | Positive initial failed-role replacement delay.          |
-| `supervisorMaximumRestartDelayMilliseconds` |                 `10_000` | Positive cap no smaller than the initial delay.          |
-| `wakeUp`                                    | `InProcessWakeUpAdapter` | Adapter implementing `watch`, `notify`, and `close`.     |
-| `logger`                                    |          console methods | Structured `debug`, `info`, `warn`, and `error` sink.    |
+| Option                                      |         Default | Contract                                                          |
+| ------------------------------------------- | --------------: | ----------------------------------------------------------------- |
+| `workerCount`                               |             `1` | Non-negative actor workers.                                       |
+| `effectWorkerCount`                         |             `1` | Non-negative effect workers.                                      |
+| `broadcastWorkerCount`                      |             `1` | Non-negative broadcast workers when realtime is enabled.          |
+| `reminderSchedulerCount`                    |             `1` | Non-negative reminder schedulers.                                 |
+| `processHeartbeatIntervalMilliseconds`      |        `15_000` | Positive persisted heartbeat cadence.                             |
+| `processAliveThresholdMilliseconds`         |        `60_000` | Positive age after which an owner is stale.                       |
+| `shutdownTimeoutMilliseconds`               |        `15_000` | Positive shared graceful-shutdown budget.                         |
+| `supervisorRestartDelayMilliseconds`        |           `100` | Positive initial failed-role replacement delay.                   |
+| `supervisorMaximumRestartDelayMilliseconds` |        `10_000` | Positive cap no smaller than the initial delay.                   |
+| `wakeUp`                                    |   `"automatic"` | A name or an adapter implementing `watch`, `notify`, and `close`. |
+| `logger`                                    | console methods | Structured `debug`, `info`, `warn`, and `error` sink.             |
 
 Counts may be zero, but the complete configuration must leave at least one
 runtime role enabled. Broadcast workers are started only when `broadcast` or
@@ -157,6 +157,24 @@ short capped backoff only when no synchronous deadline is active.
 | `connectionTimeoutMilliseconds` |               `pg` default |
 | `applicationName`               |          `"solid-objects"` |
 | `onPoolError`                   | structured `console.error` |
+
+`wakeUp` takes a name or an adapter, as `config.cache_store` does in Rails.
+`"automatic"` is the default. It prefers `SOLID_OBJECTS_REDIS_URL`, then
+PostgreSQL notifications, then polling. `"in_process"` opts out, `"postgresql"`
+and `"redis"` force one, and an unknown name throws rather than polls quietly.
+
+Selection runs once per runtime, on first use. `runtime.wakeUpCapability()`
+reports what it chose, whether that choice crosses processes, its measured
+floor in milliseconds, and why. The doctor reports the same record, and the
+polling-only warning fires on what was installed rather than on whether a
+setting was set. An adapter that declares its own `capability` keeps it, so a
+configured `InProcessWakeUpAdapter` still warns.
+
+Automatic selection proves the PostgreSQL path before it chooses it. It listens
+on a probe channel, sends one `NOTIFY` from a second connection, and waits up to
+two seconds for it to arrive. A probe that does not deliver falls back to
+polling and warns once, because `LISTEN` does not survive a transaction pooler
+such as PgBouncer.
 
 `database.wakeUp(options)` creates a dedicated notification adapter using the
 same connection string. Its options are `channelPrefix = "solid_objects"`,
