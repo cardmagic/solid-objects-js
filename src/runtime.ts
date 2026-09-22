@@ -185,10 +185,6 @@ function scheduledReminderOf(row: ReminderRow): ScheduledReminder {
   }
 }
 
-// An audit log is read in the order things happened, and two events can share
-// a millisecond. The id carries the stamp and a counter, so a reader orders by
-// it and sees insertion order within a process. Across processes the stamp is
-// all any log can offer.
 let administrationEventCounter = 0
 
 function administrationEventId(occurredAtMilliseconds: number): string {
@@ -889,8 +885,6 @@ export class SolidObjectsRuntime {
     return destroyed
   }
 
-  // A revived row is pending again, so the role that drains it has to be told
-  // rather than wait out its polling interval.
   wakeUpAfterRevival(kind: DeadLetterKind): void {
     this.wakeUp(kind === "effect" ? "effects" : "broadcasts")
   }

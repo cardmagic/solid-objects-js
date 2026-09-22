@@ -379,9 +379,6 @@ export async function installSchema(options: {
   })
 }
 
-// A dead row carries no timestamp of its own, so a redrive that filters on
-// when something failed needs one. Existing dead rows take their availability
-// stamp, which is the closest record of their last attempt.
 async function installRedrive(options: {
   connection: DatabaseConnection
   family: DatabaseFamily
@@ -444,8 +441,6 @@ async function addFailedAt(options: {
   family: DatabaseFamily
   table: string
 }): Promise<void> {
-  // A millisecond stamp does not fit a 32-bit INTEGER, which is what every
-  // family but SQLite means by that word.
   const type = options.family === "sqlite" ? "INTEGER" : "BIGINT"
   try {
     await options.connection.run(`ALTER TABLE ${options.table} ADD COLUMN failed_at_ms ${type}`)

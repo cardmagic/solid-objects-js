@@ -84,8 +84,6 @@ export class RedriveManager {
     return await this.task(await this.require(id))
   }
 
-  // A redrive moves rows in bounded batches, each its own short transaction, so
-  // one redrive cannot hold a lock long enough to starve delivery.
   async advance(): Promise<boolean> {
     const row = await this.claim()
     if (!row) return false
@@ -214,8 +212,6 @@ export class RedriveManager {
     })
   }
 
-  // A running task reports what is left to move rather than a stored estimate,
-  // because rows die and are retried while it runs.
   private async remaining(row: RedriveShape): Promise<number> {
     if (row.status !== "running") return 0
 
@@ -264,10 +260,6 @@ export class RedriveManager {
   }
 }
 
-// An operator starts a redrive and expects it to move, so the runtime advances
-// it rather than ask the application to schedule a job. A pass that moved rows
-// pauses briefly and takes the next batch; an idle pass waits longer, so an
-// empty table is not polled every few milliseconds.
 export class RedriveScheduler {
   private stopping = false
 

@@ -152,9 +152,6 @@ export class DeadLetterScope {
     return this.runtime.repository.table(TABLES[this.kind])
   }
 
-  // A redrive moves what was already dead when it started. Without that bound a
-  // row that fails again lands back in the same scope, and a task whose handler
-  // is still broken would move it forever.
   private conditions(
     filters: RedriveFilters,
     deadBefore?: number,
