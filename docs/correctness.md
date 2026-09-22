@@ -5,6 +5,14 @@
 - Delivery is ordered per actor identity and at least once.
 - Different identities may execute concurrently.
 - Sequence allocation and durable enqueue are one transaction.
+- An actor reads its own schedule. A read applies the intents staged so far in
+  the turn, so it agrees with what the commit will write rather than with what
+  the turn began with.
+- A reminder can be cancelled. A cancellation commits with the state change that
+  decided it, and applies in the order the turn called it. A cancellation cannot
+  recall an occurrence the scheduler already turned into a message. It does
+  pre-empt one the scheduler claimed but has not yet enqueued, and the scheduler
+  treats that as ordinary work rather than a failure.
 - Concurrent callers that create the same actor produce one instance row and
   distinct sequences. The mailbox locks that row by its primary key, so MySQL
   does not upgrade a shared lock and the enqueue does not deadlock.

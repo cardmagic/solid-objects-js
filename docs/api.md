@@ -45,6 +45,9 @@ authorization, capability boundaries, and release validation.
 - `Actor`: base class providing `ref()`, `actorId`, `currentMessage`,
   `observables()`, `reject()`, `emit()`, `transmit()`, `commitAction()`,
   `schedule()`, `sendTo()`, and protected lifecycle hooks.
+  `ScheduledOperationsFor` types the map `schedule()` returns, whose calls return a
+  `ReminderHandle`. `TransmittedOperationsFor` types the map `transmit()`
+  returns, whose calls return nothing.
 - `broadcastValue(value)`: mark an observable so its changed value enters the
   durable invalidation envelope.
 - `broadcastInvalidation(value)`: compare the real observable value but put
@@ -67,10 +70,16 @@ createdAtMs }` shape returned by `SolidObjectsRuntime.snapshotWithIncarnation`.
   `DestroyOptions`: the options for authorization, idempotency, time, and
   schedule that the reference methods use.
 
+`ScheduledReminder` is one armed reminder as an actor reads it, and
+`ReminderReader` is how a runtime supplies them.
+
 `ActorIntents`, `EffectIntent`, `CommitActionIntent`, `ReminderIntent`,
+`UnscheduleIntent`, `UnscheduleAllIntent`, `ReminderMutation`,
 `OutboundMessageIntent`, `ReminderOptions`, `OutboundMessageOptions`,
 `PayloadBroadcasts`, and `PayloadBroadcastValue` describe actor-declared
-transactional work and typed personalized projections.
+transactional work and typed personalized projections. `ReminderMutation` is the
+union of one scheduled reminder and the two cancellations, held in one list so
+they apply in the order the turn called them.
 
 `EffectFailurePayload<Arguments>`, `EffectSuccessPayload<Arguments, Result>`,
 and `SerializedError` describe effect callback messages. They are also exported
@@ -161,6 +170,130 @@ drain everything that is due when it fires. That costs one row instead of one
 row per item. It also cannot strand an entry when the runtime coalesces an
 occurrence. Prefer it for a large queue of interchangeable items. Prefer `key`
 when one item needs an alarm that you can move on its own.
+
+#### Cancelling a reminder
+
+`schedule()` returns a `ReminderHandle` (`{ name: string }`) naming the alarm it
+armed. `unschedule()` cancels one alarm, by operation, by operation and key, or
+by that handle. `unscheduleAll()` cancels every key of one operation.
+
+```typescript
+const MONTH = 30 * 24 * 60 * 60 * 1000
+
+class Subscription extends Actor {
+  static override readonly actorType = "subscriptions"
+
+  status = "trialing"
+  renewal: ReminderHandle | null = null
+
+  startTrial(): void {
+    this.schedule({ at: new Date(Date.now() + (14 * MONTH) / 30) }).trialExpired()
+  }
+
+  convertToPaid(): void {
+    this.status = "active"
+    this.unschedule("trialExpired")
+    this.renewal = this.schedule({
+      at: new Date(Date.now() + MONTH),
+      everyMilliseconds: MONTH,
+    }).chargeRenewal()
+  }
+
+  cancelled(): void {
+    this.status = "cancelled"
+    if (this.renewal) this.unschedule(this.renewal)
+  }
+
+  trialExpired(): void {
+    this.status = "expired"
+  }
+
+  chargeRenewal(): void {}
+}
+```
+
+`this.unschedule(this.renewal)` and `this.unschedule("chargeRenewal")` cancel the
+same alarm. Prefer the handle when the actor already stored one, because it
+cannot drift from the name that armed the reminder.
+
+A keyed alarm cancels by the key that armed it, and `unscheduleAll()` cancels
+every key of one operation:
+
+```typescript
+class Shipment extends Actor {
+  static override readonly actorType = "shipments"
+
+  dispatch({ carrierIds }: { carrierIds: string[] }): void {
+    for (const carrierId of carrierIds) {
+      this.schedule({ at: new Date(Date.now() + MONTH / 30), key: carrierId }).chaseCarrier({
+        carrierId,
+      })
+    }
+  }
+
+  shipped({ carrierId }: { carrierId: string }): void {
+    this.unschedule("chaseCarrier", { key: carrierId })
+  }
+
+  stopChasing(): void {
+    this.unscheduleAll("chaseCarrier")
+  }
+
+  chaseCarrier(_options: { carrierId: string }): void {}
+}
+```
+
+`unschedule()` and `unscheduleAll()` refuse an operation the actor does not
+declare, with the `UnknownOperation` that `schedule()` already throws, so a typo
+fails the turn rather than cancelling nothing. A handle skips that check, because
+the `schedule()` call that produced it was already checked.
+
+#### Reading the schedule
+
+`reminder()` returns the armed alarm as a `ScheduledReminder`, or `undefined`.
+`reminders()` returns every key of one operation. Both are async, because an
+actor reads its own rows rather than holding them in memory:
+
+```typescript
+async nextChargeAt(): Promise<number | null> {
+  return (await this.reminder("chargeRenewal"))?.runAtMilliseconds ?? null
+}
+
+async pendingCarriers(): Promise<(string | null)[]> {
+  return (await this.reminders("chaseCarrier")).map((reminder) => reminder.key)
+}
+```
+
+A read applies the intents staged so far in the turn, so an actor that schedules
+and then reads sees what the commit will write, and one that cancels and then
+reads sees the alarm gone.
+
+`key` and `intervalMilliseconds` are `null` rather than `undefined` when absent,
+so a `ScheduledReminder` returns from an operation without a serialization error.
+
+Reading is available during a turn and from a snapshot projection, so an
+observable can report what is armed. `reminder()` and `reminders()` refuse an
+operation the actor does not declare, as `schedule()` and `unschedule()` do.
+
+A one-shot that already fired is not reported. Its row stays as `completed`, and
+an alarm that cannot fire again is not armed.
+
+`ScheduledReminder` carries no occurrence count. The SQL backends track one and
+Durable Objects does not, so it is left out rather than reported for one backend
+only.
+
+A cancellation is staged like a schedule, so it commits with the state change
+that decided it and a turn that throws cancels nothing. Both apply in the order
+the turn called them, so cancelling and then scheduling the same name leaves it
+armed at the new time.
+
+Cancelling an alarm that does not exist is not an error. `unschedule()` returns
+nothing, because it stages an intent rather than applying one, and an answer
+given at call time could be stale by the time the turn commits.
+
+A handle is a plain object, so it survives in actor state and still cancels
+after a deactivation. Passing a handle together with `key` is a `TypeError`,
+because the handle already names the key.
 
 ### Recovering abandoned effects
 
@@ -358,9 +491,11 @@ effect results and the handler's declared argument/result types in agreement.
 ### Typed operation references
 
 `schedule` and `transmit` infer this actor's operation names and arguments, including
-inside actor methods and for inherited application operations. The returned
-`ScheduledOperationsFor<ActorType>` values return `void` and preserve required,
-optional, and zero-argument operation signatures. No non-null assertion is needed:
+inside actor methods and for inherited application operations. A scheduled operation
+call returns a `ReminderHandle`, through `ScheduledOperationsFor<ActorType>`, and a
+transmitted one returns `void`, through `TransmittedOperationsFor<ActorType>`. Both
+preserve required, optional, and zero-argument operation signatures. No non-null
+assertion is needed:
 
 ```typescript
 class ChatRun extends Actor {

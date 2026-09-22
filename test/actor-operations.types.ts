@@ -1,3 +1,4 @@
+import type { ReminderHandle } from "../src/types.js"
 import { expectTypeOf } from "vitest"
 import {
   Actor,
@@ -41,11 +42,11 @@ export class ChatRun extends ParentRun {
 
   start() {
     const operations = this.schedule({ at: new Date(0), key: "watchdog" })
-    expectTypeOf(operations.recoverIfStuck({ generation: 1 })).toEqualTypeOf<void>()
+    expectTypeOf(operations.recoverIfStuck({ generation: 1 })).toEqualTypeOf<ReminderHandle>()
     operations.finish()
     operations.optional()
     operations.optional({ generation: 1 })
-    this.transmit().recoverIfStuck({ generation: 1 })
+    expectTypeOf(this.transmit().recoverIfStuck({ generation: 1 })).toEqualTypeOf<void>()
     this.transmit().finish()
     this.transmit().optional()
     this.emit("run_model", { onSuccess: "finish", onFailure: "failTurn" })

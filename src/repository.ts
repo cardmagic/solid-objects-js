@@ -767,6 +767,21 @@ export class Repository {
       })
 
       for (const reminder of input.intents.reminders) {
+        if (reminder.cancel === "all") {
+          await connection.run(
+            `DELETE FROM ${this.table("reminders")}
+             WHERE instance_id = ? AND COALESCE(message_operation, operation) = ?`,
+            [turn.instance.id, reminder.operation],
+          )
+          continue
+        }
+        if (reminder.cancel === "one") {
+          await connection.run(
+            `DELETE FROM ${this.table("reminders")} WHERE instance_id = ? AND operation = ?`,
+            [turn.instance.id, reminder.name],
+          )
+          continue
+        }
         const existing = await connection.get<{ id: string; run_at_ms: number | bigint }>(
           `SELECT id, run_at_ms FROM ${this.table("reminders")}
            WHERE instance_id = ? AND operation = ?`,
@@ -1152,6 +1167,15 @@ export class Repository {
       )
       return retriedMessage
     })
+  }
+
+  async remindersForInstance(instanceId: string): Promise<ReminderRow[]> {
+    return this.settings.database.connection((connection) =>
+      connection.all<ReminderRow>(
+        `SELECT * FROM ${this.table("reminders")} WHERE instance_id = ? ORDER BY operation`,
+        [instanceId],
+      ),
+    )
   }
 
   async findInstanceByIdentity(
@@ -1750,8 +1774,8 @@ export class Repository {
   async enqueueReminder(
     reminder: ReminderRow,
     options: { nowMilliseconds?: number } = {},
-  ): Promise<void> {
-    await this.settings.database.transaction(async (connection) => {
+  ): Promise<boolean> {
+    return this.settings.database.transaction(async (connection) => {
       const now = options.nowMilliseconds ?? (await connection.nowMilliseconds())
       const claimed = await connection.get<ReminderRow>(
         `SELECT reminders.*, instances.actor_type, instances.actor_id
@@ -1760,6 +1784,13 @@ export class Repository {
          WHERE reminders.id = ? AND reminders.status = 'scheduled' AND reminders.claimed_by = ?`,
         [reminder.id, reminder.claimed_by],
       )
+      const surviving =
+        !claimed &&
+        (await connection.get<{ id: string }>(
+          `SELECT id FROM ${this.table("reminders")} WHERE id = ?`,
+          [reminder.id],
+        ))
+      if (!claimed && !surviving) return false
       if (!claimed) throw new LostActivation("reminder claim no longer matches")
       await this.enqueueInTransaction(connection, {
         actorType: claimed.actor_type,
@@ -1791,6 +1822,7 @@ export class Repository {
           claimed.claimed_by,
         ],
       )
+      return true
     })
   }
 

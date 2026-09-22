@@ -9,7 +9,9 @@ import {
   createStagedOperations,
   type ActorReference,
   type ScheduledOperations,
+  type StagedOperationMap,
   type ScheduledOperationsFor,
+  type TransmittedOperationsFor,
   type StagedOperations,
 } from "./reference.js"
 import { jsonObject, normalizeJson } from "./serialization.js"
@@ -17,6 +19,9 @@ import type {
   ActorIdentifier,
   EffectHandle,
   JsonObject,
+  ReminderHandle,
+  ReminderReader,
+  ScheduledReminder,
   JsonValue,
   MessageContext,
 } from "./types.js"
@@ -99,6 +104,7 @@ export interface CommitActionIntent {
 }
 
 export interface ReminderIntent {
+  cancel?: undefined
   /** Without a key this is the operation. */
   name: string
   operation: string
@@ -107,6 +113,18 @@ export interface ReminderIntent {
   intervalMilliseconds?: number
   missedPolicy: "all" | "latest"
 }
+
+export interface UnscheduleIntent {
+  cancel: "one"
+  name: string
+}
+
+export interface UnscheduleAllIntent {
+  cancel: "all"
+  operation: string
+}
+
+export type ReminderMutation = ReminderIntent | UnscheduleIntent | UnscheduleAllIntent
 
 export interface OutboundMessageIntent {
   actorType: string
@@ -121,7 +139,7 @@ export interface ActorIntents {
   effects: EffectIntent[]
   effectRecoveries?: EffectRecoveryIntent[]
   commitActions: CommitActionIntent[]
-  reminders: ReminderIntent[]
+  reminders: ReminderMutation[]
   outboundMessages: OutboundMessageIntent[]
 }
 
@@ -163,6 +181,41 @@ function validatedReminderKey(key: string | number | undefined): string | undefi
  * reverse, and it is refused here rather than at the insert, once the turn is
  * already doing work.
  */
+function handleName(handle: ReminderHandle, key: string | number | undefined): string {
+  if (key !== undefined) throw new TypeError("a reminder handle already names its key")
+
+  const name = handle?.name
+  if (typeof name !== "string" || name.length === 0) {
+    throw new TypeError("a reminder handle returned by schedule is required")
+  }
+
+  return name
+}
+
+function applyReminderIntent(view: Map<string, ScheduledReminder>, intent: ReminderMutation): void {
+  if (intent.cancel === "all") {
+    for (const [name, status] of view) {
+      if (status.operation === intent.operation) view.delete(name)
+    }
+    return
+  }
+  if (intent.cancel === "one") {
+    view.delete(intent.name)
+    return
+  }
+
+  view.set(intent.name, {
+    name: intent.name,
+    operation: intent.operation,
+    key: intent.name === intent.operation ? null : intent.name.slice(intent.operation.length + 1),
+    runAtMilliseconds: intent.atMilliseconds,
+    intervalMilliseconds: intent.intervalMilliseconds ?? null,
+    missedPolicy: intent.missedPolicy,
+    status: "scheduled",
+    handle: { name: intent.name },
+  })
+}
+
 function reminderName(operation: string, key: string | undefined): string {
   if (key === undefined) return operation
 
@@ -195,6 +248,8 @@ export abstract class Actor {
   }
 
   readonly #actorId: string
+  #readReminders: ReminderReader | undefined
+
   readonly #intents: ActorIntents = {
     effects: [],
     commitActions: [],
@@ -303,8 +358,8 @@ export abstract class Actor {
 
   transmit<Keys extends keyof this, ActorType>(
     this: Actor & Pick<this, Keys> & (Partial<ActorType> | NoInfer<this>),
-  ): ScheduledOperationsFor<InferredActor<Keys, ActorType>>
-  transmit(): ScheduledOperations {
+  ): TransmittedOperationsFor<InferredActor<Keys, ActorType>>
+  transmit(): StagedOperationMap {
     return createStagedOperationMap(this.#operations, (operation, argumentsValue) => {
       this.#intents.effects.push({
         name: TRANSMIT_EFFECT,
@@ -331,8 +386,9 @@ export abstract class Actor {
     const key = validatedReminderKey(options.key)
 
     return createStagedOperationMap(this.#operations, (operation, argumentsValue) => {
+      const name = reminderName(operation, key)
       this.#intents.reminders.push({
-        name: reminderName(operation, key),
+        name,
         operation,
         atMilliseconds,
         arguments: jsonObject(argumentsValue),
@@ -341,7 +397,63 @@ export abstract class Actor {
           ? {}
           : { intervalMilliseconds: options.everyMilliseconds }),
       })
+      return { name }
     })
+  }
+
+  unschedule(operationOrHandle: string | ReminderHandle, options: { key?: string | number } = {}) {
+    this.#intents.reminders.push({
+      cancel: "one",
+      name: this.#reminderNameOf(operationOrHandle, options),
+    })
+  }
+
+  unscheduleAll(operation: string) {
+    this.#assertOperation(operation)
+    this.#intents.reminders.push({ cancel: "all", operation })
+  }
+
+  async reminder(
+    operationOrHandle: string | ReminderHandle,
+    options: { key?: string | number } = {},
+  ): Promise<ScheduledReminder | undefined> {
+    return (await this.#reminderView()).get(this.#reminderNameOf(operationOrHandle, options))
+  }
+
+  async reminders(operation: string): Promise<ScheduledReminder[]> {
+    this.#assertOperation(operation)
+    const view = await this.#reminderView()
+    return [...view.values()].filter((status) => status.operation === operation)
+  }
+
+  #reminderNameOf(
+    operationOrHandle: string | ReminderHandle,
+    options: { key?: string | number },
+  ): string {
+    if (typeof operationOrHandle === "string") {
+      this.#assertOperation(operationOrHandle)
+      return reminderName(operationOrHandle, validatedReminderKey(options.key))
+    }
+
+    return handleName(operationOrHandle, options.key)
+  }
+
+  async #reminderView(): Promise<Map<string, ScheduledReminder>> {
+    if (!this.#readReminders) {
+      throw new TypeError("reading reminders is not available outside an actor turn")
+    }
+    const view = new Map<string, ScheduledReminder>()
+    for (const reminder of await this.#readReminders()) {
+      if (reminder.status !== "completed") view.set(reminder.name, reminder)
+    }
+    for (const intent of this.#intents.reminders) applyReminderIntent(view, intent)
+    return view
+  }
+
+  #assertOperation(operation: string): void {
+    if (this.#operations.has(operation)) return
+
+    throw new UnknownOperation(`unknown operation ${JSON.stringify(operation)}`)
   }
 
   sendTo<TargetActor extends Actor>(
@@ -367,8 +479,9 @@ export abstract class Actor {
   }
 
   /** @internal */
-  prepare(operations: ReadonlySet<string>): void {
+  prepare(operations: ReadonlySet<string>, readReminders?: ReminderReader): void {
     this.#operations = operations
+    this.#readReminders = readReminders
   }
 
   /** @internal */

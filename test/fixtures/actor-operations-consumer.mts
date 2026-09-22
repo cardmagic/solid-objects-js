@@ -3,6 +3,7 @@ import {
   type ActorReference,
   type ScheduledOperationsFor,
   type EffectOptions,
+  type ReminderHandle,
 } from "solid-objects"
 import type { ScheduledOperationsFor as CoreScheduledOperationsFor } from "solid-objects/core"
 
@@ -26,11 +27,14 @@ export class ChatRun extends ParentRun {
   }
   start(): void {
     const operations = this.schedule({ at: new Date(0), key: "watchdog" })
-    const result: void = operations.recoverIfStuck({ generation: 1 })
-    void result
+    const handle: ReminderHandle = operations.recoverIfStuck({ generation: 1 })
+    this.unschedule(handle)
+    this.unschedule("finish", { key: "watchdog" })
+    this.unscheduleAll("finish")
     operations.finish()
     operations.optional()
-    this.transmit().recoverIfStuck({ generation: 1 })
+    const transmitted: void = this.transmit().recoverIfStuck({ generation: 1 })
+    void transmitted
     this.emit("run_model", { onFailure: "finish" })
     // @ts-expect-error operation typo
     operations.recoverIfStcuk({ generation: 1 })

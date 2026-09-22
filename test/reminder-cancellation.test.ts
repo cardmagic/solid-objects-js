@@ -1,0 +1,404 @@
+import { mkdtemp, rm } from "node:fs/promises"
+import { tmpdir } from "node:os"
+import { join } from "node:path"
+import { afterEach, describe, expect, it } from "vitest"
+import { Actor } from "../src/actor.js"
+import { sqlite } from "../src/database/sqlite.js"
+import { configure, type SolidObjectsRuntime } from "../src/runtime.js"
+import type { ReminderHandle, ScheduledReminder } from "../src/types.js"
+
+class Subscription extends Actor {
+  static override readonly actorType = "cancel-subscriptions"
+
+  status = "trialing"
+  expirations = 0
+  handle: ReminderHandle | null = null
+
+  startTrial(): void {
+    this.handle = this.schedule({ at: new Date(Date.now() + 3_600_000) }).trialExpired()
+  }
+
+  startRecurring(): void {
+    this.handle = this.schedule({
+      at: new Date(Date.now() - 1_000),
+      everyMilliseconds: 60_000,
+    }).trialExpired()
+  }
+
+  convertByName(): void {
+    this.status = "active"
+    this.unschedule("trialExpired")
+  }
+
+  convertByHandle(): void {
+    this.status = "active"
+    if (this.handle) this.unschedule(this.handle)
+  }
+
+  cancelThenReschedule(): void {
+    this.unschedule("trialExpired")
+    this.schedule({ at: new Date(Date.UTC(2031, 0, 1)) }).trialExpired()
+  }
+
+  cancelThenFail(): void {
+    this.unschedule("trialExpired")
+    throw new Error("turn failed")
+  }
+
+  stopAllTrials(): void {
+    this.unscheduleAll("trialExpired")
+  }
+
+  async readTrial(): Promise<ScheduledReminder | null> {
+    return (await this.reminder("trialExpired")) ?? null
+  }
+
+  async readAfterStagedSchedule(): Promise<number | null> {
+    this.schedule({ at: new Date(Date.UTC(2031, 0, 1)) }).trialExpired()
+    return (await this.reminder("trialExpired"))?.runAtMilliseconds ?? null
+  }
+
+  async readAfterStagedCancel(): Promise<boolean> {
+    this.unschedule("trialExpired")
+    return (await this.reminder("trialExpired")) !== undefined
+  }
+
+  cancelUnknown(): void {
+    this.unschedule("noSuchOperation")
+  }
+
+  cancelAllUnknown(): void {
+    this.unscheduleAll("noSuchOperation")
+  }
+
+  cancelBadHandle(): void {
+    // @ts-expect-error a malformed handle exercises the runtime check
+    this.unschedule({ nope: "x" })
+  }
+
+  trialExpired(): void {
+    this.expirations += 1
+    this.status = "expired"
+  }
+}
+
+class Observed extends Actor {
+  static override readonly actorType = "cancel-observed"
+
+  armed = false
+  seenOnActivate: string | null = null
+
+  protected override async onActivate(): Promise<void> {
+    this.seenOnActivate = (await this.reminder("ping"))?.name ?? null
+  }
+
+  arm(): void {
+    this.schedule({ at: new Date(Date.UTC(2030, 0, 1)) }).ping()
+  }
+
+  get armedName(): Promise<string | null> {
+    return this.reminder("ping").then((found) => found?.name ?? null)
+  }
+
+  ping(): void {}
+
+  armDue(): void {
+    this.schedule({ at: new Date(Date.now() - 1_000) }).ping()
+  }
+}
+
+class Shipment extends Actor {
+  static override readonly actorType = "cancel-shipments"
+
+  dispatch({ carrierIds }: { carrierIds: string[] }): void {
+    for (const id of carrierIds) {
+      this.schedule({ at: new Date(Date.now() + 3_600_000), key: id }).chaseCarrier({
+        carrierId: id,
+      })
+    }
+    this.schedule({ at: new Date(Date.now() + 3_600_000) }).audit()
+  }
+
+  shipped({ carrierId }: { carrierId: string }): void {
+    this.unschedule("chaseCarrier", { key: carrierId })
+  }
+
+  stopChasing(): void {
+    this.unscheduleAll("chaseCarrier")
+  }
+
+  async pendingKeys(): Promise<(string | null)[]> {
+    return (await this.reminders("chaseCarrier")).map((status) => status.key).sort()
+  }
+
+  chaseCarrier(_options: { carrierId: string }): void {}
+  audit(): void {}
+}
+
+let runtime: SolidObjectsRuntime | undefined
+
+afterEach(async () => {
+  await runtime?.close()
+  runtime = undefined
+})
+
+function configuredRuntime(path: string): SolidObjectsRuntime {
+  runtime = configure({
+    database: sqlite({ path }),
+    authorizeMessage: () => true,
+    authorizeQuery: () => true,
+    pollingIntervalMilliseconds: 1,
+    syncPollingIntervalMilliseconds: 1,
+    maxAttempts: 1,
+  })
+  runtime.register(Subscription)
+  runtime.register(Shipment)
+  runtime.register(Observed)
+  return runtime
+}
+
+async function start(): Promise<SolidObjectsRuntime> {
+  runtime = configure({
+    database: sqlite({ path: ":memory:" }),
+    authorizeMessage: () => true,
+    authorizeQuery: () => true,
+    pollingIntervalMilliseconds: 1,
+    syncPollingIntervalMilliseconds: 1,
+    maxAttempts: 1,
+  })
+  runtime.register(Subscription)
+  runtime.register(Shipment)
+  runtime.register(Observed)
+  await runtime.install()
+  return runtime
+}
+
+async function reminderNames(started: SolidObjectsRuntime): Promise<string[]> {
+  const rows = await started.settings.database.connection((connection) =>
+    connection.all<{ operation: string }>(
+      `SELECT operation FROM solid_objects_reminders ORDER BY operation`,
+    ),
+  )
+  return rows.map((row) => row.operation)
+}
+
+describe("reminder cancellation", () => {
+  it("returns a handle naming the reminder", async () => {
+    const started = await start()
+    const reference = Subscription.ref("alice")
+    await reference.startTrial()
+
+    expect(await reference.handle).toEqual({ name: "trialExpired" })
+    expect(await reminderNames(started)).toEqual(["trialExpired"])
+  })
+
+  it("cancels by name", async () => {
+    const started = await start()
+    const reference = Subscription.ref("alice")
+    await reference.startTrial()
+    await reference.convertByName()
+
+    expect(await reminderNames(started)).toEqual([])
+    expect(await reference.status).toBe("active")
+  })
+
+  it("cancels by handle", async () => {
+    const started = await start()
+    const reference = Subscription.ref("alice")
+    await reference.startTrial()
+    await reference.convertByHandle()
+
+    expect(await reminderNames(started)).toEqual([])
+  })
+
+  it("stops a recurring reminder", async () => {
+    const started = await start()
+    const reference = Subscription.ref("alice")
+    await reference.startRecurring()
+    expect(await started.reminderScheduler().runOnce()).toBe(1)
+    await reference.convertByName()
+
+    expect(await reminderNames(started)).toEqual([])
+    expect(await started.reminderScheduler().runOnce()).toBe(0)
+  })
+
+  it("cancelling an absent reminder is not an error", async () => {
+    const started = await start()
+    await Subscription.ref("alice").convertByName()
+
+    expect(await reminderNames(started)).toEqual([])
+  })
+
+  it("a failed turn cancels nothing", async () => {
+    const started = await start()
+    const reference = Subscription.ref("alice")
+    await reference.startTrial()
+    await expect(reference.cancelThenFail()).rejects.toThrow()
+
+    expect(await reminderNames(started)).toEqual(["trialExpired"])
+  })
+
+  it("cancel then schedule in one turn leaves the new time", async () => {
+    const started = await start()
+    const reference = Subscription.ref("alice")
+    await reference.startTrial()
+    await reference.cancelThenReschedule()
+
+    const rows = await started.settings.database.connection((connection) =>
+      connection.all<{ run_at_ms: number | bigint }>(
+        `SELECT run_at_ms FROM solid_objects_reminders`,
+      ),
+    )
+    expect(rows).toHaveLength(1)
+    expect(Number(rows[0]!.run_at_ms)).toBe(Date.UTC(2031, 0, 1))
+  })
+
+  it("reads an armed reminder", async () => {
+    await start()
+    const reference = Subscription.ref("alice")
+    await reference.startRecurring()
+
+    expect(await reference.readTrial()).toEqual({
+      name: "trialExpired",
+      operation: "trialExpired",
+      key: null,
+      runAtMilliseconds: expect.any(Number),
+      intervalMilliseconds: 60_000,
+      missedPolicy: "latest",
+      status: "scheduled",
+      handle: { name: "trialExpired" },
+    })
+  })
+
+  it("reads nothing when no reminder is armed", async () => {
+    await start()
+    expect(await Subscription.ref("alice").readTrial()).toBeNull()
+  })
+
+  it("sees a schedule staged earlier in the same turn", async () => {
+    await start()
+    expect(await Subscription.ref("alice").readAfterStagedSchedule()).toBe(Date.UTC(2031, 0, 1))
+  })
+
+  it("sees a cancel staged earlier in the same turn", async () => {
+    await start()
+    const reference = Subscription.ref("alice")
+    await reference.startTrial()
+
+    expect(await reference.readAfterStagedCancel()).toBe(false)
+  })
+
+  it("lists every key of one operation", async () => {
+    await start()
+    const reference = Shipment.ref("truck")
+    await reference.dispatch({ carrierIds: ["a", "b", "c"] })
+
+    expect(await reference.pendingKeys()).toEqual(["a", "b", "c"])
+  })
+
+  it("does not report a one-shot that already fired", async () => {
+    const started = await start()
+    const reference = Observed.ref("one")
+    await reference.armDue()
+    expect(await reference.armedName).toBe("ping")
+
+    expect(await started.reminderScheduler().runOnce()).toBe(1)
+    await started.worker().runUntilIdle()
+
+    expect(await reference.armedName).toBeNull()
+  })
+
+  it("reads the schedule from an activation hook", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "reminder-hook-"))
+    const path = join(directory, "hook.sqlite3")
+    try {
+      const first = configuredRuntime(path)
+      await first.install()
+      await Observed.ref("one").arm()
+      await first.close()
+
+      // A second runtime activates the actor fresh, so onActivate runs again
+      // with the reminder already armed.
+      const second = configuredRuntime(path)
+      await second.install()
+      expect(await Observed.ref("one").seenOnActivate).toBe("ping")
+      await second.close()
+      runtime = undefined
+    } finally {
+      await rm(directory, { recursive: true, force: true })
+    }
+  })
+
+  it("reads the schedule from a snapshot projection", async () => {
+    const started = await start()
+    const reference = Observed.ref("one")
+    await reference.arm()
+
+    const snapshot = await started.snapshot(Observed.ref("one"))
+
+    expect(snapshot.armedName).toBe("ping")
+  })
+
+  it("refuses an unknown operation instead of cancelling nothing", async () => {
+    const started = await start()
+    const reference = Subscription.ref("alice")
+    await reference.startTrial()
+
+    await expect(reference.cancelUnknown()).rejects.toThrow()
+    await expect(reference.cancelAllUnknown()).rejects.toThrow()
+
+    expect(await reminderNames(started)).toEqual(["trialExpired"])
+  })
+
+  it("rejects a malformed handle", async () => {
+    const started = await start()
+    await expect(Subscription.ref("alice").cancelBadHandle()).rejects.toThrow()
+    expect(await reminderNames(started)).toEqual([])
+  })
+
+  it("cancels one key and leaves its siblings", async () => {
+    const started = await start()
+    const reference = Shipment.ref("truck")
+    await reference.dispatch({ carrierIds: ["a", "b", "c"] })
+    await reference.shipped({ carrierId: "b" })
+
+    expect(await reminderNames(started)).toEqual(["audit", "chaseCarrier:a", "chaseCarrier:c"])
+  })
+
+  it("cancels a reminder migrated before message_operation existed", async () => {
+    const started = await start()
+    const reference = Subscription.ref("alice")
+    await reference.startTrial()
+    // A row written before the keyed-reminder migration carries no
+    // message_operation, and its name is still the operation.
+    await started.settings.database.connection((connection) =>
+      connection.run(`UPDATE solid_objects_reminders SET message_operation = NULL`),
+    )
+
+    await reference.stopAllTrials()
+
+    expect(await reminderNames(started)).toEqual([])
+  })
+
+  it("a cancel that lands on a claimed occurrence does not fail the scheduler", async () => {
+    const started = await start()
+    const reference = Subscription.ref("alice")
+    await reference.startRecurring()
+
+    const claimed = await started.repository.claimReminder("test-scheduler")
+    expect(claimed).toBeDefined()
+    await reference.convertByName()
+
+    await expect(started.repository.enqueueReminder(claimed!)).resolves.toBe(false)
+    expect(await started.reminderScheduler().runOnce()).toBe(0)
+  })
+
+  it("cancels every key of one operation", async () => {
+    const started = await start()
+    const reference = Shipment.ref("truck")
+    await reference.dispatch({ carrierIds: ["a", "b", "c"] })
+    await reference.stopChasing()
+
+    expect(await reminderNames(started)).toEqual(["audit"])
+  })
+})

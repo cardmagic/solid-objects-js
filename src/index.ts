@@ -15,6 +15,9 @@ export {
   type PayloadBroadcasts,
   type PayloadBroadcastValue,
   type ReminderIntent,
+  type ReminderMutation,
+  type UnscheduleAllIntent,
+  type UnscheduleIntent,
   type ReminderOptions,
 } from "./actor.js"
 export {
@@ -106,6 +109,7 @@ export {
   type ActorSnapshot,
   type ScheduledOperations,
   type ScheduledOperationsFor,
+  type TransmittedOperationsFor,
   type StagedOperations,
 } from "./reference.js"
 export type {
@@ -127,6 +131,9 @@ export type {
   EffectContext,
   EffectFailurePayload,
   EffectHandle,
+  ReminderHandle,
+  ReminderReader,
+  ScheduledReminder,
   EffectSuccessPayload,
   InvocationOptions,
   JsonObject,

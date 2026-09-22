@@ -67,6 +67,29 @@ export class Counter extends Actor {
     this.schedule({ at: new Date(options.at) }).increment()
   }
 
+  armKeyed(options: { at: number; keys: string[] }): void {
+    for (const key of options.keys) {
+      this.schedule({ at: new Date(options.at), key }).increment()
+    }
+  }
+
+  async readArmed(): Promise<{ name: string; interval: number | null } | null> {
+    const found = await this.reminder("increment")
+    return found ? { name: found.name, interval: found.intervalMilliseconds } : null
+  }
+
+  disarm(): void {
+    this.unschedule("increment")
+  }
+
+  disarmKey(options: { key: string }): void {
+    this.unschedule("increment", { key: options.key })
+  }
+
+  disarmAll(): void {
+    this.unscheduleAll("increment")
+  }
+
   forward(options: { target: string }): void {
     this.sendTo(Counter.ref(options.target)).increment()
   }

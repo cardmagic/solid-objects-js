@@ -1,5 +1,31 @@
 # Changelog
 
+## Unreleased
+
+- Add reminder reading. `reminder()` returns one armed alarm as a
+  `ScheduledReminder`, and `reminders()` lists every key of one operation. Both
+  apply the intents staged so far in the turn, so a read agrees with what the
+  commit will write. Reading works on the SQL backends and on Durable Objects.
+- Leave a one-shot reminder that already fired out of `reminder()` and
+  `reminders()`. Its row stays as `completed`, so a next-run lookup reported an
+  old time rather than nothing, and an existence check refused to re-arm an
+  alarm that could never fire again.
+- Refuse an unknown operation in `unschedule()` and `unscheduleAll()`.
+  `schedule()` already threw `UnknownOperation` for one, so a typo cancelled
+  nothing quietly and left a recurring reminder running.
+- Add reminder cancellation. `unschedule()` removes one alarm by operation, by
+  operation and key, or by the handle `schedule()` now returns.
+  `unscheduleAll()` removes every key of one operation. Both stage an intent
+  beside the schedules, so they apply in the order the turn called them, commit
+  with the state change that decided them, and cancel nothing when a turn
+  throws. Cancellation works on the SQL backends and on Durable Objects. A
+  cancellation that lands on an occurrence the scheduler claimed but has not yet
+  enqueued pre-empts it, and the scheduler continues rather than failing.
+- `schedule()` now returns a `ReminderHandle` (`{ name: string }`) instead of
+  `void`. A handle is a plain object, so it survives in actor state and still
+  cancels after a deactivation. Code that assigned the result to `void` needs
+  updating, as `emit` required in 0.15.0.
+
 ## 0.15.2 - 2026-09-21
 
 - Stop the deadlock between concurrent callers that create the same actor from

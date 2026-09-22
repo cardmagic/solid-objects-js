@@ -176,6 +176,17 @@ export class ActorStorage {
     )
   }
 
+  deleteReminder(name: string): void {
+    this.storage.sql.exec("DELETE FROM reminders WHERE name = ?", name)
+  }
+
+  deleteRemindersFor(operation: string): void {
+    const names = this.rows<Reminder>("SELECT record FROM reminders")
+      .filter((reminder) => reminder.operation === operation)
+      .map((reminder) => reminder.name)
+    for (const name of names) this.deleteReminder(name)
+  }
+
   saveSubscription(subscription: Subscription): void {
     this.storage.sql.exec(
       "INSERT INTO subscriptions(id, expires_at, record) VALUES (?, ?, ?) ON CONFLICT(id) DO UPDATE SET expires_at = excluded.expires_at, record = excluded.record",

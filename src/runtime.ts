@@ -117,6 +117,7 @@ import type {
   MessageContext,
   MessageStatus,
   SnapshotOptions,
+  ScheduledReminder,
 } from "./types.js"
 import { SolidObjectsTestHelper } from "./test-helper.js"
 import { waitFor, Worker } from "./worker.js"
@@ -164,6 +165,21 @@ type CommitActionHandler = (
   argumentsValue: JsonObject,
   context: CommitActionContext,
 ) => unknown | Promise<unknown>
+
+function scheduledReminderOf(row: ReminderRow): ScheduledReminder {
+  const operation = row.message_operation ?? row.operation
+  const name = row.operation
+  return {
+    name,
+    operation,
+    key: name === operation ? null : name.slice(operation.length + 1),
+    runAtMilliseconds: Number(row.run_at_ms),
+    intervalMilliseconds: row.interval_ms === null ? null : Number(row.interval_ms),
+    missedPolicy: row.missed_policy,
+    status: row.status,
+    handle: { name },
+  }
+}
 
 export class SolidObjectsRuntime {
   readonly settings
@@ -727,6 +743,10 @@ export class SolidObjectsRuntime {
       definition: registered.definition,
       actorId: reference.actorId,
       state,
+      readReminders: async () =>
+        instance === undefined
+          ? []
+          : (await this.repository.remindersForInstance(instance.id)).map(scheduledReminderOf),
     })
     const stateBefore = stableJson(actorState(actor, registered.definition.stateKeys))
     const intentCount = actor.intentCount()
@@ -779,6 +799,12 @@ export class SolidObjectsRuntime {
       definition: registered.definition,
       actorId: options.actorId,
       state,
+      ...(instance === undefined
+        ? {}
+        : {
+            readReminders: async () =>
+              (await this.repository.remindersForInstance(instance.id)).map(scheduledReminderOf),
+          }),
     })
     return readonlyCopy({
       actorType: options.actorType,
@@ -1117,6 +1143,8 @@ export class SolidObjectsRuntime {
           definition,
           actorId: turn.message.actor_id,
           state: deepCopy(state),
+          readReminders: async () =>
+            (await this.repository.remindersForInstance(turn.instance.id)).map(scheduledReminderOf),
         })
     } catch (error) {
       throw new ActorSetupFailed(error)
@@ -1421,7 +1449,8 @@ export class SolidObjectsRuntime {
     if (!actor.operations.has(dispatchOperation)) {
       throw new UnknownOperation(`unknown reminder operation ${JSON.stringify(dispatchOperation)}`)
     }
-    await this.repository.enqueueReminder(reminder, options)
+    if (!(await this.repository.enqueueReminder(reminder, options))) return
+
     this.wakeUp("actors")
     this.emitInstrumentation("reminder.enqueued", {
       reminderId: reminder.id,
