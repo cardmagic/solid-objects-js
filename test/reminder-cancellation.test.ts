@@ -1,3 +1,6 @@
+import { mkdtemp, rm } from "node:fs/promises"
+import { tmpdir } from "node:os"
+import { join } from "node:path"
 import { afterEach, describe, expect, it } from "vitest"
 import { Actor } from "../src/actor.js"
 import { sqlite } from "../src/database/sqlite.js"
@@ -83,6 +86,11 @@ class Observed extends Actor {
   static override readonly actorType = "cancel-observed"
 
   armed = false
+  seenOnActivate: string | null = null
+
+  protected override async onActivate(): Promise<void> {
+    this.seenOnActivate = (await this.reminder("ping"))?.name ?? null
+  }
 
   arm(): void {
     this.schedule({ at: new Date(Date.UTC(2030, 0, 1)) }).ping()
@@ -133,6 +141,21 @@ afterEach(async () => {
   await runtime?.close()
   runtime = undefined
 })
+
+function configuredRuntime(path: string): SolidObjectsRuntime {
+  runtime = configure({
+    database: sqlite({ path }),
+    authorizeMessage: () => true,
+    authorizeQuery: () => true,
+    pollingIntervalMilliseconds: 1,
+    syncPollingIntervalMilliseconds: 1,
+    maxAttempts: 1,
+  })
+  runtime.register(Subscription)
+  runtime.register(Shipment)
+  runtime.register(Observed)
+  return runtime
+}
 
 async function start(): Promise<SolidObjectsRuntime> {
   runtime = configure({
@@ -283,6 +306,27 @@ describe("reminder cancellation", () => {
     await started.worker().runUntilIdle()
 
     expect(await reference.armedName).toBeNull()
+  })
+
+  it("reads the schedule from an activation hook", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "reminder-hook-"))
+    const path = join(directory, "hook.sqlite3")
+    try {
+      const first = configuredRuntime(path)
+      await first.install()
+      await Observed.ref("one").arm()
+      await first.close()
+
+      // A second runtime activates the actor fresh, so onActivate runs again
+      // with the reminder already armed.
+      const second = configuredRuntime(path)
+      await second.install()
+      expect(await Observed.ref("one").seenOnActivate).toBe("ping")
+      await second.close()
+      runtime = undefined
+    } finally {
+      await rm(directory, { recursive: true, force: true })
+    }
   })
 
   it("reads the schedule from a snapshot projection", async () => {
