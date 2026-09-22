@@ -461,9 +461,10 @@ async function hasFailedAt(options: {
     )
     return columns.some(({ name }) => name === "failed_at_ms")
   }
+  const schema = options.family === "postgresql" ? "current_schema()" : "DATABASE()"
   const found = await options.connection.get<{ found: number | bigint }>(
     `SELECT COUNT(*) AS found FROM information_schema.columns
-     WHERE table_name = ? AND column_name = 'failed_at_ms'`,
+     WHERE table_schema = ${schema} AND table_name = ? AND column_name = 'failed_at_ms'`,
     [options.table],
   )
   return Number(found?.found ?? 0) > 0

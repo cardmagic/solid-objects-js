@@ -6,6 +6,8 @@ import type { AdministrationOptions, DeepReadonly, JsonObject } from "./types.js
 
 export type DeadLetterKind = "effect" | "broadcast"
 
+type DeadRowFilterValue = string | number
+
 export interface DeadRow {
   readonly id: string
   readonly kind: DeadLetterKind
@@ -157,9 +159,9 @@ export class DeadLetterScope {
   private conditions(
     filters: RedriveFilters,
     deadBefore?: number,
-  ): { where: string; parameters: unknown[] } {
+  ): { where: string; parameters: DeadRowFilterValue[] } {
     const clauses = ["dead.status = 'dead'"]
-    const parameters: unknown[] = []
+    const parameters: DeadRowFilterValue[] = []
     if (deadBefore !== undefined) {
       clauses.push("dead.failed_at_ms <= ?")
       parameters.push(deadBefore)

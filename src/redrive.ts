@@ -38,7 +38,7 @@ export class RedriveManager {
   async start(input: {
     kind: DeadLetterKind
     filters: RedriveFilters
-    authorizationContext?: unknown
+    authorizationContext?: AdministrationOptions["authorizationContext"]
   }): Promise<RedriveTask> {
     await this.runtime.deadLetters.scope(input.kind).authorize({
       action: "redrive",
