@@ -117,6 +117,7 @@ export class Doctor {
       schema,
       await this.checkAuthorization(),
       await this.checkDatabase(),
+      await this.checkWakeUp(),
     ]
     checks.push(
       schema.status === "fail"
@@ -143,6 +144,26 @@ export class Doctor {
       healthy: frozenChecks.every(({ status }) => status !== "fail"),
       checks: frozenChecks,
     })
+  }
+
+  private async checkWakeUp(): Promise<DoctorCheck> {
+    try {
+      const capability = await this.runtime.wakeUpCapability()
+      const floor = capability.measuredFloorMilliseconds
+      const summary = `${capability.adapter}: ${capability.reason}${
+        floor === undefined ? "" : `, floor ${floor} ms`
+      }`
+      if (capability.crossesProcesses) {
+        return check({ name: "wakeUp", status: "pass", message: summary })
+      }
+      return check({
+        name: "wakeUp",
+        status: "warn",
+        message: `${summary}; a commit in one process cannot wake another`,
+      })
+    } catch (error) {
+      return failedCheck("wakeUp", error)
+    }
   }
 
   private checkConfiguration(): DoctorCheck {

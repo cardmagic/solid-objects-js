@@ -122,8 +122,9 @@ import type {
 import { SolidObjectsTestHelper } from "./test-helper.js"
 import { waitFor, Worker } from "./worker.js"
 import { EffectWorker } from "./effect-worker.js"
-import type { WakeUpRole } from "./wake-up.js"
+import type { WakeUpAdapter, WakeUpCapability, WakeUpRole, WakeUpWatch } from "./wake-up.js"
 import { notifyWakeUp } from "./wake-up-notification.js"
+import { selectWakeUp, type SelectedWakeUp } from "./wake-up-selection.js"
 import { withDatabaseDeadline } from "./database/deadline.js"
 import type { DatabaseConnection } from "./database/types.js"
 import { evaluateActorTurn, readActorObservables } from "./turn.js"
@@ -201,10 +202,14 @@ export class SolidObjectsRuntime {
   private running = false
   private pollingOnlyWakeUpWarningEmitted = false
   private pollingOnlyWakeUpWarningCheck: Promise<void> | undefined
+  private wakeUpSelection: Promise<SelectedWakeUp> | undefined
+  private wakeUpSelectionFailureLogged = false
 
   constructor(configuration: SolidObjectsConfiguration) {
     this.settings = buildSettings(configuration)
-    this.repository = new Repository(this.settings)
+    this.repository = new Repository(this.settings, {
+      wakeUpAdapter: () => this.wakeUpAdapter(),
+    })
     this.deadLetters = new DeadLetterManager(this)
     this.reconciliation = new ReconciliationManager(this)
     this.retention = new RetentionManager(this)
@@ -1344,13 +1349,25 @@ export class SolidObjectsRuntime {
       throw new Error("abort runtime.run() and wait for it before closing the runtime")
     await this.callerWorker?.stop()
     this.realtime.close()
-    await this.settings.wakeUp.close()
+    await this.closeWakeUp()
     await this.settings.database.close()
     clearDefaultRuntime(this)
   }
 
+  async wakeUpAdapter(): Promise<WakeUpAdapter> {
+    return (await this.resolveWakeUp()).adapter
+  }
+
+  async wakeUpCapability(): Promise<WakeUpCapability> {
+    return (await this.resolveWakeUp()).capability
+  }
+
+  async watchWakeUp(role: WakeUpRole): Promise<WakeUpWatch> {
+    return await (await this.wakeUpAdapter()).watch(role)
+  }
+
   async warnIfPollingIsOnlyCrossProcessWakeUp(): Promise<void> {
-    if (this.settings.wakeUpConfigured || this.pollingOnlyWakeUpWarningEmitted) return
+    if (this.pollingOnlyWakeUpWarningEmitted) return
     if (this.pollingOnlyWakeUpWarningCheck) return this.pollingOnlyWakeUpWarningCheck
     const check = this.checkPollingOnlyCrossProcessWakeUp()
     this.pollingOnlyWakeUpWarningCheck = check
@@ -1364,6 +1381,7 @@ export class SolidObjectsRuntime {
   }
 
   private async checkPollingOnlyCrossProcessWakeUp(): Promise<void> {
+    if ((await this.wakeUpCapability()).crossesProcesses) return
     if (!(await this.repository.hasLiveProcessOutsideCurrentHostProcess())) return
     if (this.pollingOnlyWakeUpWarningEmitted) return
     this.pollingOnlyWakeUpWarningEmitted = true
@@ -1383,6 +1401,7 @@ export class SolidObjectsRuntime {
     await this.callerWorker?.stop()
     this.callerWorker = undefined
     this.realtime.close()
+    await this.discardWakeUp()
     await this.repository.resetForTesting()
   }
 
@@ -1963,8 +1982,46 @@ export class SolidObjectsRuntime {
     })
   }
 
+  private resolveWakeUp(): Promise<SelectedWakeUp> {
+    this.wakeUpSelection ??= selectWakeUp({
+      setting: this.settings.wakeUp,
+      database: this.settings.database,
+      idlePollingIntervalMilliseconds: this.settings.idlePollingIntervalMilliseconds,
+      logger: this.settings.logger,
+    })
+    return this.wakeUpSelection
+  }
+
+  private async closeWakeUp(): Promise<void> {
+    const selection = this.wakeUpSelection
+    if (!selection) return
+    const selected = await selection.catch(() => undefined)
+    await selected?.adapter.close()
+  }
+
+  private async discardWakeUp(): Promise<void> {
+    await this.closeWakeUp()
+    this.wakeUpSelection = undefined
+    this.wakeUpSelectionFailureLogged = false
+  }
+
   private wakeUp(role: WakeUpRole): void {
-    notifyWakeUp({ adapter: this.settings.wakeUp, logger: this.settings.logger, role })
+    void this.notifyWhenSelected(role)
+  }
+
+  private async notifyWhenSelected(role: WakeUpRole): Promise<void> {
+    try {
+      const selected = await this.resolveWakeUp()
+      notifyWakeUp({ adapter: selected.adapter, logger: this.settings.logger, role })
+    } catch (error) {
+      this.reportWakeUpSelectionFailure(error instanceof Error ? error.name : "Error")
+    }
+  }
+
+  private reportWakeUpSelectionFailure(errorName: string): void {
+    if (this.wakeUpSelectionFailureLogged) return
+    this.wakeUpSelectionFailureLogged = true
+    this.settings.logger.error({ event: "solid_objects.wake_up.selection_failed", errorName })
   }
 
   private async authorize(options: {

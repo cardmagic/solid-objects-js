@@ -14,15 +14,24 @@ work and wake-up notifications reset the role to the fast interval. Actor
 workers clamp the ceiling to `leaseRenewalIntervalMilliseconds` while they may
 hold cached activations.
 
-The default generation-based wake-up adapter interrupts waits for new actor
+The runtime selects a wake-up adapter on first use. It prefers
+`SOLID_OBJECTS_REDIS_URL`, then PostgreSQL notifications, then polling.
+The generation-based in-process adapter interrupts waits for new actor
 messages, effects, reminders, and broadcasts in the same Node process. It does
-not cross a process boundary. When live processes share the database without a
-configured adapter, the runtime logs
-`solid_objects.polling_only_cross_process_wake_up` once. Use PostgreSQL
-notifications or optional Redis Pub/Sub when separate processes need prompt
-delivery. Without one of them, newly committed work can wait for the current
-idle polling interval. The runtime isolates notification errors and logs them by
+not cross a process boundary. When live processes share the database and the
+installed adapter does not cross processes, the runtime logs
+`solid_objects.polling_only_cross_process_wake_up` once. Without a
+cross-process adapter, newly committed work can wait for the current idle
+polling interval. The runtime isolates notification errors and logs them by
 role and error class. The committed work does not fail.
+
+`runtime.wakeUpCapability()` and the `wakeUp` doctor check report the adapter
+that is installed, whether it crosses processes, its measured floor, and why it
+was chosen. On PostgreSQL, selection first proves the path: it listens on a
+probe channel, notifies it from a second connection, and waits for the
+notification. A probe that does not arrive logs
+`solid_objects.wake_up.pooled_session` once and falls back to polling, because
+`LISTEN` does not survive a transaction pooler such as PgBouncer.
 
 The warning excludes process rows with the current hostname and host process ID.
 It can therefore appear during a rolling deployment or restart overlap when an

@@ -106,11 +106,28 @@ Ruby field names; this does not change runtime delivery semantics.
 | PostgreSQL wake-up       | Native | `database.wakeUp()` uses one dedicated event-driven client, role-specific `LISTEN/NOTIFY`, generation fencing, reconnectable listeners, and durable polling fallback.                                                                                                                                                                                                                 |
 | Redis wake-up            | Native | An optional `redis` peer provides role-specific Pub/Sub over separate lazy publisher/subscriber connections, with bounded failures and durable polling fallback.                                                                                                                                                                                                                      |
 
-Every wake-up adapter above is opt-in. Neither runtime selects one
-automatically. An application that configures nothing keeps polling. Each
-runtime warns once when live processes share a database without a configured
-cross-process adapter. This limit is intentional in both runtimes. It is not a
-gap between them.
+Both runtimes select a wake-up adapter automatically. `wakeUp` takes a name or
+an adapter and defaults to `"automatic"`, which prefers a configured Redis URL,
+then PostgreSQL notifications, then polling. Selection proves the PostgreSQL
+path with a probe notification, because `LISTEN` does not survive a transaction
+pooler. Each runtime reports what it installed, whether that crosses processes,
+its measured floor, and why, and warns once when live processes share a
+database and the installed adapter cannot reach them. MySQL still polls in both
+runtimes, because MySQL has no notification channel.
+
+A requested adapter that the environment cannot provide polls instead and says
+so in both runtimes, rather than claim a cross-process wake-up that cannot
+happen. Only a name that does not exist is refused.
+
+Three details differ, and each follows from the language rather than from the
+feature. The pooled-session warning is emitted once per runtime here and once
+per process in Ruby, because this runtime supports several runtimes in one
+process. A configured adapter must implement `watch`, `notify`, and `close`
+here, while Ruby requires `signal` and `wait` and treats `watch` and `stop` as
+optional, which is each runtime's own adapter contract. A selection that a later
+edit of the settings makes impossible is reported once here and raised in Ruby;
+both runtimes refuse an unknown name when the configuration is built, so this
+only reaches code that changes the setting afterwards.
 
 ## Realtime and browser behavior
 

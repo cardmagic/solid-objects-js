@@ -141,7 +141,7 @@ export class Worker {
     await this.ensureRegistered()
     await this.runtime.warnIfPollingIsOnlyCrossProcessWakeUp()
     while (!signal.aborted && !this.stopping) {
-      const wakeUp = await this.runtime.settings.wakeUp.watch("actors")
+      const wakeUp = await this.runtime.watchWakeUp("actors")
       const processed = await this.runOnce()
       if (processed > 0) {
         this.pollingBackoff.reset("work")

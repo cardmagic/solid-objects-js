@@ -2,6 +2,7 @@ import { createClient, type RedisClientType } from "redis"
 import {
   InProcessWakeUpAdapter,
   type WakeUpAdapter,
+  type WakeUpCapability,
   type WakeUpRole,
   type WakeUpWatch,
 } from "../wake-up.js"
@@ -26,6 +27,13 @@ export interface RedisWakeUpOptions {
 }
 
 export class RedisWakeUpAdapter implements WakeUpAdapter {
+  readonly defaultCapability: WakeUpCapability = {
+    adapter: "redis",
+    crossesProcesses: true,
+    measuredFloorMilliseconds: 5.7,
+    reason: "Redis carries the signal between processes",
+  }
+
   private readonly local = new InProcessWakeUpAdapter()
   private readonly publisher: RedisClientType
   private readonly subscriber: RedisClientType

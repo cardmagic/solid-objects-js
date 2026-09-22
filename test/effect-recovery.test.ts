@@ -134,7 +134,7 @@ it("retires abandoned processing effects before the scheduler can reclaim them",
     ),
   )
   await runtime.repository.registerProcess("replacement", "effect")
-  const wakeUp = await runtime.settings.wakeUp.watch("actors")
+  const wakeUp = await runtime.watchWakeUp("actors")
   expect(await runtime.repository.claimEffect("replacement")).toBeUndefined()
   expect(await wakeUp.wait({ timeoutMilliseconds: 0 })).toBe(true)
   const notifications = await runtime.settings.database.connection((connection) =>
@@ -237,6 +237,7 @@ it("rolls back retirement if the second mailbox insert fails", async () => {
   const effect = await processingEffect()
   await ageOwner(70_000)
   const coordinator = new EffectRecoveryCoordinator({
+    wakeUpAdapter: () => runtime!.wakeUpAdapter(),
     settings: runtime!.settings,
     enqueue: (connection, input) => {
       if (input.operation === "inspect") throw new Error("injected second insert failure")
@@ -267,6 +268,7 @@ it("reports missing from the owned binding without exposing another actor", asyn
   await runtime!.ref(ReportExport, "export").check()
   expect(await messages("inspect")).toEqual([{ effectId: effect.id, outcome: "missing" }])
   const coordinator = new EffectRecoveryCoordinator({
+    wakeUpAdapter: () => runtime!.wakeUpAdapter(),
     settings: runtime!.settings,
     enqueue: (connection, input) => runtime!.repository.enqueueInTransaction(connection, input),
   })
@@ -286,6 +288,7 @@ it("rolls back both callbacks when only one mailbox slot remains", async () => {
   await ageOwner(70_000)
   runtime!.settings.maxMailboxLength = 1
   const coordinator = new EffectRecoveryCoordinator({
+    wakeUpAdapter: () => runtime!.wakeUpAdapter(),
     settings: runtime!.settings,
     enqueue: (connection, input) => runtime!.repository.enqueueInTransaction(connection, input),
   })
@@ -308,6 +311,7 @@ it("surfaces an owner query failure without deciding abandonment", async () => {
   const effect = await processingEffect()
   await ageOwner(70_000)
   const coordinator = new EffectRecoveryCoordinator({
+    wakeUpAdapter: () => runtime!.wakeUpAdapter(),
     settings: runtime!.settings,
     enqueue: (connection, input) => runtime!.repository.enqueueInTransaction(connection, input),
   })
@@ -362,6 +366,7 @@ it("requires recovery opt-in for a timeout and both bindings for an explicit che
     connection.get<EffectRow>(`SELECT * FROM ${runtime!.repository.table("effects")}`),
   )
   const coordinator = new EffectRecoveryCoordinator({
+    wakeUpAdapter: () => runtime!.wakeUpAdapter(),
     settings: runtime.settings,
     enqueue: (connection, input) => runtime!.repository.enqueueInTransaction(connection, input),
   })
@@ -450,6 +455,7 @@ it.skipIf(!process.env.SOLID_OBJECTS_DATABASE_URL?.startsWith("postgresql:"))(
     const effect = await processingEffect()
     await ageOwner(70_000)
     const coordinator = new EffectRecoveryCoordinator({
+      wakeUpAdapter: () => runtime!.wakeUpAdapter(),
       settings: runtime!.settings,
       enqueue: (connection, input) => runtime!.repository.enqueueInTransaction(connection, input),
     })
@@ -480,6 +486,7 @@ it.skipIf(!process.env.SOLID_OBJECTS_DATABASE_URL?.startsWith("postgresql:"))(
     const effect = await processingEffect()
     await ageOwner(70_000)
     const coordinator = new EffectRecoveryCoordinator({
+      wakeUpAdapter: () => runtime!.wakeUpAdapter(),
       settings: runtime!.settings,
       enqueue: (connection, input) => runtime!.repository.enqueueInTransaction(connection, input),
     })
@@ -511,6 +518,7 @@ it.skipIf(!process.env.SOLID_OBJECTS_DATABASE_URL?.startsWith("postgresql:"))(
     const effect = await processingEffect()
     await ageOwner(70_000)
     const coordinator = new EffectRecoveryCoordinator({
+      wakeUpAdapter: () => runtime!.wakeUpAdapter(),
       settings: runtime!.settings,
       enqueue: (connection, input) => runtime!.repository.enqueueInTransaction(connection, input),
     })
@@ -620,10 +628,14 @@ it.skipIf(!process.env.SOLID_OBJECTS_DATABASE_URL?.startsWith("postgresql:"))(
       database: runtime.settings.database,
       table: "effects",
     })
-    const claimant = new Repository({ ...runtime.settings, database: pausedDatabase })
+    const claimant = new Repository(
+      { ...runtime.settings, database: pausedDatabase },
+      { wakeUpAdapter: () => runtime!.wakeUpAdapter() },
+    )
     const claim = claimant.claimEffect("owner")
     const originLocked = deferred()
     const coordinator = new EffectRecoveryCoordinator({
+      wakeUpAdapter: () => runtime!.wakeUpAdapter(),
       settings: runtime.settings,
       enqueue: (connection, input) => runtime!.repository.enqueueInTransaction(connection, input),
     })
@@ -659,6 +671,7 @@ it.skipIf(!process.env.SOLID_OBJECTS_DATABASE_URL?.startsWith("postgresql:"))(
     const effect = await storedEffect(handle!.id)
     await runtime.repository.registerProcess("owner", "effect")
     const coordinator = new EffectRecoveryCoordinator({
+      wakeUpAdapter: () => runtime!.wakeUpAdapter(),
       settings: runtime.settings,
       enqueue: (connection, input) => runtime!.repository.enqueueInTransaction(connection, input),
     })
@@ -683,6 +696,7 @@ it.skipIf(!process.env.SOLID_OBJECTS_DATABASE_URL?.startsWith("postgresql:"))(
     const effect = await processingEffect()
     await ageOwner(70_000)
     const coordinator = new EffectRecoveryCoordinator({
+      wakeUpAdapter: () => runtime!.wakeUpAdapter(),
       settings: runtime!.settings,
       enqueue: (connection, input) => runtime!.repository.enqueueInTransaction(connection, input),
     })

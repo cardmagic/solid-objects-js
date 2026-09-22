@@ -1,5 +1,10 @@
 import { Client, type ClientConfig, type Notification } from "pg"
-import type { WakeUpAdapter, WakeUpRole, WakeUpWatch } from "../wake-up.js"
+import type {
+  NotificationWakeUpAdapter,
+  WakeUpCapability,
+  WakeUpRole,
+  WakeUpWatch,
+} from "../wake-up.js"
 
 const ROLES = [
   "actors",
@@ -20,7 +25,14 @@ export interface PostgreSQLWakeUpOptions {
   onListenerError?: (failure: PostgreSQLWakeUpFailure) => void
 }
 
-export class PostgreSQLWakeUpAdapter implements WakeUpAdapter {
+export class PostgreSQLWakeUpAdapter implements NotificationWakeUpAdapter {
+  readonly defaultCapability: WakeUpCapability = {
+    adapter: "postgresql_notify",
+    crossesProcesses: true,
+    measuredFloorMilliseconds: 2.9,
+    reason: "PostgreSQL LISTEN carries the signal between processes",
+  }
+
   private readonly clientConfiguration: ClientConfig
   private readonly channels = new Map<WakeUpRole, string>()
   private readonly rolesByChannel = new Map<string, WakeUpRole>()
@@ -63,6 +75,10 @@ export class PostgreSQLWakeUpAdapter implements WakeUpAdapter {
           operation: failure.operation,
           errorName: failure.error.name,
         }))
+  }
+
+  channelFor(role: WakeUpRole): string {
+    return this.channel(role)
   }
 
   async watch(role: WakeUpRole): Promise<WakeUpWatch> {

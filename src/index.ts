@@ -51,11 +51,22 @@ export {
 export { BroadcastWorker } from "./broadcast-worker.js"
 export {
   InProcessWakeUpAdapter,
+  WAKE_UP_NAMES,
+  type NotificationWakeUpAdapter,
   type WakeUpAdapter,
+  type WakeUpAdapterName,
+  type WakeUpCapability,
+  type WakeUpName,
   type WakeUpRole,
+  type WakeUpSetting,
   type WakeUpWaitOptions,
   type WakeUpWatch,
 } from "./wake-up.js"
+export {
+  selectWakeUp,
+  type SelectedWakeUp,
+  type WakeUpSelectionOptions,
+} from "./wake-up-selection.js"
 export {
   parseSubscriptionRequest,
   RealtimeManager,

@@ -9,13 +9,40 @@ export interface WakeUpWatch {
   wait(options: WakeUpWaitOptions): Promise<boolean | void>
 }
 
+export type WakeUpAdapterName =
+  "in_process" | "polling" | "postgresql_notify" | "redis" | "configured"
+
+export interface WakeUpCapability {
+  readonly adapter: WakeUpAdapterName
+  readonly crossesProcesses: boolean
+  readonly measuredFloorMilliseconds?: number
+  readonly reason: string
+}
+
+export const WAKE_UP_NAMES = ["automatic", "in_process", "postgresql", "redis"] as const
+
+export type WakeUpName = (typeof WAKE_UP_NAMES)[number]
+
 export interface WakeUpAdapter {
   watch(role: WakeUpRole): WakeUpWatch | Promise<WakeUpWatch>
   notify(role: WakeUpRole): void | Promise<void>
   close(): void | Promise<void>
+  readonly defaultCapability?: WakeUpCapability
 }
 
+export interface NotificationWakeUpAdapter extends WakeUpAdapter {
+  channelFor(role: WakeUpRole): string
+}
+
+export type WakeUpSetting = WakeUpName | WakeUpAdapter
+
 export class InProcessWakeUpAdapter implements WakeUpAdapter {
+  readonly defaultCapability: WakeUpCapability = {
+    adapter: "in_process",
+    crossesProcesses: false,
+    reason: "in-process signalling, which a commit in another process cannot reach",
+  }
+
   private readonly generations = new Map<WakeUpRole, number>()
   private readonly waiters = new Map<WakeUpRole, Set<(notified: boolean) => void>>()
   private closed = false

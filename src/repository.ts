@@ -36,6 +36,7 @@ import type {
 } from "./types.js"
 import { VERSION } from "./version.js"
 import { EffectRecoveryCoordinator } from "./effect-recovery-coordinator.js"
+import type { WakeUpAdapter } from "./wake-up.js"
 
 export interface SyncDiagnosticsRecord {
   message: MessageRow
@@ -67,7 +68,10 @@ interface MessageClaimFenceRow {
 }
 
 export class Repository {
-  constructor(private readonly settings: RuntimeSettings) {}
+  constructor(
+    private readonly settings: RuntimeSettings,
+    private readonly options: { wakeUpAdapter: () => Promise<WakeUpAdapter> },
+  ) {}
 
   table(name: string): string {
     return `${this.settings.tableNamePrefix}${name}`
@@ -2056,6 +2060,7 @@ export class Repository {
   private effectRecoveryCoordinator(): EffectRecoveryCoordinator {
     return new EffectRecoveryCoordinator({
       settings: this.settings,
+      wakeUpAdapter: this.options.wakeUpAdapter,
       enqueue: (connection, input) => this.enqueueInTransaction(connection, input),
     })
   }

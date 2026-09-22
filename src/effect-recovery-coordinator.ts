@@ -9,6 +9,7 @@ import {
 } from "./effect-recovery.js"
 import type { EffectRow, EnqueueInput, MessageRow, ProcessRow } from "./records.js"
 import { jsonObject, normalizeJson } from "./serialization.js"
+import type { WakeUpAdapter } from "./wake-up.js"
 import { notifyWakeUp } from "./wake-up-notification.js"
 
 interface RecoveryBinding {
@@ -30,6 +31,7 @@ export class EffectRecoveryCoordinator {
   constructor(
     private readonly options: {
       settings: RuntimeSettings
+      wakeUpAdapter: () => Promise<WakeUpAdapter>
       enqueue: (connection: DatabaseConnection, input: EnqueueInput) => Promise<MessageRow>
     },
   ) {}
@@ -87,7 +89,7 @@ export class EffectRecoveryCoordinator {
       })
       if (retired)
         notifyWakeUp({
-          adapter: this.options.settings.wakeUp,
+          adapter: await this.options.wakeUpAdapter(),
           logger: this.options.settings.logger,
           role: "actors",
         })
