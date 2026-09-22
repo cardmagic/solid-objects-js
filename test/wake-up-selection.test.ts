@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
+import { Actor } from "../src/actor.js"
 import { sqlite } from "../src/database/sqlite.js"
 import type {
   Database,
@@ -105,6 +106,16 @@ class CustomWakeUpAdapter implements WakeUpAdapter {
   notify(): void {}
 
   close(): void {}
+}
+
+class SelectionCounter extends Actor {
+  static override readonly actorType = "WakeUpSelectionCounter"
+
+  count = 0
+
+  increment(): void {
+    this.count += 1
+  }
 }
 
 let runtime: SolidObjectsRuntime | undefined
@@ -267,6 +278,31 @@ describe("runtime wake-up selection", () => {
 
     expect(await closing.wakeUpAdapter()).toBe(selected)
     expect(database.adapters).toHaveLength(2)
+  })
+
+  it("reports a selection that cannot run once rather than on every commit", async () => {
+    const errors: { event?: string }[] = []
+    const logger = { ...silentLogger, error: (entry: { event?: string }) => errors.push(entry) }
+    runtime = configure({
+      database: sqlite({ path: ":memory:" }),
+      wakeUp: "postgresql",
+      logger,
+      authorizeMessage: () => true,
+    })
+    runtime.register(SelectionCounter)
+    await runtime.install()
+
+    await runtime.ref(SelectionCounter, "one").send.increment()
+    await runtime.ref(SelectionCounter, "one").send.increment()
+    await vi.waitFor(() =>
+      expect(errors.some(({ event }) => event === "solid_objects.wake_up.selection_failed")).toBe(
+        true,
+      ),
+    )
+
+    expect(
+      errors.filter(({ event }) => event === "solid_objects.wake_up.selection_failed"),
+    ).toHaveLength(1)
   })
 
   it("reports the capability of the adapter that is installed", async () => {

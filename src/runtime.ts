@@ -203,6 +203,7 @@ export class SolidObjectsRuntime {
   private pollingOnlyWakeUpWarningEmitted = false
   private pollingOnlyWakeUpWarningCheck: Promise<void> | undefined
   private wakeUpSelection: Promise<SelectedWakeUp> | undefined
+  private wakeUpSelectionFailureLogged = false
 
   constructor(configuration: SolidObjectsConfiguration) {
     this.settings = buildSettings(configuration)
@@ -2001,20 +2002,26 @@ export class SolidObjectsRuntime {
   private async discardWakeUp(): Promise<void> {
     await this.closeWakeUp()
     this.wakeUpSelection = undefined
+    this.wakeUpSelectionFailureLogged = false
   }
 
   private wakeUp(role: WakeUpRole): void {
-    void this.resolveWakeUp()
-      .then((selected) =>
-        notifyWakeUp({ adapter: selected.adapter, logger: this.settings.logger, role }),
-      )
-      .catch((error: unknown) => {
-        this.settings.logger.error({
-          event: "solid_objects.wake_up.failed",
-          role,
-          errorName: error instanceof Error ? error.name : "Error",
-        })
-      })
+    void this.notifyWhenSelected(role)
+  }
+
+  private async notifyWhenSelected(role: WakeUpRole): Promise<void> {
+    try {
+      const selected = await this.resolveWakeUp()
+      notifyWakeUp({ adapter: selected.adapter, logger: this.settings.logger, role })
+    } catch (error) {
+      this.reportWakeUpSelectionFailure(error instanceof Error ? error.name : "Error")
+    }
+  }
+
+  private reportWakeUpSelectionFailure(errorName: string): void {
+    if (this.wakeUpSelectionFailureLogged) return
+    this.wakeUpSelectionFailureLogged = true
+    this.settings.logger.error({ event: "solid_objects.wake_up.selection_failed", errorName })
   }
 
   private async authorize(options: {
