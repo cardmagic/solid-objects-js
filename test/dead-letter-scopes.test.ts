@@ -24,7 +24,7 @@ class OrderActor extends Actor {
     this.transmit().touch()
   }
 
-  override observables(): Record<string, unknown> {
+  override observables(): { count: number } {
     return { count: this.count }
   }
 }
@@ -39,7 +39,9 @@ class PoisonActor extends Actor {
 }
 
 let runtime: SolidObjectsRuntime | undefined
-let settle: (argumentsValue: Record<string, unknown>) => void = () => {}
+type SettleArguments = { order?: string; operation?: string }
+
+let settle: (argumentsValue: SettleArguments) => void = () => {}
 let deliver: () => void = () => {}
 
 afterEach(async () => {
@@ -98,7 +100,7 @@ describe("dead-letter scopes", () => {
   it("returns a dead effect to pending and runs it again", async () => {
     const active = await start()
     const id = await deadEffect(active)
-    const settled: unknown[] = []
+    const settled: SettleArguments[] = []
 
     await active.deadLetters.effects.retry(id)
 
@@ -145,7 +147,7 @@ describe("dead-letter scopes", () => {
 
   it("replays a dead transmit effect", async () => {
     const active = await start()
-    const transmitted: Record<string, unknown>[] = []
+    const transmitted: SettleArguments[] = []
     settle = () => {
       throw new Error("carrier down")
     }
@@ -162,7 +164,7 @@ describe("dead-letter scopes", () => {
     await active.effectWorker().runUntilIdle()
 
     expect(await active.deadLetters.effects.all()).toHaveLength(0)
-    expect(transmitted.map((argumentsValue) => argumentsValue["operation"])).toEqual(["touch"])
+    expect(transmitted.map(({ operation }) => operation)).toEqual(["touch"])
   })
 
   it("reads only dead rows, not pending ones", async () => {

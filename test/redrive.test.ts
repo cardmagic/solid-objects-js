@@ -28,7 +28,7 @@ class ShipmentActor extends Actor {
     this.count += 1
   }
 
-  override observables(): Record<string, unknown> {
+  override observables(): { count: number } {
     return { count: this.count }
   }
 }

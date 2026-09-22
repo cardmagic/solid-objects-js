@@ -132,19 +132,6 @@ only reaches code that changes the setting afterwards.
 ## Dead letters, retry, and redrive
 
 Both runtimes scope dead letters by kind through one receiver, retry a dead
-effect or broadcast, redrive a whole scope as a durable and idempotent task,
-advance it in bounded batches, and write one administration event per retry and
-per task transition. The filters, the resource names, and the audit shape match.
-
-Two details differ. This runtime filters on a `failed_at_ms` stamp that schema
-version 11 adds, while Ruby filters on the `updated_at` column Active Record
-already maintains. The Durable Objects engine keeps its own message and outbox
-tables inside each object, so these scopes cover the SQL backends here; its
-`deadLetters` call is unchanged.
-
-## Dead letters, retry, and redrive
-
-Both runtimes scope dead letters by kind through one receiver, retry a dead
 message, effect, or broadcast, redrive a whole scope as a durable and idempotent
 task, bound that task to the rows that were dead when it started, advance it in
 bounded batches, and write one administration event per retry and per task
