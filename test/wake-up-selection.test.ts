@@ -240,6 +240,17 @@ describe("runtime wake-up selection", () => {
     expect(new Set(selections).size).toBe(1)
   })
 
+  it("does not select again after the runtime closes", async () => {
+    const inner = sqlite({ path: ":memory:" })
+    const database = new NotifyingDatabase({ database: inner, delivers: true })
+    const closing = configure({ database, authorizeMessage: () => true })
+    const selected = await closing.wakeUpAdapter()
+    await closing.close()
+
+    expect(await closing.wakeUpAdapter()).toBe(selected)
+    expect(database.adapters).toHaveLength(2)
+  })
+
   it("reports the capability of the adapter that is installed", async () => {
     runtime = configure({
       database: sqlite({ path: ":memory:" }),

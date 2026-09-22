@@ -1400,7 +1400,7 @@ export class SolidObjectsRuntime {
     await this.callerWorker?.stop()
     this.callerWorker = undefined
     this.realtime.close()
-    await this.closeWakeUp()
+    await this.discardWakeUp()
     await this.repository.resetForTesting()
   }
 
@@ -1993,10 +1993,14 @@ export class SolidObjectsRuntime {
 
   private async closeWakeUp(): Promise<void> {
     const selection = this.wakeUpSelection
-    this.wakeUpSelection = undefined
     if (!selection) return
     const selected = await selection.catch(() => undefined)
     await selected?.adapter.close()
+  }
+
+  private async discardWakeUp(): Promise<void> {
+    await this.closeWakeUp()
+    this.wakeUpSelection = undefined
   }
 
   private wakeUp(role: WakeUpRole): void {
