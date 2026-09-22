@@ -167,7 +167,7 @@ Selection runs once per runtime, on first use. `runtime.wakeUpCapability()`
 reports what it chose, whether that choice crosses processes, its measured
 floor in milliseconds, and why. The doctor reports the same record, and the
 polling-only warning fires on what was installed rather than on whether a
-setting was set. An adapter that declares its own `capability` keeps it, so a
+setting was set. An adapter that declares its own `defaultCapability` keeps it, so a
 configured `InProcessWakeUpAdapter` still warns.
 
 Automatic selection proves the PostgreSQL path before it chooses it. It listens

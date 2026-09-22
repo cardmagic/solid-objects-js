@@ -27,7 +27,7 @@ export interface RedisWakeUpOptions {
 }
 
 export class RedisWakeUpAdapter implements WakeUpAdapter {
-  readonly capability: WakeUpCapability = {
+  readonly defaultCapability: WakeUpCapability = {
     adapter: "redis",
     crossesProcesses: true,
     measuredFloorMilliseconds: 5.7,

@@ -26,7 +26,7 @@ export interface PostgreSQLWakeUpOptions {
 }
 
 export class PostgreSQLWakeUpAdapter implements NotificationWakeUpAdapter {
-  readonly capability: WakeUpCapability = {
+  readonly defaultCapability: WakeUpCapability = {
     adapter: "postgresql_notify",
     crossesProcesses: true,
     measuredFloorMilliseconds: 2.9,

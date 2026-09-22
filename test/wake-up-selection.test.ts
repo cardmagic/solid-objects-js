@@ -193,6 +193,7 @@ describe("wake-up selection", () => {
     expect(selected.capability.crossesProcesses).toBe(false)
     expect(selected.capability.measuredFloorMilliseconds).toBe(1_000)
     expect(selected.capability.reason).toMatch(/no notification channel/i)
+    expect(selected.adapter.defaultCapability?.adapter).toBe("in_process")
     await database.close()
   })
 

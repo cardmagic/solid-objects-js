@@ -677,8 +677,9 @@ optional Redis URL and probe timeout. `WakeUpCapability` reports
 in milliseconds, and the reason. `runtime.wakeUpAdapter()` and
 `runtime.wakeUpCapability()` return the choice, which is made once per runtime.
 
-An adapter may declare its own `capability`, and selection keeps what it
-declares rather than assume. `NotificationWakeUpAdapter` adds
+An adapter may declare its own `defaultCapability`, which is what it reports
+about itself. Selection keeps what a configured adapter declares rather than
+assume, and `runtime.wakeUpCapability()` reports what selection installed. `NotificationWakeUpAdapter` adds
 `channelFor(role)`, which a database that offers a notification channel
 provides through `database.wakeUp(options)`.
 

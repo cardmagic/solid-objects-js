@@ -27,7 +27,7 @@ export interface WakeUpAdapter {
   watch(role: WakeUpRole): WakeUpWatch | Promise<WakeUpWatch>
   notify(role: WakeUpRole): void | Promise<void>
   close(): void | Promise<void>
-  readonly capability?: WakeUpCapability
+  readonly defaultCapability?: WakeUpCapability
 }
 
 export interface NotificationWakeUpAdapter extends WakeUpAdapter {
@@ -37,7 +37,7 @@ export interface NotificationWakeUpAdapter extends WakeUpAdapter {
 export type WakeUpSetting = WakeUpName | WakeUpAdapter
 
 export class InProcessWakeUpAdapter implements WakeUpAdapter {
-  readonly capability: WakeUpCapability = {
+  readonly defaultCapability: WakeUpCapability = {
     adapter: "in_process",
     crossesProcesses: false,
     reason: "in-process signalling, which a commit in another process cannot reach",

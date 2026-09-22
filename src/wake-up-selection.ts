@@ -39,7 +39,7 @@ export async function selectWakeUp(options: WakeUpSelectionOptions): Promise<Sel
 }
 
 function configured(adapter: WakeUpAdapter): SelectedWakeUp {
-  if (adapter.capability) return { adapter, capability: adapter.capability }
+  if (adapter.defaultCapability) return { adapter, capability: adapter.defaultCapability }
   return {
     adapter,
     capability: {
@@ -93,7 +93,7 @@ async function automatic(options: WakeUpSelectionOptions): Promise<SelectedWakeU
   }
   if (options.database.family !== "postgresql" || !options.database.wakeUp) {
     return polling({
-      options,
+      idlePollingIntervalMilliseconds: options.idlePollingIntervalMilliseconds,
       reason: `${options.database.family} has no notification channel and ${REDIS_URL_VARIABLE} is not set`,
     })
   }
@@ -137,20 +137,23 @@ function pooled(options: WakeUpSelectionOptions): SelectedWakeUp {
       "PostgreSQL notifications were not selected because a probe notification did not arrive",
   })
   return polling({
-    options,
+    idlePollingIntervalMilliseconds: options.idlePollingIntervalMilliseconds,
     reason:
       "a probe notification did not arrive, so LISTEN cannot carry the signal between processes; " +
       "a transaction pooler such as PgBouncer is the usual cause",
   })
 }
 
-function polling(input: { options: WakeUpSelectionOptions; reason: string }): SelectedWakeUp {
+function polling(input: {
+  idlePollingIntervalMilliseconds: number
+  reason: string
+}): SelectedWakeUp {
   return {
     adapter: new InProcessWakeUpAdapter(),
     capability: {
       adapter: "polling",
       crossesProcesses: false,
-      measuredFloorMilliseconds: input.options.idlePollingIntervalMilliseconds,
+      measuredFloorMilliseconds: input.idlePollingIntervalMilliseconds,
       reason: input.reason,
     },
   }
