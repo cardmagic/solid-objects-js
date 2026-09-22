@@ -207,6 +207,19 @@ describe("wake-up selection", () => {
     await database.close()
   })
 
+  it("selects a requested name without probing", async () => {
+    const database = sqlite({ path: ":memory:" })
+    process.env["SOLID_OBJECTS_REDIS_URL"] = "redis://127.0.0.1:6379/15"
+
+    const selected = await selectWakeUp(selectionOptions({ database, setting: "redis" }))
+
+    expect(selected.capability.adapter).toBe("redis")
+    expect(selected.capability.crossesProcesses).toBe(true)
+    expect(selected.capability.reason).toMatch(/requested/i)
+    await selected.adapter.close()
+    await database.close()
+  })
+
   it("polls and warns when redis is requested without a url", async () => {
     const database = sqlite({ path: ":memory:" })
     const warnings: { event?: string }[] = []
