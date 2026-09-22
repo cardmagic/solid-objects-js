@@ -68,6 +68,22 @@ export {
   type WakeUpSelectionOptions,
 } from "./wake-up-selection.js"
 export {
+  DeadLetterScope,
+  UnknownDeadRow,
+  type DeadLetterKind,
+  type DeadRow,
+  type RedriveFilters,
+  type RedriveOptions,
+} from "./dead-letter-scopes.js"
+export {
+  RedriveManager,
+  RedriveScheduler,
+  RedriveNotStarted,
+  UnknownRedrive,
+  type RedriveStatus,
+  type RedriveTask,
+} from "./redrive.js"
+export {
   parseSubscriptionRequest,
   RealtimeManager,
   type RealtimeConnectionOptions,

@@ -14,7 +14,10 @@ import {
   withActorProjection,
   withApplicationWritesForbidden,
 } from "./context.js"
+import { randomUUID } from "./platform/uuid.js"
 import { DeadLetterManager, type DeadLetter } from "./dead-letters.js"
+import type { DeadLetterKind, RedriveFilters } from "./dead-letter-scopes.js"
+import { RedriveManager, RedriveScheduler } from "./redrive.js"
 import { Doctor } from "./doctor.js"
 import { clearDefaultRuntime, setDefaultRuntime } from "./default-runtime.js"
 import {
@@ -182,10 +185,24 @@ function scheduledReminderOf(row: ReminderRow): ScheduledReminder {
   }
 }
 
+// An audit log is read in the order things happened, and two events can share
+// a millisecond. The id carries the stamp and a counter, so a reader orders by
+// it and sees insertion order within a process. Across processes the stamp is
+// all any log can offer.
+let administrationEventCounter = 0
+
+function administrationEventId(occurredAtMilliseconds: number): string {
+  administrationEventCounter = (administrationEventCounter + 1) % 1_000_000
+  const stamp = String(occurredAtMilliseconds).padStart(15, "0")
+  const counter = String(administrationEventCounter).padStart(6, "0")
+  return `${stamp}-${counter}-${randomUUID()}`
+}
+
 export class SolidObjectsRuntime {
   readonly settings
   readonly repository
   readonly deadLetters
+  readonly redrives
   readonly reconciliation
   readonly retention
   readonly doctor
@@ -211,6 +228,7 @@ export class SolidObjectsRuntime {
       wakeUpAdapter: () => this.wakeUpAdapter(),
     })
     this.deadLetters = new DeadLetterManager(this)
+    this.redrives = new RedriveManager(this)
     this.reconciliation = new ReconciliationManager(this)
     this.retention = new RetentionManager(this)
     this.doctor = new Doctor(this)
@@ -869,6 +887,59 @@ export class SolidObjectsRuntime {
       })
     }
     return destroyed
+  }
+
+  // A revived row is pending again, so the role that drains it has to be told
+  // rather than wait out its polling interval.
+  wakeUpAfterRevival(kind: DeadLetterKind): void {
+    this.wakeUp(kind === "effect" ? "effects" : "broadcasts")
+  }
+
+  async administrationIdentity(authorizationContext: unknown): Promise<string | null> {
+    const identity = await this.settings.administrationIdentity(authorizationContext)
+    return identity === null || identity === undefined ? null : String(identity).slice(0, 255)
+  }
+
+  async recordAdministrationEvent(input: {
+    action: string
+    kind: string
+    subjectId?: string
+    filters?: RedriveFilters
+    authorizationContext?: unknown
+  }): Promise<void> {
+    await this.writeAdministrationEvent({
+      action: input.action,
+      kind: input.kind,
+      ...(input.subjectId === undefined ? {} : { subjectId: input.subjectId }),
+      ...(input.filters === undefined ? {} : { filters: input.filters }),
+      actor: await this.administrationIdentity(input.authorizationContext),
+    })
+  }
+
+  async writeAdministrationEvent(input: {
+    action: string
+    kind: string
+    subjectId?: string
+    filters?: RedriveFilters
+    actor: string | null
+  }): Promise<void> {
+    await this.settings.database.transaction(async (connection) => {
+      const occurredAt = await connection.nowMilliseconds()
+      await connection.run(
+        `INSERT INTO ${this.repository.table("administration_events")}
+         (id, action, kind, subject_id, filters, actor, occurred_at_ms)
+         VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        [
+          administrationEventId(occurredAt),
+          input.action,
+          input.kind,
+          input.subjectId ?? null,
+          input.filters === undefined ? null : JSON.stringify(input.filters),
+          input.actor,
+          occurredAt,
+        ],
+      )
+    })
   }
 
   async inspectDeadLetters(options: AdministrationOptions = {}): Promise<readonly DeadLetter[]> {
@@ -1634,6 +1705,7 @@ export class SolidObjectsRuntime {
             () => () => this.broadcastWorker(),
           )
         : []),
+      () => new RedriveScheduler(this),
       ...(this.settings.retentionIntervalMilliseconds > 0
         ? [
             () =>
@@ -2043,7 +2115,7 @@ export class SolidObjectsRuntime {
     if (!authorized) throw new Unauthorized(`actor ${kind} is not authorized`)
   }
 
-  private async authorizeAdministration(options: {
+  async authorizeAdministration(options: {
     action: string
     resource: string
     resourceId?: string

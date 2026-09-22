@@ -82,6 +82,9 @@ export interface SolidObjectsConfiguration {
   instrumentation?: (event: InstrumentationEvent) => void
   broadcast?: (event: BroadcastEvent) => Promise<void>
   wakeUp?: WakeUpSetting
+  redriveBatchSize?: number
+  redriveBatchPauseMilliseconds?: number
+  administrationIdentity?: (authorizationContext: unknown) => string | null | Promise<string | null>
 }
 
 export interface BroadcastEvent {
@@ -156,6 +159,14 @@ export function buildSettings(configuration: SolidObjectsConfiguration): Runtime
     }),
     processRetentionMilliseconds: configuration.processRetentionMilliseconds ?? 7 * 86_400_000,
     pruneBatchSize: configuration.pruneBatchSize ?? 1_000,
+    redriveBatchSize: configuration.redriveBatchSize ?? 100,
+    redriveBatchPauseMilliseconds: configuration.redriveBatchPauseMilliseconds ?? 50,
+    administrationIdentity:
+      configuration.administrationIdentity ??
+      ((authorizationContext) =>
+        authorizationContext === undefined || authorizationContext === null
+          ? null
+          : String(authorizationContext)),
     logger: configuration.logger ?? consoleLogger,
     wakeUp: configuration.wakeUp ?? "automatic",
     authorizeMessage: configuration.authorizeMessage ?? (() => false),
@@ -280,6 +291,18 @@ function validateSettings(settings: RuntimeSettings): void {
       throw new TypeError(`${name} must be a non-negative integer`)
   }
 
+  if (!Number.isSafeInteger(settings.redriveBatchSize) || settings.redriveBatchSize < 1) {
+    throw new TypeError("redriveBatchSize must be a positive safe integer")
+  }
+  if (
+    !Number.isFinite(settings.redriveBatchPauseMilliseconds) ||
+    settings.redriveBatchPauseMilliseconds < 0
+  ) {
+    throw new TypeError("redriveBatchPauseMilliseconds must not be negative")
+  }
+  if (typeof settings.administrationIdentity !== "function") {
+    throw new TypeError("administrationIdentity must be a function")
+  }
   if (!Number.isSafeInteger(settings.pruneBatchSize) || settings.pruneBatchSize < 1) {
     throw new TypeError("pruneBatchSize must be a positive safe integer")
   }

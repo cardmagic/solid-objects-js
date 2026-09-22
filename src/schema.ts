@@ -11,7 +11,8 @@ const KEYED_REMINDERS_VERSION = 7
 const POLLING_INDEXES_VERSION = 8
 const EFFECT_RECOVERY_VERSION = 9
 const INSTANCE_RETENTION_INDEX_VERSION = 10
-const LATEST_VERSION = INSTANCE_RETENTION_INDEX_VERSION
+const DEAD_LETTER_REDRIVE_VERSION = 11
+const LATEST_VERSION = DEAD_LETTER_REDRIVE_VERSION
 
 export async function installSchema(options: {
   connection: DatabaseConnection
@@ -350,6 +351,10 @@ export async function installSchema(options: {
     })
   }
 
+  if (!installedVersions.has(DEAD_LETTER_REDRIVE_VERSION)) {
+    await installRedrive({ connection, family, table, prefix, schemaIdentity, createTable })
+  }
+
   if (installedVersions.has(POLLING_INDEXES_VERSION)) return
   const pollingIndexes = [
     ["effects", `${prefix}effects_poll`, "status, available_at_ms, id"],
@@ -372,6 +377,84 @@ export async function installSchema(options: {
     version: POLLING_INDEXES_VERSION,
     schemaIdentity,
   })
+}
+
+// A dead row carries no timestamp of its own, so a redrive that filters on
+// when something failed needs one. Existing dead rows take their availability
+// stamp, which is the closest record of their last attempt.
+async function installRedrive(options: {
+  connection: DatabaseConnection
+  family: DatabaseFamily
+  table: (name: string) => string
+  prefix: string
+  schemaIdentity: string
+  createTable: (sql: string) => Promise<unknown>
+}): Promise<void> {
+  const { connection, family, table, prefix, schemaIdentity, createTable } = options
+  await createTable(`CREATE TABLE IF NOT EXISTS ${table("administration_events")} (
+    id TEXT PRIMARY KEY,
+    action TEXT NOT NULL,
+    kind TEXT NOT NULL,
+    subject_id TEXT,
+    filters TEXT,
+    actor TEXT,
+    occurred_at_ms INTEGER NOT NULL
+  ) STRICT`)
+
+  await createTable(`CREATE TABLE IF NOT EXISTS ${table("redrives")} (
+    id TEXT PRIMARY KEY,
+    kind TEXT NOT NULL,
+    filters TEXT NOT NULL,
+    status TEXT NOT NULL CHECK (status IN ('running', 'completed', 'cancelled')),
+    active_scope TEXT UNIQUE,
+    moved INTEGER NOT NULL DEFAULT 0 CHECK (moved >= 0),
+    move_limit INTEGER CHECK (move_limit IS NULL OR move_limit > 0),
+    actor TEXT,
+    started_at_ms INTEGER NOT NULL,
+    finished_at_ms INTEGER
+  ) STRICT`)
+
+  for (const name of ["effects", "broadcasts"] as const) {
+    await addFailedAt({ connection, family, table: table(name) })
+  }
+  await createIndex({
+    connection,
+    family,
+    table: table("administration_events"),
+    name: `${prefix}admin_events_occurred`,
+    columns: "occurred_at_ms, id",
+  })
+  await createIndex({
+    connection,
+    family,
+    table: table("redrives"),
+    name: `${prefix}redrives_poll`,
+    columns: "status, started_at_ms, id",
+  })
+  await recordMigration({
+    connection,
+    table: table("schema_migrations"),
+    version: DEAD_LETTER_REDRIVE_VERSION,
+    schemaIdentity,
+  })
+}
+
+async function addFailedAt(options: {
+  connection: DatabaseConnection
+  family: DatabaseFamily
+  table: string
+}): Promise<void> {
+  // A millisecond stamp does not fit a 32-bit INTEGER, which is what every
+  // family but SQLite means by that word.
+  const type = options.family === "sqlite" ? "INTEGER" : "BIGINT"
+  try {
+    await options.connection.run(`ALTER TABLE ${options.table} ADD COLUMN failed_at_ms ${type}`)
+  } catch {
+    return
+  }
+  await options.connection.run(
+    `UPDATE ${options.table} SET failed_at_ms = available_at_ms WHERE status = 'dead'`,
+  )
 }
 
 async function recordMigration(options: {

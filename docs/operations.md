@@ -227,3 +227,83 @@ be resumed.
 Scheduling an existing actor operation for a different time emits
 `solid_objects.reminder.replaced` after the fenced actor commit. Scheduling it
 for the same time emits nothing.
+
+## Dead letters, retry, and redrive
+
+A message that exhausts its attempts becomes a dead letter. An effect or a
+broadcast that exhausts its attempts stays in its own table with
+`status = 'dead'`. All three are read and retried through one receiver, which
+carries the kind:
+
+```ts
+await runtime.deadLetters.all({ authorizationContext })
+await runtime.deadLetters.retry(deadLetterId, { authorizationContext })
+
+await runtime.deadLetters.effects.all({ authorizationContext })
+await runtime.deadLetters.effects.retry(effectId, { authorizationContext })
+await runtime.deadLetters.broadcasts.retry(broadcastId, { authorizationContext })
+```
+
+An effect or broadcast retry returns the row to pending with a zero attempt
+count, no claim, and immediate availability, and keeps its id, so a handler that
+deduplicates on the effect id still sees the same key. An effect is
+at-least-once by contract, so a retried effect can run twice.
+
+Retry acts only on a dead row. A row that is pending, processing, or completed
+comes back unchanged, so pressing a button twice cannot double-enqueue and
+cannot take a row away from a worker that holds it.
+
+An incident produces dead rows in the hundreds, so a scope also answers
+`redrive`:
+
+```ts
+const task = await runtime.deadLetters.effects.redrive({
+  actorType: "payments",
+  failedAfter: new Date(Date.now() - 6 * 60 * 60 * 1000),
+  limit: 5_000,
+  authorizationContext,
+})
+
+await task.cancel({ authorizationContext })
+```
+
+`redrive` returns at once. The task is durable, and `runtime.run()` advances one
+bounded batch per pass, so a redrive of thousands of rows never holds a
+transaction longer than one batch. `redriveBatchSize` defaults to 100 and
+`redriveBatchPauseMilliseconds` to 50.
+
+A redrive moves the rows that were already dead when it started. A row that
+fails again lands back in the same scope, and without that bound a task whose
+handler is still broken would move it forever.
+
+A redrive is idempotent over its scope and its filters. Starting the same one
+while it runs returns the running task rather than a second one, which a
+dashboard button an operator can press twice needs. A different scope or a
+different filter starts its own task, and the same scope can be redriven again
+once the first task finishes.
+
+Read tasks back with `runtime.redrives`:
+
+```ts
+await runtime.redrives.find(task.id, { authorizationContext })
+await runtime.redrives.all({ status: "running", authorizationContext })
+```
+
+A running task reports what is left to move rather than a stored estimate,
+because rows die and are retried while it runs.
+
+Retry, redrive, and cancel each go through `authorizeAdministration` under their
+own resource name: `dead_letters`, `effect_dead_letters`,
+`broadcast_dead_letters`, and `redrives`. Every retry and every task transition
+writes one row to `solid_objects_administration_events`, holding the action, the
+kind, the subject, the identity, and when it happened. The identity comes from
+`administrationIdentity`, which receives the authorization context the caller
+passed and defaults to its `String` form. A refused caller writes nothing.
+
+The Durable Objects engine keeps its own message and outbox tables inside each
+object, so these scopes and redrive cover the SQL backends. `deadLetters` there
+reports its own dead rows as it did before.
+
+Automatic redrive on a schedule is deliberately absent. A dead row means a
+person decided something, and these APIs give that person an alternative to an
+`UPDATE` against a runtime table.

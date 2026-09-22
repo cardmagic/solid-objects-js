@@ -96,6 +96,18 @@ const EXPECTED_COLUMNS: Readonly<Record<string, readonly string[]>> = {
     "available_at_ms",
   ],
   dead_letters: ["id", "message_id", "instance_id", "attempts", "error", "retried_message_id"],
+  administration_events: ["id", "action", "kind", "subject_id", "actor", "occurred_at_ms"],
+  redrives: [
+    "id",
+    "kind",
+    "filters",
+    "status",
+    "active_scope",
+    "moved",
+    "move_limit",
+    "started_at_ms",
+    "finished_at_ms",
+  ],
 }
 
 class DoctorProbe extends Actor {
@@ -231,11 +243,11 @@ export class Doctor {
           message: `incompatible schema identity ${wrongIdentity.schema_identity}`,
         })
       }
-      if (versions.join(",") !== "1,2,3,4,5,6,7,8,9,10") {
+      if (versions.join(",") !== "1,2,3,4,5,6,7,8,9,10,11") {
         return check({
           name: "schema",
           status: "fail",
-          message: `expected schema migrations 1, 2, 3, 4, 5, 6, 7, 8, 9, 10; found ${versions.join(", ")}`,
+          message: `expected schema migrations 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11; found ${versions.join(", ")}`,
         })
       }
       return check({

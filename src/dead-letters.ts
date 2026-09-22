@@ -1,3 +1,4 @@
+import { DeadLetterScope, type DeadLetterKind } from "./dead-letter-scopes.js"
 import type { MessageReference } from "./reference.js"
 import type { SolidObjectsRuntime } from "./runtime.js"
 import type { AdministrationOptions, DeepReadonly, JsonObject, JsonValue } from "./types.js"
@@ -17,6 +18,8 @@ export interface DeadLetter {
 }
 
 export class DeadLetterManager {
+  private readonly scopes = new Map<DeadLetterKind, DeadLetterScope>()
+
   constructor(private readonly runtime: SolidObjectsRuntime) {}
 
   all(options: AdministrationOptions = {}): Promise<readonly DeadLetter[]> {
@@ -25,5 +28,22 @@ export class DeadLetterManager {
 
   retry(id: string, options: AdministrationOptions = {}): Promise<MessageReference> {
     return this.runtime.retryDeadLetter(id, options)
+  }
+
+  get effects(): DeadLetterScope {
+    return this.scope("effect")
+  }
+
+  get broadcasts(): DeadLetterScope {
+    return this.scope("broadcast")
+  }
+
+  scope(kind: DeadLetterKind): DeadLetterScope {
+    const existing = this.scopes.get(kind)
+    if (existing) return existing
+
+    const created = new DeadLetterScope(this.runtime, kind)
+    this.scopes.set(kind, created)
+    return created
   }
 }
