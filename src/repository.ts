@@ -1775,14 +1775,14 @@ export class Repository {
          WHERE reminders.id = ? AND reminders.status = 'scheduled' AND reminders.claimed_by = ?`,
         [reminder.id, reminder.claimed_by],
       )
-      if (!claimed) {
-        const surviving = await connection.get<{ id: string }>(
+      const surviving =
+        !claimed &&
+        (await connection.get<{ id: string }>(
           `SELECT id FROM ${this.table("reminders")} WHERE id = ?`,
           [reminder.id],
-        )
-        if (!surviving) return false
-        throw new LostActivation("reminder claim no longer matches")
-      }
+        ))
+      if (!claimed && !surviving) return false
+      if (!claimed) throw new LostActivation("reminder claim no longer matches")
       await this.enqueueInTransaction(connection, {
         actorType: claimed.actor_type,
         actorId: claimed.actor_id,
