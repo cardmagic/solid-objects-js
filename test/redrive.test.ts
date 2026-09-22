@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from "vitest"
+import { afterEach, describe, expect, it, vi } from "vitest"
 import { Actor } from "../src/actor.js"
 import { sqlite } from "../src/database/sqlite.js"
 import { Unauthorized } from "../src/errors.js"
@@ -334,6 +334,34 @@ describe("redrive", () => {
 
     expect(await active.redrives.all()).toHaveLength(0)
     expect(await auditRows(active)).toHaveLength(0)
+  })
+
+  it("writes no audit row when the retry itself fails", async () => {
+    const active = await start()
+    await deadEffects(active, 1)
+    const id = (await active.deadLetters.effects.all())[0]!.id
+    const scope = active.deadLetters.effects
+    const revive = vi.spyOn(scope, "revive").mockRejectedValue(new Error("injected failure"))
+
+    await expect(scope.retry(id)).rejects.toThrow("injected failure")
+
+    expect(await auditRows(active)).toHaveLength(0)
+    revive.mockRestore()
+  })
+
+  it("writes no audit row when a message retry fails to enqueue", async () => {
+    const active = await start()
+    await active.ref(PaymentActor, "poison").send.explode()
+    await active.worker().runUntilIdle()
+    const letters = await active.deadLetters.all()
+    const enqueue = vi
+      .spyOn(active.repository, "enqueueInTransaction")
+      .mockRejectedValue(new Error("injected failure"))
+
+    await expect(active.deadLetters.retry(letters[0]!.id)).rejects.toThrow("injected failure")
+
+    expect(await auditRows(active)).toHaveLength(0)
+    enqueue.mockRestore()
   })
 
   it("writes no audit row when a retry names a row that does not exist", async () => {
