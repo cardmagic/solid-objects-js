@@ -743,6 +743,10 @@ export class SolidObjectsRuntime {
       definition: registered.definition,
       actorId: reference.actorId,
       state,
+      readReminders: async () =>
+        instance === undefined
+          ? []
+          : (await this.repository.remindersForInstance(instance.id)).map(scheduledReminderOf),
     })
     const stateBefore = stableJson(actorState(actor, registered.definition.stateKeys))
     const intentCount = actor.intentCount()

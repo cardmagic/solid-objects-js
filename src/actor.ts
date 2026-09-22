@@ -2,7 +2,6 @@ import { currentMessage, currentRuntime } from "./context.js"
 import { getDefaultRuntime } from "./default-runtime.js"
 import type { StateMigration } from "./definition.js"
 import { InvalidRejectionCode, Rejected, UnknownOperation } from "./errors.js"
-import type { ReminderStatus } from "./reminder-administration.js"
 import { TRANSMIT_EFFECT } from "./transmit-effect.js"
 import { randomUUID } from "./platform/uuid.js"
 import {
@@ -193,30 +192,6 @@ function handleName(handle: ReminderHandle, key: string | number | undefined): s
   return name
 }
 
-function reminderKeyOf(name: string, operation: string): string | null {
-  return name === operation ? null : name.slice(operation.length + 1)
-}
-
-function reminderStatusOf(options: {
-  name: string
-  operation: string
-  runAtMilliseconds: number
-  intervalMilliseconds: number | null
-  missedPolicy: "all" | "latest"
-  status: ReminderStatus
-}): ScheduledReminder {
-  return {
-    name: options.name,
-    operation: options.operation,
-    key: reminderKeyOf(options.name, options.operation),
-    runAtMilliseconds: options.runAtMilliseconds,
-    intervalMilliseconds: options.intervalMilliseconds,
-    missedPolicy: options.missedPolicy,
-    status: options.status,
-    handle: { name: options.name },
-  }
-}
-
 function applyReminderIntent(view: Map<string, ScheduledReminder>, intent: ReminderMutation): void {
   if (intent.cancel === "all") {
     for (const [name, status] of view) {
@@ -229,17 +204,16 @@ function applyReminderIntent(view: Map<string, ScheduledReminder>, intent: Remin
     return
   }
 
-  view.set(
-    intent.name,
-    reminderStatusOf({
-      name: intent.name,
-      operation: intent.operation,
-      runAtMilliseconds: intent.atMilliseconds,
-      intervalMilliseconds: intent.intervalMilliseconds ?? null,
-      missedPolicy: intent.missedPolicy,
-      status: "scheduled",
-    }),
-  )
+  view.set(intent.name, {
+    name: intent.name,
+    operation: intent.operation,
+    key: intent.name === intent.operation ? null : intent.name.slice(intent.operation.length + 1),
+    runAtMilliseconds: intent.atMilliseconds,
+    intervalMilliseconds: intent.intervalMilliseconds ?? null,
+    missedPolicy: intent.missedPolicy,
+    status: "scheduled",
+    handle: { name: intent.name },
+  })
 }
 
 function reminderName(operation: string, key: string | undefined): string {
@@ -469,7 +443,9 @@ export abstract class Actor {
       throw new TypeError("reading reminders is not available outside an actor turn")
     }
     const view = new Map<string, ScheduledReminder>()
-    for (const status of await this.#readReminders()) view.set(status.name, status)
+    for (const reminder of await this.#readReminders()) {
+      if (reminder.status !== "completed") view.set(reminder.name, reminder)
+    }
     for (const intent of this.#intents.reminders) applyReminderIntent(view, intent)
     return view
   }

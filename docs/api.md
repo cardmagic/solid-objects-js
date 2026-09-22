@@ -275,6 +275,9 @@ Reading is available during a turn and from a snapshot projection, so an
 observable can report what is armed. `reminder()` and `reminders()` refuse an
 operation the actor does not declare, as `schedule()` and `unschedule()` do.
 
+A one-shot that already fired is not reported. Its row stays as `completed`, and
+an alarm that cannot fire again is not armed.
+
 `ScheduledReminder` carries no occurrence count. The SQL backends track one and
 Durable Objects does not, so it is left out rather than reported for one backend
 only.

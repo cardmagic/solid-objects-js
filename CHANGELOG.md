@@ -6,6 +6,10 @@
   `ScheduledReminder`, and `reminders()` lists every key of one operation. Both
   apply the intents staged so far in the turn, so a read agrees with what the
   commit will write. Reading works on the SQL backends and on Durable Objects.
+- Leave a one-shot reminder that already fired out of `reminder()` and
+  `reminders()`. Its row stays as `completed`, so a next-run lookup reported an
+  old time rather than nothing, and an existence check refused to re-arm an
+  alarm that could never fire again.
 - Refuse an unknown operation in `unschedule()` and `unscheduleAll()`.
   `schedule()` already threw `UnknownOperation` for one, so a typo cancelled
   nothing quietly and left a recurring reminder running.

@@ -69,7 +69,8 @@ class Subscription extends Actor {
   }
 
   cancelBadHandle(): void {
-    this.unschedule({ nope: "x" } as unknown as ReminderHandle)
+    // @ts-expect-error a malformed handle exercises the runtime check
+    this.unschedule({ nope: "x" })
   }
 
   trialExpired(): void {
@@ -87,11 +88,15 @@ class Observed extends Actor {
     this.schedule({ at: new Date(Date.UTC(2030, 0, 1)) }).ping()
   }
 
-  async armedName(): Promise<string | null> {
-    return (await this.reminder("ping"))?.name ?? null
+  get armedName(): Promise<string | null> {
+    return this.reminder("ping").then((found) => found?.name ?? null)
   }
 
   ping(): void {}
+
+  armDue(): void {
+    this.schedule({ at: new Date(Date.now() - 1_000) }).ping()
+  }
 }
 
 class Shipment extends Actor {
@@ -268,6 +273,18 @@ describe("reminder cancellation", () => {
     expect(await reference.pendingKeys()).toEqual(["a", "b", "c"])
   })
 
+  it("does not report a one-shot that already fired", async () => {
+    const started = await start()
+    const reference = Observed.ref("one")
+    await reference.armDue()
+    expect(await reference.armedName).toBe("ping")
+
+    expect(await started.reminderScheduler().runOnce()).toBe(1)
+    await started.worker().runUntilIdle()
+
+    expect(await reference.armedName).toBeNull()
+  })
+
   it("reads the schedule from a snapshot projection", async () => {
     const started = await start()
     const reference = Observed.ref("one")
@@ -275,8 +292,7 @@ describe("reminder cancellation", () => {
 
     const snapshot = await started.snapshot(Observed.ref("one"))
 
-    expect(snapshot).toBeDefined()
-    expect(await reference.armedName()).toBe("ping")
+    expect(snapshot.armedName).toBe("ping")
   })
 
   it("refuses an unknown operation instead of cancelling nothing", async () => {
