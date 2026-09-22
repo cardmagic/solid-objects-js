@@ -274,6 +274,19 @@ describe("wake-up selection", () => {
     await database.close()
   })
 
+  it("refuses a configured adapter that cannot notify", () => {
+    const adapter: WakeUpAdapter = {
+      watch: () => ({ wait: () => Promise.resolve(false) }),
+      notify: () => undefined,
+      close: () => undefined,
+    }
+    Reflect.deleteProperty(adapter, "notify")
+
+    expect(() => configure({ database: sqlite({ path: ":memory:" }), wakeUp: adapter })).toThrow(
+      /must implement notify/,
+    )
+  })
+
   it("refuses an unknown name when the configuration is built", () => {
     expect(() =>
       configure({
