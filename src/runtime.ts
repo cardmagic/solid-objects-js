@@ -889,51 +889,36 @@ export class SolidObjectsRuntime {
     this.wakeUp(kind === "effect" ? "effects" : "broadcasts")
   }
 
-  async administrationIdentity(authorizationContext: unknown): Promise<string | null> {
+  async administrationIdentity(
+    authorizationContext: AdministrationOptions["authorizationContext"],
+  ): Promise<string | null> {
     const identity = await this.settings.administrationIdentity(authorizationContext)
     return identity === null || identity === undefined ? null : String(identity).slice(0, 255)
   }
 
-  async recordAdministrationEvent(input: {
-    action: string
-    kind: string
-    subjectId?: string
-    filters?: RedriveFilters
-    authorizationContext?: unknown
-  }): Promise<void> {
-    await this.writeAdministrationEvent({
-      action: input.action,
-      kind: input.kind,
-      ...(input.subjectId === undefined ? {} : { subjectId: input.subjectId }),
-      ...(input.filters === undefined ? {} : { filters: input.filters }),
-      actor: await this.administrationIdentity(input.authorizationContext),
-    })
-  }
-
   async writeAdministrationEvent(input: {
+    connection: DatabaseConnection
     action: string
     kind: string
     subjectId?: string
     filters?: RedriveFilters
     actor: string | null
   }): Promise<void> {
-    await this.settings.database.transaction(async (connection) => {
-      const occurredAt = await connection.nowMilliseconds()
-      await connection.run(
-        `INSERT INTO ${this.repository.table("administration_events")}
-         (id, action, kind, subject_id, filters, actor, occurred_at_ms)
-         VALUES (?, ?, ?, ?, ?, ?, ?)`,
-        [
-          administrationEventId(occurredAt),
-          input.action,
-          input.kind,
-          input.subjectId ?? null,
-          input.filters === undefined ? null : JSON.stringify(input.filters),
-          input.actor,
-          occurredAt,
-        ],
-      )
-    })
+    const occurredAt = await input.connection.nowMilliseconds()
+    await input.connection.run(
+      `INSERT INTO ${this.repository.table("administration_events")}
+       (id, action, kind, subject_id, filters, actor, occurred_at_ms)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      [
+        administrationEventId(occurredAt),
+        input.action,
+        input.kind,
+        input.subjectId ?? null,
+        input.filters === undefined ? null : JSON.stringify(input.filters),
+        input.actor,
+        occurredAt,
+      ],
+    )
   }
 
   async inspectDeadLetters(options: AdministrationOptions = {}): Promise<readonly DeadLetter[]> {

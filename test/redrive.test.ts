@@ -289,6 +289,30 @@ describe("redrive", () => {
     expect(await active.deadLetters.effects.all()).toHaveLength(1)
   })
 
+  it("refuses an invalid filter rather than redrive everything", async () => {
+    const active = await start()
+    await deadEffects(active, 2)
+
+    await expect(
+      active.deadLetters.effects.redrive({ failedAfter: new Date("nonsense") }),
+    ).rejects.toBeInstanceOf(TypeError)
+    await expect(active.deadLetters.effects.redrive({ limit: 0 })).rejects.toBeInstanceOf(TypeError)
+    await expect(active.deadLetters.effects.redrive({ limit: 1.5 })).rejects.toBeInstanceOf(
+      TypeError,
+    )
+
+    expect(await active.redrives.all()).toHaveLength(0)
+    expect(await auditRows(active)).toHaveLength(0)
+  })
+
+  it("writes no audit row when a retry names a row that does not exist", async () => {
+    const active = await start()
+
+    await expect(active.deadLetters.effects.retry("missing")).rejects.toThrow()
+
+    expect(await auditRows(active)).toHaveLength(0)
+  })
+
   it("refuses an unauthorized caller that reaches the manager directly", async () => {
     const active = configure({
       database: sqlite({ path: ":memory:" }),

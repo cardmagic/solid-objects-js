@@ -1,6 +1,13 @@
 import { InvalidActor } from "./errors.js"
 import type { Database } from "./database/types.js"
-import type { DeepReadonly, JsonObject, JsonValue, Logger, LongRunningComponent } from "./types.js"
+import type {
+  AdministrationOptions,
+  DeepReadonly,
+  JsonObject,
+  JsonValue,
+  Logger,
+  LongRunningComponent,
+} from "./types.js"
 import { WAKE_UP_NAMES, type WakeUpAdapter, type WakeUpSetting } from "./wake-up.js"
 
 const wakeUpNames: readonly string[] = WAKE_UP_NAMES
@@ -84,7 +91,9 @@ export interface SolidObjectsConfiguration {
   wakeUp?: WakeUpSetting
   redriveBatchSize?: number
   redriveBatchPauseMilliseconds?: number
-  administrationIdentity?: (authorizationContext: unknown) => string | null | Promise<string | null>
+  administrationIdentity?: (
+    authorizationContext: AdministrationOptions["authorizationContext"],
+  ) => string | null | Promise<string | null>
 }
 
 export interface BroadcastEvent {

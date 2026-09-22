@@ -79,58 +79,64 @@ export class RedriveManager {
     const row = await this.require(id)
     if (row.status !== "running") return await this.task(row)
 
-    await this.close({ id, status: "cancelled" })
-    await this.audit({ row, action: "redrive.cancel" })
+    await this.runtime.settings.database.transaction((connection) =>
+      this.close({ connection, row, status: "cancelled", action: "redrive.cancel" }),
+    )
     return await this.task(await this.require(id))
   }
 
   async advance(): Promise<boolean> {
-    const row = await this.claim()
-    if (!row) return false
+    const outcome = await this.runtime.settings.database.transaction(async (connection) => {
+      const row = await this.claim(connection)
+      if (!row) return { moved: 0, kind: undefined }
 
-    const moved = await this.moveBatch(row)
-    if (moved > 0) return true
+      const moved = await this.moveBatch({ connection, row })
+      if (moved > 0) return { moved, kind: row.kind }
 
-    await this.close({ id: row.id, status: "completed" })
-    await this.audit({ row, action: "redrive.finish" })
-    return false
+      await this.close({ connection, row, status: "completed", action: "redrive.finish" })
+      return { moved: 0, kind: undefined }
+    })
+    if (outcome.kind) this.runtime.wakeUpAfterRevival(outcome.kind)
+    return outcome.moved > 0
   }
 
-  private async claim(): Promise<RedriveShape | undefined> {
-    return await this.runtime.settings.database.connection((connection) =>
-      connection.get<RedriveShape>(
-        `SELECT * FROM ${this.table()} WHERE status = 'running'
-         ORDER BY started_at_ms, id LIMIT 1`,
-      ),
+  private async claim(connection: DatabaseConnection): Promise<RedriveShape | undefined> {
+    return await connection.get<RedriveShape>(
+      `SELECT * FROM ${this.table()} WHERE status = 'running'
+       ORDER BY started_at_ms, id LIMIT 1${this.lockClause()}`,
     )
   }
 
-  private async moveBatch(row: RedriveShape): Promise<number> {
+  private lockClause(): string {
+    return this.runtime.settings.database.family === "sqlite" ? "" : " FOR UPDATE SKIP LOCKED"
+  }
+
+  private async moveBatch(input: {
+    connection: DatabaseConnection
+    row: RedriveShape
+  }): Promise<number> {
+    const { connection, row } = input
     const size = this.batchSize(row)
     if (size <= 0) return 0
 
     const scope = this.runtime.deadLetters.scope(row.kind)
-    const filters = parseFilters(row.filters)
-    const moved = await this.runtime.settings.database.transaction(async (connection) => {
-      const candidates = await scope.matching({
-        connection,
-        filters,
-        limit: size,
-        deadBefore: Number(row.started_at_ms),
-      })
-      if (candidates.length === 0) return 0
-      const revived = await scope.revive({
-        connection,
-        identifiers: candidates.map(({ id }) => id),
-      })
-      await connection.run(`UPDATE ${this.table()} SET moved = moved + ? WHERE id = ?`, [
-        revived,
-        row.id,
-      ])
-      return revived
+    const candidates = await scope.matching({
+      connection,
+      filters: parseFilters(row.filters),
+      limit: size,
+      deadBefore: Number(row.started_at_ms),
     })
-    if (moved > 0) this.runtime.wakeUpAfterRevival(row.kind)
-    return moved
+    if (candidates.length === 0) return 0
+
+    const revived = await scope.revive({
+      connection,
+      identifiers: candidates.map(({ id }) => id),
+    })
+    await connection.run(
+      `UPDATE ${this.table()} SET moved = moved + ? WHERE id = ? AND status = 'running'`,
+      [revived, row.id],
+    )
+    return revived
   }
 
   private batchSize(row: RedriveShape): number {
@@ -163,30 +169,39 @@ export class RedriveManager {
             now,
           ],
         )
+        await this.runtime.writeAdministrationEvent({
+          connection,
+          action: "redrive.start",
+          kind: input.kind,
+          subjectId: id,
+          filters: input.filters,
+          actor: input.actor,
+        })
       })
     } catch {
       const running = await this.findRow(input.activeScope, "active_scope")
       if (running) return running
       throw new RedriveNotStarted(`could not start a ${input.kind} redrive`)
     }
-    const row = await this.require(id)
-    await this.audit({ row, action: "redrive.start" })
-    return row
+    return await this.require(id)
   }
 
-  private async close(input: { id: string; status: RedriveStatus }): Promise<void> {
-    await this.runtime.settings.database.transaction(async (connection) => {
-      const now = await connection.nowMilliseconds()
-      await connection.run(
-        `UPDATE ${this.table()} SET status = ?, active_scope = NULL, finished_at_ms = ?
-         WHERE id = ? AND status = 'running'`,
-        [input.status, now, input.id],
-      )
-    })
-  }
+  private async close(input: {
+    connection: DatabaseConnection
+    row: RedriveShape
+    status: RedriveStatus
+    action: string
+  }): Promise<void> {
+    const now = await input.connection.nowMilliseconds()
+    const result = await input.connection.run(
+      `UPDATE ${this.table()} SET status = ?, active_scope = NULL, finished_at_ms = ?
+       WHERE id = ? AND status = 'running'`,
+      [input.status, now, input.row.id],
+    )
+    if (result.changes === 0) return
 
-  private async audit(input: { row: RedriveShape; action: string }): Promise<void> {
     await this.runtime.writeAdministrationEvent({
+      connection: input.connection,
       action: input.action,
       kind: input.row.kind,
       subjectId: input.row.id,

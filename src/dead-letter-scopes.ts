@@ -71,15 +71,17 @@ export class DeadLetterScope {
 
   async retry(id: string, options: AdministrationOptions = {}): Promise<DeadRow> {
     await this.authorize({ action: "retry", options, resourceId: id })
-    await this.runtime.recordAdministrationEvent({
-      action: "dead_letter.retry",
-      kind: this.kind,
-      subjectId: id,
-      authorizationContext: options.authorizationContext,
-    })
+    const actor = await this.runtime.administrationIdentity(options.authorizationContext)
     const row = await this.runtime.settings.database.transaction(async (connection) => {
       const found = await this.find({ connection, id })
       if (found.status === "dead") await this.revive({ connection, identifiers: [id] })
+      await this.runtime.writeAdministrationEvent({
+        connection,
+        action: "dead_letter.retry",
+        kind: this.kind,
+        subjectId: id,
+        actor,
+      })
       return await this.find({ connection, id })
     })
     this.runtime.wakeUpAfterRevival(this.kind)
@@ -91,8 +93,8 @@ export class DeadLetterScope {
       kind: this.kind,
       filters: {
         actorType: options.actorType ?? null,
-        failedAfter: options.failedAfter ? options.failedAfter.getTime() : null,
-        limit: options.limit ?? null,
+        failedAfter: failedAfterFilter(options.failedAfter),
+        limit: limitFilter(options.limit),
       },
       authorizationContext: options.authorizationContext,
     })
@@ -212,6 +214,24 @@ export class DeadLetterScope {
       authorizationContext: input.options.authorizationContext,
     })
   }
+}
+
+function failedAfterFilter(failedAfter: Date | undefined): number | null {
+  if (failedAfter === undefined) return null
+
+  const milliseconds = failedAfter.getTime()
+  if (!Number.isFinite(milliseconds)) {
+    throw new TypeError("failedAfter must be a valid Date")
+  }
+  return milliseconds
+}
+
+function limitFilter(limit: number | undefined): number | null {
+  if (limit === undefined) return null
+  if (!Number.isSafeInteger(limit) || limit < 1) {
+    throw new TypeError("limit must be a positive safe integer")
+  }
+  return limit
 }
 
 export function emptyFilters(): RedriveFilters {

@@ -1,5 +1,5 @@
 import { UnsupportedDatabase } from "./errors.js"
-import type { DatabaseConnection, DatabaseFamily } from "./database/types.js"
+import type { DatabaseConnection, DatabaseFamily, RunResult } from "./database/types.js"
 
 const BASE_VERSION = 1
 const RETRY_LINK_VERSION = 2
@@ -385,7 +385,7 @@ async function installRedrive(options: {
   table: (name: string) => string
   prefix: string
   schemaIdentity: string
-  createTable: (sql: string) => Promise<unknown>
+  createTable: (sql: string) => Promise<RunResult>
 }): Promise<void> {
   const { connection, family, table, prefix, schemaIdentity, createTable } = options
   await createTable(`CREATE TABLE IF NOT EXISTS ${table("administration_events")} (
@@ -441,15 +441,32 @@ async function addFailedAt(options: {
   family: DatabaseFamily
   table: string
 }): Promise<void> {
+  if (await hasFailedAt(options)) return
+
   const type = options.family === "sqlite" ? "INTEGER" : "BIGINT"
-  try {
-    await options.connection.run(`ALTER TABLE ${options.table} ADD COLUMN failed_at_ms ${type}`)
-  } catch {
-    return
-  }
+  await options.connection.run(`ALTER TABLE ${options.table} ADD COLUMN failed_at_ms ${type}`)
   await options.connection.run(
     `UPDATE ${options.table} SET failed_at_ms = available_at_ms WHERE status = 'dead'`,
   )
+}
+
+async function hasFailedAt(options: {
+  connection: DatabaseConnection
+  family: DatabaseFamily
+  table: string
+}): Promise<boolean> {
+  if (options.family === "sqlite") {
+    const columns = await options.connection.all<{ name: string }>(
+      `PRAGMA table_info(${options.table})`,
+    )
+    return columns.some(({ name }) => name === "failed_at_ms")
+  }
+  const found = await options.connection.get<{ found: number | bigint }>(
+    `SELECT COUNT(*) AS found FROM information_schema.columns
+     WHERE table_name = ? AND column_name = 'failed_at_ms'`,
+    [options.table],
+  )
+  return Number(found?.found ?? 0) > 0
 }
 
 async function recordMigration(options: {
