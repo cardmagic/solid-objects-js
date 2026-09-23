@@ -1,5 +1,19 @@
 # Changelog
 
+## Unreleased
+
+- Build before `npm publish` reads the manifest. npm validates `bin` against the
+  working tree before `prepack` produces `dist`, so every release logged
+  `No bin file found at dist/executable.js` twice. The published package was
+  always correct, and `npx solid-objects` has always worked, but a warning that
+  says the binary is missing is a poor thing to print while publishing one.
+  The publish job builds first and publishes with `--ignore-scripts`, so the
+  build runs once rather than twice.
+- Check the `bin` entry the manifest declares rather than a hard-coded path.
+  `check-package.mjs` asserted `dist/executable.js` directly, so renaming the
+  build output would have shipped a `bin` that resolves to nothing while the
+  check still passed.
+
 ## 0.16.0 - 2026-09-23
 
 - Find a message whose reference a caller lost. `runtime.findBy({ requestId })`

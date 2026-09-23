@@ -167,6 +167,7 @@ jobs:
       - run: corepack enable
       - run: pnpm install --frozen-lockfile
       - run: npm install --global npm@11
+      - run: pnpm run build
       - name: Validate release tag
         id: release
         run: |
@@ -188,7 +189,7 @@ jobs:
             echo "exists=false" >> "$GITHUB_OUTPUT"
           fi
       - if: steps.registry.outputs.exists != 'true'
-        run: npm publish --access public
+        run: npm publish --access public --ignore-scripts
       - name: Write release notes
         run: node scripts/release-notes.mjs "${GITHUB_REF_NAME#v}" > "${RUNNER_TEMP}/release-notes.md"
       - name: Create GitHub release
