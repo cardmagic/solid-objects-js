@@ -80,6 +80,7 @@ export interface SolidObjectsConfiguration {
   instanceRetentionByActorType?: Readonly<Record<string, number>>
   processRetentionMilliseconds?: number
   pruneBatchSize?: number
+  retainedIdempotencyKeys?: number
   logger?: Logger
   authorizeMessage?: (input: AuthorizationInput) => boolean | Promise<boolean>
   authorizeQuery?: (input: AuthorizationInput) => boolean | Promise<boolean>
@@ -168,6 +169,7 @@ export function buildSettings(configuration: SolidObjectsConfiguration): Runtime
     }),
     processRetentionMilliseconds: configuration.processRetentionMilliseconds ?? 7 * 86_400_000,
     pruneBatchSize: configuration.pruneBatchSize ?? 1_000,
+    retainedIdempotencyKeys: configuration.retainedIdempotencyKeys ?? 64,
     redriveBatchSize: configuration.redriveBatchSize ?? 100,
     redriveBatchPauseMilliseconds: configuration.redriveBatchPauseMilliseconds ?? 50,
     administrationIdentity:
@@ -314,6 +316,12 @@ function validateSettings(settings: RuntimeSettings): void {
   }
   if (!Number.isSafeInteger(settings.pruneBatchSize) || settings.pruneBatchSize < 1) {
     throw new TypeError("pruneBatchSize must be a positive safe integer")
+  }
+  if (
+    !Number.isSafeInteger(settings.retainedIdempotencyKeys) ||
+    settings.retainedIdempotencyKeys < 1
+  ) {
+    throw new TypeError("retainedIdempotencyKeys must be a positive safe integer")
   }
   validateRetentionOverrides("messageRetentionByActorType", settings.messageRetentionByActorType)
   validateRetentionOverrides("instanceRetentionByActorType", settings.instanceRetentionByActorType)

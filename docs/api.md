@@ -558,6 +558,14 @@ class and result types are also exported for integration typing.
   neither key, naming both, or naming an idempotency key without a reference
   throws a `TypeError`. An absent row, an unregistered actor, and a caller the
   policy refuses all return `undefined`.
+- An actor remembers the idempotency keys of its own last
+  `retainedIdempotencyKeys` finished turns, so `reference.findBy({
+idempotencyKey })` throws `MessagePruned` for a key the actor remembers and
+  whose message retention removed, and returns `undefined` for a key no caller
+  ever sent. The memory is actor state, so a caller that `authorizeQuery`
+  refuses reads `undefined` for both. `runtime.findBy({ requestId })` returns
+  `undefined` in both cases, because the runtime generates a request id and no
+  actor remembers one.
 - `messageReference.outcome()` returns an `Outcome`: the status, the result, an
   `ErrorRecord` for a dead message, a `RejectionRecord` for a rejected one, and
   the attempt count.
@@ -711,8 +719,8 @@ provides through `database.wakeUp(options)`.
 The root exports `SolidObjectsError` and its supported subclasses:
 
 - policy and caller outcomes: `Unauthorized`, `Rejected`, `ActorDestroyed`,
-  `SyncEnqueueTimeout`, `SyncTimeout`, `SyncInsideTransaction`, and
-  `MessageFailed`;
+  `SyncEnqueueTimeout`, `SyncTimeout`, `SyncInsideTransaction`,
+  `MessagePruned`, and `MessageFailed`;
 - admission and payload failures: `MailboxFull`, `InvalidPayload`,
   `PayloadTooLarge`, `IdempotencyConflict`, `InvalidPayloadBroadcast`, and
   `UnknownPayloadBroadcast`;

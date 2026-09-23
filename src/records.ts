@@ -28,6 +28,7 @@ export interface InstanceRow {
   paused: number | bigint
   created_at_ms: number | bigint
   updated_at_ms: number | bigint
+  completed_idempotency_keys: string | null
 }
 
 export interface MessageRow {

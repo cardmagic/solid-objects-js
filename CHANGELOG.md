@@ -18,6 +18,25 @@
 - Add schema version 12: a unique index on `messages.request_id`. The table had
   only `UNIQUE (actor_type, actor_id, request_id)`, which cannot serve a lookup
   that names the request id alone.
+- Tell a pruned message from one that never existed. An actor remembers the
+  idempotency keys of its own finished turns, the way an Orleans grain keeps its
+  deduplication history in grain state, so the memory needs no second store and
+  no second write. `reference.findBy({ idempotencyKey })` throws
+  `MessagePruned` for a key the actor remembers and whose message retention
+  removed, and still returns `undefined` for a key no caller ever sent. The
+  memory is actor state, so a caller that `authorizeQuery` refuses reads
+  `undefined` for both. `retainedIdempotencyKeys` bounds the memory and defaults
+  to 64 keys for each actor. A lookup by request id cannot make the
+  distinction, because the runtime generates a request id and no actor
+  remembers one.
+- Add schema version 13: `instances.completed_idempotency_keys`.
+- Implement `findBy` and `messageOutcome` on the Durable Objects runtime, which
+  `ActorRuntime` required and the backend did not supply, so `pnpm run check`
+  and `pnpm run build` both failed. A Durable Object indexes only its own
+  messages, so `runtime.findBy({ requestId })` without a reference raises
+  `UnsupportedCapability`; every other form works.
+- Read the expected schema migration list from `SCHEMA_VERSIONS` in the doctor
+  and in the tests that assert it, rather than from four hand-copied lists.
 
 - Retry a dead effect or broadcast. `runtime.deadLetters` keeps its message
   meaning and answers `effects` and `broadcasts`, so the kind rides on the

@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it } from "vitest"
 import { Actor } from "../src/actor.js"
 import { sqlite } from "../src/database/sqlite.js"
 import { configure, type SolidObjectsRuntime } from "../src/runtime.js"
+import { SCHEMA_VERSIONS } from "../src/schema.js"
 
 let runtime: SolidObjectsRuntime | undefined
 
@@ -27,7 +28,7 @@ describe("runtime doctor", () => {
     expect(check(report, "configuration").status).toBe("pass")
     expect(check(report, "schema")).toMatchObject({
       status: "pass",
-      details: { versions: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12] },
+      details: { versions: [...SCHEMA_VERSIONS] },
     })
     expect(check(report, "authorization").status).toBe("pass")
     expect(check(report, "database").status).toBe("pass")

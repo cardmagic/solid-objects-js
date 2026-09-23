@@ -321,14 +321,8 @@ export class ActorEngine {
         }))
       )
         throw new Unauthorized("message lookup is not authorized")
-      const receipt = this.store.storage.sql
-        .exec<{ message_id: string }>(
-          "SELECT message_id FROM receipts WHERE request_id = ?",
-          String(input.payload.requestId),
-        )
-        .toArray()[0]
-      message = receipt ? this.store.message(receipt.message_id) : undefined
-      if (!message) return null
+      message = this.lookUp(input)
+      if (!message) return this.prunedReply(input)
     } else {
       message = this.store.message(String(input.payload.id))
       if (
@@ -343,6 +337,40 @@ export class ActorEngine {
     if (message.incarnation !== this.store.instance()?.incarnation)
       throw new ActorDestroyed("actor was destroyed")
     return normalizeJson(message)
+  }
+
+  private lookUp(input: HostRequest): Message | undefined {
+    if (input.payload.idempotencyKey !== undefined) {
+      return this.store.rows<Message>("SELECT record FROM messages WHERE idempotency_key = ?", [
+        String(input.payload.idempotencyKey),
+      ])[0]
+    }
+    const receipt = this.store.storage.sql
+      .exec<{ message_id: string }>(
+        "SELECT message_id FROM receipts WHERE request_id = ?",
+        String(input.payload.requestId),
+      )
+      .toArray()[0]
+    return receipt ? this.store.message(receipt.message_id) : undefined
+  }
+
+  private prunedReply(input: HostRequest): JsonValue {
+    const key = input.payload.idempotencyKey
+    if (key === undefined) return null
+    const remembered = this.store.instance()?.completedIdempotencyKeys ?? []
+    return remembered.includes(String(key)) ? { pruned: true } : null
+  }
+
+  private rememberKey(instance: Instance, message: Message): void {
+    const key = message.idempotencyKey
+    if (key === null) return
+
+    const remembered = instance.completedIdempotencyKeys ?? []
+    if (remembered.at(-1) === key) return
+
+    instance.completedIdempotencyKeys = [...remembered.filter((value) => value !== key), key].slice(
+      -this.settings.retainedIdempotencyKeys,
+    )
   }
 
   private committed(identity: ActorIdentity) {
@@ -589,6 +617,7 @@ export class ActorEngine {
         current.state = evaluated.state
         current.stateVersion = definition.stateVersion
         current.revision = message.sequence
+        this.rememberKey(current, message)
         this.store.saveInstance(current)
         message.status = "completed"
         message.result = evaluated.result
@@ -622,6 +651,8 @@ export class ActorEngine {
             details: jsonObject(error.details),
           }
           message.completedAt = Date.now()
+          this.rememberKey(current, message)
+          this.store.saveInstance(current)
           this.completeReminder(message)
         } else {
           message.error = {
@@ -634,6 +665,7 @@ export class ActorEngine {
           message.availableAt = Date.now() + this.retryDelay(message.attempt)
           if (exhausted) {
             current.paused = true
+            this.rememberKey(current, message)
             this.store.saveInstance(current)
             this.pauseReminder(message)
           }

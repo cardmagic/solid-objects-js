@@ -124,6 +124,7 @@ replay current committed projections, not every event missed while offline.
 | Actor-scoped dead letters and reminder administration              | Supported                              |
 | `commitAction`, shared application SQL transactions                | Unsupported                            |
 | Global repository, reconciliation, process controls, SQL dashboard | Unsupported                            |
+| `findBy({ requestId })` without a reference                        | Unsupported; name the actor            |
 | Process-local `runtime.realtime.connect()` / server `ref.live`     | Unsupported; use browser subscriptions |
 | SQL-to-Durable-Objects data migration                              | Not provided                           |
 

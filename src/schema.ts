@@ -13,7 +13,12 @@ const EFFECT_RECOVERY_VERSION = 9
 const INSTANCE_RETENTION_INDEX_VERSION = 10
 const DEAD_LETTER_REDRIVE_VERSION = 11
 const REQUEST_ID_LOOKUP_VERSION = 12
-const LATEST_VERSION = REQUEST_ID_LOOKUP_VERSION
+const REMEMBERED_KEYS_VERSION = 13
+const LATEST_VERSION = REMEMBERED_KEYS_VERSION
+
+export const SCHEMA_VERSIONS: readonly number[] = Object.freeze(
+  Array.from({ length: LATEST_VERSION }, (_unused, index) => index + 1),
+)
 
 export async function installSchema(options: {
   connection: DatabaseConnection
@@ -369,6 +374,18 @@ export async function installSchema(options: {
       connection,
       table: table("schema_migrations"),
       version: REQUEST_ID_LOOKUP_VERSION,
+      schemaIdentity,
+    })
+  }
+
+  if (!installedVersions.has(REMEMBERED_KEYS_VERSION)) {
+    await connection.run(
+      `ALTER TABLE ${table("instances")} ADD COLUMN ${family === "postgresql" ? "IF NOT EXISTS " : ""}completed_idempotency_keys ${family === "mysql" ? "LONGTEXT" : "TEXT"}`,
+    )
+    await recordMigration({
+      connection,
+      table: table("schema_migrations"),
+      version: REMEMBERED_KEYS_VERSION,
       schemaIdentity,
     })
   }

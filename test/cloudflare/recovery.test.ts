@@ -326,6 +326,51 @@ describe("Cloudflare recovery and fencing", () => {
     expect(alarm).toBeNull()
   })
 
+  it("tells a pruned message from one that never existed", async () => {
+    const reference = runtime().ref(Counter, "pruned-key")
+    const message = await reference.send
+      .with({ authorizationContext, idempotencyKey: "pruned-7f3a" })
+      .increment()
+    await message.wait({ authorizationContext })
+    await runInDurableObject(stub("pruned-key"), (_object, state) => {
+      state.storage.sql.exec("DELETE FROM messages")
+    })
+
+    await expect(
+      reference.findBy({ idempotencyKey: "pruned-7f3a", authorizationContext }),
+    ).rejects.toMatchObject({ name: "MessagePruned", idempotencyKey: "pruned-7f3a" })
+    expect(
+      await reference.findBy({ idempotencyKey: "never-sent", authorizationContext }),
+    ).toBeUndefined()
+  })
+
+  it("refuses a request id lookup that names no actor", async () => {
+    await expect(
+      runtime().findBy({ requestId: crypto.randomUUID(), authorizationContext }),
+    ).rejects.toMatchObject({ name: "UnsupportedCapability" })
+  })
+
+  it("bounds what an instance remembers", async () => {
+    const reference = runtime().ref(Counter, "bounded-keys")
+    for (let index = 0; index < 5; index += 1) {
+      const message = await reference.send
+        .with({ authorizationContext, idempotencyKey: `key-${index}` })
+        .increment()
+      await message.wait({ authorizationContext })
+    }
+
+    const remembered = await runInDurableObject(stub("bounded-keys"), (_object, state) => {
+      const instance = JSON.parse(
+        state.storage.sql
+          .exec<{ value: string }>("SELECT value FROM metadata WHERE key = 'instance'")
+          .one().value,
+      ) as Instance
+      return instance.completedIdempotencyKeys
+    })
+
+    expect(remembered).toEqual(["key-2", "key-3", "key-4"])
+  })
+
   it("continues bounded receipt cleanup using its saved alarm", async () => {
     const reference = runtime().ref(Counter, "receipt-cleanup")
     const message = await reference.send.with({ authorizationContext }).increment()

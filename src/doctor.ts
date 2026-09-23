@@ -3,6 +3,7 @@ import { Actor } from "./actor.js"
 import type { DatabaseConnection } from "./database/types.js"
 import { initialStateFor, validateDefinition } from "./definition.js"
 import type { SolidObjectsRuntime } from "./runtime.js"
+import { SCHEMA_VERSIONS } from "./schema.js"
 import { jsonObject, readonlyCopy } from "./serialization.js"
 import type { DeepReadonly, JsonObject } from "./types.js"
 
@@ -243,11 +244,11 @@ export class Doctor {
           message: `incompatible schema identity ${wrongIdentity.schema_identity}`,
         })
       }
-      if (versions.join(",") !== "1,2,3,4,5,6,7,8,9,10,11,12") {
+      if (versions.join(",") !== SCHEMA_VERSIONS.join(",")) {
         return check({
           name: "schema",
           status: "fail",
-          message: `expected schema migrations 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12; found ${versions.join(", ")}`,
+          message: `expected schema migrations ${SCHEMA_VERSIONS.join(", ")}; found ${versions.join(", ")}`,
         })
       }
       return check({

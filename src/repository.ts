@@ -712,11 +712,12 @@ export class Repository {
 
       await connection.run(
         `UPDATE ${this.table("instances")} SET state = ?, state_version = ?, state_revision = ?,
-         updated_at_ms = ? WHERE id = ?`,
+         completed_idempotency_keys = ?, updated_at_ms = ? WHERE id = ?`,
         [
           JSON.stringify(input.state),
           input.stateVersion,
           turn.message.sequence,
+          await this.rememberedKeys(connection, turn),
           now,
           turn.instance.id,
         ],
@@ -940,6 +941,7 @@ export class Repository {
         `UPDATE ${this.table("messages")} SET rejection = ?, completed_at_ms = ?, updated_at_ms = ? WHERE id = ?`,
         [JSON.stringify(rejection), now, now, turn.message.id],
       )
+      await this.rememberKeys(connection, turn)
       await this.releaseClaim({ connection, turn })
     })
   }
@@ -971,6 +973,7 @@ export class Repository {
             now,
           ],
         )
+        await this.rememberKeys(connection, turn)
         await this.releaseClaim({ connection, turn })
         return "dead" as const
       }
@@ -1005,6 +1008,21 @@ export class Repository {
         requestId,
       ]),
     )
+  }
+
+  async remembersIdempotencyKey(input: {
+    actorType: string
+    actorId: string
+    idempotencyKey: string
+  }): Promise<boolean> {
+    const row = await this.settings.database.connection((connection) =>
+      connection.get<Pick<InstanceRow, "completed_idempotency_keys">>(
+        `SELECT completed_idempotency_keys FROM ${this.table("instances")}
+         WHERE actor_type = ? AND actor_id = ?`,
+        [input.actorType, input.actorId],
+      ),
+    )
+    return rememberedList(row?.completed_idempotency_keys ?? null).includes(input.idempotencyKey)
   }
 
   async findMessageByIdempotencyKey(input: {
@@ -2240,6 +2258,37 @@ export class Repository {
     }
   }
 
+  private async rememberKeys(connection: DatabaseConnection, turn: ClaimedTurn): Promise<void> {
+    if (turn.message.idempotency_key === null) return
+
+    await connection.run(
+      `UPDATE ${this.table("instances")} SET completed_idempotency_keys = ? WHERE id = ?`,
+      [await this.rememberedKeys(connection, turn), turn.instance.id],
+    )
+  }
+
+  private async rememberedKeys(
+    connection: DatabaseConnection,
+    turn: ClaimedTurn,
+  ): Promise<string | null> {
+    const row = await connection.get<Pick<InstanceRow, "completed_idempotency_keys">>(
+      `SELECT completed_idempotency_keys FROM ${this.table("instances")} WHERE id = ?`,
+      [turn.instance.id],
+    )
+    const stored = row?.completed_idempotency_keys ?? null
+    const key = turn.message.idempotency_key
+    if (key === null) return stored
+
+    const remembered = rememberedList(stored)
+    if (remembered.at(-1) === key) return stored
+
+    return JSON.stringify(
+      [...remembered.filter((value) => value !== key), key].slice(
+        -this.settings.retainedIdempotencyKeys,
+      ),
+    )
+  }
+
   private async assertFence(connection: DatabaseConnection, turn: ClaimedTurn): Promise<number> {
     const instance = await this.lockActivationFence(connection, turn.instance.id)
     const now = await connection.nowMilliseconds()
@@ -2371,6 +2420,13 @@ function retentionPolicy(options: {
     sql: conditions.length === 0 ? "0 = 1" : `(${conditions.join(" OR ")})`,
     parameters,
   }
+}
+
+function rememberedList(stored: string | null): string[] {
+  if (stored === null) return []
+  const parsed: unknown = JSON.parse(stored)
+  if (!Array.isArray(parsed)) return []
+  return parsed.filter((value): value is string => typeof value === "string")
 }
 
 function parameterList(length: number): string {

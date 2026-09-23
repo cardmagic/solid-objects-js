@@ -11,6 +11,7 @@ export interface Instance extends ActorIdentity {
   stateVersion: number
   createdAt: number
   paused: boolean
+  completedIdempotencyKeys?: string[]
 }
 
 export interface Message {

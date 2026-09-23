@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it } from "vitest"
 import { Actor } from "../src/actor.js"
 import { sqlite } from "../src/database/sqlite.js"
-import { Rejected } from "../src/errors.js"
+import { MessagePruned, Rejected } from "../src/errors.js"
 import { configure, type SolidObjectsRuntime } from "../src/runtime.js"
 
 class CartActor extends Actor {
@@ -37,10 +37,13 @@ afterEach(async () => {
   hooks = []
 })
 
-async function start(): Promise<SolidObjectsRuntime> {
+async function start(
+  overrides: { retainedIdempotencyKeys?: number } = {},
+): Promise<SolidObjectsRuntime> {
   const created = configure({
     database: sqlite({ path: ":memory:" }),
     maxAttempts: 1,
+    ...overrides,
     retryDelayMilliseconds: () => 0,
     authorizeMessage: ({ operation, arguments: argumentsValue }) => {
       hooks.push("message")
@@ -262,6 +265,97 @@ describe("result lookup", () => {
     expect((await reference.snapshot()).items).toBe(1)
   })
 
+  it("tells a pruned message from one that never existed", async () => {
+    const active = await start()
+    const reference = active.ref(CartActor, "alice")
+    await reference.send.with({ idempotencyKey: "checkout-7f3a" }).checkout({ orderId: 1 })
+    await active.worker().runUntilIdle()
+    await deleteMessages(active)
+
+    await expect(reference.findBy({ idempotencyKey: "checkout-7f3a" })).rejects.toThrow(
+      MessagePruned,
+    )
+    expect(await reference.findBy({ idempotencyKey: "never-used" })).toBeUndefined()
+  })
+
+  it("names the key it remembers", async () => {
+    const active = await start()
+    const reference = active.ref(CartActor, "alice")
+    await reference.send.with({ idempotencyKey: "checkout-7f3a" }).checkout({ orderId: 1 })
+    await active.worker().runUntilIdle()
+    await deleteMessages(active)
+
+    const error = await reference
+      .findBy({ idempotencyKey: "checkout-7f3a" })
+      .catch((thrown) => thrown)
+
+    expect(error).toBeInstanceOf(MessagePruned)
+    expect((error as MessagePruned).idempotencyKey).toBe("checkout-7f3a")
+  })
+
+  it("does not tell a refused caller that a key was pruned", async () => {
+    const active = await start()
+    const reference = active.ref(CartActor, "alice")
+    await reference.send.with({ idempotencyKey: "checkout-7f3a" }).checkout({ orderId: 1 })
+    await active.worker().runUntilIdle()
+    await deleteMessages(active)
+    const refusing = configure({
+      database: active.settings.database,
+      authorizeQuery: () => false,
+    })
+    refusing.register(CartActor)
+
+    expect(
+      await refusing.ref(CartActor, "alice").findBy({ idempotencyKey: "checkout-7f3a" }),
+    ).toBeUndefined()
+  })
+
+  it("remembers a key whose message was rejected", async () => {
+    const active = await start()
+    const reference = active.ref(CartActor, "alice")
+    await reference.send.with({ idempotencyKey: "rejected-7f3a" }).rejectCheckout()
+    await active.worker().runUntilIdle()
+    await deleteMessages(active)
+
+    await expect(reference.findBy({ idempotencyKey: "rejected-7f3a" })).rejects.toThrow(
+      MessagePruned,
+    )
+  })
+
+  it("remembers a key whose message died", async () => {
+    const active = await start()
+    CartActor.fail = true
+    const reference = active.ref(CartActor, "alice")
+    await reference.send.with({ idempotencyKey: "dead-7f3a" }).checkout({ orderId: 1 })
+    await active.worker().runUntilIdle()
+    await deleteDeadLetters(active)
+    await deleteMessages(active)
+
+    await expect(reference.findBy({ idempotencyKey: "dead-7f3a" })).rejects.toThrow(MessagePruned)
+  })
+
+  it("bounds what an instance remembers", async () => {
+    const active = await start({ retainedIdempotencyKeys: 3 })
+    const reference = active.ref(CartActor, "alice")
+    for (let index = 0; index < 5; index += 1) {
+      await reference.send.with({ idempotencyKey: `key-${index}` }).checkout({ orderId: index })
+    }
+    await active.worker().runUntilIdle()
+    await deleteMessages(active)
+
+    expect(await reference.findBy({ idempotencyKey: "key-0" })).toBeUndefined()
+    await expect(reference.findBy({ idempotencyKey: "key-4" })).rejects.toThrow(MessagePruned)
+    expect(await rememberedKeys(active)).toEqual(["key-2", "key-3", "key-4"])
+  })
+
+  it("remembers nothing for a message that carried no key", async () => {
+    const active = await start()
+    await active.ref(CartActor, "alice").send.checkout({ orderId: 1 })
+    await active.worker().runUntilIdle()
+
+    expect(await rememberedKeys(active)).toEqual([])
+  })
+
   it("keeps request ids unique across the table", async () => {
     const active = await start()
     const original = await active.ref(CartActor, "alice").send.checkout({ orderId: 1 })
@@ -285,4 +379,25 @@ async function lastRequestId(active: SolidObjectsRuntime): Promise<string | unde
     ),
   )
   return row?.request_id
+}
+
+async function deleteMessages(active: SolidObjectsRuntime): Promise<void> {
+  await active.settings.database.transaction((connection) =>
+    connection.run(`DELETE FROM ${active.repository.table("messages")}`),
+  )
+}
+
+async function deleteDeadLetters(active: SolidObjectsRuntime): Promise<void> {
+  await active.settings.database.transaction((connection) =>
+    connection.run(`DELETE FROM ${active.repository.table("dead_letters")}`),
+  )
+}
+
+async function rememberedKeys(active: SolidObjectsRuntime): Promise<string[]> {
+  const row = await active.settings.database.connection((connection) =>
+    connection.get<{ completed_idempotency_keys: string | null }>(
+      `SELECT completed_idempotency_keys FROM ${active.repository.table("instances")}`,
+    ),
+  )
+  return JSON.parse(row?.completed_idempotency_keys ?? "[]") as string[]
 }

@@ -242,6 +242,7 @@ export class Actors extends createDurableObjectsHost<Env>({
     authorizeSubscription: (input) => input.authorizationContext === "allowed",
     authorizeAdministration: (input) => input.authorizationContext === "allowed",
     retryDelayMilliseconds: () => 10,
+    retainedIdempotencyKeys: 3,
     effects: {
       callbackEmpty: (_arguments, context) => {
         deliveries.set(context.id, context.attempt)

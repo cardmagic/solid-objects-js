@@ -70,7 +70,7 @@ is needed for the JavaScript stale-result race fix.
 | Committed snapshots                                                                                           | Native  | `snapshot()` returns authorized persisted fields and inferred getters from one read-only committed state image; realtime replay reads explicit observables without mailbox history.                                                                                                                                                    |
 | Actor destruction and incarnation fencing                                                                     | Native  | Authorized cascading deletion creates a fresh instance ID on recreation; an authorized waiter receives `ActorDestroyed` when that incarnation disappears.                                                                                                                                                                              |
 | Result recovery and sync timeout diagnostics                                                                  | Native  | Status, result, and wait reauthorize the stored operation; terminal failure raises structured `MessageFailed`; whole-call adapter deadlines distinguish enqueue, wait, database, activation, and mailbox blockers.                                                                                                                     |
-| Result lookup by request ID                                                                                   | Planned | This is also an open Ruby roadmap item and will be implemented in both runtimes when its authorization shape is settled.                                                                                                                                                                                                               |
+| Result lookup by request ID and idempotency key                                                               | Native  | `runtime.findBy({ requestId })` and `reference.findBy({ idempotencyKey })` rebuild a `MessageReference`, authorized with the hook the original call ran. An actor remembers the keys of its own finished turns, so a key lookup separates a pruned message from one that never existed.                                                |
 
 Effect callback envelopes are typed with `EffectFailurePayload`,
 `EffectSuccessPayload`, and `SerializedError` in both SQL and Cloudflare.
@@ -159,6 +159,21 @@ lookup there answers the status and the error but not the result. This runtime
 needed a new unique index on `request_id`, added as schema version 12, because
 its table constrained the pair `(actor_type, actor_id, request_id)`; the Ruby
 schema has carried a global unique index since its first migration.
+
+Both runtimes tell a pruned message from one that never existed the same way.
+An actor remembers the idempotency keys of its own last
+`retained_idempotency_keys` / `retainedIdempotencyKeys` finished turns, written
+in the instance row the executor updates anyway, so a key lookup raises
+`MessagePruned` for a message retention removed and answers absent for a
+message that never existed. The memory is actor state, so the query hook gates
+the pruned answer in both. A request id lookup answers absent in both cases,
+because the runtime generates a request id and no actor remembers one.
+
+The Durable Objects backend answers a key lookup and a request id lookup
+through the actor that holds the row, and it remembers keys in the same
+instance record. It cannot answer `findBy({ requestId })` without a reference,
+because a Durable Object indexes only its own messages, so that form raises
+`UnsupportedCapability`.
 
 ## Realtime and browser behavior
 

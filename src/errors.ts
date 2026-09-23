@@ -103,6 +103,15 @@ export class Rejected extends SolidObjectsError {
   }
 }
 
+export class MessagePruned extends SolidObjectsError {
+  readonly idempotencyKey: string
+
+  constructor(idempotencyKey: string) {
+    super(`the message for idempotency key ${JSON.stringify(idempotencyKey)} was pruned`)
+    this.idempotencyKey = idempotencyKey
+  }
+}
+
 export class SyncTimeout extends SolidObjectsError {
   readonly details: SyncTimeoutDetails
   readonly messageReference: MessageReference

@@ -194,6 +194,7 @@ export {
   LostActivation,
   MailboxFull,
   MessageFailed,
+  MessagePruned,
   NonRetryableError,
   PayloadTooLarge,
   QueryMutatedState,
