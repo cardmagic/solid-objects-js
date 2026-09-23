@@ -67,6 +67,7 @@ export {
   type SelectedWakeUp,
   type WakeUpSelectionOptions,
 } from "./wake-up-selection.js"
+export type { ErrorRecord, Outcome, RejectionRecord } from "./outcome.js"
 export {
   DeadLetterScope,
   UnknownDeadRow,

@@ -144,6 +144,22 @@ already maintains. The Durable Objects engine keeps its own message and outbox
 tables inside each object, so these scopes cover the SQL backends here; its
 `deadLetters` call is unchanged.
 
+## Result lookup
+
+Both runtimes rebuild a `MessageReference` from a request id or an idempotency
+key, scope each lookup through the receiver that matches its index, authorize it
+with the hook the original call ran, and report absence, an unregistered actor,
+and a refusal the same way. `outcome` reports the status, result, error,
+rejection, and attempt count in both.
+
+Two details differ, and both come from the runtimes rather than the feature.
+This runtime stores a result for every completed message, so a lookup answers
+one for asynchronous work; Ruby stores a result only for `sync` delivery, so a
+lookup there answers the status and the error but not the result. This runtime
+needed a new unique index on `request_id`, added as schema version 12, because
+its table constrained the pair `(actor_type, actor_id, request_id)`; the Ruby
+schema has carried a global unique index since its first migration.
+
 ## Realtime and browser behavior
 
 | Capability                                                   | Status         | TypeScript shape or remaining work                                                                                                                                                                                                                                                                                 |

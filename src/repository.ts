@@ -999,6 +999,28 @@ export class Repository {
     )
   }
 
+  async findMessageByRequestId(requestId: string): Promise<MessageRow | undefined> {
+    return this.settings.database.connection((connection) =>
+      connection.get<MessageRow>(`SELECT * FROM ${this.table("messages")} WHERE request_id = ?`, [
+        requestId,
+      ]),
+    )
+  }
+
+  async findMessageByIdempotencyKey(input: {
+    actorType: string
+    actorId: string
+    idempotencyKey: string
+  }): Promise<MessageRow | undefined> {
+    return this.settings.database.connection((connection) =>
+      connection.get<MessageRow>(
+        `SELECT * FROM ${this.table("messages")}
+         WHERE actor_type = ? AND actor_id = ? AND idempotency_key = ?`,
+        [input.actorType, input.actorId, input.idempotencyKey],
+      ),
+    )
+  }
+
   async messageSnapshot(
     id: string,
   ): Promise<{ message: MessageRow | undefined; status: MessageStatus }> {

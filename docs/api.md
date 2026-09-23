@@ -550,6 +550,17 @@ runtime scheduling and transmission behavior are unchanged.
 Every manager below is available as a property on `SolidObjectsRuntime`; the
 class and result types are also exported for integration typing.
 
+- `runtime.findBy({ requestId })` and `reference.findBy({ idempotencyKey })`
+  rebuild a `MessageReference` for work whose reference a caller lost. A request
+  id is unique across the table, so the runtime answers it; an idempotency key
+  is unique per actor, so a reference supplies that scope.
+  `runtime.findBy({ reference, idempotencyKey })` is the explicit form. Naming
+  neither key, naming both, or naming an idempotency key without a reference
+  throws a `TypeError`. An absent row, an unregistered actor, and a caller the
+  policy refuses all return `undefined`.
+- `messageReference.outcome()` returns an `Outcome`: the status, the result, an
+  `ErrorRecord` for a dead message, a `RejectionRecord` for a rejected one, and
+  the attempt count.
 - `runtime.deadLetters` / `DeadLetterManager`: `all()` and idempotent `retry()`.
 - `runtime.deadLetters.effects` and `runtime.deadLetters.broadcasts`: a
   `DeadLetterScope` for one `DeadLetterKind`. `all()` lists its dead rows as

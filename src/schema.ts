@@ -12,7 +12,8 @@ const POLLING_INDEXES_VERSION = 8
 const EFFECT_RECOVERY_VERSION = 9
 const INSTANCE_RETENTION_INDEX_VERSION = 10
 const DEAD_LETTER_REDRIVE_VERSION = 11
-const LATEST_VERSION = DEAD_LETTER_REDRIVE_VERSION
+const REQUEST_ID_LOOKUP_VERSION = 12
+const LATEST_VERSION = REQUEST_ID_LOOKUP_VERSION
 
 export async function installSchema(options: {
   connection: DatabaseConnection
@@ -353,6 +354,23 @@ export async function installSchema(options: {
 
   if (!installedVersions.has(DEAD_LETTER_REDRIVE_VERSION)) {
     await installRedrive({ connection, family, table, prefix, schemaIdentity, createTable })
+  }
+
+  if (!installedVersions.has(REQUEST_ID_LOOKUP_VERSION)) {
+    await createIndex({
+      connection,
+      family,
+      table: table("messages"),
+      name: `${prefix}messages_request_id`,
+      columns: "request_id",
+      kind: "unique",
+    })
+    await recordMigration({
+      connection,
+      table: table("schema_migrations"),
+      version: REQUEST_ID_LOOKUP_VERSION,
+      schemaIdentity,
+    })
   }
 
   if (installedVersions.has(POLLING_INDEXES_VERSION)) return

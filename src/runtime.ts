@@ -15,6 +15,7 @@ import {
   withApplicationWritesForbidden,
 } from "./context.js"
 import { randomUUID } from "./platform/uuid.js"
+import type { ErrorRecord, Outcome, RejectionRecord } from "./outcome.js"
 import { DeadLetterManager, type DeadLetter } from "./dead-letters.js"
 import type { DeadLetterKind, RedriveFilters } from "./dead-letter-scopes.js"
 import { RedriveManager, RedriveScheduler } from "./redrive.js"
@@ -685,6 +686,52 @@ export class SolidObjectsRuntime {
       activationGeneration: null,
     })
     return error
+  }
+
+  // A request id is unique across the table, so the runtime answers it. An
+  // idempotency key is unique per actor, so a reference supplies that scope.
+  async findBy(input: {
+    reference?: ActorReferenceCore<Actor>
+    requestId?: string
+    idempotencyKey?: string
+    authorizationContext?: AdministrationOptions["authorizationContext"]
+  }): Promise<MessageReference | undefined> {
+    const named = [input.requestId, input.idempotencyKey].filter(
+      (value) => value !== undefined,
+    ).length
+    if (named !== 1) {
+      throw new TypeError("findBy expects exactly one of requestId or idempotencyKey")
+    }
+    if (input.idempotencyKey !== undefined && !input.reference) {
+      throw new TypeError("findBy with idempotencyKey requires reference")
+    }
+
+    const message = await this.lookedUpMessage(input)
+    if (!message) return undefined
+    if (!(await this.readableMessage(message, input.authorizationContext))) return undefined
+
+    return this.messageReferenceFromRow(message)
+  }
+
+  async messageOutcome<Result>(
+    messageReference: MessageReference<Result>,
+    options: SnapshotOptions = {},
+  ): Promise<Outcome<Result>> {
+    const message = await this.authorizeMessageReference(
+      messageReference,
+      options.authorizationContext,
+    )
+    return Object.freeze({
+      status: await this.repository.messageStatus(message.id),
+      result:
+        message.result === null
+          ? undefined
+          : (normalizeJson(JSON.parse(message.result)) as DeepReadonly<Result>),
+      error: message.error === null ? undefined : (JSON.parse(message.error) as ErrorRecord),
+      rejection:
+        message.rejection === null ? undefined : (JSON.parse(message.rejection) as RejectionRecord),
+      attempts: Number(message.attempt_count),
+    })
   }
 
   async messageStatus(
@@ -1656,6 +1703,57 @@ export class SolidObjectsRuntime {
     this.emitInstrumentation("message.enqueued", messageInstrumentation(message))
     this.wakeUp("actors")
     return this.messageReferenceFromRow<Result>(message)
+  }
+
+  private async lookedUpMessage(input: {
+    reference?: ActorReferenceCore<Actor>
+    requestId?: string
+    idempotencyKey?: string
+  }): Promise<MessageRow | undefined> {
+    if (input.requestId !== undefined) {
+      return await this.repository.findMessageByRequestId(input.requestId)
+    }
+    return await this.repository.findMessageByIdempotencyKey({
+      actorType: input.reference!.actorType,
+      actorId: input.reference!.actorId,
+      idempotencyKey: input.idempotencyKey!,
+    })
+  }
+
+  // A lookup answers a question, so an absent row, an actor this process no
+  // longer registers, and a caller the policy refuses all read the same. A
+  // request id that threw where it was refused would be a way to ask whether
+  // one exists.
+  private async readableMessage(
+    message: MessageRow,
+    authorizationContext: AdministrationOptions["authorizationContext"],
+  ): Promise<boolean> {
+    try {
+      const registered = this.fetchActor(message.actor_type)
+      if (
+        !registered.operations.has(message.operation) &&
+        !registered.queries.has(message.operation)
+      )
+        return false
+
+      await this.authorize({
+        kind: this.isQuery(registered.definition, message.operation) ? "query" : "message",
+        reference: new ActorReferenceCore({
+          runtime: this,
+          actorClass: registered.actorClass,
+          actorType: message.actor_type,
+          actorId: message.actor_id,
+          operations: registered.operations,
+          queries: registered.queries,
+        }),
+        operation: message.operation,
+        argumentsValue: jsonObject(JSON.parse(message.arguments)),
+        authorizationContext,
+      })
+      return true
+    } catch {
+      return false
+    }
   }
 
   private messageReferenceFromRow<Result = unknown>(message: MessageRow): MessageReference<Result> {
