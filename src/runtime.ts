@@ -1757,7 +1757,7 @@ export class SolidObjectsRuntime {
       actorType: reference.actorType,
       actorId: reference.actorId,
       operation: remembered.operation,
-      argumentsValue: {},
+      argumentsValue: remembered.arguments,
       authorizationContext: input.authorizationContext,
     })
     if (!readable) return undefined

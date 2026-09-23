@@ -235,7 +235,9 @@ export class Actors extends createDurableObjectsHost<Env>({
       },
       sessions: environment.SESSIONS,
     }),
-    authorizeMessage: (input) => input.authorizationContext === "allowed",
+    authorizeMessage: (input) =>
+      input.authorizationContext === "allowed" ||
+      (input.authorizationContext === "argument-denied" && input.arguments.amount !== 7),
     authorizeQuery: (input) =>
       input.authorizationContext === "allowed" && input.operation !== "denied",
     authorizeDestroy: (input) => input.authorizationContext === "allowed",

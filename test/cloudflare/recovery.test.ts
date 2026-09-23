@@ -355,6 +355,26 @@ describe("Cloudflare recovery and fencing", () => {
     ).rejects.toMatchObject({ name: "UnsupportedCapability" })
   })
 
+  it("authorizes pruned keys with the original arguments", async () => {
+    const reference = runtime().ref(Counter, "protected-key")
+    await reference
+      .with({ authorizationContext, idempotencyKey: "protected" })
+      .increment({ amount: 7 })
+    await runInDurableObject(stub("protected-key"), (_object, state) => {
+      state.storage.sql.exec("DELETE FROM messages")
+      state.storage.sql.exec("DELETE FROM receipts")
+    })
+    expect(
+      await reference.findBy({
+        idempotencyKey: "protected",
+        authorizationContext: "argument-denied",
+      }),
+    ).toBeUndefined()
+    await expect(
+      reference.findBy({ idempotencyKey: "protected", authorizationContext }),
+    ).rejects.toMatchObject({ name: "MessagePruned" })
+  })
+
   it("bounds what an instance remembers", async () => {
     const reference = runtime().ref(Counter, "bounded-keys")
     for (let index = 0; index < 5; index += 1) {

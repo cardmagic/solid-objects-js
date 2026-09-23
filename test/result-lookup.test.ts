@@ -329,6 +329,41 @@ describe("result lookup", () => {
     ).toBeUndefined()
   })
 
+  it("authorizes pruned keys with the original arguments", async () => {
+    const active = await start()
+    const reference = active.ref(CartActor, "alice")
+    await reference.send.with({ idempotencyKey: "protected" }).checkout({ orderId: 1 })
+    await active.worker().runUntilIdle()
+    await deleteMessages(active)
+    const refusing = configure({
+      database: active.settings.database,
+      authorizeMessage: ({ arguments: args }) => args.orderId !== 1,
+    })
+    refusing.register(CartActor)
+
+    expect(
+      await refusing.ref(CartActor, "alice").findBy({ idempotencyKey: "protected" }),
+    ).toBeUndefined()
+    seenOperations = []
+    await expect(reference.findBy({ idempotencyKey: "protected" })).rejects.toThrow(MessagePruned)
+    expect(seenOperations).toEqual([{ operation: "checkout", argumentsValue: { orderId: 1 } }])
+  })
+
+  it("does not disclose legacy keys without authorization arguments", async () => {
+    const active = await start()
+    const reference = active.ref(CartActor, "alice")
+    await reference.send.with({ idempotencyKey: "legacy" }).checkout({ orderId: 1 })
+    await active.worker().runUntilIdle()
+    await deleteMessages(active)
+    await active.settings.database.transaction((connection) =>
+      connection.run(
+        `UPDATE ${active.repository.table("instances")} SET completed_idempotency_keys = ?`,
+        [JSON.stringify([{ key: "legacy", operation: "checkout" }])],
+      ),
+    )
+    expect(await reference.findBy({ idempotencyKey: "legacy" })).toBeUndefined()
+  })
+
   it("remembers a key whose message was rejected", async () => {
     const active = await start()
     const reference = active.ref(CartActor, "alice")
@@ -390,7 +425,7 @@ describe("result lookup", () => {
 
     const remembered = await rememberedKeys(active)
 
-    expect(remembered).toEqual(keys.slice(-2))
+    expect(remembered).toEqual(keys.slice(-1))
   })
 
   it("remembers nothing for a key larger than what it retains", async () => {

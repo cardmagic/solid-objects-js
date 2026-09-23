@@ -2295,9 +2295,10 @@ export class Repository {
     if (key === null) return stored
 
     const remembered = rememberedList(stored)
-    const entry = { key, operation: turn.message.operation }
-    if (remembered.at(-1)?.key === key && remembered.at(-1)?.operation === entry.operation) {
-      return stored
+    const entry = {
+      key,
+      operation: turn.message.operation,
+      arguments: jsonObject(JSON.parse(turn.message.arguments)),
     }
 
     return JSON.stringify(
@@ -2461,7 +2462,10 @@ export function rememberedList(stored: string | null): RememberedKey[] {
       value !== null &&
       typeof value === "object" &&
       typeof value.key === "string" &&
-      typeof value.operation === "string",
+      typeof value.operation === "string" &&
+      value.arguments !== null &&
+      typeof value.arguments === "object" &&
+      !Array.isArray(value.arguments),
   )
 }
 

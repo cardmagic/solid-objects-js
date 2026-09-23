@@ -151,4 +151,5 @@ export interface BroadcastRow {
 export interface RememberedKey {
   key: string
   operation: string
+  arguments: JsonObject
 }

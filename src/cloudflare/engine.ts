@@ -353,19 +353,21 @@ export class ActorEngine {
     const remembered = (this.store.instance()?.completedIdempotencyKeys ?? []).find(
       (entry) => entry.key === String(key),
     )
-    if (!remembered) return null
-    if (!(await this.authorizedOperation(input, remembered.operation))) return null
+    if (!remembered || !remembered.arguments) return null
+    const definition = this.definition(input.actorType)
+    const query = definition.queries.includes(remembered.operation)
+    if (!query && !definition.operations.includes(remembered.operation)) return null
+    const authorize = query ? this.settings.authorizeQuery : this.settings.authorizeMessage
+    if (
+      !(await authorize({
+        ...input,
+        operation: remembered.operation,
+        arguments: remembered.arguments,
+      }))
+    )
+      return null
 
     return { pruned: true }
-  }
-
-  private async authorizedOperation(input: HostRequest, operation: string): Promise<boolean> {
-    const definition = this.definition(input.actorType)
-    const query = definition.queries.includes(operation)
-    if (!query && !definition.operations.includes(operation)) return false
-
-    const authorize = query ? this.settings.authorizeQuery : this.settings.authorizeMessage
-    return authorize({ ...input, operation, arguments: {} })
   }
 
   private rememberKey(instance: Instance, message: Message): void {
@@ -373,8 +375,7 @@ export class ActorEngine {
     if (key === null) return
 
     const remembered = instance.completedIdempotencyKeys ?? []
-    const entry = { key, operation: message.operation }
-    if (remembered.at(-1)?.key === key && remembered.at(-1)?.operation === entry.operation) return
+    const entry = { key, operation: message.operation, arguments: message.arguments }
 
     instance.completedIdempotencyKeys = boundedKeys({
       keys: [...remembered.filter((value) => value.key !== key), entry],

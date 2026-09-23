@@ -256,7 +256,7 @@ export class ActorReferenceCore<ActorType extends Actor> {
     options: { idempotencyKey: string } & SnapshotOptions,
   ): Promise<MessageReference | undefined> {
     return this.runtime.findBy({
-      reference: this as unknown as ActorReferenceCore<Actor>,
+      reference: this,
       idempotencyKey: options.idempotencyKey,
       authorizationContext: options.authorizationContext,
     })

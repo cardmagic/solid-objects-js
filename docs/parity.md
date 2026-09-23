@@ -165,13 +165,17 @@ An actor remembers the idempotency keys of its own last
 `retained_idempotency_keys` / `retainedIdempotencyKeys` finished turns, written
 in the instance row the executor updates anyway, so a key lookup raises
 `MessagePruned` for a message retention removed and answers absent for a
-message that never existed. Each remembered key carries its operation, so the
+message that never existed. Each remembered key carries its operation and original arguments, so the
 pruned answer runs the same authorization a lookup of the surviving row
 would. Both also bound the serialized memory, because an
 idempotency key has no length limit and the memory outlives the message row; an
-actor drops its oldest keys until the list fits. The memory is actor state, so the query hook gates
-the pruned answer in both. A request id lookup answers absent in both cases,
+actor drops its oldest keys until the list fits. The original operation selects the message or query authorization hook in both. A request id lookup answers absent in both cases,
 because the runtime generates a request id and no actor remembers one.
+
+Remembered arguments count toward the serialized memory limit and remain until
+the entry is evicted or the instance is removed. Entries from older versions
+that lack arguments return absence after pruning because their original
+authorization cannot be reproduced.
 
 The Durable Objects backend answers a key lookup and a request id lookup
 through the actor that holds the row, and it remembers keys in the same

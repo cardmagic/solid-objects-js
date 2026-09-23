@@ -562,8 +562,8 @@ class and result types are also exported for integration typing.
   `retainedIdempotencyKeys` finished turns, so `reference.findBy({
 idempotencyKey })` throws `MessagePruned` for a key the actor remembers and
   whose message retention removed, and returns `undefined` for a key no caller
-  ever sent. An actor remembers the operation beside each key, so the pruned
-  answer runs the same hook against the same operation a lookup of the
+  ever sent. An actor remembers the operation and original arguments beside each key, so the pruned
+  answer runs the same hook against the same operation and arguments a lookup of the
   surviving row would, and a caller the policy refuses reads `undefined` for
   both. `runtime.findBy({ requestId })` returns
   `undefined` in both cases, because the runtime generates a request id and no
@@ -573,6 +573,10 @@ idempotencyKey })` throws `MessagePruned` for a key the actor remembers and
   row. An actor drops its oldest keys until the list fits, so a key long enough
   to fill the limit by itself is never remembered and its lookup answers
   `undefined` rather than throwing.
+- Remembered arguments count toward the serialized memory limit and remain until
+  the entry is evicted or the instance is removed. Entries from older versions
+  that lack arguments return absence after pruning because their original
+  authorization cannot be reproduced.
 - `messageReference.outcome()` returns an `Outcome`: the status, the result, an
   `ErrorRecord` for a dead message, a `RejectionRecord` for a rejected one, and
   the attempt count.
