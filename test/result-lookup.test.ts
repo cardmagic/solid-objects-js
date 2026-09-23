@@ -348,6 +348,18 @@ describe("result lookup", () => {
     expect(await rememberedKeys(active)).toEqual(["key-2", "key-3", "key-4"])
   })
 
+  it("remembers every key of one activation pass", async () => {
+    const active = await start()
+    const reference = active.ref(CartActor, "alice")
+    await reference.send.with({ idempotencyKey: "first" }).checkout({ orderId: 1 })
+    await reference.send.with({ idempotencyKey: "second" }).checkout({ orderId: 2 })
+    await active.worker().runUntilIdle()
+    await deleteMessages(active)
+
+    await expect(reference.findBy({ idempotencyKey: "first" })).rejects.toThrow(MessagePruned)
+    await expect(reference.findBy({ idempotencyKey: "second" })).rejects.toThrow(MessagePruned)
+  })
+
   it("remembers nothing for a message that carried no key", async () => {
     const active = await start()
     await active.ref(CartActor, "alice").send.checkout({ orderId: 1 })

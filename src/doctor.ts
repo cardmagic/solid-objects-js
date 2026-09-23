@@ -51,6 +51,7 @@ const EXPECTED_COLUMNS: Readonly<Record<string, readonly string[]>> = {
     "activation_expires_at_ms",
     "activation_generation",
     "paused",
+    "completed_idempotency_keys",
   ],
   messages: [
     "id",

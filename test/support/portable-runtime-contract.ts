@@ -83,6 +83,22 @@ export function portableRuntimeContract(runtime: () => ActorRuntime): void {
     )
   })
 
+  it("answers absent to a caller the policy refuses", async () => {
+    const active = runtime()
+    const reference = active.ref(PortableCounter, "contract-refused")
+    const message = await reference.send
+      .with({ authorizationContext, idempotencyKey: "contract-refused-key" })
+      .increment()
+    await message.wait({ authorizationContext })
+
+    expect(
+      await reference.findBy({
+        idempotencyKey: "contract-refused-key",
+        authorizationContext: "refused",
+      }),
+    ).toBeUndefined()
+  })
+
   it("authorizes calls and fences references across destruction", async () => {
     const reference = runtime().ref(PortableCounter, "contract-destroy")
     await expect(reference.increment()).rejects.toMatchObject({ name: "Unauthorized" })

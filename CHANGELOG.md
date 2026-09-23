@@ -29,12 +29,17 @@
   to 64 keys for each actor. A lookup by request id cannot make the
   distinction, because the runtime generates a request id and no actor
   remembers one.
-- Add schema version 13: `instances.completed_idempotency_keys`.
+- Add schema version 13: `instances.completed_idempotency_keys`. The doctor
+  now reports the column as missing when it is not installed.
 - Implement `findBy` and `messageOutcome` on the Durable Objects runtime, which
   `ActorRuntime` required and the backend did not supply, so `pnpm run check`
   and `pnpm run build` both failed. A Durable Object indexes only its own
   messages, so `runtime.findBy({ requestId })` without a reference raises
-  `UnsupportedCapability`; every other form works.
+  `UnsupportedCapability`; every other form works. A lookup that the policy
+  refuses answers `undefined` there too. The Durable Objects `lookup` gates on
+  `authorizeQuery` before it reads, which would otherwise have thrown
+  `Unauthorized` where the SQL runtime answers absent, and a lookup that threw
+  where it was refused is a way to ask whether a key exists.
 - Read the expected schema migration list from `SCHEMA_VERSIONS` in the doctor
   and in the tests that assert it, rather than from four hand-copied lists.
 

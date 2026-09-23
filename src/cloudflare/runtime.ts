@@ -11,6 +11,7 @@ import {
   MessagePruned,
   Rejected,
   SyncTimeout,
+  Unauthorized,
   UnsupportedCapability,
 } from "../errors.js"
 import {
@@ -156,6 +157,9 @@ export class CloudflareRuntime implements ActorRuntime {
         input.requestId === undefined
           ? { idempotencyKey: input.idempotencyKey! }
           : { requestId: input.requestId },
+    }).catch((error: unknown) => {
+      if (error instanceof Unauthorized) return null
+      throw error
     })
     if (value === null) return undefined
 

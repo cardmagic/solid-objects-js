@@ -146,6 +146,24 @@ describe("runtime doctor", () => {
     expect(check(report, "roundTrip").status).toBe("skip")
   })
 
+  it("fails when a migration that a runtime path needs is missing", async () => {
+    runtime = configuredRuntime()
+    await runtime.install()
+    await runtime.settings.database.transaction((connection) =>
+      connection.run(
+        `ALTER TABLE ${runtime!.repository.table("instances")} DROP COLUMN completed_idempotency_keys`,
+      ),
+    )
+
+    const report = await runtime.doctor.run()
+
+    expect(report.healthy).toBe(false)
+    expect(check(report, "schema")).toMatchObject({
+      status: "fail",
+      message: expect.stringContaining("completed_idempotency_keys"),
+    })
+  })
+
   it("reports live runtime roles by kind", async () => {
     runtime = configuredRuntime()
     await runtime.install()
