@@ -68,11 +68,16 @@ describe("Cloudflare recovery and fencing", () => {
 
   it("rolls back a result that exceeds the aggregate SQLite record limit", async () => {
     const reference = runtime().ref(Counter, "oversized-record")
-    await expect(
-      reference
-        .with({ authorizationContext, timeoutMilliseconds: 500 })
-        .echo({ value: "x".repeat(1_010_000) }),
-    ).rejects.toMatchObject({ name: "MessageFailed", details: { name: "PayloadTooLarge" } })
+    const message = await reference.send
+      .with({ authorizationContext })
+      .echo({ value: "x".repeat(1_010_000) })
+
+    await expect
+      .poll(() => message.status({ authorizationContext }), { timeout: 15_000 })
+      .toBe("dead")
+
+    const outcome = await message.outcome({ authorizationContext })
+    expect(outcome.error?.name).toBe("PayloadTooLarge")
     expect((await reference.snapshot({ authorizationContext })).count).toBe(0)
   })
 
