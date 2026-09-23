@@ -8,6 +8,7 @@ import type {
   DatabaseTransactionOptions,
 } from "../src/database/types.js"
 import { createRuntime, type SolidObjectsRuntime } from "../src/runtime.js"
+import { SCHEMA_VERSIONS } from "../src/schema.js"
 
 const PREFIX = "retention_index_test_"
 const DAY = 24 * 60 * 60 * 1_000
@@ -100,9 +101,7 @@ it.each(["fresh installation", "version-nine upgrade", "interrupted upgrade"])(
         `SELECT version FROM ${PREFIX}schema_migrations ORDER BY version`,
       ),
     )
-    expect(versions.map(({ version }) => Number(version))).toEqual([
-      1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11,
-    ])
+    expect(versions.map(({ version }) => Number(version))).toEqual([...SCHEMA_VERSIONS])
   },
   30_000,
 )

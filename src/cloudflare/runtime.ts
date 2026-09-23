@@ -8,8 +8,10 @@ import {
   ActorSetupFailed,
   EnqueueOutcomeUnknown,
   MessageFailed,
+  MessagePruned,
   Rejected,
   SyncTimeout,
+  Unauthorized,
   UnsupportedCapability,
 } from "../errors.js"
 import {
@@ -19,6 +21,7 @@ import {
   type ActorReference,
   type ActorSnapshot,
 } from "../reference.js"
+import type { ErrorRecord, Outcome, RejectionRecord } from "../outcome.js"
 import { jsonObject, normalizeJson, readonlyCopy } from "../serialization.js"
 import type {
   ActorIdentifier,
@@ -125,6 +128,60 @@ export class CloudflareRuntime implements ActorRuntime {
       payload: { requestId: options.requestId },
     })
     return value === null ? undefined : this.reference<Result>(options, jsonObject(value))
+  }
+
+  // A Durable Object indexes only its own messages, so every lookup names the
+  // actor that holds the row.
+  async findBy(input: {
+    reference?: ActorReferenceCore<Actor>
+    requestId?: string
+    idempotencyKey?: string
+    authorizationContext?: JsonValue
+  }): Promise<MessageReference | undefined> {
+    const named = [input.requestId, input.idempotencyKey].filter(
+      (value) => value !== undefined,
+    ).length
+    if (named !== 1) {
+      throw new TypeError("findBy expects exactly one of requestId or idempotencyKey")
+    }
+    if (input.idempotencyKey !== undefined && !input.reference) {
+      throw new TypeError("findBy with idempotencyKey requires reference")
+    }
+    if (!input.reference) unsupported("a request id lookup without a reference")
+
+    const value = await this.call({
+      ...identity(input.reference),
+      method: "lookup",
+      authorizationContext: context(input.authorizationContext),
+      payload:
+        input.requestId === undefined
+          ? { idempotencyKey: input.idempotencyKey! }
+          : { requestId: input.requestId },
+    }).catch((error) => {
+      if (error instanceof Unauthorized) return null
+      throw error
+    })
+    if (value === null) return undefined
+
+    const record = jsonObject(value)
+    if (record.pruned === true) throw new MessagePruned(input.idempotencyKey!)
+    return this.reference(input.reference, record)
+  }
+
+  async messageOutcome<Result>(
+    message: MessageReference<Result>,
+    options: SnapshotOptions = {},
+  ): Promise<Outcome<Result>> {
+    const record = await this.readMessage(message, options)
+    return Object.freeze({
+      status: record.status as MessageStatus,
+      result:
+        record.result === null ? undefined : (readonlyCopy(record.result) as DeepReadonly<Result>),
+      error: record.error === null ? undefined : errorRecord(jsonObject(record.error)),
+      rejection:
+        record.rejection === null ? undefined : rejectionRecord(jsonObject(record.rejection)),
+      attempts: Number(record.attempt),
+    })
   }
 
   async messageStatus(
@@ -430,5 +487,17 @@ export async function beforeDeadline<Value>(
     ])
   } finally {
     if (timer !== undefined) clearTimeout(timer)
+  }
+}
+
+function errorRecord(value: JsonObject): ErrorRecord {
+  return { name: String(value.name), message: String(value.message) }
+}
+
+function rejectionRecord(value: JsonObject): RejectionRecord {
+  return {
+    code: String(value.code),
+    message: String(value.message),
+    details: readonlyCopy(jsonObject(value.details ?? {})),
   }
 }

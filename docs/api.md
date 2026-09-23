@@ -550,6 +550,36 @@ runtime scheduling and transmission behavior are unchanged.
 Every manager below is available as a property on `SolidObjectsRuntime`; the
 class and result types are also exported for integration typing.
 
+- `runtime.findBy({ requestId })` and `reference.findBy({ idempotencyKey })`
+  rebuild a `MessageReference` for work whose reference a caller lost. A request
+  id is unique across the table, so the runtime answers it; an idempotency key
+  is unique per actor, so a reference supplies that scope.
+  `runtime.findBy({ reference, idempotencyKey })` is the explicit form. Naming
+  neither key, naming both, or naming an idempotency key without a reference
+  throws a `TypeError`. An absent row, an unregistered actor, and a caller the
+  policy refuses all return `undefined`.
+- An actor remembers the idempotency keys of its own last
+  `retainedIdempotencyKeys` finished turns, so `reference.findBy({
+idempotencyKey })` throws `MessagePruned` for a key the actor remembers and
+  whose message retention removed, and returns `undefined` for a key no caller
+  ever sent. An actor remembers the operation and original arguments beside each key, so the pruned
+  answer runs the same hook against the same operation and arguments a lookup of the
+  surviving row would, and a caller the policy refuses reads `undefined` for
+  both. `runtime.findBy({ requestId })` returns
+  `undefined` in both cases, because the runtime generates a request id and no
+  actor remembers one.
+- `retainedIdempotencyKeysBytes` bounds the serialized memory as well, because
+  an idempotency key has no length limit and the memory outlives the message
+  row. An actor drops its oldest keys until the list fits, so a key long enough
+  to fill the limit by itself is never remembered and its lookup answers
+  `undefined` rather than throwing.
+- Remembered arguments count toward the serialized memory limit and remain until
+  the entry is evicted or the instance is removed. Entries from older versions
+  that lack arguments return absence after pruning because their original
+  authorization cannot be reproduced.
+- `messageReference.outcome()` returns an `Outcome`: the status, the result, an
+  `ErrorRecord` for a dead message, a `RejectionRecord` for a rejected one, and
+  the attempt count.
 - `runtime.deadLetters` / `DeadLetterManager`: `all()` and idempotent `retry()`.
 - `runtime.deadLetters.effects` and `runtime.deadLetters.broadcasts`: a
   `DeadLetterScope` for one `DeadLetterKind`. `all()` lists its dead rows as
@@ -700,8 +730,8 @@ provides through `database.wakeUp(options)`.
 The root exports `SolidObjectsError` and its supported subclasses:
 
 - policy and caller outcomes: `Unauthorized`, `Rejected`, `ActorDestroyed`,
-  `SyncEnqueueTimeout`, `SyncTimeout`, `SyncInsideTransaction`, and
-  `MessageFailed`;
+  `SyncEnqueueTimeout`, `SyncTimeout`, `SyncInsideTransaction`,
+  `MessagePruned`, and `MessageFailed`;
 - admission and payload failures: `MailboxFull`, `InvalidPayload`,
   `PayloadTooLarge`, `IdempotencyConflict`, `InvalidPayloadBroadcast`, and
   `UnknownPayloadBroadcast`;

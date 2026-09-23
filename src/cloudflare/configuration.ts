@@ -26,6 +26,8 @@ export type CloudflareConfiguration = Pick<
   | "retryDelayMilliseconds"
   | "messageRetentionMilliseconds"
   | "pruneBatchSize"
+  | "retainedIdempotencyKeys"
+  | "retainedIdempotencyKeysBytes"
 > & {
   backend: DurableObjectsBackend
   effects?: Readonly<Record<string, EffectHandler>>
@@ -53,6 +55,8 @@ export function buildCloudflareSettings(configuration: CloudflareConfiguration) 
       ((attempt: number) => Math.min(2 ** (attempt - 1), 60) * 1_000),
     messageRetentionMilliseconds: configuration.messageRetentionMilliseconds ?? 30 * 86_400_000,
     pruneBatchSize: configuration.pruneBatchSize ?? 1_000,
+    retainedIdempotencyKeys: configuration.retainedIdempotencyKeys ?? 64,
+    retainedIdempotencyKeysBytes: configuration.retainedIdempotencyKeysBytes ?? 16_384,
   }
   for (const name of [
     "maxAttempts",
@@ -64,6 +68,8 @@ export function buildCloudflareSettings(configuration: CloudflareConfiguration) 
     "maxActivationDurationMilliseconds",
     "messageRetentionMilliseconds",
     "pruneBatchSize",
+    "retainedIdempotencyKeys",
+    "retainedIdempotencyKeysBytes",
   ] as const) {
     if (!Number.isSafeInteger(settings[name]) || settings[name] <= 0) {
       throw new TypeError(`${name} must be a positive safe integer`)

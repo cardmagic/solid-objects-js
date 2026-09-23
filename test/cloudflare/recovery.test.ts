@@ -68,11 +68,16 @@ describe("Cloudflare recovery and fencing", () => {
 
   it("rolls back a result that exceeds the aggregate SQLite record limit", async () => {
     const reference = runtime().ref(Counter, "oversized-record")
-    await expect(
-      reference
-        .with({ authorizationContext, timeoutMilliseconds: 500 })
-        .echo({ value: "x".repeat(1_010_000) }),
-    ).rejects.toMatchObject({ name: "MessageFailed", details: { name: "PayloadTooLarge" } })
+    const message = await reference.send
+      .with({ authorizationContext })
+      .echo({ value: "x".repeat(1_010_000) })
+
+    await expect
+      .poll(() => message.status({ authorizationContext }), { timeout: 15_000 })
+      .toBe("dead")
+
+    const outcome = await message.outcome({ authorizationContext })
+    expect(outcome.error?.name).toBe("PayloadTooLarge")
     expect((await reference.snapshot({ authorizationContext })).count).toBe(0)
   })
 
@@ -324,6 +329,91 @@ describe("Cloudflare recovery and fencing", () => {
       state.storage.getAlarm(),
     )
     expect(alarm).toBeNull()
+  })
+
+  it("tells a pruned message from one that never existed", async () => {
+    const reference = runtime().ref(Counter, "pruned-key")
+    const message = await reference.send
+      .with({ authorizationContext, idempotencyKey: "pruned-7f3a" })
+      .increment()
+    await message.wait({ authorizationContext })
+    await runInDurableObject(stub("pruned-key"), (_object, state) => {
+      state.storage.sql.exec("DELETE FROM messages")
+    })
+
+    await expect(
+      reference.findBy({ idempotencyKey: "pruned-7f3a", authorizationContext }),
+    ).rejects.toMatchObject({ name: "MessagePruned", idempotencyKey: "pruned-7f3a" })
+    expect(
+      await reference.findBy({ idempotencyKey: "never-sent", authorizationContext }),
+    ).toBeUndefined()
+  })
+
+  it("refuses a request id lookup that names no actor", async () => {
+    await expect(
+      runtime().findBy({ requestId: crypto.randomUUID(), authorizationContext }),
+    ).rejects.toMatchObject({ name: "UnsupportedCapability" })
+  })
+
+  it("authorizes pruned keys with the original arguments", async () => {
+    const reference = runtime().ref(Counter, "protected-key")
+    await reference
+      .with({ authorizationContext, idempotencyKey: "protected" })
+      .increment({ amount: 7 })
+    await runInDurableObject(stub("protected-key"), (_object, state) => {
+      state.storage.sql.exec("DELETE FROM messages")
+      state.storage.sql.exec("DELETE FROM receipts")
+    })
+    expect(
+      await reference.findBy({
+        idempotencyKey: "protected",
+        authorizationContext: "argument-denied",
+      }),
+    ).toBeUndefined()
+    await expect(
+      reference.findBy({ idempotencyKey: "protected", authorizationContext }),
+    ).rejects.toMatchObject({ name: "MessagePruned" })
+  })
+
+  it("bounds what an instance remembers", async () => {
+    const reference = runtime().ref(Counter, "bounded-keys")
+    for (let index = 0; index < 5; index += 1) {
+      const message = await reference.send
+        .with({ authorizationContext, idempotencyKey: `key-${index}` })
+        .increment()
+      await message.wait({ authorizationContext })
+    }
+
+    const remembered = await runInDurableObject(stub("bounded-keys"), (_object, state) => {
+      const instance = JSON.parse(
+        state.storage.sql
+          .exec<{ value: string }>("SELECT value FROM metadata WHERE key = 'instance'")
+          .one().value,
+      ) as Instance
+      return instance.completedIdempotencyKeys?.map((entry) => entry.key)
+    })
+
+    expect(remembered).toEqual(["key-2", "key-3", "key-4"])
+  })
+
+  it("bounds what an instance remembers by size", async () => {
+    const reference = runtime().ref(Counter, "bounded-key-bytes")
+    const key = "k".repeat(400)
+    const message = await reference.send
+      .with({ authorizationContext, idempotencyKey: key })
+      .increment()
+    await message.wait({ authorizationContext })
+
+    const remembered = await runInDurableObject(stub("bounded-key-bytes"), (_object, state) => {
+      const instance = JSON.parse(
+        state.storage.sql
+          .exec<{ value: string }>("SELECT value FROM metadata WHERE key = 'instance'")
+          .one().value,
+      ) as Instance
+      return instance.completedIdempotencyKeys
+    })
+
+    expect(remembered).toEqual([])
   })
 
   it("continues bounded receipt cleanup using its saved alarm", async () => {

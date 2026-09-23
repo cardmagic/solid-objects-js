@@ -49,6 +49,56 @@ export function portableRuntimeContract(runtime: () => ActorRuntime): void {
     expect(await reference.increment()).toBe(1)
   })
 
+  it("finds a message by idempotency key and reports its outcome", async () => {
+    const active = runtime()
+    const reference = active.ref(PortableCounter, "contract-find")
+    const options = { authorizationContext, idempotencyKey: "contract-find-key" }
+    const original = await reference.send.with(options).increment()
+    await original.wait({ authorizationContext })
+
+    const found = await reference.findBy({
+      idempotencyKey: "contract-find-key",
+      authorizationContext,
+    })
+
+    expect(found?.id).toBe(original.id)
+    expect(await found!.outcome({ authorizationContext })).toMatchObject({
+      status: "completed",
+      attempts: 1,
+    })
+    expect(
+      await reference.findBy({ idempotencyKey: "never-sent", authorizationContext }),
+    ).toBeUndefined()
+  })
+
+  it("refuses a lookup that names no key, both keys, or a key without a reference", async () => {
+    const active = runtime()
+
+    await expect(active.findBy({ authorizationContext })).rejects.toThrow(/exactly one of/)
+    await expect(
+      active.findBy({ requestId: "one", idempotencyKey: "two", authorizationContext }),
+    ).rejects.toThrow(/exactly one of/)
+    await expect(active.findBy({ idempotencyKey: "two", authorizationContext })).rejects.toThrow(
+      /requires reference/,
+    )
+  })
+
+  it("answers absent to a caller the policy refuses", async () => {
+    const active = runtime()
+    const reference = active.ref(PortableCounter, "contract-refused")
+    const message = await reference.send
+      .with({ authorizationContext, idempotencyKey: "contract-refused-key" })
+      .increment()
+    await message.wait({ authorizationContext })
+
+    expect(
+      await reference.findBy({
+        idempotencyKey: "contract-refused-key",
+        authorizationContext: "refused",
+      }),
+    ).toBeUndefined()
+  })
+
   it("authorizes calls and fences references across destruction", async () => {
     const reference = runtime().ref(PortableCounter, "contract-destroy")
     await expect(reference.increment()).rejects.toMatchObject({ name: "Unauthorized" })

@@ -1,6 +1,58 @@
 # Changelog
 
-## Unreleased
+## 0.16.0 - 2026-09-23
+
+- Find a message whose reference a caller lost. `runtime.findBy({ requestId })`
+  answers a request id, which is unique across the table, and
+  `reference.findBy({ idempotencyKey })` answers a key, which is unique per
+  actor, so the receiver supplies the scope the key needs. Naming neither key,
+  naming both, or naming an idempotency key without a reference throws.
+- Authorize every lookup with the hook the original call ran, against the stored
+  operation and arguments, because a request id is not a capability. An absent
+  row, an actor this process no longer registers, and a caller the policy
+  refuses all return `undefined`, so a lookup cannot be used to ask whether a
+  request id exists.
+- Add `messageReference.outcome()`, which reports the status, the result, the
+  persisted error, the rejection, and the attempt count, so a terminal failure
+  answers as well as a success. Every value is frozen, so a caller cannot mutate
+  a durable result it read. The error carries `name` and `message`; this runtime
+  has never persisted a stack, which [parity](docs/parity.md) now records
+  against Ruby's `backtrace`.
+- Add schema version 12: a unique index on `messages.request_id`. The table had
+  only `UNIQUE (actor_type, actor_id, request_id)`, which cannot serve a lookup
+  that names the request id alone.
+- Tell a pruned message from one that never existed. An actor remembers the
+  idempotency keys of its own finished turns, the way an Orleans grain keeps its
+  deduplication history in grain state, so the memory needs no second store and
+  no second write. `reference.findBy({ idempotencyKey })` throws
+  `MessagePruned` for a key the actor remembers and whose message retention
+  removed, and still returns `undefined` for a key no caller ever sent. The
+  An actor remembers the operation beside each key, so the pruned answer runs
+  the same hook against the same operation a lookup of the surviving row would,
+  and a caller the policy refuses reads `undefined` for both. Gating it on
+  `snapshot` would have told a caller who may read state, but not the
+  operation, that the operation had run. The Durable Objects lookup no longer
+  demands a synthetic `__lookupMessage__` query in addition, which a policy
+  that allows only declared queries refused. `retainedIdempotencyKeys` bounds the memory and defaults
+  to 64 keys for each actor. A lookup by request id cannot make the
+  distinction, because the runtime generates a request id and no actor
+  remembers one. `retainedIdempotencyKeysBytes` bounds the serialized memory as
+  well, because an idempotency key has no length limit and the memory outlives
+  the message row. An actor drops its oldest keys until the list fits, so a key
+  long enough to fill the limit by itself is never remembered.
+- Add schema version 13: `instances.completed_idempotency_keys`. The doctor
+  now reports the column as missing when it is not installed.
+- Implement `findBy` and `messageOutcome` on the Durable Objects runtime, which
+  `ActorRuntime` required and the backend did not supply, so `pnpm run check`
+  and `pnpm run build` both failed. A Durable Object indexes only its own
+  messages, so `runtime.findBy({ requestId })` without a reference raises
+  `UnsupportedCapability`; every other form works. A lookup that the policy
+  refuses answers `undefined` there too. The Durable Objects `lookup` gates on
+  `authorizeQuery` before it reads, which would otherwise have thrown
+  `Unauthorized` where the SQL runtime answers absent, and a lookup that threw
+  where it was refused is a way to ask whether a key exists.
+- Read the expected schema migration list from `SCHEMA_VERSIONS` in the doctor
+  and in the tests that assert it, rather than from four hand-copied lists.
 
 - Retry a dead effect or broadcast. `runtime.deadLetters` keeps its message
   meaning and answers `effects` and `broadcasts`, so the kind rides on the

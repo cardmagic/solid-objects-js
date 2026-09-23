@@ -8,6 +8,7 @@ import type { SolidObjectsConfiguration } from "../src/configuration.js"
 import { sqlite } from "../src/database/sqlite.js"
 import { Unauthorized } from "../src/errors.js"
 import { configure, type SolidObjectsRuntime } from "../src/runtime.js"
+import { SCHEMA_VERSIONS } from "../src/schema.js"
 
 class PoisonActor extends Actor {
   static override readonly actorType = "PoisonActor"
@@ -151,9 +152,7 @@ describe("schema migrations", () => {
     const broadcastColumns = await runtime.settings.database.connection((connection) =>
       connection.all<{ name: string }>("PRAGMA table_info(solid_objects_broadcasts)"),
     )
-    expect(versions.map(({ version }) => Number(version))).toEqual([
-      1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11,
-    ])
+    expect(versions.map(({ version }) => Number(version))).toEqual([...SCHEMA_VERSIONS])
     expect(deadLetterColumns.map(({ name }) => name)).toContain("retried_message_id")
     expect(broadcastColumns.map(({ name }) => name)).toContain("invalidations")
     expect(await installedPollingIndexes(runtime)).toEqual(POLLING_INDEX_COLUMNS)
@@ -186,9 +185,7 @@ describe("schema migrations", () => {
         "SELECT version FROM solid_objects_schema_migrations ORDER BY version",
       ),
     )
-    expect(versions.map(({ version }) => Number(version))).toEqual([
-      1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11,
-    ])
+    expect(versions.map(({ version }) => Number(version))).toEqual([...SCHEMA_VERSIONS])
     expect(await installedPollingIndexes(runtime)).toEqual(POLLING_INDEX_COLUMNS)
   })
 

@@ -20,11 +20,12 @@ import type {
   EffectRow,
   EnqueueInput,
   InstanceRow,
+  RememberedKey,
   MessageRow,
   ProcessRow,
   ReminderRow,
 } from "./records.js"
-import { jsonObject, normalizeJson } from "./serialization.js"
+import { jsonObject, normalizeJson, utf8ByteLength } from "./serialization.js"
 import type { RetentionTarget } from "./retention.js"
 import type {
   EffectFailurePayload,
@@ -712,11 +713,12 @@ export class Repository {
 
       await connection.run(
         `UPDATE ${this.table("instances")} SET state = ?, state_version = ?, state_revision = ?,
-         updated_at_ms = ? WHERE id = ?`,
+         completed_idempotency_keys = ?, updated_at_ms = ? WHERE id = ?`,
         [
           JSON.stringify(input.state),
           input.stateVersion,
           turn.message.sequence,
+          await this.rememberedKeys(connection, turn),
           now,
           turn.instance.id,
         ],
@@ -940,6 +942,7 @@ export class Repository {
         `UPDATE ${this.table("messages")} SET rejection = ?, completed_at_ms = ?, updated_at_ms = ? WHERE id = ?`,
         [JSON.stringify(rejection), now, now, turn.message.id],
       )
+      await this.rememberKeys(connection, turn)
       await this.releaseClaim({ connection, turn })
     })
   }
@@ -971,6 +974,7 @@ export class Repository {
             now,
           ],
         )
+        await this.rememberKeys(connection, turn)
         await this.releaseClaim({ connection, turn })
         return "dead" as const
       }
@@ -999,6 +1003,45 @@ export class Repository {
     )
   }
 
+  async findMessageByRequestId(requestId: string): Promise<MessageRow | undefined> {
+    return this.settings.database.connection((connection) =>
+      connection.get<MessageRow>(`SELECT * FROM ${this.table("messages")} WHERE request_id = ?`, [
+        requestId,
+      ]),
+    )
+  }
+
+  async rememberedIdempotencyKey(input: {
+    actorType: string
+    actorId: string
+    idempotencyKey: string
+  }): Promise<RememberedKey | undefined> {
+    const row = await this.settings.database.connection((connection) =>
+      connection.get<Pick<InstanceRow, "completed_idempotency_keys">>(
+        `SELECT completed_idempotency_keys FROM ${this.table("instances")}
+         WHERE actor_type = ? AND actor_id = ?`,
+        [input.actorType, input.actorId],
+      ),
+    )
+    return rememberedList(row?.completed_idempotency_keys ?? null).find(
+      (entry) => entry.key === input.idempotencyKey,
+    )
+  }
+
+  async findMessageByIdempotencyKey(input: {
+    actorType: string
+    actorId: string
+    idempotencyKey: string
+  }): Promise<MessageRow | undefined> {
+    return this.settings.database.connection((connection) =>
+      connection.get<MessageRow>(
+        `SELECT * FROM ${this.table("messages")}
+         WHERE actor_type = ? AND actor_id = ? AND idempotency_key = ?`,
+        [input.actorType, input.actorId, input.idempotencyKey],
+      ),
+    )
+  }
+
   async messageSnapshot(
     id: string,
   ): Promise<{ message: MessageRow | undefined; status: MessageStatus }> {
@@ -1020,34 +1063,46 @@ export class Repository {
     })
   }
 
-  async messageStatus(
+  async messageWithStatus(
     id: string,
-  ): Promise<"ready" | "claimed" | "completed" | "rejected" | "dead" | "unknown"> {
+  ): Promise<{ message: MessageRow; status: MessageStatus } | undefined> {
     return this.settings.database.connection(async (connection) => {
       const message = await connection.get<MessageRow>(
         `SELECT * FROM ${this.table("messages")} WHERE id = ?`,
         [id],
       )
-      if (!message) return "unknown"
-      if (message.rejection !== null) return "rejected"
-      if (message.completed_at_ms !== null) {
-        const dead = await connection.get<{ found: number | bigint }>(
-          `SELECT 1 AS found FROM ${this.table("dead_letters")} WHERE message_id = ?`,
-          [id],
-        )
-        return dead ? "dead" : "completed"
-      }
-      const claimed = await connection.get<{ found: number | bigint }>(
-        `SELECT 1 AS found FROM ${this.table("claimed_messages")} WHERE message_id = ?`,
-        [id],
-      )
-      if (claimed) return "claimed"
-      const ready = await connection.get<{ found: number | bigint }>(
-        `SELECT 1 AS found FROM ${this.table("ready_messages")} WHERE message_id = ?`,
-        [id],
-      )
-      return ready ? "ready" : "unknown"
+      if (!message) return undefined
+      return { message, status: await this.statusOf({ connection, message }) }
     })
+  }
+
+  async messageStatus(id: string): Promise<MessageStatus> {
+    return (await this.messageWithStatus(id))?.status ?? "unknown"
+  }
+
+  private async statusOf(options: {
+    connection: DatabaseConnection
+    message: MessageRow
+  }): Promise<MessageStatus> {
+    const { connection, message } = options
+    if (message.rejection !== null) return "rejected"
+    if (message.completed_at_ms !== null) {
+      const dead = await connection.get<{ found: number | bigint }>(
+        `SELECT 1 AS found FROM ${this.table("dead_letters")} WHERE message_id = ?`,
+        [message.id],
+      )
+      return dead ? "dead" : "completed"
+    }
+    const claimed = await connection.get<{ found: number | bigint }>(
+      `SELECT 1 AS found FROM ${this.table("claimed_messages")} WHERE message_id = ?`,
+      [message.id],
+    )
+    if (claimed) return "claimed"
+    const ready = await connection.get<{ found: number | bigint }>(
+      `SELECT 1 AS found FROM ${this.table("ready_messages")} WHERE message_id = ?`,
+      [message.id],
+    )
+    return ready ? "ready" : "unknown"
   }
 
   async syncDiagnostics(messageId: string): Promise<SyncDiagnosticsRecord | undefined> {
@@ -2218,6 +2273,43 @@ export class Repository {
     }
   }
 
+  private async rememberKeys(connection: DatabaseConnection, turn: ClaimedTurn): Promise<void> {
+    if (turn.message.idempotency_key === null) return
+
+    await connection.run(
+      `UPDATE ${this.table("instances")} SET completed_idempotency_keys = ? WHERE id = ?`,
+      [await this.rememberedKeys(connection, turn), turn.instance.id],
+    )
+  }
+
+  private async rememberedKeys(
+    connection: DatabaseConnection,
+    turn: ClaimedTurn,
+  ): Promise<string | null> {
+    const row = await connection.get<Pick<InstanceRow, "completed_idempotency_keys">>(
+      `SELECT completed_idempotency_keys FROM ${this.table("instances")} WHERE id = ?`,
+      [turn.instance.id],
+    )
+    const stored = row?.completed_idempotency_keys ?? null
+    const key = turn.message.idempotency_key
+    if (key === null) return stored
+
+    const remembered = rememberedList(stored)
+    const entry = {
+      key,
+      operation: turn.message.operation,
+      arguments: jsonObject(JSON.parse(turn.message.arguments)),
+    }
+
+    return JSON.stringify(
+      boundedKeys({
+        keys: [...remembered.filter((value) => value.key !== key), entry],
+        count: this.settings.retainedIdempotencyKeys,
+        bytes: this.settings.retainedIdempotencyKeysBytes,
+      }),
+    )
+  }
+
   private async assertFence(connection: DatabaseConnection, turn: ClaimedTurn): Promise<number> {
     const instance = await this.lockActivationFence(connection, turn.instance.id)
     const now = await connection.nowMilliseconds()
@@ -2349,6 +2441,32 @@ function retentionPolicy(options: {
     sql: conditions.length === 0 ? "0 = 1" : `(${conditions.join(" OR ")})`,
     parameters,
   }
+}
+
+export function boundedKeys(options: {
+  keys: RememberedKey[]
+  count: number
+  bytes: number
+}): RememberedKey[] {
+  const kept = options.keys.slice(-options.count)
+  while (kept.length > 0 && utf8ByteLength(JSON.stringify(kept)) > options.bytes) kept.shift()
+  return kept
+}
+
+export function rememberedList(stored: string | null): RememberedKey[] {
+  if (stored === null) return []
+  const parsed = JSON.parse(stored) as RememberedKey[]
+  if (!Array.isArray(parsed)) return []
+  return parsed.filter(
+    (value) =>
+      value !== null &&
+      typeof value === "object" &&
+      typeof value.key === "string" &&
+      typeof value.operation === "string" &&
+      value.arguments !== null &&
+      typeof value.arguments === "object" &&
+      !Array.isArray(value.arguments),
+  )
 }
 
 function parameterList(length: number): string {

@@ -87,6 +87,8 @@ polling remains the correctness path.
 | `instanceRetentionByActorType`           |              `{}` | Positive per-type instance-expiration opt-ins.                   |
 | `processRetentionMilliseconds`           |            7 days | Positive stopped-process retention.                              |
 | `pruneBatchSize`                         |           `1_000` | Positive integer maximum rows rechecked per pruning transaction. |
+| `retainedIdempotencyKeys`                |              `64` | Positive integer idempotency keys an actor remembers.            |
+| `retainedIdempotencyKeysBytes`           |          `16_384` | Positive integer serialized size those keys must fit.            |
 | `redriveBatchSize`                       |             `100` | Positive integer rows a redrive moves per transaction.           |
 | `redriveBatchPauseMilliseconds`          |              `50` | Non-negative pause between redrive batches.                      |
 | `administrationIdentity`                 | `String(context)` | Names the operator recorded in an administration event.          |

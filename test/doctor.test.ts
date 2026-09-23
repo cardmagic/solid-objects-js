@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it } from "vitest"
 import { Actor } from "../src/actor.js"
 import { sqlite } from "../src/database/sqlite.js"
 import { configure, type SolidObjectsRuntime } from "../src/runtime.js"
+import { SCHEMA_VERSIONS } from "../src/schema.js"
 
 let runtime: SolidObjectsRuntime | undefined
 
@@ -27,7 +28,7 @@ describe("runtime doctor", () => {
     expect(check(report, "configuration").status).toBe("pass")
     expect(check(report, "schema")).toMatchObject({
       status: "pass",
-      details: { versions: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11] },
+      details: { versions: [...SCHEMA_VERSIONS] },
     })
     expect(check(report, "authorization").status).toBe("pass")
     expect(check(report, "database").status).toBe("pass")
@@ -143,6 +144,24 @@ describe("runtime doctor", () => {
     })
     expect(check(report, "runtime").status).toBe("skip")
     expect(check(report, "roundTrip").status).toBe("skip")
+  })
+
+  it("fails when a migration that a runtime path needs is missing", async () => {
+    runtime = configuredRuntime()
+    await runtime.install()
+    await runtime.settings.database.transaction((connection) =>
+      connection.run(
+        `ALTER TABLE ${runtime!.repository.table("instances")} DROP COLUMN completed_idempotency_keys`,
+      ),
+    )
+
+    const report = await runtime.doctor.run()
+
+    expect(report.healthy).toBe(false)
+    expect(check(report, "schema")).toMatchObject({
+      status: "fail",
+      message: expect.stringContaining("completed_idempotency_keys"),
+    })
   })
 
   it("reports live runtime roles by kind", async () => {

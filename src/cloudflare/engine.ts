@@ -37,6 +37,7 @@ import type {
   ScheduledReminder,
 } from "../types.js"
 import type { CloudflareSettings } from "./configuration.js"
+import { boundedKeys } from "../repository.js"
 import { actorName, callHost, type ActorIdentity, type HostRequest } from "./protocol.js"
 import type { Instance, Message, Outbox, Reminder, Subscription } from "./records.js"
 import { beforeDeadline, CloudflareRuntime } from "./runtime.js"
@@ -311,38 +312,73 @@ export class ActorEngine {
   }
 
   private async readMessage(input: HostRequest): Promise<JsonValue> {
-    let message: Message | undefined
-    if (input.method === "lookup") {
-      if (
-        !(await this.settings.authorizeQuery({
-          ...input,
-          operation: "__lookupMessage__",
-          arguments: {},
-        }))
-      )
-        throw new Unauthorized("message lookup is not authorized")
-      const receipt = this.store.storage.sql
-        .exec<{ message_id: string }>(
-          "SELECT message_id FROM receipts WHERE request_id = ?",
-          String(input.payload.requestId),
-        )
-        .toArray()[0]
-      message = receipt ? this.store.message(receipt.message_id) : undefined
-      if (!message) return null
-    } else {
-      message = this.store.message(String(input.payload.id))
-      if (
-        !message ||
-        message.requestId !== input.payload.requestId ||
-        message.sequence !== input.payload.sequence
-      )
-        throw new Unauthorized("message reference is not authorized")
-    }
+    const lookup = input.method === "lookup"
+    const message = lookup ? this.lookUp(input) : this.store.message(String(input.payload.id))
+    if (lookup && !message) return this.prunedReply(input)
+    if (
+      !message ||
+      (!lookup &&
+        (message.requestId !== input.payload.requestId ||
+          message.sequence !== input.payload.sequence))
+    )
+      throw new Unauthorized("message reference is not authorized")
     await this.authorizeOperation(input, message)
     this.bind(input)
     if (message.incarnation !== this.store.instance()?.incarnation)
       throw new ActorDestroyed("actor was destroyed")
     return normalizeJson(message)
+  }
+
+  private lookUp(input: HostRequest): Message | undefined {
+    if (input.payload.idempotencyKey !== undefined) {
+      return this.store.rows<Message>("SELECT record FROM messages WHERE idempotency_key = ?", [
+        String(input.payload.idempotencyKey),
+      ])[0]
+    }
+    const receipt = this.store.storage.sql
+      .exec<{ message_id: string }>(
+        "SELECT message_id FROM receipts WHERE request_id = ?",
+        String(input.payload.requestId),
+      )
+      .toArray()[0]
+    return receipt ? this.store.message(receipt.message_id) : undefined
+  }
+
+  private async prunedReply(input: HostRequest): Promise<JsonValue> {
+    const key = input.payload.idempotencyKey
+    if (key === undefined) return null
+    const remembered = (this.store.instance()?.completedIdempotencyKeys ?? []).find(
+      (entry) => entry.key === String(key),
+    )
+    if (!remembered || !remembered.arguments) return null
+    const definition = this.definition(input.actorType)
+    const query = definition.queries.includes(remembered.operation)
+    if (!query && !definition.operations.includes(remembered.operation)) return null
+    const authorize = query ? this.settings.authorizeQuery : this.settings.authorizeMessage
+    if (
+      !(await authorize({
+        ...input,
+        operation: remembered.operation,
+        arguments: remembered.arguments,
+      }))
+    )
+      return null
+
+    return { pruned: true }
+  }
+
+  private rememberKey(instance: Instance, message: Message): void {
+    const key = message.idempotencyKey
+    if (key === null) return
+
+    const remembered = instance.completedIdempotencyKeys ?? []
+    const entry = { key, operation: message.operation, arguments: message.arguments }
+
+    instance.completedIdempotencyKeys = boundedKeys({
+      keys: [...remembered.filter((value) => value.key !== key), entry],
+      count: this.settings.retainedIdempotencyKeys,
+      bytes: this.settings.retainedIdempotencyKeysBytes,
+    })
   }
 
   private committed(identity: ActorIdentity) {
@@ -589,6 +625,7 @@ export class ActorEngine {
         current.state = evaluated.state
         current.stateVersion = definition.stateVersion
         current.revision = message.sequence
+        this.rememberKey(current, message)
         this.store.saveInstance(current)
         message.status = "completed"
         message.result = evaluated.result
@@ -622,6 +659,8 @@ export class ActorEngine {
             details: jsonObject(error.details),
           }
           message.completedAt = Date.now()
+          this.rememberKey(current, message)
+          this.store.saveInstance(current)
           this.completeReminder(message)
         } else {
           message.error = {
@@ -634,6 +673,7 @@ export class ActorEngine {
           message.availableAt = Date.now() + this.retryDelay(message.attempt)
           if (exhausted) {
             current.paused = true
+            this.rememberKey(current, message)
             this.store.saveInstance(current)
             this.pauseReminder(message)
           }
@@ -647,6 +687,7 @@ export class ActorEngine {
           message.rejection = null
           message.error = { name: storageError.name, message: storageError.message }
           current.paused = true
+          this.rememberKey(current, message)
           this.store.saveInstance(current)
           this.pauseReminder(message)
           this.store.saveMessage(message)

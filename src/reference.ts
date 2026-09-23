@@ -1,5 +1,6 @@
 import type { Actor, ActorClass } from "./actor.js"
 import { SyncInsideTransaction, UnknownOperation } from "./errors.js"
+import type { Outcome } from "./outcome.js"
 import type { ActorRuntime } from "./actor-runtime.js"
 import type {
   AsyncInvocationOptions,
@@ -164,6 +165,10 @@ export class MessageReference<Result = unknown> {
     return this.runtime.messageResult<Result>(this, options)
   }
 
+  outcome(options: SnapshotOptions = {}): Promise<Outcome<Result>> {
+    return this.runtime.messageOutcome<Result>(this, options)
+  }
+
   wait(options: InvocationOptions = {}): Promise<DeepReadonly<Result>> {
     if (this.databaseTransactionActive()) {
       throw new SyncInsideTransaction({
@@ -245,6 +250,16 @@ export class ActorReferenceCore<ActorType extends Actor> {
     }
     this.#live ??= liveSignalsFactory(this as unknown as ActorReferenceCore<Actor>)
     return this.#live as ActorLiveSignals<ActorType>
+  }
+
+  findBy(
+    options: { idempotencyKey: string } & SnapshotOptions,
+  ): Promise<MessageReference | undefined> {
+    return this.runtime.findBy({
+      reference: this,
+      idempotencyKey: options.idempotencyKey,
+      authorizationContext: options.authorizationContext,
+    })
   }
 
   snapshot(options: SnapshotOptions = {}): Promise<ActorSnapshot<ActorType>> {

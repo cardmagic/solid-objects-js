@@ -6,8 +6,10 @@ import type {
   ActorSnapshot,
   MessageReference,
 } from "./reference.js"
+import type { Outcome } from "./outcome.js"
 import type {
   ActorIdentifier,
+  AdministrationOptions,
   AsyncInvocationOptions,
   DeepReadonly,
   DestroyOptions,
@@ -48,6 +50,16 @@ export interface ActorRuntime {
     options?: InvocationOptions,
   ): Promise<DeepReadonly<Result>>
   messageStatus(reference: MessageReference, options?: SnapshotOptions): Promise<MessageStatus>
+  messageOutcome<Result>(
+    reference: MessageReference<Result>,
+    options?: SnapshotOptions,
+  ): Promise<Outcome<Result>>
+  findBy(input: {
+    reference?: ActorReferenceCore<Actor>
+    requestId?: string
+    idempotencyKey?: string
+    authorizationContext?: AdministrationOptions["authorizationContext"]
+  }): Promise<MessageReference | undefined>
   messageResult<Result>(
     reference: MessageReference<Result>,
     options?: SnapshotOptions,

@@ -1,5 +1,6 @@
 import type { JsonObject, JsonValue, MessageStatus } from "../types.js"
 import type { ActorIdentity } from "./protocol.js"
+import type { RememberedKey } from "../records.js"
 
 export interface Instance extends ActorIdentity {
   incarnation: string
@@ -11,6 +12,7 @@ export interface Instance extends ActorIdentity {
   stateVersion: number
   createdAt: number
   paused: boolean
+  completedIdempotencyKeys?: RememberedKey[]
 }
 
 export interface Message {
