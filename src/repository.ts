@@ -1073,17 +1073,8 @@ export class Repository {
     })
   }
 
-  async messageStatus(
-    id: string,
-  ): Promise<"ready" | "claimed" | "completed" | "rejected" | "dead" | "unknown"> {
-    return this.settings.database.connection(async (connection) => {
-      const message = await connection.get<MessageRow>(
-        `SELECT * FROM ${this.table("messages")} WHERE id = ?`,
-        [id],
-      )
-      if (!message) return "unknown"
-      return this.statusOf({ connection, message })
-    })
+  async messageStatus(id: string): Promise<MessageStatus> {
+    return (await this.messageWithStatus(id))?.status ?? "unknown"
   }
 
   private async statusOf(options: {
@@ -1091,27 +1082,24 @@ export class Repository {
     message: MessageRow
   }): Promise<MessageStatus> {
     const { connection, message } = options
-    const id = message.id
-    {
-      if (message.rejection !== null) return "rejected"
-      if (message.completed_at_ms !== null) {
-        const dead = await connection.get<{ found: number | bigint }>(
-          `SELECT 1 AS found FROM ${this.table("dead_letters")} WHERE message_id = ?`,
-          [id],
-        )
-        return dead ? "dead" : "completed"
-      }
-      const claimed = await connection.get<{ found: number | bigint }>(
-        `SELECT 1 AS found FROM ${this.table("claimed_messages")} WHERE message_id = ?`,
-        [id],
+    if (message.rejection !== null) return "rejected"
+    if (message.completed_at_ms !== null) {
+      const dead = await connection.get<{ found: number | bigint }>(
+        `SELECT 1 AS found FROM ${this.table("dead_letters")} WHERE message_id = ?`,
+        [message.id],
       )
-      if (claimed) return "claimed"
-      const ready = await connection.get<{ found: number | bigint }>(
-        `SELECT 1 AS found FROM ${this.table("ready_messages")} WHERE message_id = ?`,
-        [id],
-      )
-      return ready ? "ready" : "unknown"
+      return dead ? "dead" : "completed"
     }
+    const claimed = await connection.get<{ found: number | bigint }>(
+      `SELECT 1 AS found FROM ${this.table("claimed_messages")} WHERE message_id = ?`,
+      [message.id],
+    )
+    if (claimed) return "claimed"
+    const ready = await connection.get<{ found: number | bigint }>(
+      `SELECT 1 AS found FROM ${this.table("ready_messages")} WHERE message_id = ?`,
+      [message.id],
+    )
+    return ready ? "ready" : "unknown"
   }
 
   async syncDiagnostics(messageId: string): Promise<SyncDiagnosticsRecord | undefined> {
