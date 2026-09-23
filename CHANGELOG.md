@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.16.0 - 2026-09-23
 
 - Find a message whose reference a caller lost. `runtime.findBy({ requestId })`
   answers a request id, which is unique across the table, and
