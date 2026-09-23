@@ -1,4 +1,4 @@
-import type { DeepReadonly, JsonObject, MessageStatus } from "./types.js"
+import type { DeepReadonly, JsonObject, JsonValue, MessageStatus } from "./types.js"
 
 export interface ErrorRecord {
   readonly name: string
@@ -11,7 +11,7 @@ export interface RejectionRecord {
   readonly details: DeepReadonly<JsonObject>
 }
 
-export interface Outcome<Result = unknown> {
+export interface Outcome<Result = JsonValue> {
   readonly status: MessageStatus
   readonly result: DeepReadonly<Result> | undefined
   readonly error: ErrorRecord | undefined

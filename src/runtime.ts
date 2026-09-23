@@ -722,16 +722,30 @@ export class SolidObjectsRuntime {
       messageReference,
       options.authorizationContext,
     )
+    const found = await this.repository.messageWithStatus(message.id)
+    if (!found) {
+      return Object.freeze({
+        status: "unknown" as const,
+        result: undefined,
+        error: undefined,
+        rejection: undefined,
+        attempts: 0,
+      })
+    }
+
+    const snapshot = found.message
     return Object.freeze({
-      status: await this.repository.messageStatus(message.id),
+      status: found.status,
       result:
-        message.result === null
+        snapshot.result === null
           ? undefined
-          : (normalizeJson(JSON.parse(message.result)) as DeepReadonly<Result>),
-      error: message.error === null ? undefined : (JSON.parse(message.error) as ErrorRecord),
+          : (normalizeJson(JSON.parse(snapshot.result)) as DeepReadonly<Result>),
+      error: snapshot.error === null ? undefined : (JSON.parse(snapshot.error) as ErrorRecord),
       rejection:
-        message.rejection === null ? undefined : (JSON.parse(message.rejection) as RejectionRecord),
-      attempts: Number(message.attempt_count),
+        snapshot.rejection === null
+          ? undefined
+          : (JSON.parse(snapshot.rejection) as RejectionRecord),
+      attempts: Number(snapshot.attempt_count),
     })
   }
 
@@ -1757,8 +1771,9 @@ export class SolidObjectsRuntime {
         authorizationContext,
       })
       return true
-    } catch {
-      return false
+    } catch (error) {
+      if (error instanceof Unauthorized) return false
+      throw error
     }
   }
 
@@ -1793,8 +1808,9 @@ export class SolidObjectsRuntime {
         authorizationContext,
       })
       return true
-    } catch {
-      return false
+    } catch (error) {
+      if (error instanceof Unauthorized || error instanceof UnknownActorType) return false
+      throw error
     }
   }
 

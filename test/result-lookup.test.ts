@@ -3,6 +3,7 @@ import { Actor } from "../src/actor.js"
 import { sqlite } from "../src/database/sqlite.js"
 import { MessagePruned, Rejected } from "../src/errors.js"
 import { configure, type SolidObjectsRuntime } from "../src/runtime.js"
+import type { JsonObject } from "../src/types.js"
 
 class CartActor extends Actor {
   static override readonly actorType = "LookupCartActor"
@@ -26,7 +27,7 @@ class CartActor extends Actor {
 }
 
 let runtime: SolidObjectsRuntime | undefined
-let seenOperations: { operation: string; argumentsValue: unknown }[] = []
+let seenOperations: { operation: string; argumentsValue: JsonObject }[] = []
 let hooks: string[] = []
 
 afterEach(async () => {
@@ -410,16 +411,48 @@ describe("result lookup", () => {
 
   it("keeps request ids unique across the table", async () => {
     const active = await start()
-    const original = await active.ref(CartActor, "alice").send.checkout({ orderId: 1 })
+    const first = await active.ref(CartActor, "alice").send.checkout({ orderId: 1 })
+    const second = await active.ref(CartActor, "bob").send.checkout({ orderId: 2 })
 
     await expect(
       active.settings.database.transaction((connection) =>
         connection.run(
           `UPDATE ${active.repository.table("messages")} SET request_id = ? WHERE id = ?`,
-          [original.requestId, "impossible"],
+          [first.requestId, second.id],
         ),
       ),
-    ).resolves.toBeDefined()
+    ).rejects.toThrow()
+  })
+
+  it("reports one snapshot for every outcome field", async () => {
+    const active = await start()
+    const original = await active.ref(CartActor, "alice").send.checkout({ orderId: 4210 })
+    await active.worker().runUntilIdle()
+    const found = await active.findBy({ requestId: original.requestId })
+    active.repository.messageStatus = () => {
+      throw new Error("outcome must not read the status separately")
+    }
+
+    const outcome = await found!.outcome()
+
+    expect(outcome.status).toBe("completed")
+    expect(outcome.result).toEqual({ orderId: 4210 })
+  })
+
+  it("propagates an authorization failure rather than reporting absence", async () => {
+    const active = await start()
+    const original = await active.ref(CartActor, "alice").send.checkout({ orderId: 1 })
+    const failing = configure({
+      database: active.settings.database,
+      authorizeMessage: () => {
+        throw new Error("authorization service is down")
+      },
+    })
+    failing.register(CartActor)
+
+    await expect(failing.findBy({ requestId: original.requestId })).rejects.toThrow(
+      /authorization service is down/,
+    )
   })
 })
 

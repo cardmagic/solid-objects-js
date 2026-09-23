@@ -1060,6 +1060,19 @@ export class Repository {
     })
   }
 
+  async messageWithStatus(
+    id: string,
+  ): Promise<{ message: MessageRow; status: MessageStatus } | undefined> {
+    return this.settings.database.connection(async (connection) => {
+      const message = await connection.get<MessageRow>(
+        `SELECT * FROM ${this.table("messages")} WHERE id = ?`,
+        [id],
+      )
+      if (!message) return undefined
+      return { message, status: await this.statusOf({ connection, message }) }
+    })
+  }
+
   async messageStatus(
     id: string,
   ): Promise<"ready" | "claimed" | "completed" | "rejected" | "dead" | "unknown"> {
@@ -1069,6 +1082,17 @@ export class Repository {
         [id],
       )
       if (!message) return "unknown"
+      return this.statusOf({ connection, message })
+    })
+  }
+
+  private async statusOf(options: {
+    connection: DatabaseConnection
+    message: MessageRow
+  }): Promise<MessageStatus> {
+    const { connection, message } = options
+    const id = message.id
+    {
       if (message.rejection !== null) return "rejected"
       if (message.completed_at_ms !== null) {
         const dead = await connection.get<{ found: number | bigint }>(
@@ -1087,7 +1111,7 @@ export class Repository {
         [id],
       )
       return ready ? "ready" : "unknown"
-    })
+    }
   }
 
   async syncDiagnostics(messageId: string): Promise<SyncDiagnosticsRecord | undefined> {
