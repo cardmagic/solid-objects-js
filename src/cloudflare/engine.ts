@@ -314,14 +314,6 @@ export class ActorEngine {
   private async readMessage(input: HostRequest): Promise<JsonValue> {
     let message: Message | undefined
     if (input.method === "lookup") {
-      if (
-        !(await this.settings.authorizeQuery({
-          ...input,
-          operation: "__lookupMessage__",
-          arguments: {},
-        }))
-      )
-        throw new Unauthorized("message lookup is not authorized")
       message = this.lookUp(input)
       if (!message) return this.prunedReply(input)
     } else {
@@ -355,11 +347,25 @@ export class ActorEngine {
     return receipt ? this.store.message(receipt.message_id) : undefined
   }
 
-  private prunedReply(input: HostRequest): JsonValue {
+  private async prunedReply(input: HostRequest): Promise<JsonValue> {
     const key = input.payload.idempotencyKey
     if (key === undefined) return null
-    const remembered = this.store.instance()?.completedIdempotencyKeys ?? []
-    return remembered.includes(String(key)) ? { pruned: true } : null
+    const remembered = (this.store.instance()?.completedIdempotencyKeys ?? []).find(
+      (entry) => entry.key === String(key),
+    )
+    if (!remembered) return null
+    if (!(await this.authorizedOperation(input, remembered.operation))) return null
+
+    return { pruned: true }
+  }
+
+  private async authorizedOperation(input: HostRequest, operation: string): Promise<boolean> {
+    const definition = this.definition(input.actorType)
+    const query = definition.queries.includes(operation)
+    if (!query && !definition.operations.includes(operation)) return false
+
+    const authorize = query ? this.settings.authorizeQuery : this.settings.authorizeMessage
+    return authorize({ ...input, operation, arguments: {} })
   }
 
   private rememberKey(instance: Instance, message: Message): void {
@@ -367,10 +373,11 @@ export class ActorEngine {
     if (key === null) return
 
     const remembered = instance.completedIdempotencyKeys ?? []
-    if (remembered.at(-1) === key) return
+    const entry = { key, operation: message.operation }
+    if (remembered.at(-1)?.key === key && remembered.at(-1)?.operation === entry.operation) return
 
     instance.completedIdempotencyKeys = boundedKeys({
-      keys: [...remembered.filter((value) => value !== key), key],
+      keys: [...remembered.filter((value) => value.key !== key), entry],
       count: this.settings.retainedIdempotencyKeys,
       bytes: this.settings.retainedIdempotencyKeysBytes,
     })
@@ -682,6 +689,7 @@ export class ActorEngine {
           message.rejection = null
           message.error = { name: storageError.name, message: storageError.message }
           current.paused = true
+          this.rememberKey(current, message)
           this.store.saveInstance(current)
           this.pauseReminder(message)
           this.store.saveMessage(message)

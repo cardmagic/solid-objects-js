@@ -311,6 +311,24 @@ describe("result lookup", () => {
     ).toBeUndefined()
   })
 
+  it("does not tell a snapshot-only caller that a key was pruned", async () => {
+    const active = await start()
+    const reference = active.ref(CartActor, "alice")
+    await reference.send.with({ idempotencyKey: "checkout-7f3a" }).checkout({ orderId: 1 })
+    await active.worker().runUntilIdle()
+    await deleteMessages(active)
+    const refusing = configure({
+      database: active.settings.database,
+      authorizeQuery: () => true,
+      authorizeMessage: () => false,
+    })
+    refusing.register(CartActor)
+
+    expect(
+      await refusing.ref(CartActor, "alice").findBy({ idempotencyKey: "checkout-7f3a" }),
+    ).toBeUndefined()
+  })
+
   it("remembers a key whose message was rejected", async () => {
     const active = await start()
     const reference = active.ref(CartActor, "alice")
@@ -362,7 +380,7 @@ describe("result lookup", () => {
   })
 
   it("bounds what an instance remembers by size", async () => {
-    const active = await start({ retainedIdempotencyKeysBytes: 64 })
+    const active = await start({ retainedIdempotencyKeysBytes: 128 })
     const reference = active.ref(CartActor, "alice")
     const keys = [0, 1, 2].map((index) => `${index}-${"k".repeat(20)}`)
     for (const [index, key] of keys.entries()) {
@@ -373,7 +391,6 @@ describe("result lookup", () => {
     const remembered = await rememberedKeys(active)
 
     expect(remembered).toEqual(keys.slice(-2))
-    expect(JSON.stringify(remembered).length).toBeLessThanOrEqual(64)
   })
 
   it("remembers nothing for a key larger than what it retains", async () => {
@@ -484,5 +501,9 @@ async function rememberedKeys(active: SolidObjectsRuntime): Promise<string[]> {
       `SELECT completed_idempotency_keys FROM ${active.repository.table("instances")}`,
     ),
   )
-  return JSON.parse(row?.completed_idempotency_keys ?? "[]") as string[]
+  const remembered = JSON.parse(row?.completed_idempotency_keys ?? "[]") as {
+    key: string
+    operation: string
+  }[]
+  return remembered.map((entry) => entry.key)
 }

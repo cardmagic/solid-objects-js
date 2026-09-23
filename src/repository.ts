@@ -20,6 +20,7 @@ import type {
   EffectRow,
   EnqueueInput,
   InstanceRow,
+  RememberedKey,
   MessageRow,
   ProcessRow,
   ReminderRow,
@@ -1010,11 +1011,11 @@ export class Repository {
     )
   }
 
-  async remembersIdempotencyKey(input: {
+  async rememberedIdempotencyKey(input: {
     actorType: string
     actorId: string
     idempotencyKey: string
-  }): Promise<boolean> {
+  }): Promise<RememberedKey | undefined> {
     const row = await this.settings.database.connection((connection) =>
       connection.get<Pick<InstanceRow, "completed_idempotency_keys">>(
         `SELECT completed_idempotency_keys FROM ${this.table("instances")}
@@ -1022,7 +1023,9 @@ export class Repository {
         [input.actorType, input.actorId],
       ),
     )
-    return rememberedList(row?.completed_idempotency_keys ?? null).includes(input.idempotencyKey)
+    return rememberedList(row?.completed_idempotency_keys ?? null).find(
+      (entry) => entry.key === input.idempotencyKey,
+    )
   }
 
   async findMessageByIdempotencyKey(input: {
@@ -2292,11 +2295,14 @@ export class Repository {
     if (key === null) return stored
 
     const remembered = rememberedList(stored)
-    if (remembered.at(-1) === key) return stored
+    const entry = { key, operation: turn.message.operation }
+    if (remembered.at(-1)?.key === key && remembered.at(-1)?.operation === entry.operation) {
+      return stored
+    }
 
     return JSON.stringify(
       boundedKeys({
-        keys: [...remembered.filter((value) => value !== key), key],
+        keys: [...remembered.filter((value) => value.key !== key), entry],
         count: this.settings.retainedIdempotencyKeys,
         bytes: this.settings.retainedIdempotencyKeysBytes,
       }),
@@ -2436,17 +2442,27 @@ function retentionPolicy(options: {
   }
 }
 
-export function boundedKeys(options: { keys: string[]; count: number; bytes: number }): string[] {
+export function boundedKeys(options: {
+  keys: RememberedKey[]
+  count: number
+  bytes: number
+}): RememberedKey[] {
   const kept = options.keys.slice(-options.count)
   while (kept.length > 0 && utf8ByteLength(JSON.stringify(kept)) > options.bytes) kept.shift()
   return kept
 }
 
-function rememberedList(stored: string | null): string[] {
+export function rememberedList(stored: string | null): RememberedKey[] {
   if (stored === null) return []
-  const parsed: unknown = JSON.parse(stored)
+  const parsed = JSON.parse(stored) as RememberedKey[]
   if (!Array.isArray(parsed)) return []
-  return parsed.filter((value): value is string => typeof value === "string")
+  return parsed.filter(
+    (value) =>
+      value !== null &&
+      typeof value === "object" &&
+      typeof value.key === "string" &&
+      typeof value.operation === "string",
+  )
 }
 
 function parameterList(length: number): string {

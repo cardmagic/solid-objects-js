@@ -24,8 +24,13 @@
   no second write. `reference.findBy({ idempotencyKey })` throws
   `MessagePruned` for a key the actor remembers and whose message retention
   removed, and still returns `undefined` for a key no caller ever sent. The
-  memory is actor state, so a caller that `authorizeQuery` refuses reads
-  `undefined` for both. `retainedIdempotencyKeys` bounds the memory and defaults
+  An actor remembers the operation beside each key, so the pruned answer runs
+  the same hook against the same operation a lookup of the surviving row would,
+  and a caller the policy refuses reads `undefined` for both. Gating it on
+  `snapshot` would have told a caller who may read state, but not the
+  operation, that the operation had run. The Durable Objects lookup no longer
+  demands a synthetic `__lookupMessage__` query in addition, which a policy
+  that allows only declared queries refused. `retainedIdempotencyKeys` bounds the memory and defaults
   to 64 keys for each actor. A lookup by request id cannot make the
   distinction, because the runtime generates a request id and no actor
   remembers one. `retainedIdempotencyKeysBytes` bounds the serialized memory as

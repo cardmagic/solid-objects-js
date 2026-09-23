@@ -157,7 +157,7 @@ export class CloudflareRuntime implements ActorRuntime {
         input.requestId === undefined
           ? { idempotencyKey: input.idempotencyKey! }
           : { requestId: input.requestId },
-    }).catch((error: unknown) => {
+    }).catch((error) => {
       if (error instanceof Unauthorized) return null
       throw error
     })
@@ -177,12 +177,9 @@ export class CloudflareRuntime implements ActorRuntime {
       status: record.status as MessageStatus,
       result:
         record.result === null ? undefined : (readonlyCopy(record.result) as DeepReadonly<Result>),
-      error:
-        record.error === null ? undefined : (jsonObject(record.error) as unknown as ErrorRecord),
+      error: record.error === null ? undefined : errorRecord(jsonObject(record.error)),
       rejection:
-        record.rejection === null
-          ? undefined
-          : (jsonObject(record.rejection) as unknown as RejectionRecord),
+        record.rejection === null ? undefined : rejectionRecord(jsonObject(record.rejection)),
       attempts: Number(record.attempt),
     })
   }
@@ -490,5 +487,17 @@ export async function beforeDeadline<Value>(
     ])
   } finally {
     if (timer !== undefined) clearTimeout(timer)
+  }
+}
+
+function errorRecord(value: JsonObject): ErrorRecord {
+  return { name: String(value.name), message: String(value.message) }
+}
+
+function rejectionRecord(value: JsonObject): RejectionRecord {
+  return {
+    code: String(value.code),
+    message: String(value.message),
+    details: readonlyCopy(jsonObject(value.details ?? {})),
   }
 }

@@ -370,7 +370,7 @@ describe("Cloudflare recovery and fencing", () => {
           .exec<{ value: string }>("SELECT value FROM metadata WHERE key = 'instance'")
           .one().value,
       ) as Instance
-      return instance.completedIdempotencyKeys
+      return instance.completedIdempotencyKeys?.map((entry) => entry.key)
     })
 
     expect(remembered).toEqual(["key-2", "key-3", "key-4"])
@@ -378,7 +378,7 @@ describe("Cloudflare recovery and fencing", () => {
 
   it("bounds what an instance remembers by size", async () => {
     const reference = runtime().ref(Counter, "bounded-key-bytes")
-    const key = "k".repeat(200)
+    const key = "k".repeat(400)
     const message = await reference.send
       .with({ authorizationContext, idempotencyKey: key })
       .increment()

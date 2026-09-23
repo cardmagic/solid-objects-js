@@ -562,8 +562,10 @@ class and result types are also exported for integration typing.
   `retainedIdempotencyKeys` finished turns, so `reference.findBy({
 idempotencyKey })` throws `MessagePruned` for a key the actor remembers and
   whose message retention removed, and returns `undefined` for a key no caller
-  ever sent. The memory is actor state, so a caller that `authorizeQuery`
-  refuses reads `undefined` for both. `runtime.findBy({ requestId })` returns
+  ever sent. An actor remembers the operation beside each key, so the pruned
+  answer runs the same hook against the same operation a lookup of the
+  surviving row would, and a caller the policy refuses reads `undefined` for
+  both. `runtime.findBy({ requestId })` returns
   `undefined` in both cases, because the runtime generates a request id and no
   actor remembers one.
 - `retainedIdempotencyKeysBytes` bounds the serialized memory as well, because

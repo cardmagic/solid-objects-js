@@ -147,3 +147,8 @@ export interface BroadcastRow {
   claimed_by: string | null
   error: string | null
 }
+
+export interface RememberedKey {
+  key: string
+  operation: string
+}

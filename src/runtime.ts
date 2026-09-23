@@ -1747,32 +1747,53 @@ export class SolidObjectsRuntime {
     if (input.idempotencyKey === undefined) return undefined
 
     const reference = input.reference!
-    const remembered = await this.repository.remembersIdempotencyKey({
+    const remembered = await this.repository.rememberedIdempotencyKey({
       actorType: reference.actorType,
       actorId: reference.actorId,
       idempotencyKey: input.idempotencyKey,
     })
     if (!remembered) return undefined
-    if (!(await this.readableState(reference, input.authorizationContext))) return undefined
+    const readable = await this.readableOperation({
+      actorType: reference.actorType,
+      actorId: reference.actorId,
+      operation: remembered.operation,
+      argumentsValue: {},
+      authorizationContext: input.authorizationContext,
+    })
+    if (!readable) return undefined
 
     throw new MessagePruned(input.idempotencyKey)
   }
 
-  private async readableState(
-    reference: ActorReferenceCore<Actor>,
-    authorizationContext: AdministrationOptions["authorizationContext"],
-  ): Promise<boolean> {
+  private async readableOperation(input: {
+    actorType: string
+    actorId: string
+    operation: string
+    argumentsValue: JsonObject
+    authorizationContext: AdministrationOptions["authorizationContext"]
+  }): Promise<boolean> {
     try {
+      const registered = this.fetchActor(input.actorType)
+      if (!registered.operations.has(input.operation) && !registered.queries.has(input.operation))
+        return false
+
       await this.authorize({
-        kind: "query",
-        reference,
-        operation: "__snapshot__",
-        argumentsValue: {},
-        authorizationContext,
+        kind: this.isQuery(registered.definition, input.operation) ? "query" : "message",
+        reference: new ActorReferenceCore({
+          runtime: this,
+          actorClass: registered.actorClass,
+          actorType: input.actorType,
+          actorId: input.actorId,
+          operations: registered.operations,
+          queries: registered.queries,
+        }),
+        operation: input.operation,
+        argumentsValue: input.argumentsValue,
+        authorizationContext: input.authorizationContext,
       })
       return true
     } catch (error) {
-      if (error instanceof Unauthorized) return false
+      if (error instanceof Unauthorized || error instanceof UnknownActorType) return false
       throw error
     }
   }
