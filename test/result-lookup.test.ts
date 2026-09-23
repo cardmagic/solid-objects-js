@@ -491,6 +491,28 @@ describe("result lookup", () => {
     expect(outcome.result).toEqual({ orderId: 4210 })
   })
 
+  it("hands out a frozen result", async () => {
+    const active = await start()
+    const original = await active.ref(CartActor, "alice").send.checkout({ orderId: 9 })
+    await active.worker().runUntilIdle()
+
+    const outcome = await (await active.findBy({ requestId: original.requestId }))!.outcome()
+
+    expect(Object.isFrozen(outcome.result)).toBe(true)
+  })
+
+  it("answers undefined for a message whose actor type is not registered", async () => {
+    const active = await start()
+    const original = await active.ref(CartActor, "alice").send.checkout({ orderId: 1 })
+    await active.settings.database.transaction((connection) =>
+      connection.run(`UPDATE ${active.repository.table("messages")} SET actor_type = ?`, [
+        "RetiredCartActor",
+      ]),
+    )
+
+    expect(await active.findBy({ requestId: original.requestId })).toBeUndefined()
+  })
+
   it("propagates an authorization failure rather than reporting absence", async () => {
     const active = await start()
     const original = await active.ref(CartActor, "alice").send.checkout({ orderId: 1 })

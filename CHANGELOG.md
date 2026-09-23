@@ -14,7 +14,10 @@
   request id exists.
 - Add `messageReference.outcome()`, which reports the status, the result, the
   persisted error, the rejection, and the attempt count, so a terminal failure
-  answers as well as a success.
+  answers as well as a success. Every value is frozen, so a caller cannot mutate
+  a durable result it read. The error carries `name` and `message`; this runtime
+  has never persisted a stack, which [parity](docs/parity.md) now records
+  against Ruby's `backtrace`.
 - Add schema version 12: a unique index on `messages.request_id`. The table had
   only `UNIQUE (actor_type, actor_id, request_id)`, which cannot serve a lookup
   that names the request id alone.

@@ -739,12 +739,15 @@ export class SolidObjectsRuntime {
       result:
         snapshot.result === null
           ? undefined
-          : (normalizeJson(JSON.parse(snapshot.result)) as DeepReadonly<Result>),
-      error: snapshot.error === null ? undefined : (JSON.parse(snapshot.error) as ErrorRecord),
+          : (readonlyCopy(normalizeJson(JSON.parse(snapshot.result))) as DeepReadonly<Result>),
+      error:
+        snapshot.error === null
+          ? undefined
+          : readonlyCopy(JSON.parse(snapshot.error) as ErrorRecord),
       rejection:
         snapshot.rejection === null
           ? undefined
-          : (JSON.parse(snapshot.rejection) as RejectionRecord),
+          : readonlyCopy(JSON.parse(snapshot.rejection) as RejectionRecord),
       attempts: Number(snapshot.attempt_count),
     })
   }
