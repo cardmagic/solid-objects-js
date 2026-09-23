@@ -360,6 +360,19 @@ describe("result lookup", () => {
     await expect(reference.findBy({ idempotencyKey: "second" })).rejects.toThrow(MessagePruned)
   })
 
+  it("remembers a re-sent key once", async () => {
+    const active = await start()
+    const reference = active.ref(CartActor, "alice")
+    await reference.send.with({ idempotencyKey: "first" }).checkout({ orderId: 1 })
+    await reference.send.with({ idempotencyKey: "second" }).checkout({ orderId: 2 })
+    await active.worker().runUntilIdle()
+    await deleteMessages(active)
+    await reference.send.with({ idempotencyKey: "first" }).checkout({ orderId: 3 })
+    await active.worker().runUntilIdle()
+
+    expect(await rememberedKeys(active)).toEqual(["second", "first"])
+  })
+
   it("remembers nothing for a message that carried no key", async () => {
     const active = await start()
     await active.ref(CartActor, "alice").send.checkout({ orderId: 1 })
