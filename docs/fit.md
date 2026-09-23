@@ -43,7 +43,9 @@ history, and no actor-state migration contract.
   limiter, see [Solid Objects Pro](https://solidobjects.pro/): grouped commits
   coalesce concurrent writes into one insert, and ephemeral operations keep
   loss-tolerant calls out of the durable journal. It ships for the Rails gem
-  today, and the Node build is in development.
+  today, and the Node build is in development. Distributed per-actor rate
+  limits, global admission control, and cache-capacity eviction are answered
+  there rather than in this runtime, and are not open roadmap items here.
 - Durable workflow replay across named steps is more important than a mutable
   object with ordered operations. The runtime redelivers an ordered message and
   retries it. It does not replay a function from a step log.
