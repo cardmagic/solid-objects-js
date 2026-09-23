@@ -312,19 +312,16 @@ export class ActorEngine {
   }
 
   private async readMessage(input: HostRequest): Promise<JsonValue> {
-    let message: Message | undefined
-    if (input.method === "lookup") {
-      message = this.lookUp(input)
-      if (!message) return this.prunedReply(input)
-    } else {
-      message = this.store.message(String(input.payload.id))
-      if (
-        !message ||
-        message.requestId !== input.payload.requestId ||
-        message.sequence !== input.payload.sequence
-      )
-        throw new Unauthorized("message reference is not authorized")
-    }
+    const lookup = input.method === "lookup"
+    const message = lookup ? this.lookUp(input) : this.store.message(String(input.payload.id))
+    if (lookup && !message) return this.prunedReply(input)
+    if (
+      !message ||
+      (!lookup &&
+        (message.requestId !== input.payload.requestId ||
+          message.sequence !== input.payload.sequence))
+    )
+      throw new Unauthorized("message reference is not authorized")
     await this.authorizeOperation(input, message)
     this.bind(input)
     if (message.incarnation !== this.store.instance()?.incarnation)
