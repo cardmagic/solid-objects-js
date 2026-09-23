@@ -371,6 +371,26 @@ describe("Cloudflare recovery and fencing", () => {
     expect(remembered).toEqual(["key-2", "key-3", "key-4"])
   })
 
+  it("bounds what an instance remembers by size", async () => {
+    const reference = runtime().ref(Counter, "bounded-key-bytes")
+    const key = "k".repeat(200)
+    const message = await reference.send
+      .with({ authorizationContext, idempotencyKey: key })
+      .increment()
+    await message.wait({ authorizationContext })
+
+    const remembered = await runInDurableObject(stub("bounded-key-bytes"), (_object, state) => {
+      const instance = JSON.parse(
+        state.storage.sql
+          .exec<{ value: string }>("SELECT value FROM metadata WHERE key = 'instance'")
+          .one().value,
+      ) as Instance
+      return instance.completedIdempotencyKeys
+    })
+
+    expect(remembered).toEqual([])
+  })
+
   it("continues bounded receipt cleanup using its saved alarm", async () => {
     const reference = runtime().ref(Counter, "receipt-cleanup")
     const message = await reference.send.with({ authorizationContext }).increment()

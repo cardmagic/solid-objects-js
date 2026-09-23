@@ -24,7 +24,7 @@ import type {
   ProcessRow,
   ReminderRow,
 } from "./records.js"
-import { jsonObject, normalizeJson } from "./serialization.js"
+import { jsonObject, normalizeJson, utf8ByteLength } from "./serialization.js"
 import type { RetentionTarget } from "./retention.js"
 import type {
   EffectFailurePayload,
@@ -2283,9 +2283,11 @@ export class Repository {
     if (remembered.at(-1) === key) return stored
 
     return JSON.stringify(
-      [...remembered.filter((value) => value !== key), key].slice(
-        -this.settings.retainedIdempotencyKeys,
-      ),
+      boundedKeys({
+        keys: [...remembered.filter((value) => value !== key), key],
+        count: this.settings.retainedIdempotencyKeys,
+        bytes: this.settings.retainedIdempotencyKeysBytes,
+      }),
     )
   }
 
@@ -2420,6 +2422,12 @@ function retentionPolicy(options: {
     sql: conditions.length === 0 ? "0 = 1" : `(${conditions.join(" OR ")})`,
     parameters,
   }
+}
+
+export function boundedKeys(options: { keys: string[]; count: number; bytes: number }): string[] {
+  const kept = options.keys.slice(-options.count)
+  while (kept.length > 0 && utf8ByteLength(JSON.stringify(kept)) > options.bytes) kept.shift()
+  return kept
 }
 
 function rememberedList(stored: string | null): string[] {

@@ -566,6 +566,11 @@ idempotencyKey })` throws `MessagePruned` for a key the actor remembers and
   refuses reads `undefined` for both. `runtime.findBy({ requestId })` returns
   `undefined` in both cases, because the runtime generates a request id and no
   actor remembers one.
+- `retainedIdempotencyKeysBytes` bounds the serialized memory as well, because
+  an idempotency key has no length limit and the memory outlives the message
+  row. An actor drops its oldest keys until the list fits, so a key long enough
+  to fill the limit by itself is never remembered and its lookup answers
+  `undefined` rather than throwing.
 - `messageReference.outcome()` returns an `Outcome`: the status, the result, an
   `ErrorRecord` for a dead message, a `RejectionRecord` for a rejected one, and
   the attempt count.

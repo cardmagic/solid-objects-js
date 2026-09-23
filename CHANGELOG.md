@@ -28,7 +28,10 @@
   `undefined` for both. `retainedIdempotencyKeys` bounds the memory and defaults
   to 64 keys for each actor. A lookup by request id cannot make the
   distinction, because the runtime generates a request id and no actor
-  remembers one.
+  remembers one. `retainedIdempotencyKeysBytes` bounds the serialized memory as
+  well, because an idempotency key has no length limit and the memory outlives
+  the message row. An actor drops its oldest keys until the list fits, so a key
+  long enough to fill the limit by itself is never remembered.
 - Add schema version 13: `instances.completed_idempotency_keys`. The doctor
   now reports the column as missing when it is not installed.
 - Implement `findBy` and `messageOutcome` on the Durable Objects runtime, which

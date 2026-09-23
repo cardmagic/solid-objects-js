@@ -38,7 +38,7 @@ afterEach(async () => {
 })
 
 async function start(
-  overrides: { retainedIdempotencyKeys?: number } = {},
+  overrides: { retainedIdempotencyKeys?: number; retainedIdempotencyKeysBytes?: number } = {},
 ): Promise<SolidObjectsRuntime> {
   const created = configure({
     database: sqlite({ path: ":memory:" }),
@@ -358,6 +358,33 @@ describe("result lookup", () => {
 
     await expect(reference.findBy({ idempotencyKey: "first" })).rejects.toThrow(MessagePruned)
     await expect(reference.findBy({ idempotencyKey: "second" })).rejects.toThrow(MessagePruned)
+  })
+
+  it("bounds what an instance remembers by size", async () => {
+    const active = await start({ retainedIdempotencyKeysBytes: 64 })
+    const reference = active.ref(CartActor, "alice")
+    const keys = [0, 1, 2].map((index) => `${index}-${"k".repeat(20)}`)
+    for (const [index, key] of keys.entries()) {
+      await reference.send.with({ idempotencyKey: key }).checkout({ orderId: index })
+    }
+    await active.worker().runUntilIdle()
+
+    const remembered = await rememberedKeys(active)
+
+    expect(remembered).toEqual(keys.slice(-2))
+    expect(JSON.stringify(remembered).length).toBeLessThanOrEqual(64)
+  })
+
+  it("remembers nothing for a key larger than what it retains", async () => {
+    const active = await start({ retainedIdempotencyKeysBytes: 16 })
+    const reference = active.ref(CartActor, "alice")
+    const key = "k".repeat(100)
+    await reference.send.with({ idempotencyKey: key }).checkout({ orderId: 1 })
+    await active.worker().runUntilIdle()
+    await deleteMessages(active)
+
+    expect(await rememberedKeys(active)).toEqual([])
+    expect(await reference.findBy({ idempotencyKey: key })).toBeUndefined()
   })
 
   it("remembers a re-sent key once", async () => {

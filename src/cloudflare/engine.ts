@@ -37,6 +37,7 @@ import type {
   ScheduledReminder,
 } from "../types.js"
 import type { CloudflareSettings } from "./configuration.js"
+import { boundedKeys } from "../repository.js"
 import { actorName, callHost, type ActorIdentity, type HostRequest } from "./protocol.js"
 import type { Instance, Message, Outbox, Reminder, Subscription } from "./records.js"
 import { beforeDeadline, CloudflareRuntime } from "./runtime.js"
@@ -368,9 +369,11 @@ export class ActorEngine {
     const remembered = instance.completedIdempotencyKeys ?? []
     if (remembered.at(-1) === key) return
 
-    instance.completedIdempotencyKeys = [...remembered.filter((value) => value !== key), key].slice(
-      -this.settings.retainedIdempotencyKeys,
-    )
+    instance.completedIdempotencyKeys = boundedKeys({
+      keys: [...remembered.filter((value) => value !== key), key],
+      count: this.settings.retainedIdempotencyKeys,
+      bytes: this.settings.retainedIdempotencyKeysBytes,
+    })
   }
 
   private committed(identity: ActorIdentity) {

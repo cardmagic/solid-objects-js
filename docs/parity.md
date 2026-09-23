@@ -165,7 +165,9 @@ An actor remembers the idempotency keys of its own last
 `retained_idempotency_keys` / `retainedIdempotencyKeys` finished turns, written
 in the instance row the executor updates anyway, so a key lookup raises
 `MessagePruned` for a message retention removed and answers absent for a
-message that never existed. The memory is actor state, so the query hook gates
+message that never existed. Both also bound the serialized memory, because an
+idempotency key has no length limit and the memory outlives the message row; an
+actor drops its oldest keys until the list fits. The memory is actor state, so the query hook gates
 the pruned answer in both. A request id lookup answers absent in both cases,
 because the runtime generates a request id and no actor remembers one.
 
