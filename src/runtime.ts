@@ -1310,9 +1310,7 @@ export class SolidObjectsRuntime {
         await withActorContext({ actor, runtime: this }, () => actor.activate())
         activated = true
         this.emitInstrumentation("activation.completed", {
-          actorType: turn.message.actor_type,
-          actorId: turn.message.actor_id,
-          instanceId: turn.instance.id,
+          ...messageInstrumentation(turn.message),
           generation: String(turn.activationGeneration),
         })
       } catch (error) {
@@ -1454,11 +1452,10 @@ export class SolidObjectsRuntime {
       })
       if (outcome === "retrying")
         this.emitInstrumentation("message.retry", messageInstrumentation(turn.message))
-      if (outcome === "dead") {
-        if (recoveryMessage(turn.message))
-          this.emitInstrumentation("recovery.failed", messageInstrumentation(turn.message))
+      if (outcome === "dead" && recoveryMessage(turn.message))
+        this.emitInstrumentation("recovery.failed", messageInstrumentation(turn.message))
+      if (outcome === "dead")
         this.emitInstrumentation("dead_letter.created", messageInstrumentation(turn.message))
-      }
       return { actor, retainActivation: activated, activated }
     }
   }
@@ -1574,7 +1571,10 @@ export class SolidObjectsRuntime {
 
   async observe(
     reference: ActorReferenceCore<Actor>,
-    options: { onEvent: EventObserver; authorizationContext?: unknown },
+    options: {
+      onEvent: EventObserver
+      authorizationContext?: SnapshotOptions["authorizationContext"]
+    },
   ): Promise<() => void> {
     await this.authorizeAdministration({
       action: "observe",
@@ -1613,6 +1613,7 @@ export class SolidObjectsRuntime {
     try {
       this.emitInstrumentation("outbox.age", {
         ...effectInstrumentation(effect),
+        outboxKind: "effect",
         ageMilliseconds: Math.max(0, Date.now() - Number(effect.available_at_ms)),
       })
       const handler = this.effects.get(effect.name)
@@ -1676,6 +1677,11 @@ export class SolidObjectsRuntime {
   async executeBroadcast(broadcast: BroadcastRow): Promise<void> {
     const deliver = this.settings.broadcast
     try {
+      this.emitInstrumentation("outbox.age", {
+        ...broadcastInstrumentation(broadcast),
+        outboxKind: "broadcast",
+        ageMilliseconds: Math.max(0, Date.now() - Number(broadcast.available_at_ms)),
+      })
       const event = readonlyCopy({
         actorType: broadcast.actor_type,
         actorId: broadcast.actor_id,
@@ -2527,6 +2533,7 @@ function effectInstrumentation(effect: EffectRow): JsonObject {
 
 function broadcastInstrumentation(broadcast: BroadcastRow): JsonObject {
   return {
+    instanceId: broadcast.instance_id,
     broadcastId: broadcast.id,
     messageId: broadcast.message_id,
     actorType: broadcast.actor_type,

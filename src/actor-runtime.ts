@@ -37,7 +37,10 @@ export interface ActorRuntime {
   ): Promise<ActorDiagnostics>
   observe(
     reference: ActorReferenceCore<Actor>,
-    options: { onEvent: EventObserver; authorizationContext?: unknown },
+    options: {
+      onEvent: EventObserver
+      authorizationContext?: SnapshotOptions["authorizationContext"]
+    },
   ): Promise<() => void>
   ref<ActorType extends Actor>(
     actorClass: ActorClass<ActorType>,

@@ -244,14 +244,17 @@ export class ActorReferenceCore<ActorType extends Actor> {
 
   observe(options: {
     onEvent: EventObserver
-    authorizationContext?: unknown
+    authorizationContext?: SnapshotOptions["authorizationContext"]
   }): Promise<() => void> {
     return this.runtime.observe(this, options)
   }
 
   on(
     name: string,
-    options: { onEvent: EventObserver; authorizationContext?: unknown },
+    options: {
+      onEvent: EventObserver
+      authorizationContext?: SnapshotOptions["authorizationContext"]
+    },
   ): Promise<() => void> {
     return this.observe({
       ...options,

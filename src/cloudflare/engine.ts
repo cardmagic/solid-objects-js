@@ -857,6 +857,7 @@ export class ActorEngine {
     try {
       this.emit("outbox.age", {
         messageId: outbox.messageId,
+        outboxKind: outbox.kind,
         attempt: outbox.attempt + 1,
         ageMilliseconds: Math.max(0, Date.now() - outbox.availableAt),
       })

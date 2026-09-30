@@ -8,7 +8,7 @@ export function notifyWakeUp(options: {
 }): void {
   const logFailure = (errorName: string): void => {
     try {
-      const result: unknown = options.logger.error({
+      const result = options.logger.error({
         event: "solid_objects.wake_up.failed",
         role: options.role,
         errorName,

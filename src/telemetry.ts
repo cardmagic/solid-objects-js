@@ -64,6 +64,7 @@ const fields = new Set([
   "nextRunAt",
   "name",
   "commitAction",
+  "outboxKind",
   "truncated",
   "payload",
   "waitingOn",
@@ -126,9 +127,9 @@ export function deliverTelemetry(options: {
   event: InstrumentationEvent
   logger: Logger
 }): void {
-  const failed = (error: unknown) => {
+  const failed = <ErrorValue>(error: ErrorValue) => {
     try {
-      const result: unknown = options.logger.error({
+      const result = options.logger.error({
         event: "solid_objects.instrumentation.failed",
         instrumentationEvent: options.event.name,
         errorName: error instanceof Error ? error.name : "Error",

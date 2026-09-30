@@ -82,7 +82,10 @@ export class CloudflareRuntime implements ActorRuntime {
 
   async observe(
     _reference: ActorReferenceCore<Actor>,
-    _options: { onEvent: EventObserver; authorizationContext?: unknown },
+    _options: {
+      onEvent: EventObserver
+      authorizationContext?: SnapshotOptions["authorizationContext"]
+    },
   ): Promise<() => void> {
     return unsupported(
       "process-local observers; configure instrumentation on the actor Durable Object host",
@@ -100,7 +103,7 @@ export class CloudflareRuntime implements ActorRuntime {
       authorizationContext: normalizeJson(options.authorizationContext ?? null),
       payload: { action: "diagnostics", limit: options.limit ?? 100 },
     })
-    return readonlyCopy(value) as unknown as ActorDiagnostics
+    return readonlyCopy(value) as ActorDiagnostics & JsonObject
   }
 
   async invoke<Result = JsonValue>(options: {
