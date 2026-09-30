@@ -69,6 +69,7 @@ describe("synchronous timeout diagnostics", () => {
             messageId: error.details.messageId,
             waitingOn: "activationHeld",
             activationOwnerId: "blocking-worker",
+            activationGeneration: String(error.details.activation.generation),
           }),
         }),
       ]),

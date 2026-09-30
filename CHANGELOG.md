@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Pin personalized payload isolation, staged-work rejection, and configured
+  UTF-8 byte limits with regressions matching Ruby. Share timeout telemetry
+  fixtures for wait reasons and activation ownership; document Ruby's fixes
+  and its yielding SQLite wait handler in the parity ledger.
+
 - Detect observable replacement of staged work even when the intent count is
   unchanged. Compare complete intent snapshots around projection evaluation.
 
