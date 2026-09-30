@@ -14,11 +14,11 @@ export function readActorObservables(options: {
 }): ObservableProjection {
   const { actor, definition, runtime } = options
   const before = options.stateJson ?? stableJson(actorState(actor, definition.stateKeys))
-  const intentCount = actor.intentCount()
+  const intentsBefore = actor.intentSnapshot()
   const projection = withActorProjection({ actor, runtime }, () => actor.observableValues())
   if (
     stableJson(actorState(actor, definition.stateKeys)) !== before ||
-    actor.intentCount() !== intentCount
+    actor.intentSnapshot() !== intentsBefore
   ) {
     throw new QueryMutatedState("observables must not mutate actor state or stage durable work")
   }

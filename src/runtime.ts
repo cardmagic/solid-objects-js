@@ -836,7 +836,7 @@ export class SolidObjectsRuntime {
           : (await this.repository.remindersForInstance(instance.id)).map(scheduledReminderOf),
     })
     const stateBefore = stableJson(actorState(actor, registered.definition.stateKeys))
-    const intentCount = actor.intentCount()
+    const intentsBefore = actor.intentSnapshot()
     const snapshot: Record<string, JsonValue> = { ...state }
     await withActorProjection({ actor, runtime: this }, async () => {
       for (const query of registered.definition.queries) {
@@ -849,7 +849,7 @@ export class SolidObjectsRuntime {
     })
     if (
       stableJson(actorState(actor, registered.definition.stateKeys)) !== stateBefore ||
-      actor.intentCount() !== intentCount
+      actor.intentSnapshot() !== intentsBefore
     ) {
       throw new QueryMutatedState("snapshot getters must not mutate actor state or stage work")
     }
@@ -2227,7 +2227,7 @@ export class SolidObjectsRuntime {
         state: deepCopy(options.snapshot.state),
       })
       const stateBefore = stableJson(actorState(actor, options.registered.definition.stateKeys))
-      const intentCount = actor.intentCount()
+      const intentsBefore = actor.intentSnapshot()
       const handler = options.registered.definition.payloads[options.name]
       if (!handler) {
         throw new UnknownPayloadBroadcast(`unknown payload broadcast ${options.name}`)
@@ -2237,7 +2237,7 @@ export class SolidObjectsRuntime {
       )
       if (
         stableJson(actorState(actor, options.registered.definition.stateKeys)) !== stateBefore ||
-        actor.intentCount() !== intentCount
+        actor.intentSnapshot() !== intentsBefore
       ) {
         throw new QueryMutatedState("payload broadcasts must not mutate actor state or stage work")
       }

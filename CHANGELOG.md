@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Detect observable replacement of staged work even when the intent count is
+  unchanged. Compare complete intent snapshots around projection evaluation.
+
 - Preserve reserved JSON keys such as `__proto__` as own data properties without
   changing object prototypes. Include them in size limits, state, arguments, and
   retained results; share compatibility fixtures with Ruby.
