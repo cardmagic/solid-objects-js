@@ -1,3 +1,4 @@
+import { notifyWakeUp } from "../src/wake-up-notification.js"
 import { afterEach, describe, expect, it, vi } from "vitest"
 import { Actor } from "../src/actor.js"
 import { sqlite } from "../src/database/sqlite.js"
@@ -237,3 +238,22 @@ async function eventually(condition: () => boolean | Promise<boolean>): Promise<
   }
   throw new Error("condition was not met")
 }
+
+it("isolates notification and logger failures", async () => {
+  const failure = () => {
+    throw new Error("private failure")
+  }
+  const adapter = {
+    notify: () => Promise.reject(new Error("private notification")),
+    watch: () => ({ wait: async () => false }),
+    close: async () => {},
+  }
+  expect(() =>
+    notifyWakeUp({
+      adapter,
+      logger: { debug: failure, info: failure, warn: failure, error: failure },
+      role: "actors",
+    }),
+  ).not.toThrow()
+  await Promise.resolve()
+})

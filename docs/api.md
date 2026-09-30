@@ -1057,3 +1057,13 @@ Behavior:
 
 Mounting, authorization actions, CSRF behavior, pages, and extensions are in
 [Operator dashboard](dashboard.md).
+
+### Portable telemetry and diagnostics
+
+`InstrumentationEvent` includes the versioned envelope and immutable `MetricSample`
+values. `EventObserver` is a provider-free event callback. An actor reference offers
+`observe({ onEvent, authorizationContext })`, `on(name, { onEvent, authorizationContext })`,
+and `diagnostics(options)`. Both observer methods resolve to an unsubscribe function.
+`DiagnosticOptions` accepts `authorizationContext` and a `limit` from 1 to 100.
+`ActorDiagnostics` holds five bounded `DiagnosticSummary` values, with `sampled`,
+`truncated`, and `oldestAgeMilliseconds`. See [observability](observability.md).

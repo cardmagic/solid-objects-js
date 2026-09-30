@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Add portable observability envelopes, metric definitions, actor observers, and bounded authorization-aware diagnostics across SQL runtimes and the Durable Objects host. Isolate failing instrumentation and error loggers from actor work.
+
 - Build before `npm publish` reads the manifest. npm validates `bin` against the
   working tree before `prepack` produces `dist`, so every release logged
   `No bin file found at dist/executable.js` twice. The published package was

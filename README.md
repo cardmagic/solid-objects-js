@@ -257,6 +257,7 @@ There is no exactly-once delivery. Read the
 - [Choosing Solid Objects](docs/fit.md)
 - [Public API](docs/api.md)
 - [Operations and recovery](docs/operations.md)
+- [Observability and diagnostics](docs/observability.md)
 - [Detailed architecture](docs/architecture.md)
 - [Detailed documentation](docs/)
 

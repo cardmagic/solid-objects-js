@@ -1,3 +1,5 @@
+import type { EventObserver } from "./telemetry.js"
+import type { ActorDiagnostics, DiagnosticOptions } from "./diagnostics.js"
 import type { RealtimeManager } from "./realtime.js"
 import type { Actor, ActorClass } from "./actor.js"
 import type {
@@ -29,6 +31,14 @@ export interface SnapshotWithIncarnation<ActorType extends Actor> {
 }
 
 export interface ActorRuntime {
+  diagnostics(
+    reference: ActorReferenceCore<Actor>,
+    options?: DiagnosticOptions,
+  ): Promise<ActorDiagnostics>
+  observe(
+    reference: ActorReferenceCore<Actor>,
+    options: { onEvent: EventObserver; authorizationContext?: unknown },
+  ): Promise<() => void>
   ref<ActorType extends Actor>(
     actorClass: ActorClass<ActorType>,
     actorId: ActorIdentifier,

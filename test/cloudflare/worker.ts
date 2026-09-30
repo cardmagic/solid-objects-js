@@ -1,3 +1,4 @@
+import type { InstrumentationEvent } from "../../src/configuration.js"
 import {
   Actor,
   broadcastValue,
@@ -14,6 +15,7 @@ import {
   durableObjects,
 } from "../../src/cloudflare/index.js"
 
+export const telemetryEvents: InstrumentationEvent[] = []
 export const gates = new Map<string, () => void>()
 export const revokedSessions = new Set<string>()
 export const deliveries = new Map<string, number>()
@@ -235,6 +237,9 @@ export class Actors extends createDurableObjectsHost<Env>({
       },
       sessions: environment.SESSIONS,
     }),
+    instrumentation: (event) => {
+      telemetryEvents.push(event)
+    },
     authorizeMessage: (input) =>
       input.authorizationContext === "allowed" ||
       (input.authorizationContext === "argument-denied" && input.arguments.amount !== 7),

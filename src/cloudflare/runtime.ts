@@ -1,3 +1,5 @@
+import type { EventObserver } from "../telemetry.js"
+import type { ActorDiagnostics, DiagnosticOptions } from "../diagnostics.js"
 import "./platform.js"
 import type { Actor, ActorClass } from "../actor.js"
 import type { ActorRuntime } from "../actor-runtime.js"
@@ -76,6 +78,29 @@ export class CloudflareRuntime implements ActorRuntime {
       operations: new Set(definition.operations),
       queries: new Set(definition.queries),
     })
+  }
+
+  async observe(
+    _reference: ActorReferenceCore<Actor>,
+    _options: { onEvent: EventObserver; authorizationContext?: unknown },
+  ): Promise<() => void> {
+    return unsupported(
+      "process-local observers; configure instrumentation on the actor Durable Object host",
+    )
+  }
+
+  async diagnostics(
+    reference: ActorReferenceCore<Actor>,
+    options: DiagnosticOptions = {},
+  ): Promise<ActorDiagnostics> {
+    const value = await this.call({
+      actorType: reference.actorType,
+      actorId: reference.actorId,
+      method: "administration",
+      authorizationContext: normalizeJson(options.authorizationContext ?? null),
+      payload: { action: "diagnostics", limit: options.limit ?? 100 },
+    })
+    return readonlyCopy(value) as unknown as ActorDiagnostics
   }
 
   async invoke<Result = JsonValue>(options: {

@@ -1,3 +1,5 @@
+import type { EventObserver } from "./telemetry.js"
+import type { ActorDiagnostics, DiagnosticOptions } from "./diagnostics.js"
 import type { Actor, ActorClass } from "./actor.js"
 import { SyncInsideTransaction, UnknownOperation } from "./errors.js"
 import type { Outcome } from "./outcome.js"
@@ -234,6 +236,29 @@ export class ActorReferenceCore<ActorType extends Actor> {
     this.operations = options.operations
     this.queries = options.queries
     this.send = createMessageSender(this, {})
+  }
+
+  diagnostics(options: DiagnosticOptions = {}): Promise<ActorDiagnostics> {
+    return this.runtime.diagnostics(this, options)
+  }
+
+  observe(options: {
+    onEvent: EventObserver
+    authorizationContext?: unknown
+  }): Promise<() => void> {
+    return this.runtime.observe(this, options)
+  }
+
+  on(
+    name: string,
+    options: { onEvent: EventObserver; authorizationContext?: unknown },
+  ): Promise<() => void> {
+    return this.observe({
+      ...options,
+      onEvent: (event) => {
+        if (event.name === `solid_objects.${name}`) return options.onEvent(event)
+      },
+    })
   }
 
   with(options: InvocationOptions): ActorInvoker<ActorType> {
