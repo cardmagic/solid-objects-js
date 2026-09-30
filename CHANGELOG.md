@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+- Preserve transmit staging order within a source message through a persisted
+  effect position, including retries. Schema migration 14 adds `effects.position`;
+  run `runtime.install()` before starting upgraded workers. Legacy rows retain
+  their existing ID tie-break because their original order cannot be recovered.
+- Reject explicit null transmit arguments, matching Ruby; omission still defaults
+  to an empty object. Expand the shared wire fixtures and adapter ordering tests.
+- Refresh the parity ledger for authorized message reads and retained background
+  results, bulk redrive/audit records, reminder cancellation, and automatic wake-up.
+
 - Patch the Cloudflare development tooling's Undici dependency to 7.29.1 to resolve the high-severity WebSocket and TLS advisories reported by CI.
 
 - Add portable observability envelopes, metric definitions, actor observers, and bounded authorization-aware diagnostics across SQL runtimes and the Durable Objects host. Isolate failing instrumentation and error loggers from actor work.

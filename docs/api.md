@@ -105,7 +105,7 @@ envelope. The envelope carries its name in `invalidations`. A component registry
 can then refresh a reauthorized endpoint, and the value stays private.
 
 `MessageReference` does not retain an invocation's authorization context.
-Supply `authorizationContext` to each `status()`, `result()`, and `wait()` call;
+Supply `authorizationContext` to each `status()`, `result()`, `outcome()`, and `wait()` call;
 the runtime reauthorizes the persisted operation every time. Durable results
 are JSON, so an operation that returns `undefined` or is declared `void`
 resolves as `null`.
@@ -904,6 +904,11 @@ open SAH pool otherwise blocks the next candidate until the worker dies.
 
 ## `solid-objects/transmit`
 
+Schema migration 14 persists an effect's staging position within its source message.
+Run `runtime.install()` before upgraded workers start. New effects preserve staging
+order even when two transmits originate in one turn. Legacy rows use position zero
+and their existing ID tie-break; their original order cannot be recovered.
+
 The transactional outbox bridge between a local runtime and a server
 runtime. An actor stages a transmit intent with `this.transmit()`
 in the same transaction as its state change. The effect worker drains the
@@ -926,7 +931,7 @@ outbox with at-least-once delivery, per-actor order, and retry backoff.
   `runtime.deadLetters.retry` re-queues it.
 - `receiveTransmitEnvelope(options)`: idempotent server ingest. `arguments`
   is optional in the envelope and defaults to an empty object, matching the
-  staging side and the Ruby ingest. It enqueues an
+  staging side and the Ruby ingest. Explicit `null` and arrays are invalid. It enqueues an
   internal message with `transmit:<effectId>` as the idempotency key, so a
   replayed envelope applies once. The host must authenticate the sender
   before this call; internal delivery skips `authorizeMessage`. The call

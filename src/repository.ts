@@ -731,13 +731,13 @@ export class Repository {
         turn.message.id,
       ])
 
-      for (const effect of input.intents.effects) {
+      for (const [position, effect] of input.intents.effects.entries()) {
         const effectId = effect.id ?? randomUUID()
         await connection.run(
           `INSERT INTO ${this.table("effects")}
            (id, message_id, instance_id, name, arguments, success_operation, failure_operation,
-            status, max_attempts, available_at_ms)
-           VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?)`,
+            status, max_attempts, available_at_ms, position)
+           VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?)`,
           [
             effectId,
             turn.message.id,
@@ -748,6 +748,7 @@ export class Repository {
             effect.failureOperation ?? null,
             this.settings.maxAttempts,
             now,
+            position,
           ],
         )
         if (effect.recoveryOperation !== undefined || effect.statusOperation !== undefined) {
