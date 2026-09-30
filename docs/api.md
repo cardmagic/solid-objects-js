@@ -130,6 +130,10 @@ function playerForSession<PlayerType extends { sessionId: string }>(options: {
 
 ### Reminders
 
+Keyed reminder names combine the operation, a colon, and the key. JavaScript
+limits the combined name to 255 UTF-16 code units; Ruby limits it to 191
+characters. Use at most 191 ASCII characters for names shared across runtimes.
+
 A reminder is one alarm per actor and name. If you schedule a name that is
 already armed, the runtime **moves the existing alarm**. It does not add a
 second one. A reminder is therefore safe to re-arm from a handler that can run

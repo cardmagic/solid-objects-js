@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- Preserve reserved JSON keys such as `__proto__` as own data properties without
+  changing object prototypes. Include them in size limits, state, arguments, and
+  retained results; share compatibility fixtures with Ruby.
+- Record Ruby's matching query/projection purity guards, retained background
+  results, and the intentional 191-character Ruby / 255-character JS reminder
+  name limits in the parity ledger.
+
 - Preserve transmit staging order within a source message through a persisted
   effect position, including retries. Schema migration 14 adds `effects.position`;
   run `runtime.install()` before starting upgraded workers. Legacy rows retain

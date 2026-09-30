@@ -54,12 +54,12 @@ function normalize(value: unknown, depth: number): JsonValue {
   if (Array.isArray(value)) return value.map((item) => normalize(item, depth + 1))
 
   if (isRecord(value)) {
-    const output: Record<string, JsonValue> = {}
-    for (const [key, item] of Object.entries(value)) {
-      if (item === undefined) throw new InvalidPayload(`undefined is not supported at ${key}`)
-      output[key] = normalize(item, depth + 1)
-    }
-    return output
+    return Object.fromEntries(
+      Object.entries(value).map(([key, item]) => {
+        if (item === undefined) throw new InvalidPayload(`undefined is not supported at ${key}`)
+        return [key, normalize(item, depth + 1)]
+      }),
+    )
   }
 
   throw new InvalidPayload(`${describe(value)} is not JSON-compatible`)
