@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Patch the Cloudflare development tooling's Undici dependency to 7.29.1 to resolve the high-severity WebSocket and TLS advisories reported by CI.
+
 - Add portable observability envelopes, metric definitions, actor observers, and bounded authorization-aware diagnostics across SQL runtimes and the Durable Objects host. Isolate failing instrumentation and error loggers from actor work.
 
 - Build before `npm publish` reads the manifest. npm validates `bin` against the
