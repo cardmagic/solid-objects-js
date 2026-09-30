@@ -13,7 +13,7 @@ class ReplacingProjection extends Actor {
     if (action === "commit_action") this.commitAction("original")
   }
 
-  override observables(): Record<string, unknown> {
+  override observables() {
     if (!this.hasIntents()) return { action: this.action }
 
     this.discardIntents()
