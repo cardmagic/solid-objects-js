@@ -4,6 +4,7 @@ import type { InstrumentationEvent, SolidObjectsConfiguration } from "../src/con
 import { postgresql } from "../src/database/postgresql.js"
 import { sqlite } from "../src/database/sqlite.js"
 import { configure, type SolidObjectsRuntime } from "../src/runtime.js"
+import { expectPortableEvents } from "./support/portable-telemetry.js"
 
 class InstrumentedActor extends Actor {
   static override readonly actorType = "InstrumentedActor"
@@ -27,6 +28,24 @@ class InstrumentedActor extends Actor {
   fail(): void {
     throw new Error(`private failure ${this.secret}`)
   }
+
+  commit(): void {
+    this.commitAction("telemetry-action")
+  }
+
+  commitBadly(): void {
+    this.commitAction("telemetry-failure")
+  }
+}
+
+class ActivationFailure extends Actor {
+  static override readonly actorType = "ActivationFailure"
+
+  protected override async onActivate(): Promise<void> {
+    throw new Error("private activation failure")
+  }
+
+  run(): void {}
 }
 
 let runtime: SolidObjectsRuntime | undefined
@@ -80,6 +99,85 @@ describe("structured instrumentation", () => {
     expect(serialized).not.toContain("private rejection")
     expect(serialized).not.toContain("private failure")
     expect(serialized).not.toContain("result:")
+  })
+
+  it("emits portable SQL lifecycle events that match the shared attribute contract", async () => {
+    const events: InstrumentationEvent[] = []
+    runtime = configuredRuntime({
+      maxAttempts: 2,
+      retryDelayMilliseconds: () => 0,
+      instrumentation: (event) => {
+        events.push(event)
+      },
+    })
+    await runtime.install()
+    runtime.registerEffect("telemetry-effect", () => "delivered")
+    runtime.registerCommitAction("telemetry-action", () => {})
+    runtime.registerCommitAction("telemetry-failure", () => {
+      throw new Error("private commit failure")
+    })
+    const reference = InstrumentedActor.ref("contract")
+    await reference.update({ secret: "committed" })
+    await reference.send.rejectUpdate()
+    await reference.send.fail()
+    await reference.send.commit()
+    await reference.send.commitBadly()
+    await reference.send.arrange()
+    await runtime.enqueueInternalMessage({
+      actorType: reference.actorType,
+      actorId: reference.actorId,
+      operation: "update",
+      argumentsValue: { secret: "recovered" },
+      idempotencyKey: "effect:contract:recovery",
+    })
+    await reference.diagnostics({ limit: 1 })
+    await runtime.worker().runUntilIdle()
+    await ActivationFailure.ref("contract").send.run()
+    await runtime
+      .worker()
+      .runUntilIdle()
+      .catch(() => {})
+    await runtime.effectWorker().runUntilIdle()
+    await runtime.reminderScheduler().runOnce()
+    await reference.snapshot()
+
+    expectPortableEvents(events, [
+      "activation.started",
+      "activation.completed",
+      "activation.failed",
+      "message.enqueued",
+      "message.started",
+      "message.completed",
+      "message.rejected",
+      "message.failed",
+      "message.retry",
+      "dead_letter.created",
+      "commit_action.started",
+      "commit_action.completed",
+      "commit_action.failed",
+      "recovery.completed",
+      "mailbox.depth",
+      "outbox.age",
+      "reminder.enqueued",
+      "snapshot.read",
+    ])
+    expect(
+      events
+        .filter((event) => event.name === "solid_objects.message.failed")
+        .map(({ attributes }) => ({
+          retryable: attributes.retryable,
+          outcome: attributes.outcome,
+        })),
+    ).toEqual(
+      expect.arrayContaining([
+        { retryable: true, outcome: "retrying" },
+        { retryable: true, outcome: "dead" },
+      ]),
+    )
+    expect(
+      events.find((event) => event.name === "solid_objects.mailbox.depth")?.attributes,
+    ).toMatchObject({ truncated: true, depth: null })
+    expect(JSON.stringify(events)).not.toContain("private")
   })
 
   it("isolates instrumentation failures from durable work", async () => {
@@ -215,6 +313,7 @@ describe("structured instrumentation", () => {
       actorId: reference.actorId,
     })
     session.close()
+    expectPortableEvents(events, ["realtime.connected", "realtime.disconnected"])
     expect(events.map((event) => event.name)).toEqual(
       expect.arrayContaining([
         "solid_objects.activation.started",
@@ -282,7 +381,7 @@ describe("structured instrumentation", () => {
     })
     await runtime.worker().runUntilIdle()
     expect((await reference.diagnostics()).recoveryFailures.sampled).toBe(1)
-    expect(events.map((event) => event.name)).toContain("solid_objects.recovery.failed")
+    expectPortableEvents(events, ["recovery.failed"])
   })
 })
 

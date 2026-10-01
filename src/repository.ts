@@ -1843,7 +1843,7 @@ export class Repository {
   async enqueueReminder(
     reminder: ReminderRow,
     options: { nowMilliseconds?: number } = {},
-  ): Promise<boolean> {
+  ): Promise<MessageRow | undefined> {
     return this.settings.database.transaction(async (connection) => {
       const now = options.nowMilliseconds ?? (await connection.nowMilliseconds())
       const claimed = await connection.get<ReminderRow>(
@@ -1859,9 +1859,9 @@ export class Repository {
           `SELECT id FROM ${this.table("reminders")} WHERE id = ?`,
           [reminder.id],
         ))
-      if (!claimed && !surviving) return false
+      if (!claimed && !surviving) return undefined
       if (!claimed) throw new LostActivation("reminder claim no longer matches")
-      await this.enqueueInTransaction(connection, {
+      const message = await this.enqueueInTransaction(connection, {
         actorType: claimed.actor_type,
         actorId: claimed.actor_id,
         operation: claimed.message_operation ?? claimed.operation,
@@ -1891,7 +1891,7 @@ export class Repository {
           claimed.claimed_by,
         ],
       )
-      return true
+      return message
     })
   }
 

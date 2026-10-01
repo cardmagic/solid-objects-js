@@ -92,7 +92,7 @@ export async function actorDiagnostics(options: {
       instanceId: instance?.id ?? null,
       count: result.mailbox.sampled,
       truncated: result.mailbox.truncated,
-      ...(result.mailbox.truncated ? {} : { depth: result.mailbox.sampled }),
+      depth: result.mailbox.truncated ? null : result.mailbox.sampled,
     })
     return result
   })

@@ -4,6 +4,7 @@ import type { InstrumentationEvent } from "../src/configuration.js"
 import { sqlite } from "../src/database/sqlite.js"
 import { SyncEnqueueTimeout, SyncTimeout } from "../src/errors.js"
 import { configure, type SolidObjectsRuntime } from "../src/runtime.js"
+import { expectPortableEvents } from "./support/portable-telemetry.js"
 
 class TimeoutActor extends Actor {
   static override readonly actorType = "TimeoutActor"
@@ -86,7 +87,8 @@ describe("synchronous timeout diagnostics", () => {
   })
 
   it("distinguishes a deadline before durable enqueue", async () => {
-    runtime = configuredRuntime()
+    const events: InstrumentationEvent[] = []
+    runtime = configuredRuntime({ instrumentation: (event) => events.push(event) })
     await runtime.install()
     const enqueue = runtime.repository.enqueue.bind(runtime.repository)
     vi.spyOn(runtime.repository, "enqueue").mockImplementation(async (input) => {
@@ -102,6 +104,11 @@ describe("synchronous timeout diagnostics", () => {
     }
 
     expect(error).toBeInstanceOf(SyncEnqueueTimeout)
+    expectPortableEvents(events, ["sync.enqueue_timeout"])
+    expect(
+      events.find((event) => event.name === "solid_objects.sync.enqueue_timeout")?.attributes
+        .timeoutMilliseconds,
+    ).toBe(1)
     const messages = await runtime.settings.database.connection((connection) =>
       connection.all(`SELECT id FROM ${runtime?.repository.table("messages")}`),
     )

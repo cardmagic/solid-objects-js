@@ -5,6 +5,7 @@ import type { RealtimeEnvelope } from "../src/browser/index.js"
 import type { InstrumentationEvent } from "../src/configuration.js"
 import { sqlite } from "../src/database/sqlite.js"
 import { configure, type SolidObjectsRuntime } from "../src/runtime.js"
+import { expectPortableEvents } from "./support/portable-telemetry.js"
 
 class PayloadReader extends Actor {
   static override readonly actorType = "payload-projection"
@@ -87,6 +88,7 @@ it.each(["state", "effect", "recovery", "commit_action", "reminder", "outbound",
         }),
       }),
     )
+    expectPortableEvents(events, ["payload_broadcast.failed"])
     expect(await configured.ref(PayloadReader, "one").snapshot()).toEqual({ items: ["committed"] })
   },
 )

@@ -12,7 +12,7 @@ export interface MetricSample {
 
 export type EventObserver = (event: InstrumentationEvent) => void
 
-const fields = new Set([
+export const portableAttributes: ReadonlySet<string> = new Set([
   "failureCount",
   "phase",
   "activationOwnerId",
@@ -81,7 +81,7 @@ export function telemetryEvent(options: {
   const attributes: JsonObject = {}
   for (const [key, value] of Object.entries(options.attributes)) {
     if (
-      fields.has(key) &&
+      portableAttributes.has(key) &&
       (value === null || ["string", "number", "boolean"].includes(typeof value))
     ) {
       attributes[key] = value

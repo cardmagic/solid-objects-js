@@ -932,7 +932,7 @@ outbox with at-least-once delivery, per-actor order, and retry backoff.
   `deliver` while offline and the effect retries with backoff. Give a
   browser runtime a generous `maxAttempts`; an effect that exhausts its
   attempts during a long offline period lands in dead letters, and
-  `runtime.deadLetters.retry` re-queues it.
+  `runtime.deadLetters.effects.retry(id)` re-queues it.
 - `receiveTransmitEnvelope(options)`: idempotent server ingest. `arguments`
   is optional in the envelope and defaults to an empty object, matching the
   staging side and the Ruby ingest. Explicit `null` and arrays are invalid. It enqueues an

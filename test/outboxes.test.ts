@@ -9,6 +9,7 @@ import { NonRetryableError } from "../src/errors.js"
 import { configure, type SolidObjectsRuntime } from "../src/runtime.js"
 import { sqlite } from "../src/database/sqlite.js"
 import type { EffectFailurePayload, EffectSuccessPayload, JsonObject } from "../src/index.js"
+import { expectPortableEvents } from "./support/portable-telemetry.js"
 
 class Checkout extends Actor {
   static override readonly actorType = "Checkout"
@@ -445,6 +446,7 @@ describe("observable broadcasts", () => {
         }),
       ]),
     )
+    expectPortableEvents(telemetry, ["outbox.age"])
     expect(events).toHaveLength(1)
     expect(events[0]).toMatchObject({
       actorType: "ObservableCounter",

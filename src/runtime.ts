@@ -1286,7 +1286,7 @@ export class SolidObjectsRuntime {
         })
     } catch (error) {
       this.emitInstrumentation("activation.failed", {
-        ...messageInstrumentation(turn.message),
+        ...activationInstrumentation(turn),
         errorName: error instanceof Error ? error.name : "Error",
       })
       throw new ActorSetupFailed(error)
@@ -1303,22 +1303,16 @@ export class SolidObjectsRuntime {
 
     if (!activated) {
       try {
-        this.emitInstrumentation("activation.started", {
-          ...messageInstrumentation(turn.message),
-          generation: String(turn.activationGeneration),
-        })
+        this.emitInstrumentation("activation.started", activationInstrumentation(turn))
         await withActorContext({ actor, runtime: this }, () => actor.activate())
         activated = true
-        this.emitInstrumentation("activation.completed", {
-          ...messageInstrumentation(turn.message),
-          generation: String(turn.activationGeneration),
-        })
+        this.emitInstrumentation("activation.completed", activationInstrumentation(turn))
       } catch (error) {
         renewalController.abort()
         await renewal
         actor.discardIntents()
         this.emitInstrumentation("activation.failed", {
-          ...messageInstrumentation(turn.message),
+          ...activationInstrumentation(turn),
           errorName: error instanceof Error ? error.name : "Error",
         })
         throw new ActorSetupFailed(renewalError ?? error)
@@ -1364,6 +1358,7 @@ export class SolidObjectsRuntime {
             throw new UnknownCommitAction(`unknown commit action ${JSON.stringify(intent.name)}`)
           const attributes = {
             commitAction: intent.name,
+            activationGeneration: String(turn.activationGeneration),
             ...messageInstrumentation(turn.message),
           }
           this.emitInstrumentation("commit_action.started", attributes)
@@ -1657,11 +1652,14 @@ export class SolidObjectsRuntime {
     if (!actor.operations.has(dispatchOperation)) {
       throw new UnknownOperation(`unknown reminder operation ${JSON.stringify(dispatchOperation)}`)
     }
-    if (!(await this.repository.enqueueReminder(reminder, options))) return
+    const message = await this.repository.enqueueReminder(reminder, options)
+    if (!message) return
 
     this.wakeUp("actors")
     this.emitInstrumentation("reminder.enqueued", {
       reminderId: reminder.id,
+      messageId: message.id,
+      attempt: Number(message.attempt_count),
       actorType: reminder.actor_type,
       actorId: reminder.actor_id,
       operation: reminder.operation,
@@ -2494,6 +2492,14 @@ function messageInstrumentation(message: MessageRow): JsonObject {
     operation: message.operation,
     deliveryMode: message.delivery_mode,
     attempt: Number(message.attempt_count),
+  }
+}
+
+function activationInstrumentation(turn: ClaimedTurn): JsonObject {
+  return {
+    ...messageInstrumentation(turn.message),
+    generation: String(turn.activationGeneration),
+    ownerId: turn.processId,
   }
 }
 

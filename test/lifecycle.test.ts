@@ -5,6 +5,7 @@ import { StateMigrationError } from "../src/errors.js"
 import type { JsonObject } from "../src/types.js"
 import { configure, type SolidObjectsRuntime } from "../src/runtime.js"
 import { sqlite } from "../src/database/sqlite.js"
+import { expectPortableEvents } from "./support/portable-telemetry.js"
 
 class LifecycleCounter extends Actor {
   static override readonly actorType = "LifecycleCounter"
@@ -711,6 +712,7 @@ describe("runtime lifecycle", () => {
         }),
       ]),
     )
+    expectPortableEvents(events, ["recovery.reclaimed"])
   })
 
   it("drains a bounded activation pass before yielding", async () => {

@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+- Add the shared telemetry contract `compatibility/telemetry-events.json`. Tests
+  compare the attribute allowlist and the attribute keys of each core SQL event
+  with Ruby. Activation events carry `ownerId`, commit action events carry
+  `activationGeneration`, `reminder.enqueued` carries `messageId` and `attempt`,
+  and a truncated `mailbox.depth` sample reports `depth: null`.
+- Port Ruby's query and observable purity tests for each kind of staged work.
+  Name `runtime.deadLetters.effects.retry(id)` for a dead transmit, document the
+  `actor_diagnostics` authorization, and remove the unused `compatibility/ruby.yml`.
+
 - Pin personalized payload isolation, staged-work rejection, and configured
   UTF-8 byte limits with regressions matching Ruby. Share timeout telemetry
   fixtures for wait reasons and activation ownership; document Ruby's fixes

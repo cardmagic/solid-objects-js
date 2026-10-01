@@ -389,7 +389,7 @@ describe("reminder cancellation", () => {
     expect(claimed).toBeDefined()
     await reference.convertByName()
 
-    await expect(started.repository.enqueueReminder(claimed!)).resolves.toBe(false)
+    await expect(started.repository.enqueueReminder(claimed!)).resolves.toBeUndefined()
     expect(await started.reminderScheduler().runOnce()).toBe(0)
   })
 
