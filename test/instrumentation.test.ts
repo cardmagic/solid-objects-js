@@ -338,6 +338,52 @@ describe("structured instrumentation", () => {
     expect(JSON.stringify(events)).not.toContain("reminder-private")
   })
 
+  it("rejects observers without an onEvent callback", async () => {
+    runtime = configuredRuntime()
+    await runtime.install()
+    const reference = InstrumentedActor.ref("callbackless")
+
+    await expect(reference.observe({} as never)).rejects.toThrow(TypeError)
+    await expect(reference.on("message.completed", {} as never)).rejects.toThrow(TypeError)
+  })
+
+  it("accepts at most 1000 local observers", async () => {
+    runtime = configuredRuntime()
+    await runtime.install()
+    const reference = InstrumentedActor.ref("observer-limit")
+    const stops = await Promise.all(
+      Array.from({ length: 1000 }, () => reference.observe({ onEvent: () => {} })),
+    )
+
+    const error = await reference.observe({ onEvent: () => {} }).catch((caught: unknown) => caught)
+
+    expect(error).toBeInstanceOf(RangeError)
+    expect(error).toHaveProperty("message", "at most 1000 local observers may be registered")
+    stops.pop()?.()
+    stops.push(await reference.observe({ onEvent: () => {} }))
+    for (const stop of stops) stop()
+  })
+
+  it("removes local observers when the runtime closes", async () => {
+    runtime = configuredRuntime()
+    await runtime.install()
+    const closed = runtime
+    const identity = { actorType: InstrumentedActor.actorType, actorId: "closed-observer" }
+    const events: InstrumentationEvent[] = []
+    await InstrumentedActor.ref(identity.actorId).observe({
+      onEvent: (event) => {
+        events.push(event)
+      },
+    })
+    closed.emitInstrumentation("custom", identity)
+
+    await closed.close()
+    runtime = undefined
+    closed.emitInstrumentation("custom", identity)
+
+    expect(events).toHaveLength(1)
+  })
+
   it("isolates asynchronous sinks and rejects unknown metadata", async () => {
     const events: InstrumentationEvent[] = []
     runtime = configuredRuntime({

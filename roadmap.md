@@ -44,11 +44,3 @@ letters, reminders, outboxes, incarnation, and revision. Fleet-wide operations
 remain optional where a backend cannot provide them.
 
 [Issue #41: portable actor administration](https://github.com/cardmagic/solid-objects-js/issues/41)
-
-## Portable observability and diagnostics
-
-Define common structured events, metrics, and diagnostic views for activation
-duration, mailbox depth, retries, dead letters, reminder lateness, outbox age,
-recovery failures, and realtime subscriptions without leaking provider APIs.
-
-[Issue #42: portable observability and diagnostics](https://github.com/cardmagic/solid-objects-js/issues/42)

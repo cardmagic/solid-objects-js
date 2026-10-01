@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+- `solid_objects.activation.started` now fires before the actor's `activate()`
+  hook. Before, it fired after a successful hook. The new
+  `solid_objects.activation.completed` event takes that meaning, and
+  `solid_objects.activation.failed` reports a failed hook. Ruby changes the same
+  events. Move a subscriber that reads `activation.started` as a finished
+  activation to `activation.completed`.
+- Reference `observe()` and `on()` reject a missing `onEvent` callback with
+  `TypeError` before authorization, as Ruby raises `ArgumentError` without a
+  block. Tests pin the 1,000-observer limit and observer removal on `close()`.
+  The roadmap no longer lists portable observability as future work.
+
 - Add the shared telemetry contract `compatibility/telemetry-events.json`. Tests
   compare the attribute allowlist and the attribute keys of each core SQL event
   with Ruby. Activation events carry `ownerId`, commit action events carry

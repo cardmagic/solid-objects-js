@@ -1073,6 +1073,9 @@ Mounting, authorization actions, CSRF behavior, pages, and extensions are in
 values. `EventObserver` is a provider-free event callback. An actor reference offers
 `observe({ onEvent, authorizationContext })`, `on(name, { onEvent, authorizationContext })`,
 and `diagnostics(options)`. Both observer methods resolve to an unsubscribe function.
+They reject a missing `onEvent` with `TypeError` before authorization. A runtime
+accepts at most 1,000 local observers; the next one rejects with `RangeError`.
+`close()` removes every local observer.
 `DiagnosticOptions` accepts `authorizationContext` and a `limit` from 1 to 100.
 `ActorDiagnostics` holds five bounded `DiagnosticSummary` values, with `sampled`,
 `truncated`, and `oldestAgeMilliseconds`. See [observability](observability.md).

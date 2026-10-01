@@ -242,20 +242,22 @@ export class ActorReferenceCore<ActorType extends Actor> {
     return this.runtime.diagnostics(this, options)
   }
 
-  observe(options: {
+  async observe(options: {
     onEvent: EventObserver
     authorizationContext?: SnapshotOptions["authorizationContext"]
   }): Promise<() => void> {
+    assertObserver(options.onEvent)
     return this.runtime.observe(this, options)
   }
 
-  on(
+  async on(
     name: string,
     options: {
       onEvent: EventObserver
       authorizationContext?: SnapshotOptions["authorizationContext"]
     },
   ): Promise<() => void> {
+    assertObserver(options.onEvent)
     return this.observe({
       ...options,
       onEvent: (event) => {
@@ -389,6 +391,12 @@ function createMessageSender<ActorType extends Actor>(
         })
     },
   }) as ActorMessageSender<ActorType>
+}
+
+function assertObserver(onEvent: unknown): void {
+  if (typeof onEvent !== "function") {
+    throw new TypeError("an actor observer requires an onEvent callback")
+  }
 }
 
 function assertOperation(operations: ReadonlySet<string>, operation: string): void {
