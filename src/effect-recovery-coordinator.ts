@@ -45,7 +45,7 @@ export class EffectRecoveryCoordinator {
        JOIN ${this.table("effects")} effects ON effects.id = recoveries.effect_id
        LEFT JOIN ${this.table("processes")} owners ON owners.id = effects.claimed_by
        WHERE recoveries.retired_at_ms IS NULL AND recoveries.recovery_operation IS NOT NULL
-         AND effects.status = 'processing'
+         AND ${this.processingCondition()}
          AND (owners.id IS NULL OR owners.heartbeat_at_ms <= ? -
            CASE WHEN recoveries.recovery_timeout_ms > ? THEN recoveries.recovery_timeout_ms ELSE ? END)
          ORDER BY recoveries.instance_id, recoveries.effect_id LIMIT ?`,
@@ -249,5 +249,10 @@ export class EffectRecoveryCoordinator {
   }
   private lockClause(): string {
     return this.options.settings.database.family === "sqlite" ? "" : " FOR UPDATE"
+  }
+  private processingCondition(): string {
+    return this.options.settings.database.family === "sqlite"
+      ? "likelihood(effects.status = 'processing', 0.000001)"
+      : "effects.status = 'processing'"
   }
 }

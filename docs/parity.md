@@ -310,3 +310,8 @@ checks. Per-effect recovery timeouts extend the runtime heartbeat threshold
 (milliseconds in JS, seconds in Ruby). Cloudflare returns emit handles but rejects
 process-heartbeat recovery options and intents before commit. See
 [the transaction protocol](effect-recovery.md).
+
+On SQLite, both runtimes mark the `status = 'processing'` test in the recovery
+candidate query with `likelihood()`. The candidate scan then starts from the
+effects poll index, also when `sqlite_stat1` shows that most effects have one
+status.
