@@ -119,9 +119,11 @@ describe("polling queries", () => {
   })
 })
 
+type QueryParameters = Parameters<DatabaseConnection["all"]>[1]
+
 interface RecordedQuery {
   sql: string
-  parameters: readonly unknown[] | undefined
+  parameters: QueryParameters
 }
 
 class RecordingQueryDatabase implements Database {
@@ -159,9 +161,9 @@ class RecordingQueryDatabase implements Database {
   private recordingConnection(connection: DatabaseConnection): DatabaseConnection {
     return {
       run: (sql, parameters) => connection.run(sql, parameters),
-      get: <Row extends object>(sql: string, parameters?: readonly unknown[]) =>
+      get: <Row extends object>(sql: string, parameters?: QueryParameters) =>
         connection.get<Row>(sql, parameters),
-      all: <Row extends object>(sql: string, parameters?: readonly unknown[]) => {
+      all: <Row extends object>(sql: string, parameters?: QueryParameters) => {
         this.queries.push({ sql, parameters })
         return connection.all<Row>(sql, parameters)
       },
@@ -204,11 +206,11 @@ class RecordingPostgreSQLDatabase implements Database {
   private recordingConnection(connection: DatabaseConnection): DatabaseConnection {
     return {
       run: (sql, parameters) => connection.run(sql, parameters),
-      get: <Row extends object>(sql: string, parameters?: readonly unknown[]) => {
+      get: <Row extends object>(sql: string, parameters?: QueryParameters) => {
         this.statements.push(sql.replace(/\s+/g, " ").trim())
         return connection.get<Row>(sql.replace(/\s+FOR UPDATE SKIP LOCKED\s*$/i, ""), parameters)
       },
-      all: <Row extends object>(sql: string, parameters?: readonly unknown[]) =>
+      all: <Row extends object>(sql: string, parameters?: QueryParameters) =>
         connection.all<Row>(sql, parameters),
       nowMilliseconds: () => connection.nowMilliseconds(),
     }
