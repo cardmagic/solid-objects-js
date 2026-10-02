@@ -6,4 +6,5 @@ minimumReleaseAgeExclude:
   - "@vitest/mocker@4.1.11"
   - sharp@0.35.4
 overrides:
+  undici@7.29.0: 7.29.1
   sharp@<0.35.4: ^0.35.4
