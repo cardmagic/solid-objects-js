@@ -2,6 +2,19 @@
 
 ## Unreleased
 
+- Find SQLite effect recovery candidates through the processing effects.
+  `sqlite_stat1` records only the average row count for each effect status.
+  When most effects are complete, SQLite estimated that `status = 'processing'`
+  matched most of the effects table. It then read every recovery row in index
+  order, on each effect poll. On SQLite the status test now carries
+  `likelihood(..., 0.000001)`, so the plan starts from the `effects_poll`
+  index. The PostgreSQL and MySQL queries do not change. Ruby 0.16.1 has the
+  same fix.
+- Ruby 0.16.1 also fixes the SQLite join order of its claimed-message scan. The
+  JavaScript claim path has no such scan, and SQLite already starts
+  `recoverExpiredClaims` from the claimed messages, so that fix needs no
+  JavaScript change.
+
 - Build before `npm publish` reads the manifest. npm validates `bin` against the
   working tree before `prepack` produces `dist`, so every release logged
   `No bin file found at dist/executable.js` twice. The published package was
