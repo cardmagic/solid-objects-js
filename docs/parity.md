@@ -4,9 +4,9 @@ This ledger tracks capability parity with the Ruby `solid_objects` gem.
 Parity preserves a capability and its correctness or security boundary. It does
 not copy a Rails API into Node.
 
-Reference: Ruby `solid_objects` 0.16.1 and the unreleased changes recorded in
-both changelogs. The JavaScript package began at the Ruby design's `0.12`
-capability generation; that version number did not imply earlier JavaScript releases.
+Reference: Ruby `solid_objects` 0.17.0. The JavaScript package began at the Ruby
+design's `0.12` capability generation; that version number did not imply earlier
+JavaScript releases.
 
 The SQL runtimes share durable identity, ordered mailboxes, fenced commits,
 effects, reminders, authorization, administration, and realtime guarantees.

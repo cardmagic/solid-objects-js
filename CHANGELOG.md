@@ -1,9 +1,9 @@
 # Changelog
 
-## Unreleased
+## 0.17.0 - 2026-10-03
 
-- `solid_objects.activation.started` now fires before the actor's `activate()`
-  hook. Before, it fired after a successful hook. The new
+- **Breaking:** `solid_objects.activation.started` now fires before the actor's
+  `activate()` hook. Before, it fired after a successful hook. The new
   `solid_objects.activation.completed` event takes that meaning, and
   `solid_objects.activation.failed` reports a failed hook. Ruby changes the same
   events. Move a subscriber that reads `activation.started` as a finished
@@ -41,8 +41,9 @@
   effect position, including retries. Schema migration 14 adds `effects.position`;
   run `runtime.install()` before starting upgraded workers. Legacy rows retain
   their existing ID tie-break because their original order cannot be recovered.
-- Reject explicit null transmit arguments, matching Ruby; omission still defaults
-  to an empty object. Expand the shared wire fixtures and adapter ordering tests.
+- **Breaking:** reject explicit null transmit arguments, matching Ruby; omission
+  still defaults to an empty object. Expand the shared wire fixtures and adapter
+  ordering tests.
 - Refresh the parity ledger for authorized message reads and retained background
   results, bulk redrive/audit records, reminder cancellation, and automatic wake-up.
 
