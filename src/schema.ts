@@ -14,7 +14,8 @@ const INSTANCE_RETENTION_INDEX_VERSION = 10
 const DEAD_LETTER_REDRIVE_VERSION = 11
 const REQUEST_ID_LOOKUP_VERSION = 12
 const REMEMBERED_KEYS_VERSION = 13
-const LATEST_VERSION = REMEMBERED_KEYS_VERSION
+const EFFECT_POSITION_VERSION = 14
+const LATEST_VERSION = EFFECT_POSITION_VERSION
 
 export const SCHEMA_VERSIONS: readonly number[] = Object.freeze(
   Array.from({ length: LATEST_VERSION }, (_unused, index) => index + 1),
@@ -390,6 +391,16 @@ export async function installSchema(options: {
     })
   }
 
+  if (!installedVersions.has(EFFECT_POSITION_VERSION)) {
+    await addEffectPosition({ connection, family, table: table("effects") })
+    await recordMigration({
+      connection,
+      table: table("schema_migrations"),
+      version: EFFECT_POSITION_VERSION,
+      schemaIdentity,
+    })
+  }
+
   if (installedVersions.has(POLLING_INDEXES_VERSION)) return
   const pollingIndexes = [
     ["effects", `${prefix}effects_poll`, "status, available_at_ms, id"],
@@ -471,12 +482,23 @@ async function installRedrive(options: {
   })
 }
 
+async function addEffectPosition(options: {
+  connection: DatabaseConnection
+  family: DatabaseFamily
+  table: string
+}): Promise<void> {
+  if (await hasColumn({ ...options, column: "position" })) return
+  await options.connection.run(
+    `ALTER TABLE ${options.table} ADD COLUMN position INTEGER NOT NULL DEFAULT 0`,
+  )
+}
+
 async function addFailedAt(options: {
   connection: DatabaseConnection
   family: DatabaseFamily
   table: string
 }): Promise<void> {
-  if (await hasFailedAt(options)) return
+  if (await hasColumn({ ...options, column: "failed_at_ms" })) return
 
   const type = options.family === "sqlite" ? "INTEGER" : "BIGINT"
   await options.connection.run(`ALTER TABLE ${options.table} ADD COLUMN failed_at_ms ${type}`)
@@ -485,22 +507,23 @@ async function addFailedAt(options: {
   )
 }
 
-async function hasFailedAt(options: {
+async function hasColumn(options: {
   connection: DatabaseConnection
   family: DatabaseFamily
   table: string
+  column: string
 }): Promise<boolean> {
   if (options.family === "sqlite") {
     const columns = await options.connection.all<{ name: string }>(
       `PRAGMA table_info(${options.table})`,
     )
-    return columns.some(({ name }) => name === "failed_at_ms")
+    return columns.some(({ name }) => name === options.column)
   }
   const schema = options.family === "postgresql" ? "current_schema()" : "DATABASE()"
   const found = await options.connection.get<{ found: number | bigint }>(
     `SELECT COUNT(*) AS found FROM information_schema.columns
-     WHERE table_schema = ${schema} AND table_name = ? AND column_name = 'failed_at_ms'`,
-    [options.table],
+     WHERE table_schema = ${schema} AND table_name = ? AND column_name = ?`,
+    [options.table, options.column],
   )
   return Number(found?.found ?? 0) > 0
 }

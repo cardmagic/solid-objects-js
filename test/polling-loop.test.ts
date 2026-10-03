@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest"
 import { sqlite } from "../src/database/sqlite.js"
 import { createRuntime, type SolidObjectsRuntime } from "../src/runtime.js"
 import type { InstrumentationEvent } from "../src/configuration.js"
+import { expectPortableEvents } from "./support/portable-telemetry.js"
 import {
   InProcessWakeUpAdapter,
   type WakeUpAdapter,
@@ -86,6 +87,7 @@ describe("idle polling", () => {
         currentIntervalMilliseconds: 1_000,
       },
     ])
+    expectPortableEvents(events, ["polling.interval_changed"])
   })
 
   it("backs an idle effect worker off to the configured ceiling", async () => {

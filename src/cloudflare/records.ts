@@ -26,6 +26,7 @@ export interface Message {
   idempotencyKey: string | null
   status: MessageStatus
   attempt: number
+  claimedAt?: number
   availableAt: number
   createdAt: number
   completedAt: number | null
@@ -46,6 +47,7 @@ export interface Outbox {
   payload: JsonObject
   status: "pending" | "claimed" | "completed" | "dead"
   attempt: number
+  deliveryAvailableAt?: number
   availableAt: number
   completedAt: number | null
   error: JsonObject | null

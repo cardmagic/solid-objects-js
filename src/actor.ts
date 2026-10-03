@@ -536,6 +536,10 @@ export abstract class Actor {
   intentCount(): number {
     return Object.values(this.#intents).reduce((count, intents) => count + intents.length, 0)
   }
+
+  intentSnapshot(): string {
+    return JSON.stringify(this.#intents)
+  }
 }
 
 function isObservableBroadcast(value: object): value is ObservableBroadcast<JsonValue> {

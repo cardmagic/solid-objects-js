@@ -1,10 +1,15 @@
 import { afterEach, describe, expect, it } from "vitest"
 import { Actor, broadcastInvalidation, broadcastValue } from "../src/actor.js"
-import type { BroadcastEvent, SolidObjectsConfiguration } from "../src/configuration.js"
+import type {
+  BroadcastEvent,
+  InstrumentationEvent,
+  SolidObjectsConfiguration,
+} from "../src/configuration.js"
 import { NonRetryableError } from "../src/errors.js"
 import { configure, type SolidObjectsRuntime } from "../src/runtime.js"
 import { sqlite } from "../src/database/sqlite.js"
 import type { EffectFailurePayload, EffectSuccessPayload, JsonObject } from "../src/index.js"
+import { expectPortableEvents } from "./support/portable-telemetry.js"
 
 class Checkout extends Actor {
   static override readonly actorType = "Checkout"
@@ -414,7 +419,11 @@ describe("reminders", () => {
 describe("observable broadcasts", () => {
   it("delivers values and invalidation-only observable names", async () => {
     const events: BroadcastEvent[] = []
+    const telemetry: InstrumentationEvent[] = []
     runtime = configuredRuntime({
+      instrumentation: (event) => {
+        telemetry.push(event)
+      },
       broadcast: async (event) => {
         events.push(event)
       },
@@ -424,6 +433,20 @@ describe("observable broadcasts", () => {
     await ObservableCounter.ref("counter").increment()
     expect(await runtime.broadcastWorker().runUntilIdle()).toBe(1)
 
+    expect(telemetry).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          name: "solid_objects.outbox.age",
+          actorId: "counter",
+          incarnation: expect.any(String),
+          attributes: expect.objectContaining({
+            outboxKind: "broadcast",
+            ageMilliseconds: expect.any(Number),
+          }),
+        }),
+      ]),
+    )
+    expectPortableEvents(telemetry, ["outbox.age"])
     expect(events).toHaveLength(1)
     expect(events[0]).toMatchObject({
       actorType: "ObservableCounter",

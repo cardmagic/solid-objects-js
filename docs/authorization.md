@@ -10,6 +10,12 @@ resource, optional resource ID, and the caller's authorization context. Retry
 authorization happens before lookup so a denied caller cannot use record IDs as
 an existence oracle.
 
+Actor diagnostics and actor observers call `authorizeAdministration` with the
+resource `actor_diagnostics` and the resource ID
+`JSON.stringify([actorType, actorId])`. `diagnostics()` uses the action
+`inspect`. `observe()` and `on()` use the action `observe`. The check runs before
+any queue read or observer registration.
+
 `runtime.realtime` is transport-neutral. The host application authenticates its
 WebSocket or stream connection, passes that fresh server-side subject as the
 session's `authorizationContext`, and forwards incoming protocol messages to

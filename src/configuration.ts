@@ -1,3 +1,4 @@
+import type { MetricSample } from "./telemetry.js"
 import { InvalidActor } from "./errors.js"
 import type { Database } from "./database/types.js"
 import type {
@@ -40,6 +41,15 @@ export interface SubscriptionAuthorizationInput {
 }
 
 export interface InstrumentationEvent {
+  readonly schemaVersion: 1
+  readonly adapter: string
+  readonly actorType: string | null
+  readonly actorId: string | null
+  readonly incarnation: string | null
+  readonly revision: string | null
+  readonly messageId: string | null
+  readonly attempt: number
+  readonly metrics: readonly MetricSample[]
   readonly name: string
   readonly occurredAt: string
   readonly attributes: DeepReadonly<JsonObject>

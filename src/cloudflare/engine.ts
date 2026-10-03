@@ -1,3 +1,5 @@
+import { diagnosticLimit, diagnosticSummary } from "../diagnostics.js"
+import { telemetryEvent, deliverTelemetry } from "../telemetry.js"
 import type { Actor, ActorClass, ActorIntents } from "../actor.js"
 import { withActorContext, withActorProjection, withRuntime } from "../context.js"
 import {
@@ -78,7 +80,9 @@ export class ActorEngine {
           arguments: jsonObject(input.payload.arguments),
         })
       this.bind(input)
-      return this.store.atomic(() => normalizeJson(this.enqueue(input)))
+      const message = await this.store.atomic(() => this.enqueue(input))
+      this.emit("message.enqueued", { messageId: message.id, attempt: message.attempt })
+      return normalizeJson(message)
     }
     if (input.method === "message" || input.method === "lookup") return this.readMessage(input)
     if (input.method === "administration") return this.administer(input)
@@ -100,6 +104,7 @@ export class ActorEngine {
           String(input.payload.subscriptionId),
         )
       })
+      this.emit("realtime.disconnected", { actorType: input.actorType, actorId: input.actorId })
       return null
     }
     if (input.method === "snapshot") {
@@ -135,13 +140,15 @@ export class ActorEngine {
         }),
       )
     }
+    if (input.method === "subscribe")
+      this.emit("realtime.connected", { actorType: input.actorType, actorId: input.actorId })
     return this.projection({ input, payloadNames })
   }
 
   async pump(): Promise<void> {
-    await this.store.atomic(() => {
+    const dispatchedReminders = await this.store.atomic(() => {
       this.store.prune()
-      this.scheduleReminders()
+      const dispatched = this.scheduleReminders()
       if (this.actorRunning) {
         const head = this.store.head()
         if (head?.status === "claimed") {
@@ -154,7 +161,9 @@ export class ActorEngine {
         outbox.availableAt = Date.now() + RECOVERY_INTERVAL
         this.store.saveOutbox(outbox)
       }
+      return dispatched
     })
+    for (const reminder of dispatchedReminders) this.emit("reminder.enqueued", reminder)
     const work: Promise<void>[] = []
     if (!this.actorRunning) work.push(this.drainActors())
     for (const outbox of this.store.outboxHeads()) {
@@ -430,6 +439,7 @@ export class ActorEngine {
     })
     if (stableJson(actorState(actor, definition.stateKeys)) !== before || actor.hasIntents())
       throw new QueryMutatedState("snapshot getters must not mutate state or stage work")
+    this.emit("snapshot.read", { actorType: identity.actorType, actorId: identity.actorId })
     return {
       snapshot,
       instanceId: instance?.incarnation ?? "0",
@@ -513,7 +523,12 @@ export class ActorEngine {
       this.store.saveMessage(message)
     }
     this.cached = undefined
-    this.emit("actor.destroyed")
+    this.emit("actor.destroyed", {
+      actorType: instance.actorType,
+      actorId: instance.actorId,
+      incarnation: instance.incarnation,
+      revision: instance.revision,
+    })
     return true
   }
 
@@ -551,9 +566,11 @@ export class ActorEngine {
               readReminders: this.readReminders,
             })
       if (this.cached?.actor !== actor) {
+        this.emit("activation.started", { messageId: message.id, attempt: message.attempt })
         await withActorContext({ actor, runtime: this.runtime }, () => actor.activate())
         this.assertCurrent(instance)
         this.cached = { incarnation: instance.incarnation, actor }
+        this.emit("activation.completed", { messageId: message.id, attempt: message.attempt })
       }
     } catch (error) {
       if (error instanceof ActorDestroyed) return
@@ -570,19 +587,28 @@ export class ActorEngine {
         }
         this.store.saveMessage(message)
       })
+      this.emit("activation.failed", {
+        messageId: message.id,
+        attempt: message.attempt,
+        errorName: errorName(error),
+      })
       this.emit("actor.setup_failed", { errorName: errorName(error) })
       return
     }
     const stateBefore = deepCopy(actorState(actor, definition.stateKeys))
+    const startedAt = performance.now()
     try {
       await this.store.atomic(() => {
         this.assertCurrent(instance)
         message.status = "claimed"
+        message.claimedAt = Date.now()
         message.generation = instance.generation
         message.attempt += 1
         message.availableAt = Date.now() + RECOVERY_INTERVAL
         this.store.saveMessage(message)
       })
+      if (message.attempt > 1 && message.error === null)
+        this.emit("recovery.reclaimed", { messageId: message.id, attempt: message.attempt })
       this.emit("message.started", { messageId: message.id, attempt: message.attempt })
       const evaluated = await evaluateActorTurn({
         actor,
@@ -634,7 +660,11 @@ export class ActorEngine {
         this.stage({ instance: current, message, intents, broadcast: evaluated.broadcast })
         this.completeReminder(message)
       })
-      this.emit("message.completed", { messageId: message.id })
+      this.emit("message.completed", {
+        messageId: message.id,
+        attempt: message.attempt,
+        durationMilliseconds: performance.now() - startedAt,
+      })
     } catch (error) {
       actor.discardIntents()
       for (const key of definition.stateKeys)
@@ -693,7 +723,13 @@ export class ActorEngine {
           this.store.saveMessage(message)
         }
       })
+      if (message.status === "ready")
+        this.emit("message.retry", { messageId: message.id, attempt: message.attempt })
+      if (message.status === "dead")
+        this.emit("dead_letter.created", { messageId: message.id, attempt: message.attempt })
       this.emit("message.failed", {
+        attempt: message.attempt,
+        durationMilliseconds: performance.now() - startedAt,
         messageId: message.id,
         errorName: errorName(error),
         status: message.status,
@@ -819,9 +855,16 @@ export class ActorEngine {
       return
     }
     try {
+      this.emit("outbox.age", {
+        messageId: outbox.messageId,
+        outboxKind: outbox.kind,
+        attempt: outbox.attempt + 1,
+        ageMilliseconds: Math.max(0, Date.now() - outbox.availableAt),
+      })
       await this.store.atomic(() => {
         if (!this.outboxCurrent(outbox, instance)) throw new ActorDestroyed("outbox was removed")
         outbox.status = "claimed"
+        outbox.deliveryAvailableAt = outbox.availableAt
         outbox.attempt += 1
         outbox.availableAt = Date.now() + RECOVERY_INTERVAL
         this.store.saveOutbox(outbox)
@@ -971,9 +1014,10 @@ export class ActorEngine {
     })
   }
 
-  private scheduleReminders(): void {
+  private scheduleReminders(): JsonObject[] {
+    const dispatched: JsonObject[] = []
     const instance = this.store.instance()
-    if (!instance || instance.paused) return
+    if (!instance || instance.paused) return dispatched
     for (const reminder of this.store.rows<Reminder>(
       "SELECT record FROM reminders WHERE status = 'scheduled' AND due_at <= ? ORDER BY due_at LIMIT ?",
       [Date.now(), this.settings.maxMessagesPerActivationPass],
@@ -991,6 +1035,11 @@ export class ActorEngine {
             availableAt: reminder.at,
           },
         })
+        dispatched.push({
+          messageId: message.id,
+          attempt: message.attempt,
+          latenessMilliseconds: Math.max(0, Date.now() - reminder.at),
+        })
         message.reminder = { name: reminder.name, generation: reminder.generation }
         this.store.saveMessage(message)
         reminder.status = "completed"
@@ -1000,6 +1049,7 @@ export class ActorEngine {
         break
       }
     }
+    return dispatched
   }
 
   private completeReminder(message: Message): void {
@@ -1036,13 +1086,15 @@ export class ActorEngine {
     const action = String(input.payload.action)
     if (
       !(await this.settings.authorizeAdministration({
-        action,
-        resource: `actor:${actorName(input)}`,
+        action: action === "diagnostics" ? "inspect" : action,
+        resource: action === "diagnostics" ? "actor_diagnostics" : `actor:${actorName(input)}`,
+        resourceId: actorName(input),
         authorizationContext: input.authorizationContext,
       }))
     )
       throw new Unauthorized("actor administration is not authorized")
     this.bind(input)
+    if (action === "diagnostics") return this.diagnostics(input)
     if (action === "deadLetters")
       return normalizeJson({
         messages: this.store.rows<Message>(
@@ -1107,21 +1159,75 @@ export class ActorEngine {
     })
   }
 
+  private diagnostics(input: HostRequest): JsonObject {
+    const limit = diagnosticLimit(Number(input.payload.limit ?? 100))
+    const instance = this.store.instance()
+    const now = Date.now()
+    const queries = {
+      mailbox:
+        "SELECT CASE WHEN status = 'claimed' THEN COALESCE(json_extract(record, '$.claimedAt'), json_extract(record, '$.createdAt')) ELSE available_at END AS at FROM messages WHERE status IN ('ready', 'claimed')",
+      outbox:
+        "SELECT CASE WHEN status = 'claimed' THEN COALESCE(json_extract(record, '$.deliveryAvailableAt'), available_at) ELSE available_at END AS at FROM outboxes WHERE status IN ('pending', 'claimed')",
+      reminders: "SELECT due_at AS at FROM reminders WHERE status IN ('scheduled', 'paused')",
+      retries:
+        "SELECT available_at AS at FROM messages WHERE status = 'ready' AND json_extract(record, '$.error') IS NOT NULL",
+    }
+    const summaries: JsonObject = {}
+    for (const [name, query] of Object.entries(queries)) {
+      const rows = this.store.storage.sql
+        .exec<{ at: number }>(`${query} ORDER BY at LIMIT ?`, limit + 1)
+        .toArray()
+      summaries[name] = normalizeJson(
+        diagnosticSummary({ timestamps: rows.map((row) => row.at), now, limit }),
+      )
+    }
+    const mailbox = jsonObject(summaries.mailbox)
+    this.emit("mailbox.depth", {
+      actorType: input.actorType,
+      actorId: input.actorId,
+      count: mailbox.sampled ?? 0,
+      truncated: mailbox.truncated ?? false,
+      ...(mailbox.truncated ? {} : { depth: mailbox.sampled ?? 0 }),
+    })
+    return {
+      actorType: input.actorType,
+      actorId: input.actorId,
+      incarnation: instance?.incarnation ?? null,
+      revision: instance?.revision ?? null,
+      adapter: "durable-objects",
+      occurredAt: new Date(now).toISOString(),
+      limit,
+      ...summaries,
+      recoveryFailures: normalizeJson(diagnosticSummary({ timestamps: [], now, limit })),
+    }
+  }
+
   private retryDelay(attempt: number): number {
     const delay = this.settings.retryDelayMilliseconds(attempt)
     return Number.isFinite(delay) && delay >= 1 ? delay : 1_000
   }
 
   private emit(name: string, attributes: JsonObject = {}): void {
+    if (!this.settings.instrumentation) return
     try {
-      this.settings.instrumentation?.({
-        name: `solid_objects.${name}`,
-        occurredAt: new Date().toISOString(),
-        attributes,
+      const instance = this.store.instance()
+      const event = telemetryEvent({
+        name,
+        adapter: "durable-objects",
+        attributes: {
+          actorType: instance?.actorType ?? null,
+          actorId: instance?.actorId ?? null,
+          incarnation: instance?.incarnation ?? null,
+          revision: instance?.revision ?? null,
+          ...attributes,
+        },
       })
-    } catch {
-      this.settings.logger.error({ event: "solid_objects.instrumentation.failed", name })
-    }
+      deliverTelemetry({
+        observer: this.settings.instrumentation,
+        event,
+        logger: this.settings.logger,
+      })
+    } catch {}
   }
 }
 

@@ -731,13 +731,13 @@ export class Repository {
         turn.message.id,
       ])
 
-      for (const effect of input.intents.effects) {
+      for (const [position, effect] of input.intents.effects.entries()) {
         const effectId = effect.id ?? randomUUID()
         await connection.run(
           `INSERT INTO ${this.table("effects")}
            (id, message_id, instance_id, name, arguments, success_operation, failure_operation,
-            status, max_attempts, available_at_ms)
-           VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?)`,
+            status, max_attempts, available_at_ms, position)
+           VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?)`,
           [
             effectId,
             turn.message.id,
@@ -748,6 +748,7 @@ export class Repository {
             effect.failureOperation ?? null,
             this.settings.maxAttempts,
             now,
+            position,
           ],
         )
         if (effect.recoveryOperation !== undefined || effect.statusOperation !== undefined) {
@@ -1842,7 +1843,7 @@ export class Repository {
   async enqueueReminder(
     reminder: ReminderRow,
     options: { nowMilliseconds?: number } = {},
-  ): Promise<boolean> {
+  ): Promise<MessageRow | undefined> {
     return this.settings.database.transaction(async (connection) => {
       const now = options.nowMilliseconds ?? (await connection.nowMilliseconds())
       const claimed = await connection.get<ReminderRow>(
@@ -1858,9 +1859,9 @@ export class Repository {
           `SELECT id FROM ${this.table("reminders")} WHERE id = ?`,
           [reminder.id],
         ))
-      if (!claimed && !surviving) return false
+      if (!claimed && !surviving) return undefined
       if (!claimed) throw new LostActivation("reminder claim no longer matches")
-      await this.enqueueInTransaction(connection, {
+      const message = await this.enqueueInTransaction(connection, {
         actorType: claimed.actor_type,
         actorId: claimed.actor_id,
         operation: claimed.message_operation ?? claimed.operation,
@@ -1890,7 +1891,7 @@ export class Repository {
           claimed.claimed_by,
         ],
       )
-      return true
+      return message
     })
   }
 

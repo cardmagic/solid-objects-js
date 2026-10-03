@@ -7,7 +7,14 @@ export function notifyWakeUp(options: {
   role: WakeUpRole
 }): void {
   const logFailure = (errorName: string): void => {
-    options.logger.error({ event: "solid_objects.wake_up.failed", role: options.role, errorName })
+    try {
+      const result = options.logger.error({
+        event: "solid_objects.wake_up.failed",
+        role: options.role,
+        errorName,
+      })
+      void Promise.resolve(result).catch(() => {})
+    } catch {}
   }
   try {
     Promise.resolve(options.adapter.notify(options.role)).catch((error) =>

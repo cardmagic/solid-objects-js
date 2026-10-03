@@ -1,3 +1,5 @@
+import { actorDiagnostics, type DiagnosticOptions, type ActorDiagnostics } from "./diagnostics.js"
+import { telemetryEvent, deliverTelemetry, type EventObserver } from "./telemetry.js"
 import type { Actor, ActorClass, ObservableProjection } from "./actor.js"
 import { BroadcastWorker } from "./broadcast-worker.js"
 import {
@@ -209,6 +211,7 @@ export class SolidObjectsRuntime {
   readonly realtime
   readonly processes
   readonly administration
+  private readonly observers = new Set<EventObserver>()
   private readonly registry = new Map<string, RegisteredActor>()
   private readonly effects = new Map<string, EffectHandler>()
   private readonly commitActions = new Map<string, CommitActionHandler>()
@@ -833,7 +836,7 @@ export class SolidObjectsRuntime {
           : (await this.repository.remindersForInstance(instance.id)).map(scheduledReminderOf),
     })
     const stateBefore = stableJson(actorState(actor, registered.definition.stateKeys))
-    const intentCount = actor.intentCount()
+    const intentsBefore = actor.intentSnapshot()
     const snapshot: Record<string, JsonValue> = { ...state }
     await withActorProjection({ actor, runtime: this }, async () => {
       for (const query of registered.definition.queries) {
@@ -846,10 +849,16 @@ export class SolidObjectsRuntime {
     })
     if (
       stableJson(actorState(actor, registered.definition.stateKeys)) !== stateBefore ||
-      actor.intentCount() !== intentCount
+      actor.intentSnapshot() !== intentsBefore
     ) {
       throw new QueryMutatedState("snapshot getters must not mutate actor state or stage work")
     }
+    this.emitInstrumentation("snapshot.read", {
+      actorType: reference.actorType,
+      actorId: reference.actorId,
+      instanceId: instance?.id ?? null,
+      revision: String(instance?.state_revision ?? 0),
+    })
     return {
       snapshot: readonlyCopy(snapshot) as ActorSnapshot<ActorType>,
       instanceId: instance?.id ?? "0",
@@ -1276,6 +1285,10 @@ export class SolidObjectsRuntime {
             (await this.repository.remindersForInstance(turn.instance.id)).map(scheduledReminderOf),
         })
     } catch (error) {
+      this.emitInstrumentation("activation.failed", {
+        ...activationInstrumentation(turn),
+        errorName: error instanceof Error ? error.name : "Error",
+      })
       throw new ActorSetupFailed(error)
     }
     const definition = registered.definition
@@ -1290,23 +1303,25 @@ export class SolidObjectsRuntime {
 
     if (!activated) {
       try {
+        this.emitInstrumentation("activation.started", activationInstrumentation(turn))
         await withActorContext({ actor, runtime: this }, () => actor.activate())
         activated = true
-        this.emitInstrumentation("activation.started", {
-          actorType: turn.message.actor_type,
-          actorId: turn.message.actor_id,
-          instanceId: turn.instance.id,
-          generation: String(turn.activationGeneration),
-        })
+        this.emitInstrumentation("activation.completed", activationInstrumentation(turn))
       } catch (error) {
         renewalController.abort()
         await renewal
         actor.discardIntents()
+        this.emitInstrumentation("activation.failed", {
+          ...activationInstrumentation(turn),
+          errorName: error instanceof Error ? error.name : "Error",
+        })
         throw new ActorSetupFailed(renewalError ?? error)
       }
     }
 
-    const startedAt = Date.now()
+    const startedAt = performance.now()
+    if (Number(turn.message.attempt_count) > 1 && turn.message.error === null)
+      this.emitInstrumentation("recovery.reclaimed", messageInstrumentation(turn.message))
     this.emitInstrumentation("message.started", messageInstrumentation(turn.message))
     try {
       stateBefore = deepCopy(actorState(actor, definition.stateKeys))
@@ -1343,6 +1358,7 @@ export class SolidObjectsRuntime {
             throw new UnknownCommitAction(`unknown commit action ${JSON.stringify(intent.name)}`)
           const attributes = {
             commitAction: intent.name,
+            activationGeneration: String(turn.activationGeneration),
             ...messageInstrumentation(turn.message),
           }
           this.emitInstrumentation("commit_action.started", attributes)
@@ -1383,10 +1399,13 @@ export class SolidObjectsRuntime {
           nextRunAt: new Date(replacement.nextRunAtMilliseconds).toISOString(),
         })
       }
+      if (recoveryMessage(turn.message))
+        this.emitInstrumentation("recovery.completed", messageInstrumentation(turn.message))
       this.warnAboutLargeState(turn.message, committed)
       this.emitInstrumentation("message.completed", {
         ...messageInstrumentation(turn.message),
-        durationMilliseconds: Date.now() - startedAt,
+        revision: String(turn.message.sequence),
+        durationMilliseconds: performance.now() - startedAt,
       })
       return { actor, retainActivation: true, activated }
     } catch (error) {
@@ -1397,7 +1416,7 @@ export class SolidObjectsRuntime {
       if (error instanceof LostActivation) {
         this.emitInstrumentation("activation.lost", {
           ...messageInstrumentation(turn.message),
-          durationMilliseconds: Date.now() - startedAt,
+          durationMilliseconds: performance.now() - startedAt,
         })
         return { actor, retainActivation: false, activated }
       }
@@ -1410,7 +1429,7 @@ export class SolidObjectsRuntime {
         this.emitInstrumentation("message.rejected", {
           ...messageInstrumentation(turn.message),
           code: error.code,
-          durationMilliseconds: Date.now() - startedAt,
+          durationMilliseconds: performance.now() - startedAt,
         })
         return { actor, retainActivation: activated, activated }
       }
@@ -1423,12 +1442,15 @@ export class SolidObjectsRuntime {
         ...messageInstrumentation(turn.message),
         retryable,
         errorName: error instanceof Error ? error.name : "Error",
-        durationMilliseconds: Date.now() - startedAt,
+        durationMilliseconds: performance.now() - startedAt,
         outcome,
       })
-      if (outcome === "dead") {
+      if (outcome === "retrying")
+        this.emitInstrumentation("message.retry", messageInstrumentation(turn.message))
+      if (outcome === "dead" && recoveryMessage(turn.message))
+        this.emitInstrumentation("recovery.failed", messageInstrumentation(turn.message))
+      if (outcome === "dead")
         this.emitInstrumentation("dead_letter.created", messageInstrumentation(turn.message))
-      }
       return { actor, retainActivation: activated, activated }
     }
   }
@@ -1474,6 +1496,7 @@ export class SolidObjectsRuntime {
     await this.callerWorker?.stop()
     this.realtime.close()
     await this.closeWakeUp()
+    this.observers.clear()
     await this.settings.database.close()
     clearDefaultRuntime(this)
   }
@@ -1529,28 +1552,65 @@ export class SolidObjectsRuntime {
     await this.repository.resetForTesting()
   }
 
-  emitInstrumentation(name: string, attributes: JsonObject): void {
-    const instrumentation = this.settings.instrumentation
-    if (!instrumentation) return
-    try {
-      instrumentation(
-        Object.freeze({
-          name: `solid_objects.${name}`,
-          occurredAt: new Date().toISOString(),
-          attributes: readonlyCopy(attributes),
-        }),
-      )
-    } catch (error) {
-      this.settings.logger.error({
-        event: "solid_objects.instrumentation.failed",
-        instrumentationEvent: `solid_objects.${name}`,
-        errorName: error instanceof Error ? error.name : "Error",
-      })
+  diagnostics(
+    reference: ActorReferenceCore<Actor>,
+    options: DiagnosticOptions = {},
+  ): Promise<ActorDiagnostics> {
+    return actorDiagnostics({
+      runtime: this,
+      actorType: reference.actorType,
+      actorId: reference.actorId,
+      options,
+    })
+  }
+
+  async observe(
+    reference: ActorReferenceCore<Actor>,
+    options: {
+      onEvent: EventObserver
+      authorizationContext?: SnapshotOptions["authorizationContext"]
+    },
+  ): Promise<() => void> {
+    await this.authorizeAdministration({
+      action: "observe",
+      resource: "actor_diagnostics",
+      resourceId: JSON.stringify([reference.actorType, reference.actorId]),
+      authorizationContext: options.authorizationContext,
+    })
+    if (this.observers.size >= 1000)
+      throw new RangeError("at most 1000 local observers may be registered")
+    const observer: EventObserver = (event) => {
+      if (event.actorType === reference.actorType && event.actorId === reference.actorId)
+        return options.onEvent(event)
     }
+    this.observers.add(observer)
+    return () => {
+      this.observers.delete(observer)
+    }
+  }
+
+  emitInstrumentation(name: string, attributes: JsonObject): void {
+    if (!this.settings.instrumentation && this.observers.size === 0) return
+    try {
+      const event = telemetryEvent({ name, adapter: this.settings.database.family, attributes })
+      if (this.settings.instrumentation)
+        deliverTelemetry({
+          observer: this.settings.instrumentation,
+          event,
+          logger: this.settings.logger,
+        })
+      for (const observer of this.observers)
+        deliverTelemetry({ observer, event, logger: this.settings.logger })
+    } catch {}
   }
 
   async executeEffect(effect: EffectRow): Promise<void> {
     try {
+      this.emitInstrumentation("outbox.age", {
+        ...effectInstrumentation(effect),
+        outboxKind: "effect",
+        ageMilliseconds: Math.max(0, Date.now() - Number(effect.available_at_ms)),
+      })
       const handler = this.effects.get(effect.name)
       if (!handler) throw new UnknownEffect(`unknown effect ${JSON.stringify(effect.name)}`)
       const result = normalizeJson(
@@ -1592,14 +1652,22 @@ export class SolidObjectsRuntime {
     if (!actor.operations.has(dispatchOperation)) {
       throw new UnknownOperation(`unknown reminder operation ${JSON.stringify(dispatchOperation)}`)
     }
-    if (!(await this.repository.enqueueReminder(reminder, options))) return
+    const message = await this.repository.enqueueReminder(reminder, options)
+    if (!message) return
 
     this.wakeUp("actors")
     this.emitInstrumentation("reminder.enqueued", {
       reminderId: reminder.id,
+      messageId: message.id,
+      attempt: Number(message.attempt_count),
       actorType: reminder.actor_type,
       actorId: reminder.actor_id,
       operation: reminder.operation,
+      instanceId: reminder.instance_id,
+      latenessMilliseconds: Math.max(
+        0,
+        (options.nowMilliseconds ?? Date.now()) - Number(reminder.run_at_ms),
+      ),
       occurrence: Number(reminder.occurrence),
     })
   }
@@ -1607,6 +1675,11 @@ export class SolidObjectsRuntime {
   async executeBroadcast(broadcast: BroadcastRow): Promise<void> {
     const deliver = this.settings.broadcast
     try {
+      this.emitInstrumentation("outbox.age", {
+        ...broadcastInstrumentation(broadcast),
+        outboxKind: "broadcast",
+        ageMilliseconds: Math.max(0, Date.now() - Number(broadcast.available_at_ms)),
+      })
       const event = readonlyCopy({
         actorType: broadcast.actor_type,
         actorId: broadcast.actor_id,
@@ -2152,7 +2225,7 @@ export class SolidObjectsRuntime {
         state: deepCopy(options.snapshot.state),
       })
       const stateBefore = stableJson(actorState(actor, options.registered.definition.stateKeys))
-      const intentCount = actor.intentCount()
+      const intentsBefore = actor.intentSnapshot()
       const handler = options.registered.definition.payloads[options.name]
       if (!handler) {
         throw new UnknownPayloadBroadcast(`unknown payload broadcast ${options.name}`)
@@ -2162,7 +2235,7 @@ export class SolidObjectsRuntime {
       )
       if (
         stableJson(actorState(actor, options.registered.definition.stateKeys)) !== stateBefore ||
-        actor.intentCount() !== intentCount
+        actor.intentSnapshot() !== intentsBefore
       ) {
         throw new QueryMutatedState("payload broadcasts must not mutate actor state or stage work")
       }
@@ -2400,8 +2473,17 @@ function actorDestroyedWhileWaiting(): ActorDestroyed {
   return new ActorDestroyed("actor was destroyed while waiting for its result")
 }
 
+function recoveryMessage(message: MessageRow): boolean {
+  return (
+    message.delivery_mode === "internal" &&
+    message.idempotency_key?.startsWith("effect:") === true &&
+    message.idempotency_key.endsWith(":recovery")
+  )
+}
+
 function messageInstrumentation(message: MessageRow): JsonObject {
   return {
+    instanceId: message.instance_id,
     messageId: message.id,
     requestId: message.request_id,
     actorType: message.actor_type,
@@ -2410,6 +2492,14 @@ function messageInstrumentation(message: MessageRow): JsonObject {
     operation: message.operation,
     deliveryMode: message.delivery_mode,
     attempt: Number(message.attempt_count),
+  }
+}
+
+function activationInstrumentation(turn: ClaimedTurn): JsonObject {
+  return {
+    ...messageInstrumentation(turn.message),
+    generation: String(turn.activationGeneration),
+    ownerId: turn.processId,
   }
 }
 
@@ -2437,6 +2527,7 @@ function restoreActorState(options: {
 
 function effectInstrumentation(effect: EffectRow): JsonObject {
   return {
+    instanceId: effect.instance_id,
     effectId: effect.id,
     effectName: effect.name,
     messageId: effect.message_id,
@@ -2448,6 +2539,7 @@ function effectInstrumentation(effect: EffectRow): JsonObject {
 
 function broadcastInstrumentation(broadcast: BroadcastRow): JsonObject {
   return {
+    instanceId: broadcast.instance_id,
     broadcastId: broadcast.id,
     messageId: broadcast.message_id,
     actorType: broadcast.actor_type,

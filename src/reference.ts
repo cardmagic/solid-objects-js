@@ -1,3 +1,5 @@
+import type { EventObserver } from "./telemetry.js"
+import type { ActorDiagnostics, DiagnosticOptions } from "./diagnostics.js"
 import type { Actor, ActorClass } from "./actor.js"
 import { SyncInsideTransaction, UnknownOperation } from "./errors.js"
 import type { Outcome } from "./outcome.js"
@@ -236,6 +238,34 @@ export class ActorReferenceCore<ActorType extends Actor> {
     this.send = createMessageSender(this, {})
   }
 
+  diagnostics(options: DiagnosticOptions = {}): Promise<ActorDiagnostics> {
+    return this.runtime.diagnostics(this, options)
+  }
+
+  async observe(options: {
+    onEvent: EventObserver
+    authorizationContext?: SnapshotOptions["authorizationContext"]
+  }): Promise<() => void> {
+    assertObserver(options.onEvent)
+    return this.runtime.observe(this, options)
+  }
+
+  async on(
+    name: string,
+    options: {
+      onEvent: EventObserver
+      authorizationContext?: SnapshotOptions["authorizationContext"]
+    },
+  ): Promise<() => void> {
+    assertObserver(options.onEvent)
+    return this.observe({
+      ...options,
+      onEvent: (event) => {
+        if (event.name === `solid_objects.${name}`) return options.onEvent(event)
+      },
+    })
+  }
+
   with(options: InvocationOptions): ActorInvoker<ActorType> {
     return createInvoker(this, options)
   }
@@ -361,6 +391,12 @@ function createMessageSender<ActorType extends Actor>(
         })
     },
   }) as ActorMessageSender<ActorType>
+}
+
+function assertObserver(onEvent: unknown): void {
+  if (typeof onEvent !== "function") {
+    throw new TypeError("an actor observer requires an onEvent callback")
+  }
 }
 
 function assertOperation(operations: ReadonlySet<string>, operation: string): void {

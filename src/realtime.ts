@@ -122,6 +122,10 @@ export class RealtimeManager {
 
   private removeSession(session: ManagedRealtimeSession): void {
     for (const [key, sessions] of this.subscriptions) {
+      if (sessions.has(session)) {
+        const [actorType, actorId] = JSON.parse(key) as [string, string]
+        this.runtime.emitInstrumentation("realtime.disconnected", { actorType, actorId })
+      }
       sessions.delete(session)
       if (sessions.size === 0) this.subscriptions.delete(key)
     }
@@ -130,6 +134,11 @@ export class RealtimeManager {
   private add(session: ManagedRealtimeSession, subscription: SubscriptionIdentity): void {
     const key = subscriptionKey(subscription)
     const sessions = this.subscriptions.get(key) ?? new Set()
+    if (!sessions.has(session))
+      this.runtime.emitInstrumentation("realtime.connected", {
+        actorType: subscription.actorType,
+        actorId: subscription.actorId,
+      })
     sessions.add(session)
     this.subscriptions.set(key, sessions)
     session.add(subscription)
@@ -139,7 +148,11 @@ export class RealtimeManager {
     const key = subscriptionKey(subscription)
     const sessions = this.subscriptions.get(key)
     if (!sessions) return
-    sessions.delete(session)
+    if (sessions.delete(session))
+      this.runtime.emitInstrumentation("realtime.disconnected", {
+        actorType: subscription.actorType,
+        actorId: subscription.actorId,
+      })
     if (sessions.size === 0) this.subscriptions.delete(key)
     session.remove(subscription)
   }

@@ -50,7 +50,7 @@ export async function receiveTransmitEnvelope(options: {
       throw new InvalidPayload(`transmit envelope requires a non-empty ${field}`)
     }
   }
-  const argumentsValue = envelope.arguments ?? {}
+  const argumentsValue = envelope.arguments === undefined ? {} : envelope.arguments
   if (!isJsonObject(argumentsValue)) {
     throw new InvalidPayload("transmit envelope arguments must be a JSON object")
   }
@@ -115,7 +115,7 @@ async function undeliveredEnvelopesThrough(input: {
          AND messages.actor_type = ?
          AND messages.actor_id = ?
          AND messages.sequence <= (SELECT sequence FROM ${messages} WHERE id = ?)
-       ORDER BY messages.sequence, effects.id`,
+       ORDER BY messages.sequence, effects.position, effects.id`,
       [effectName, context.actorType, context.actorId, context.sourceMessageId],
     ),
   )

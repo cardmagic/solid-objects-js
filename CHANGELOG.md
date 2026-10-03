@@ -1,5 +1,56 @@
 # Changelog
 
+## 0.17.0 - 2026-10-03
+
+- **Breaking:** `solid_objects.activation.started` now fires before the actor's
+  `activate()` hook. Before, it fired after a successful hook. The new
+  `solid_objects.activation.completed` event takes that meaning, and
+  `solid_objects.activation.failed` reports a failed hook. Ruby changes the same
+  events. Move a subscriber that reads `activation.started` as a finished
+  activation to `activation.completed`.
+- Reference `observe()` and `on()` reject a missing `onEvent` callback with
+  `TypeError` before authorization, as Ruby raises `ArgumentError` without a
+  block. Tests pin the 1,000-observer limit and observer removal on `close()`.
+  The roadmap no longer lists portable observability as future work.
+
+- Add the shared telemetry contract `compatibility/telemetry-events.json`. Tests
+  compare the attribute allowlist and the attribute keys of each core SQL event
+  with Ruby. Activation events carry `ownerId`, commit action events carry
+  `activationGeneration`, `reminder.enqueued` carries `messageId` and `attempt`,
+  and a truncated `mailbox.depth` sample reports `depth: null`.
+- Port Ruby's query and observable purity tests for each kind of staged work.
+  Name `runtime.deadLetters.effects.retry(id)` for a dead transmit, document the
+  `actor_diagnostics` authorization, and remove the unused `compatibility/ruby.yml`.
+
+- Pin personalized payload isolation, staged-work rejection, and configured
+  UTF-8 byte limits with regressions matching Ruby. Share timeout telemetry
+  fixtures for wait reasons and activation ownership; document Ruby's fixes
+  and its yielding SQLite wait handler in the parity ledger.
+
+- Detect observable replacement of staged work even when the intent count is
+  unchanged. Compare complete intent snapshots around projection evaluation.
+
+- Preserve reserved JSON keys such as `__proto__` as own data properties without
+  changing object prototypes. Include them in size limits, state, arguments, and
+  retained results; share compatibility fixtures with Ruby.
+- Record Ruby's matching query/projection purity guards, retained background
+  results, and the intentional 191-character Ruby / 255-character JS reminder
+  name limits in the parity ledger.
+
+- Preserve transmit staging order within a source message through a persisted
+  effect position, including retries. Schema migration 14 adds `effects.position`;
+  run `runtime.install()` before starting upgraded workers. Legacy rows retain
+  their existing ID tie-break because their original order cannot be recovered.
+- **Breaking:** reject explicit null transmit arguments, matching Ruby; omission
+  still defaults to an empty object. Expand the shared wire fixtures and adapter
+  ordering tests.
+- Refresh the parity ledger for authorized message reads and retained background
+  results, bulk redrive/audit records, reminder cancellation, and automatic wake-up.
+
+- Patch the Cloudflare development tooling's Undici dependency to 7.29.1 to resolve the high-severity WebSocket and TLS advisories reported by CI.
+
+- Add portable observability envelopes, metric definitions, actor observers, and bounded authorization-aware diagnostics across SQL runtimes and the Durable Objects host. Isolate failing instrumentation and error loggers from actor work.
+
 ## 0.16.1 - 2026-10-03
 
 - Find SQLite effect recovery candidates through the processing effects.

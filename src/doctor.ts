@@ -78,7 +78,7 @@ const EXPECTED_COLUMNS: Readonly<Record<string, readonly string[]>> = {
     "claimed_at_ms",
   ],
   reminders: ["id", "instance_id", "operation", "message_operation", "run_at_ms", "status"],
-  effects: ["id", "message_id", "instance_id", "name", "status", "available_at_ms"],
+  effects: ["id", "message_id", "instance_id", "name", "status", "available_at_ms", "position"],
   effect_recoveries: [
     "effect_id",
     "instance_id",

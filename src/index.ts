@@ -218,3 +218,6 @@ export {
   UnsupportedDatabase,
 } from "./errors.js"
 export * from "./effect-recovery.js"
+
+export type { MetricSample, EventObserver } from "./telemetry.js"
+export type { ActorDiagnostics, DiagnosticOptions, DiagnosticSummary } from "./diagnostics.js"

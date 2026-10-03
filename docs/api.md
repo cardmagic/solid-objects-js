@@ -105,7 +105,7 @@ envelope. The envelope carries its name in `invalidations`. A component registry
 can then refresh a reauthorized endpoint, and the value stays private.
 
 `MessageReference` does not retain an invocation's authorization context.
-Supply `authorizationContext` to each `status()`, `result()`, and `wait()` call;
+Supply `authorizationContext` to each `status()`, `result()`, `outcome()`, and `wait()` call;
 the runtime reauthorizes the persisted operation every time. Durable results
 are JSON, so an operation that returns `undefined` or is declared `void`
 resolves as `null`.
@@ -129,6 +129,10 @@ function playerForSession<PlayerType extends { sessionId: string }>(options: {
 ```
 
 ### Reminders
+
+Keyed reminder names combine the operation, a colon, and the key. JavaScript
+limits the combined name to 255 UTF-16 code units; Ruby limits it to 191
+characters. Use at most 191 ASCII characters for names shared across runtimes.
 
 A reminder is one alarm per actor and name. If you schedule a name that is
 already armed, the runtime **moves the existing alarm**. It does not add a
@@ -904,6 +908,11 @@ open SAH pool otherwise blocks the next candidate until the worker dies.
 
 ## `solid-objects/transmit`
 
+Schema migration 14 persists an effect's staging position within its source message.
+Run `runtime.install()` before upgraded workers start. New effects preserve staging
+order even when two transmits originate in one turn. Legacy rows use position zero
+and their existing ID tie-break; their original order cannot be recovered.
+
 The transactional outbox bridge between a local runtime and a server
 runtime. An actor stages a transmit intent with `this.transmit()`
 in the same transaction as its state change. The effect worker drains the
@@ -923,10 +932,10 @@ outbox with at-least-once delivery, per-actor order, and retry backoff.
   `deliver` while offline and the effect retries with backoff. Give a
   browser runtime a generous `maxAttempts`; an effect that exhausts its
   attempts during a long offline period lands in dead letters, and
-  `runtime.deadLetters.retry` re-queues it.
+  `runtime.deadLetters.effects.retry(id)` re-queues it.
 - `receiveTransmitEnvelope(options)`: idempotent server ingest. `arguments`
   is optional in the envelope and defaults to an empty object, matching the
-  staging side and the Ruby ingest. It enqueues an
+  staging side and the Ruby ingest. Explicit `null` and arrays are invalid. It enqueues an
   internal message with `transmit:<effectId>` as the idempotency key, so a
   replayed envelope applies once. The host must authenticate the sender
   before this call; internal delivery skips `authorizeMessage`. The call
@@ -1057,3 +1066,16 @@ Behavior:
 
 Mounting, authorization actions, CSRF behavior, pages, and extensions are in
 [Operator dashboard](dashboard.md).
+
+### Portable telemetry and diagnostics
+
+`InstrumentationEvent` includes the versioned envelope and immutable `MetricSample`
+values. `EventObserver` is a provider-free event callback. An actor reference offers
+`observe({ onEvent, authorizationContext })`, `on(name, { onEvent, authorizationContext })`,
+and `diagnostics(options)`. Both observer methods resolve to an unsubscribe function.
+They reject a missing `onEvent` with `TypeError` before authorization. A runtime
+accepts at most 1,000 local observers; the next one rejects with `RangeError`.
+`close()` removes every local observer.
+`DiagnosticOptions` accepts `authorizationContext` and a `limit` from 1 to 100.
+`ActorDiagnostics` holds five bounded `DiagnosticSummary` values, with `sampled`,
+`truncated`, and `oldestAgeMilliseconds`. See [observability](observability.md).

@@ -1,10 +1,11 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
 import { Actor } from "../src/actor.js"
-import type { SolidObjectsConfiguration } from "../src/configuration.js"
+import type { InstrumentationEvent, SolidObjectsConfiguration } from "../src/configuration.js"
 import { StateMigrationError } from "../src/errors.js"
 import type { JsonObject } from "../src/types.js"
 import { configure, type SolidObjectsRuntime } from "../src/runtime.js"
 import { sqlite } from "../src/database/sqlite.js"
+import { expectPortableEvents } from "./support/portable-telemetry.js"
 
 class LifecycleCounter extends Actor {
   static override readonly actorType = "LifecycleCounter"
@@ -677,7 +678,12 @@ describe("runtime lifecycle", () => {
   })
 
   it("recovers an expired claimed message", async () => {
-    runtime = configuredRuntime()
+    const events: InstrumentationEvent[] = []
+    runtime = configuredRuntime({
+      instrumentation: (event) => {
+        events.push(event)
+      },
+    })
     await runtime.install()
     const reference = LifecycleCounter.ref("recovered")
     const message = await reference.send.increment()
@@ -697,6 +703,16 @@ describe("runtime lifecycle", () => {
     expect(await message.result()).toBe(1)
     const stored = await runtime.repository.findMessage(message.id)
     expect(Number(stored?.attempt_count)).toBe(2)
+    expect(events).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          name: "solid_objects.recovery.reclaimed",
+          attempt: 2,
+          messageId: message.id,
+        }),
+      ]),
+    )
+    expectPortableEvents(events, ["recovery.reclaimed"])
   })
 
   it("drains a bounded activation pass before yielding", async () => {
