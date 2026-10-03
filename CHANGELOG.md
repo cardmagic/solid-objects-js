@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.16.1 - 2026-10-03
 
 - Find SQLite effect recovery candidates through the processing effects.
   `sqlite_stat1` records only the average row count for each effect status.
