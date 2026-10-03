@@ -50,6 +50,8 @@
 
 - Add portable observability envelopes, metric definitions, actor observers, and bounded authorization-aware diagnostics across SQL runtimes and the Durable Objects host. Isolate failing instrumentation and error loggers from actor work.
 
+## 0.16.1 - 2026-10-03
+
 - Find SQLite effect recovery candidates through the processing effects.
   `sqlite_stat1` records only the average row count for each effect status.
   When most effects are complete, SQLite estimated that `status = 'processing'`
