@@ -14,7 +14,8 @@ const documentationPaths = [
 
 for (const documentationPath of documentationPaths) {
   const source = await readFile(resolve(repositoryRoot, documentationPath), "utf8")
-  for (const match of source.matchAll(/!?\[[^\]]*\]\(([^)\s]+)(?:\s+"[^"]*")?\)/g)) {
+  const prose = source.replace(/^```[^\n]*\n[\s\S]*?^```$/gm, "")
+  for (const match of prose.matchAll(/!?\[[^\]]*\]\(([^)\s]+)(?:\s+"[^"]*")?\)/g)) {
     const link = match[1]
     if (!link || /^(?:https?:|mailto:)/.test(link)) continue
     const [encodedTarget = "", encodedAnchor] = link.split("#", 2)
@@ -36,12 +37,26 @@ for (const documentationPath of documentationPaths) {
 }
 
 const embeddedExamples = [
-  { documentation: "docs/virtual-actors.md", example: "examples/ticket-sale.ts" },
+  {
+    documentation: "docs/virtual-actors.md",
+    example: "examples/ticket-sale.ts",
+    language: "typescript",
+  },
+  {
+    documentation: "docs/agents.md",
+    example: "examples/browser/draft-worker.js",
+    language: "javascript",
+  },
+  {
+    documentation: "docs/agents.md",
+    example: "examples/browser/page.js",
+    language: "javascript",
+  },
 ]
-for (const { documentation, example } of embeddedExamples) {
+for (const { documentation, example, language } of embeddedExamples) {
   const documentationSource = await readFile(resolve(repositoryRoot, documentation), "utf8")
   const exampleSource = await readFile(resolve(repositoryRoot, example), "utf8")
-  if (!documentationSource.includes(`\`\`\`typescript\n${exampleSource}\`\`\``)) {
+  if (!documentationSource.includes(`\`\`\`${language}\n${exampleSource}\`\`\``)) {
     throw new Error(`${documentation} does not embed the current ${example}`)
   }
 }

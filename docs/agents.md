@@ -55,6 +55,9 @@ with Cloudflare.
 - Redis is optional. It only shortens wake-up latency and holds no durable
   state.
 
+The browser runtime has different requirements. See
+[step 12](#12-use-the-browser-runtime).
+
 [Supported versions](support.md) lists the CI matrix.
 
 ## 4. Install
@@ -325,7 +328,199 @@ When you explain Solid Objects to a user, state these limits:
   run.
 - The package is pre-1.0. It has no measured scale and no known third-party
   production use.
-- The browser client is not the SQL runtime. The Cloudflare backend is
-  experimental.
+- `solid-objects/browser` is a WebSocket client, not the SQL runtime. The
+  browser runtime in step 12 is tested in Chromium only. The Cloudflare backend
+  is experimental.
 
 The [correctness contract](correctness.md) is the source for each guarantee.
+
+## 12. Use the browser runtime
+
+The same `Actor` classes run in a browser module worker. The database is SQLite
+WASM. Persistent state is in the origin private file system (OPFS), so it
+survives a page reload.
+
+Use the browser runtime when one identity in the browser, such as a draft, a
+game, or a form, must keep its state across reloads and tabs. It also fits
+writes that must wait on the device until the network returns. Select a simpler
+tool in these cases:
+
+| Requirement                              | Use instead                                     |
+| ---------------------------------------- | ----------------------------------------------- |
+| A preference or another small value      | `localStorage`                                  |
+| A cache of server responses              | The Cache API or IndexedDB                      |
+| State that must be correct for all users | A server runtime. The user controls the browser |
+| Live updates from a server runtime only  | `solid-objects/browser`, the WebSocket client   |
+
+### Install
+
+```bash
+npm install solid-objects @sqlite.org/sqlite-wasm
+```
+
+`@sqlite.org/sqlite-wasm` 3.50 or newer is an optional peer dependency. The
+browser runtime needs it.
+
+### Choose the entry point
+
+| Need                                            | Use                                                                                                               |
+| ----------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| The runtime in a worker                         | `solid-objects/browser/host`. It exports `Actor`, `configure`, `sqliteWasm`, `sharedSqliteWasm`, and the tab host |
+| One database for all tabs, a worker in each tab | `sharedSqliteWasm({ path })`. Storage is persistent by default                                                    |
+| One worker in one tab only                      | `sqliteWasm({ path, storage: "persistent" })`. The default storage is `"temporary"`                               |
+| One runtime for all tabs, with a leader tab     | `startTabHost()` and `connectTabClient()` from `solid-objects/browser/tab-host`                                   |
+| Send local writes to a server                   | `this.transmit()` and `registerTransmit()`. See [Send writes to a server](#send-writes-to-a-server)               |
+
+### Example
+
+This module worker hosts the runtime. Each tab starts one copy.
+`sharedSqliteWasm` elects one tab to hold the database. The other tabs send
+their SQL to that tab, and a new tab takes over when it closes.
+
+```javascript
+import { Actor, configure, sharedSqliteWasm } from "solid-objects/browser/host"
+
+class NoteDraft extends Actor {
+  static actorType = "NoteDraft"
+
+  text = ""
+  revision = 0
+
+  edit({ text }) {
+    this.text = text
+    this.revision += 1
+    return this.revision
+  }
+}
+
+const allowNoteDrafts = ({ actorType }) => actorType === "NoteDraft"
+
+const runtime = configure({
+  database: sharedSqliteWasm({ path: "notes.db" }),
+  authorizeMessage: allowNoteDrafts,
+  authorizeQuery: allowNoteDrafts,
+  processAliveThresholdMilliseconds: 750,
+  leaseDurationMilliseconds: 750,
+  leaseRenewalIntervalMilliseconds: 250,
+})
+runtime.register(NoteDraft)
+const installed = runtime.install()
+installed.then(() => runtime.run(new AbortController().signal))
+
+self.onmessage = async (event) => {
+  const { requestId, actorId, operation, argumentsValue } = event.data
+  try {
+    await installed
+    const value = await NoteDraft.ref(actorId)[operation](argumentsValue)
+    postMessage({ requestId, ok: true, value })
+  } catch (error) {
+    postMessage({ requestId, ok: false, message: String(error?.message ?? error) })
+  }
+}
+```
+
+The page sends messages to the worker. It does not hold actor references:
+
+```javascript
+const worker = new Worker(new URL("./draft-worker.js", import.meta.url), { type: "module" })
+const pending = new Map()
+let nextRequestId = 0
+
+worker.onmessage = (event) => {
+  const { requestId, ok, value, message } = event.data
+  const request = pending.get(requestId)
+  pending.delete(requestId)
+  if (ok) {
+    request.resolve(value)
+    return
+  }
+  request.reject(new Error(message))
+}
+
+export function callActor({ actorId, operation, argumentsValue }) {
+  const requestId = nextRequestId++
+  return new Promise((resolve, reject) => {
+    pending.set(requestId, { resolve, reject })
+    worker.postMessage({ requestId, actorId, operation, argumentsValue })
+  })
+}
+```
+
+CI runs this example in Chromium. It checks that state survives a reload, that
+two tabs share one draft, and that the second tab continues after the first
+tab closes.
+
+A closed tab does not shut down its runtime. Keep the short lease settings in
+the example. With the default settings, the next tab waits for the old lease,
+and calls time out before it expires.
+
+### Authorize in the browser
+
+The page and the worker run on the user's device, and the user can change
+their code. A browser policy limits what your own page can call. It is not a
+security boundary. Authorize again on the server for each write that leaves the
+device.
+
+### Rules for browser actors
+
+- One worker hosts one runtime. Do not import `solid-objects/browser/host` in
+  a process that also imports the Node.js entry points.
+- After the first `await` in an operation, `currentActor()`,
+  `applicationWritesForbidden()`, and the database deadline read as unset. Keep
+  guarded writes in synchronous actor code or in commit actions.
+- Reminders and effects run only while a worker that calls
+  `runtime.run(signal)` is alive. When the user closes every tab, nothing runs.
+- With `sharedSqliteWasm`, a statement can fail with `SharedDatabaseFailover`
+  when the holder tab closes during the statement. Write operations so that
+  they can run again, and retry the call.
+- With `startTabHost()`, close the database in a `catch` block when
+  `startRuntime` fails. An open database blocks the next tab.
+
+### Platform limits
+
+- CI tests the browser runtime in Chromium only. Safari 16.4 and Firefox 111
+  added the OPFS API that persistent storage needs. Test on each engine that
+  you support.
+- Persistent storage needs a secure context (HTTPS or `localhost`) and a
+  dedicated worker. `storage: "persistent"` fails fast where OPFS is missing.
+- An embedded WebView, such as Cordova, WKWebView, or Android WebView, can lack
+  OPFS when the device browser has it. Test the WebView itself.
+- The browser can clear the storage of an origin. Call
+  `navigator.storage.persist()` to ask it to keep the data, and send important
+  writes to a server.
+
+### Send writes to a server
+
+An operation stages a write for the server in the same transaction as its
+state change:
+
+```javascript
+this.transmit().edit({ text })
+```
+
+`registerTransmit({ runtime, deliver })` sends each staged write to the server.
+Throw from `deliver` while the device is offline, and the effect tries again
+later. Set a high `maxAttempts` in `configure()`, because the default is 5 and a
+long offline period can use all attempts. Run one effect worker for each local
+runtime to keep the order of writes for each actor.
+
+The server receives the write with `receiveTransmitEnvelope({ runtime, envelope })`
+in Node.js, or with `SolidObjects::Transmission.receive(envelope)` in Rails.
+Authenticate the device before this call, because this delivery skips
+`authorizeMessage`. Delivery is at least once. The server applies a repeated
+write once, because it uses the effect ID as the idempotency key. In Node.js,
+return HTTP 422 for `InvalidPayload` and `IdempotencyConflict`, so that the
+device stops the retries.
+
+The [public API](api.md#solid-objectstransmit) and the
+[browser protocol](browser-protocol.md) give the full contract.
+
+### Verify a browser implementation
+
+1. Call an operation, reload the page, and confirm that the state is the same.
+2. Send concurrent calls to one identity from two tabs. Assert the final state.
+3. Close the tab that holds the database. Confirm that the other tab continues.
+4. On each target engine, confirm that persistent storage opens, or fails with
+   a clear error.
+5. If you send writes to a server, confirm that the server rejects a device
+   that it cannot authenticate, and applies a repeated write once.
