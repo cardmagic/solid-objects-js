@@ -1,4 +1,4 @@
-import { readFile, stat } from "node:fs/promises"
+import { readdir, readFile, stat } from "node:fs/promises"
 import { dirname, resolve } from "node:path"
 
 const repositoryRoot = resolve(import.meta.dirname, "..")
@@ -6,23 +6,10 @@ const documentationPaths = [
   "README.md",
   "CONTRIBUTING.md",
   "SECURITY.md",
-  "docs/api.md",
-  "docs/architecture.md",
-  "docs/authorization.md",
-  "docs/browser-protocol.md",
-  "docs/configuration.md",
-  "docs/cloudflare.md",
-  "docs/correctness.md",
-  "docs/dashboard.md",
-  "docs/errors-and-recovery.md",
-  "docs/fit.md",
-  "docs/benchmarks.md",
-  "docs/comparisons.md",
-  "docs/operations.md",
-  "docs/parity.md",
-  "docs/releasing.md",
-  "docs/state-and-lifecycle.md",
-  "docs/support.md",
+  ...(await readdir(resolve(repositoryRoot, "docs")))
+    .filter((name) => name.endsWith(".md"))
+    .sort()
+    .map((name) => `docs/${name}`),
 ]
 
 for (const documentationPath of documentationPaths) {
@@ -45,6 +32,17 @@ for (const documentationPath of documentationPaths) {
     if (!headingAnchors(targetSource).has(anchor)) {
       throw new Error(`${documentationPath} links to missing heading ${link}`)
     }
+  }
+}
+
+const embeddedExamples = [
+  { documentation: "docs/virtual-actors.md", example: "examples/ticket-sale.ts" },
+]
+for (const { documentation, example } of embeddedExamples) {
+  const documentationSource = await readFile(resolve(repositoryRoot, documentation), "utf8")
+  const exampleSource = await readFile(resolve(repositoryRoot, example), "utf8")
+  if (!documentationSource.includes(`\`\`\`typescript\n${exampleSource}\`\`\``)) {
+    throw new Error(`${documentation} does not embed the current ${example}`)
   }
 }
 

@@ -35,6 +35,9 @@ try {
     "dist/examples/sqlite-quickstart.js",
     "examples/sqlite-quickstart.ts",
     "docs/correctness.md",
+    "docs/agents.md",
+    "docs/virtual-actors.md",
+    "examples/ticket-sale.ts",
     "README.md",
   ]) {
     assert(packagedPaths.has(expectedPath), `package is missing ${expectedPath}`)
@@ -118,6 +121,38 @@ try {
   assert(resolvedModule.includes("/node_modules/solid-objects/dist/index.js"))
   assert.equal(resolvedModule.startsWith(`file://${repositoryRoot}`), false)
 
+  const ticketSaleExample = join(projectDirectory, "ticket-sale.mts")
+  await writeFile(
+    ticketSaleExample,
+    await readFile(join(projectDirectory, "node_modules/solid-objects/examples/ticket-sale.ts")),
+  )
+  const ticketSaleHolds = JSON.parse(
+    await run(process.execPath, [ticketSaleExample, "hold"], {
+      cwd: projectDirectory,
+      env: { TICKET_DATABASE: join(projectDirectory, "tickets.sqlite3") },
+    }),
+  )
+  assert.deepEqual(
+    ticketSaleHolds.map((result) => result.held).sort(),
+    [false, true],
+    "exactly one concurrent hold must win the only ticket",
+  )
+  assert.deepEqual(
+    ticketSaleHolds.map((result) => result.available),
+    [0, 0],
+  )
+  const inheritedNameHold = JSON.parse(
+    await run(process.execPath, [ticketSaleExample, "hold", "constructor"], {
+      cwd: projectDirectory,
+      env: { TICKET_DATABASE: join(projectDirectory, "inherited-name.sqlite3") },
+    }),
+  )
+  assert.deepEqual(
+    inheritedNameHold,
+    [{ held: true, available: 0 }],
+    "a buyer named after an Object.prototype property must get the free ticket",
+  )
+
   const quickstartJson = await run(
     join(projectDirectory, "node_modules/.bin/solid-objects"),
     ["quickstart", "--json"],
@@ -179,7 +214,7 @@ async function run(command, argumentsValue, options) {
   return new Promise((resolvePromise, reject) => {
     const child = spawn(command, argumentsValue, {
       ...options,
-      env: { ...process.env, NO_COLOR: "1" },
+      env: { ...process.env, NO_COLOR: "1", ...options.env },
       stdio: ["ignore", "pipe", "pipe"],
     })
     let stdout = ""

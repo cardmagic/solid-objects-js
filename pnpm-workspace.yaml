@@ -5,6 +5,8 @@ minimumReleaseAgeExclude:
   - vitest@4.1.11
   - "@vitest/mocker@4.1.11"
   - sharp@0.35.4
+  - source-map-js@1.2.2
 overrides:
   undici@7.29.0: 7.29.1
-  sharp@<0.35.4: ^0.35.4
+  sharp@<0.35.5: ^0.35.5
+  source-map-js@<1.2.2: ^1.2.2
