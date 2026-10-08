@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+- Correct `docs/agents.md`: `reject` takes a code and an options object,
+  `this.reject(code, { message })`, not `this.reject(code, message)`.
+- `docs/agents.md` now says that a worker process runs only the actor classes
+  that it knows. A message for an unregistered class stays in SQL with no
+  attempt and no error, so register each class before `runtime.run(signal)`.
+  It also tells agents to install the current release, puts the
+  deny-by-default reminder beside the install step, and lists the API
+  mistakes found in agent-written code.
 - Claim the Context7 library: `context7.json` now carries the library `url` and
   the maintainer `public_key`.
 - Add the Context7 refresh workflow. A push to `main` that changes the README,
