@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.17.3 - 2026-10-08
+
+- `docs/agents.md` has a new step 12 for the browser runtime. It covers when
+  the browser runtime fits, the install with `@sqlite.org/sqlite-wasm`, the
+  entry points, a module worker example, authorization in the browser, the
+  platform limits, transmit to a Node.js or Rails server, and the checks.
+- `examples/browser/draft-worker.js` and `examples/browser/page.js` are the
+  guide example. The Chromium suite runs them: state survives a reload, two
+  tabs share one draft, and the second tab continues after the holder tab
+  closes. `pnpm run check:documentation` fails when the guide does not embed
+  the current files.
+- The example keeps short lease settings. With the default settings, a call
+  from the remaining tab timed out while it waited for the lease of the closed
+  tab.
+- The documentation link check skips fenced code blocks, so code such as
+  `ref[operation](value)` is not read as a link.
+
 ## 0.17.2 - 2026-10-08
 
 - The README names the agent guide at the start of Installation, and the agent
