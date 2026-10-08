@@ -1,6 +1,6 @@
 {
   "name": "solid-objects",
-  "version": "0.17.3",
+  "version": "0.17.4",
   "description": "SQL-backed virtual actor library for TypeScript and Node.js, with durable state, ordered operations, and automatic activation on SQLite, PostgreSQL, or MySQL",
   "type": "module",
   "license": "MIT",

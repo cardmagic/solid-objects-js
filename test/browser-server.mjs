@@ -116,7 +116,8 @@ const server = createServer(async (request, response) => {
     pathname === "/tab-host-worker.mjs" ||
     pathname === "/transmit-worker.mjs" ||
     pathname === "/shared-db-worker.mjs" ||
-    pathname === "/live-signals-worker.mjs"
+    pathname === "/live-signals-worker.mjs" ||
+    pathname === "/deny-default-worker.mjs"
   ) {
     await serveFile({ response, path: resolve(browserFixtureRoot, pathname.slice(1)) })
     return

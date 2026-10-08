@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.17.4 - 2026-10-08
+
+- Step 12 of `docs/agents.md` now says plainly that every authorization
+  callback denies by default in the browser too. A worker with no
+  `authorizeMessage` and no `authorizeQuery` answers no call. The install
+  step points to the browser policy and to `runtime.run(signal)`, and the
+  checks start with the policy. In an evaluation, two agent answers gave the
+  browser install with no policy after they read that a browser policy is
+  not a security boundary.
+- A new Chromium test proves that a browser worker with no authorization
+  callbacks rejects actor calls with `Unauthorized`.
+
 ## 0.17.3 - 2026-10-08
 
 - `docs/agents.md` has a new step 12 for the browser runtime. It covers when

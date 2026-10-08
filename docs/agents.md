@@ -361,6 +361,11 @@ npm install solid-objects @sqlite.org/sqlite-wasm
 `@sqlite.org/sqlite-wasm` 3.50 or newer is an optional peer dependency. The
 browser runtime needs it.
 
+Every authorization callback denies by default in the browser too. Write the
+policy in [Authorize in the browser](#authorize-in-the-browser) before you call
+an actor. Reminders and effects run only while the worker calls
+`runtime.run(signal)`.
+
 ### Choose the entry point
 
 | Need                                            | Use                                                                                                               |
@@ -464,10 +469,16 @@ and calls time out before it expires.
 
 ### Authorize in the browser
 
-The page and the worker run on the user's device, and the user can change
-their code. A browser policy limits what your own page can call. It is not a
-security boundary. Authorize again on the server for each write that leaves the
-device.
+All authorization callbacks deny by default, in the browser as in Node.js. A
+worker that sets no `authorizeMessage` and no `authorizeQuery` answers no call.
+Each call fails with `Unauthorized`. Allow the actor types that your page uses,
+as `allowNoteDrafts` does in the example. Do not remove the deny-by-default
+behavior.
+
+The browser policy is still not a security boundary. The page and the worker
+run on the user's device, and the user can change their code. The policy limits
+what your own page can call. Authorize again on the server for each write that
+leaves the device.
 
 ### Rules for browser actors
 
@@ -552,10 +563,12 @@ The [public API](api.md#solid-objectstransmit) and the
 
 ### Verify a browser implementation
 
-1. Call an operation, reload the page, and confirm that the state is the same.
-2. Send concurrent calls to one identity from two tabs. Assert the final state.
-3. Close the tab that holds the database. Confirm that the other tab continues.
-4. On each target engine, confirm that persistent storage opens, or fails with
+1. Confirm that the worker sets `authorizeMessage` and `authorizeQuery`.
+   Without them, every call fails with `Unauthorized`.
+2. Call an operation, reload the page, and confirm that the state is the same.
+3. Send concurrent calls to one identity from two tabs. Assert the final state.
+4. Close the tab that holds the database. Confirm that the other tab continues.
+5. On each target engine, confirm that persistent storage opens, or fails with
    a clear error.
-5. If you send writes to a server, confirm that the server rejects a device
+6. If you send writes to a server, confirm that the server rejects a device
    that it cannot authenticate, and applies a repeated write once.
