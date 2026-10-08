@@ -1,0 +1,17 @@
+{
+  "$schema": "https://context7.com/schema/context7.json",
+  "projectTitle": "Solid Objects for TypeScript and Node.js (solid-objects)",
+  "description": "SQL-backed virtual actor library for TypeScript and Node.js. Actors have stable identities, durable JSON state in SQLite, PostgreSQL, or MySQL, ordered per-identity mailboxes, fenced activation, durable reminders, and transactional effects. Requires Node.js 24.4+; ESM only.",
+  "folders": ["docs", "examples"],
+  "excludeFiles": ["CONTRIBUTING.md", "releasing.md", "parity.md"],
+  "rules": [
+    "Solid Objects requires Node.js 24.4 or newer and is ESM only. TypeScript applications need TypeScript 5.9 or newer.",
+    "Install with npm install solid-objects. Add pg for PostgreSQL or mysql2 for MySQL; SQLite uses node:sqlite.",
+    "Call configure() with a database adapter, then await runtime.install() before the first actor call.",
+    "Authorization callbacks deny every operation by default. Production policies must bind actorType and actorId to the authenticated user or tenant, and callers pass authorizationContext through ref.with().",
+    "Call runtime.run(signal) in at least one process for reminders, effects, actor-to-actor messages, and realtime broadcasts. Direct calls do not need it.",
+    "Delivery is at least once. Effect handlers registered with runtime.registerEffect must use context.id as the idempotency key.",
+    "Actor operations must not write application tables directly. Use commitAction() for a short same-database write and emit() for external I/O.",
+    "There are no transactions across actor identities. One hot identity is sequential."
+  ]
+}

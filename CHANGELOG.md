@@ -1,5 +1,29 @@
 # Changelog
 
+## Unreleased
+
+- Name the category in the package metadata and the README: Solid Objects is
+  a SQL-backed virtual actor library for TypeScript and Node.js. The package
+  now declares `https://solidobjects.dev/js` as its homepage and adds the
+  `virtual-actors` and `actor-model` keywords.
+- Add `docs/virtual-actors.md`, a category guide with the definition, a small
+  example, fit and poor-fit criteria, comparisons, an Orleans concept map, and
+  separate compatibility statements for the Node runtime, the browser client,
+  the browser runtime, and the Cloudflare backend.
+- Add `docs/agents.md`, a consumer guide for coding agents with setup,
+  authorization, effect idempotency, verification, and troubleshooting steps.
+- Add Dapr actors, Temporal, and a comparison vocabulary to
+  `docs/comparisons.md`.
+- Add `examples/ticket-sale.ts`. `pnpm run test:package` runs it against the
+  packed tarball, and the documentation check fails when the guide no longer
+  embeds it.
+- The documentation check now reads every `docs/*.md` file instead of a fixed
+  list.
+- Add `context7.json` so that Context7 indexes the consumer documentation and
+  skips maintainer files.
+- Record the clean-install artifact proof in `docs/parity.md`. Ruby now has a
+  matching `rake quickstart` check.
+
 ## 0.17.0 - 2026-10-03
 
 - **Breaking:** `solid_objects.activation.started` now fires before the actor's

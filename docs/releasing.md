@@ -35,8 +35,13 @@ npm trust github solid-objects \
    `pnpm run test:recovery`, `pnpm run test:browser`, and
    `pnpm audit --audit-level=high`. Run the PostgreSQL, MySQL, and Redis jobs
    against the versions in [the support matrix](support.md).
-3. Commit and push `main`.
-4. Create and push an annotated tag matching the package version:
+3. Read `docs/virtual-actors.md` and `docs/agents.md` against the release.
+   Correct any requirement, compatibility, or guarantee statement that the
+   release changed. `pnpm run check:documentation` fails when the category
+   guide no longer embeds `examples/ticket-sale.ts`, and `pnpm run
+test:package` runs that example against the packed tarball.
+4. Commit and push `main`.
+5. Create and push an annotated tag matching the package version:
 
    ```shell
    git tag -a v0.13.3 -m "Version 0.13.3"
@@ -52,3 +57,8 @@ The job then builds the release notes with `scripts/release-notes.mjs`. That
 script prints the `CHANGELOG.md` section for the tagged version. The job then
 creates the GitHub release for the tag. If you run the job again on a tag that
 npm already holds, it still creates a missing release.
+
+After the tag publishes, refresh the solidobjects.dev documentation snapshot
+from the tag and redeploy the site. The site's `check:release` step refuses a
+snapshot that is not the latest published tag. Then trigger a Context7 refresh
+for this repository.
