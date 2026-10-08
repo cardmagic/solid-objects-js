@@ -60,5 +60,6 @@ npm already holds, it still creates a missing release.
 
 After the tag publishes, refresh the solidobjects.dev documentation snapshot
 from the tag and redeploy the site. The site's `check:release` step refuses a
-snapshot that is not the latest published tag. Then trigger a Context7 refresh
-for this repository.
+snapshot that is not the latest published tag. The Context7 refresh workflow
+refreshes the index after each push to `main` that changes the documentation.
+Confirm that its run succeeded.

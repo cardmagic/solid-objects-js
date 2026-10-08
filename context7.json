@@ -1,5 +1,7 @@
 {
   "$schema": "https://context7.com/schema/context7.json",
+  "url": "https://context7.com/cardmagic/solid-objects-js",
+  "public_key": "pk_veEo2smPvGYMwP1MncN1A",
   "projectTitle": "Solid Objects for TypeScript and Node.js (solid-objects)",
   "description": "SQL-backed virtual actor library for TypeScript and Node.js. Actors have stable identities, durable JSON state in SQLite, PostgreSQL, or MySQL, ordered per-identity mailboxes, fenced activation, durable reminders, and transactional effects. Requires Node.js 24.4+; ESM only.",
   "folders": ["docs", "examples"],
