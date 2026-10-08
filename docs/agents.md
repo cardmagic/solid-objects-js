@@ -105,8 +105,6 @@ A production policy must bind the actor type and ID to the authenticated user
 or tenant. An actor ID is not a permission:
 
 ```typescript
-type Subject = { userId: string } | undefined
-
 const ownsCart = ({
   actorType,
   actorId,
@@ -116,8 +114,10 @@ const ownsCart = ({
   actorId: string
   authorizationContext: unknown
 }) => {
-  const subject = authorizationContext as Subject
-  return actorType === "ShoppingCart" && subject !== undefined && actorId === subject.userId
+  if (actorType !== "ShoppingCart") return false
+  if (typeof authorizationContext !== "object" || authorizationContext === null) return false
+  if (!("userId" in authorizationContext)) return false
+  return typeof authorizationContext.userId === "string" && actorId === authorizationContext.userId
 }
 
 const runtime = configure({
@@ -153,7 +153,7 @@ export class TicketSale extends Actor {
   holds: Record<string, number> = {}
 
   hold({ buyer }: { buyer: string }): { held: boolean; available: number } {
-    if (this.available === 0 || buyer in this.holds) {
+    if (this.available === 0 || Object.hasOwn(this.holds, buyer)) {
       return { held: false, available: this.available }
     }
 
@@ -164,7 +164,7 @@ export class TicketSale extends Actor {
   }
 
   expire({ buyer }: { buyer: string }): number {
-    if (!(buyer in this.holds)) return this.available
+    if (!Object.hasOwn(this.holds, buyer)) return this.available
 
     const remainingHolds = { ...this.holds }
     delete remainingHolds[buyer]
@@ -251,8 +251,15 @@ Do these checks before you report that the work is complete:
 1. Call `await runtime.doctor.run()`. The report must contain no failed check.
 2. Send concurrent calls to one identity with `Promise.all`, and from two
    processes if the application runs more than one. Assert the final state.
-3. Use `runtime.testing.drain()` and `runtime.testing.runDueReminders()` to
-   test delayed work without sleeps.
+3. Test delayed work without sleeps. `runDueReminders({ now })` enqueues the
+   reminders that are due at the `Date` you pass. `drain()` then runs the
+   enqueued actor work:
+
+   ```typescript
+   await runtime.testing.runDueReminders({ now: new Date(Date.now() + HOLD_MILLISECONDS) })
+   await runtime.testing.drain({ roles: ["actors"] })
+   ```
+
 4. Start a process that calls `runtime.run(signal)`, schedule a short
    reminder, and stop the process. Start it again after the deadline and
    confirm that the reminder ran.

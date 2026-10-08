@@ -141,6 +141,17 @@ try {
     ticketSaleHolds.map((result) => result.available),
     [0, 0],
   )
+  const inheritedNameHold = JSON.parse(
+    await run(process.execPath, [ticketSaleExample, "hold", "constructor"], {
+      cwd: projectDirectory,
+      env: { TICKET_DATABASE: join(projectDirectory, "inherited-name.sqlite3") },
+    }),
+  )
+  assert.deepEqual(
+    inheritedNameHold,
+    [{ held: true, available: 0 }],
+    "a buyer named after an Object.prototype property must get the free ticket",
+  )
 
   const quickstartJson = await run(
     join(projectDirectory, "node_modules/.bin/solid-objects"),

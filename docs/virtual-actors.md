@@ -52,7 +52,7 @@ export class TicketSale extends Actor {
   holds: Record<string, number> = {}
 
   hold({ buyer }: { buyer: string }): { held: boolean; available: number } {
-    if (this.available === 0 || buyer in this.holds) {
+    if (this.available === 0 || Object.hasOwn(this.holds, buyer)) {
       return { held: false, available: this.available }
     }
 
@@ -63,7 +63,7 @@ export class TicketSale extends Actor {
   }
 
   expire({ buyer }: { buyer: string }): number {
-    if (!(buyer in this.holds)) return this.available
+    if (!Object.hasOwn(this.holds, buyer)) return this.available
 
     const remainingHolds = { ...this.holds }
     delete remainingHolds[buyer]
@@ -90,7 +90,8 @@ try {
     process.once("SIGTERM", () => controller.abort())
     await runtime.run(controller.signal)
   } else {
-    const results = await Promise.all(["ada", "grace"].map((buyer) => sale.hold({ buyer })))
+    const buyers = process.argv.length > 3 ? process.argv.slice(3) : ["ada", "grace"]
+    const results = await Promise.all(buyers.map((buyer) => sale.hold({ buyer })))
     console.log(JSON.stringify(results))
   }
 } finally {

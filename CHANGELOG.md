@@ -2,6 +2,11 @@
 
 ## 0.17.1 - 2026-10-08
 
+- Check holds with `Object.hasOwn` in the README and guide ticket sale
+  examples. The `in` operator also matched inherited names, so a buyer named
+  `constructor` could not hold a free ticket, and `expire` could add a ticket
+  that no hold had taken. `pnpm run test:package` now holds a ticket for that
+  buyer.
 - Override `sharp` with 0.35.5 and `source-map-js` with 1.2.2. Two high
   advisories reach the repository only through the development tooling:
   `sharp` through Miniflare and `source-map-js` through Vite and PostCSS. The

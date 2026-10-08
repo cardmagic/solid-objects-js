@@ -76,7 +76,7 @@ class TicketSale extends Actor {
   holds = {}
 
   hold({ buyer }) {
-    if (this.available === 0 || buyer in this.holds) {
+    if (this.available === 0 || Object.hasOwn(this.holds, buyer)) {
       return { held: false, available: this.available }
     }
 
@@ -90,7 +90,7 @@ class TicketSale extends Actor {
   }
 
   expire({ buyer }) {
-    if (!(buyer in this.holds)) return this.available
+    if (!Object.hasOwn(this.holds, buyer)) return this.available
 
     const remainingHolds = { ...this.holds }
     delete remainingHolds[buyer]
