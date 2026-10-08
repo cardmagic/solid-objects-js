@@ -222,9 +222,12 @@ runs in the caller. These features need a process that calls
 - Messages to other actors.
 - Realtime broadcasts.
 
-The worker process runs only the actor classes that it knows. Register each
-class before `run()`. A message for an unregistered class stays in SQL with no
-attempt and no error:
+The worker process runs only the actor classes that it knows. For a message
+whose class is not registered, actor setup fails with `UnknownActorType`. The
+worker reports `solid_objects.activation.failed` through instrumentation,
+returns the message to the queue without counting an attempt, and tries again.
+Nothing prints unless the application sets an `instrumentation` callback, so
+the message seems to wait with no error. Register each class before `run()`:
 
 ```typescript
 runtime.register(TicketSale)
@@ -236,7 +239,7 @@ await runtime.close()
 ```
 
 `TicketSale.ref(...)` also registers the class, so a script that calls `ref()`
-before `run()`, like the example in step 6, already works.
+before `run()`, like the direct call above, already works.
 
 The packaged `solid-objects start` command does the same for a runtime that
 `solid-objects.config.js` exports. When no process runs, committed work waits
