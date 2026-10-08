@@ -49,6 +49,8 @@ test("shares one draft between tabs and continues after the holder tab closes", 
   await openPage(firstTab)
   await openPage(secondTab)
 
+  await callActor(firstTab, { actorId, operation: "snapshot" })
+
   const revisions = await Promise.all([
     callActor(firstTab, { actorId, operation: "edit", argumentsValue: { text: "one" } }),
     callActor(secondTab, { actorId, operation: "edit", argumentsValue: { text: "two" } }),
