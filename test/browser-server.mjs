@@ -121,16 +121,14 @@ const server = createServer(async (request, response) => {
     await serveFile({ response, path: resolve(browserFixtureRoot, pathname.slice(1)) })
     return
   }
-  if (pathname.startsWith("/examples/browser/")) {
-    const examplePath = resolve(
-      browserExampleRoot,
-      `.${pathname.slice("/examples/browser".length)}`,
-    )
-    if (!examplePath.startsWith(`${browserExampleRoot}/`)) {
-      response.writeHead(404)
-      response.end()
-      return
-    }
+  const isExample = pathname.startsWith("/examples/browser/")
+  const examplePath = resolve(browserExampleRoot, `.${pathname.slice("/examples/browser".length)}`)
+  if (isExample && !examplePath.startsWith(`${browserExampleRoot}/`)) {
+    response.writeHead(404)
+    response.end()
+    return
+  }
+  if (isExample) {
     await serveFile({ response, path: examplePath })
     return
   }

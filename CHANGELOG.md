@@ -16,6 +16,13 @@
   tab.
 - The documentation link check skips fenced code blocks, so code such as
   `ref[operation](value)` is not read as a link.
+- Correct the transmit docs: `registerTransmit` never reads the HTTP response,
+  so a server 422 stops retries only when the `deliver` callback throws
+  `NonRetryableError`. The agent guide shows that callback, `docs/api.md` says
+  so, and a new test proves that `NonRetryableError` from `deliver`
+  dead-letters the effect after one attempt, where a plain `Error` retries.
+- The page example rejects every waiting and later call when the worker fails
+  to load. Before, a call waited with no end.
 
 ## 0.17.2 - 2026-10-08
 

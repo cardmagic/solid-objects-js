@@ -961,11 +961,13 @@ outbox with at-least-once delivery, per-actor order, and retry backoff.
   ```
 
   The example uses a Fetch-style handler; any HTTP framework works. The 422
-  matters: it tells the sending outbox to dead-letter the effect instead of
-  retrying it. `InvalidPayload` marks a malformed envelope, and
-  `IdempotencyConflict` marks a replay whose arguments changed; both are
-  permanently unappliable, and a 500 would make the outbox retry them
-  forever.
+  matters only when the sending `deliver` callback reads it:
+  `registerTransmit` never sees the HTTP response. Throw `NonRetryableError`
+  (from `solid-objects/core` in a browser) for a 422, and the outbox
+  dead-letters the effect instead of retrying it; any other error retries.
+  `InvalidPayload` marks a malformed envelope, and `IdempotencyConflict`
+  marks a replay whose arguments changed; both are permanently unappliable,
+  and a 500 would make the outbox retry them until `maxAttempts` runs out.
 
 - Per-actor order comes from an ordered drain: a claimed transmit effect
   transmits every undelivered envelope for its actor up to its own mailbox

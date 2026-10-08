@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it } from "vitest"
 import "../src/platform/node.js"
 import { Actor } from "../src/actor.js"
-import { IdempotencyConflict } from "../src/errors.js"
+import { IdempotencyConflict, NonRetryableError } from "../src/errors.js"
 import { createRuntime, type SolidObjectsRuntime } from "../src/runtime.js"
 import type { SolidObjectsConfiguration } from "../src/configuration.js"
 import { sqlite } from "../src/database/sqlite.js"
@@ -186,6 +186,25 @@ describe("sync bridge", () => {
       count: 3,
       applied: [1, 2],
     })
+  })
+
+  it("dead-letters an envelope when deliver throws NonRetryableError", async () => {
+    let attempts = 0
+    const local = testRuntime({ authorizeAdministration: () => true })
+    registerTransmit({
+      runtime: local,
+      deliver: async () => {
+        attempts += 1
+        throw new NonRetryableError("the server answered 422")
+      },
+    })
+    await local.install()
+
+    await local.ref(TransmitCounter, "rejected").increment({ amount: 1 })
+    await local.testing.drain({ roles: ["actors", "effects"], maxPasses: 20 })
+
+    expect(attempts).toBe(1)
+    expect(await local.deadLetters.effects.all()).toHaveLength(1)
   })
 
   it("recovers in order after an offline period", async () => {

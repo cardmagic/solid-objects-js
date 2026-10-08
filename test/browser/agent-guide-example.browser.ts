@@ -9,10 +9,11 @@ async function openPage(page: Page): Promise<void> {
   await page.goto("/")
 }
 
-function callActor(
-  page: Page,
-  call: { actorId: string; operation: string; argumentsValue?: unknown },
-): Promise<unknown> {
+type DraftCall =
+  | { actorId: string; operation: "edit"; argumentsValue: { text: string } }
+  | { actorId: string; operation: "snapshot"; argumentsValue?: never }
+
+function callActor(page: Page, call: DraftCall): Promise<number | DraftSnapshot> {
   return page.evaluate(
     async ({ modulePath, callValue }) => {
       const { callActor: callFromPage } = await import(modulePath)
@@ -48,12 +49,11 @@ test("shares one draft between tabs and continues after the holder tab closes", 
   await openPage(firstTab)
   await openPage(secondTab)
 
-  expect(
-    await callActor(firstTab, { actorId, operation: "edit", argumentsValue: { text: "one" } }),
-  ).toBe(1)
-  expect(
-    await callActor(secondTab, { actorId, operation: "edit", argumentsValue: { text: "two" } }),
-  ).toBe(2)
+  const revisions = await Promise.all([
+    callActor(firstTab, { actorId, operation: "edit", argumentsValue: { text: "one" } }),
+    callActor(secondTab, { actorId, operation: "edit", argumentsValue: { text: "two" } }),
+  ])
+  expect([...revisions].sort()).toEqual([1, 2])
 
   await firstTab.close()
 
@@ -64,4 +64,17 @@ test("shares one draft between tabs and continues after the holder tab closes", 
     text: "three",
     revision: 3,
   })
+})
+
+test("rejects calls when the worker cannot load", async ({ page }) => {
+  test.setTimeout(10_000)
+  await page.route("**/examples/browser/draft-worker.js", (route) => route.fulfill({ status: 404 }))
+  await openPage(page)
+
+  await expect(callActor(page, { actorId: "missing", operation: "snapshot" })).rejects.toThrow(
+    /worker/,
+  )
+  await expect(callActor(page, { actorId: "missing", operation: "snapshot" })).rejects.toThrow(
+    /worker/,
+  )
 })

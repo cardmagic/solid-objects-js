@@ -425,6 +425,7 @@ The page sends messages to the worker. It does not hold actor references:
 const worker = new Worker(new URL("./draft-worker.js", import.meta.url), { type: "module" })
 const pending = new Map()
 let nextRequestId = 0
+let workerFailure
 
 worker.onmessage = (event) => {
   const { requestId, ok, value, message } = event.data
@@ -437,7 +438,14 @@ worker.onmessage = (event) => {
   request.reject(new Error(message))
 }
 
+worker.onerror = (event) => {
+  workerFailure = new Error(`The actor worker failed: ${event.message || "it did not load"}`)
+  for (const request of pending.values()) request.reject(workerFailure)
+  pending.clear()
+}
+
 export function callActor({ actorId, operation, argumentsValue }) {
+  if (workerFailure) return Promise.reject(workerFailure)
   const requestId = nextRequestId++
   return new Promise((resolve, reject) => {
     pending.set(requestId, { resolve, reject })
@@ -499,9 +507,35 @@ this.transmit().edit({ text })
 ```
 
 `registerTransmit({ runtime, deliver })` sends each staged write to the server.
-Throw from `deliver` while the device is offline, and the effect tries again
-later. Set a high `maxAttempts` in `configure()`, because the default is 5 and a
-long offline period can use all attempts. Run one effect worker for each local
+The runtime does not read the HTTP response. Your `deliver` callback decides
+what happens:
+
+```javascript
+import { NonRetryableError } from "solid-objects/core"
+import { registerTransmit } from "solid-objects/browser/host"
+
+registerTransmit({
+  runtime,
+  deliver: async (envelope) => {
+    const response = await fetch("/sync", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(envelope),
+    })
+    if (response.status === 422) {
+      throw new NonRetryableError(`The server rejected effect ${envelope.effectId}`)
+    }
+    if (!response.ok) throw new Error(`Sync failed with HTTP ${response.status}`)
+  },
+})
+```
+
+- A normal return marks the write as delivered.
+- An `Error` makes the effect try again later. This is the offline case.
+- A `NonRetryableError` moves the effect to dead letters with no retry.
+
+Set a high `maxAttempts` in `configure()`, because the default is 5 and a long
+offline period can use all attempts. Run one effect worker for each local
 runtime to keep the order of writes for each actor.
 
 The server receives the write with `receiveTransmitEnvelope({ runtime, envelope })`
@@ -509,8 +543,9 @@ in Node.js, or with `SolidObjects::Transmission.receive(envelope)` in Rails.
 Authenticate the device before this call, because this delivery skips
 `authorizeMessage`. Delivery is at least once. The server applies a repeated
 write once, because it uses the effect ID as the idempotency key. In Node.js,
-return HTTP 422 for `InvalidPayload` and `IdempotencyConflict`, so that the
-device stops the retries.
+return HTTP 422 for `InvalidPayload` and `IdempotencyConflict`. The `deliver`
+callback above turns that status into a `NonRetryableError`, so the device
+stops the retries.
 
 The [public API](api.md#solid-objectstransmit) and the
 [browser protocol](browser-protocol.md) give the full contract.
