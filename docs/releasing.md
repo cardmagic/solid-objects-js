@@ -38,8 +38,10 @@ npm trust github solid-objects \
 3. Read `docs/virtual-actors.md` and `docs/agents.md` against the release.
    Correct any requirement, compatibility, or guarantee statement that the
    release changed. `pnpm run check:documentation` fails when the category
-   guide no longer embeds `examples/ticket-sale.ts`, and `pnpm run
-test:package` runs that example against the packed tarball.
+   guide no longer embeds `examples/ticket-sale.ts`, or when the agent guide
+   no longer embeds the files in `examples/browser/`. `pnpm run test:package`
+   runs the ticket sale example against the packed tarball, and
+   `pnpm run test:browser` runs the browser example in Chromium.
 4. Commit and push `main`.
 5. Create and push an annotated tag matching the package version:
 
