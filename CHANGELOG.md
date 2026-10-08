@@ -1,7 +1,21 @@
 # Changelog
 
-## Unreleased
+## 0.17.2 - 2026-10-08
 
+- The README names the agent guide at the start of Installation, and the agent
+  guide says that a reminder changes state only when it runs under
+  `runtime.run(signal)`, so a query must not compute expiry from the clock.
+- Correct `docs/agents.md`: `reject` takes a code and an options object,
+  `this.reject(code, { message })`, not `this.reject(code, message)`.
+- `docs/agents.md` now says that a worker process runs only the actor classes
+  that it knows. For an unregistered class, actor setup fails with
+  `UnknownActorType`, the worker reports `solid_objects.activation.failed`,
+  and the message returns to the queue without a counted attempt. Nothing
+  prints without an `instrumentation` callback. Register each class before
+  `runtime.run(signal)`.
+  It also tells agents to install the current release, puts the
+  deny-by-default reminder beside the install step, and lists the API
+  mistakes found in agent-written code.
 - Claim the Context7 library: `context7.json` now carries the library `url` and
   the maintainer `public_key`.
 - Add the Context7 refresh workflow. A push to `main` that changes the README,

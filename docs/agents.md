@@ -68,6 +68,10 @@ The quickstart runs 25 concurrent calls against one identity on a temporary
 SQLite database. It proves that no update is lost. Add `pg` or `mysql2` when
 you use PostgreSQL or MySQL.
 
+Install the current release. `npm install solid-objects` selects it. Do not
+pin a version that you remember from earlier work; the API changed between
+releases. The current version is on <https://www.npmjs.com/package/solid-objects>.
+
 Create the runtime and its tables at startup:
 
 ```typescript
@@ -81,7 +85,9 @@ const runtime = configure({
 await runtime.install()
 ```
 
-[Configuration](configuration.md) lists each option and database adapter.
+Every authorization callback denies by default. Do step 5 before you call an
+actor. [Configuration](configuration.md) lists each option and database
+adapter.
 
 ## 5. Authorize
 
@@ -184,13 +190,26 @@ Obey these rules in actor code:
   object argument.
 - Use `this.schedule({ at, key })` for delayed work. A new `schedule` with the
   same key moves the alarm.
-- Use `this.reject(code, message)` for a business rule failure that must not
-  retry.
+- Use `this.reject(code, { message })` for a business rule failure that must
+  not retry. The second argument is an object, for example
+  `this.reject("room_full", { message: "The room is full" })`.
 - Do not write application tables directly from an operation. Use
   `this.commitAction()` for a short write in the same database.
 - Do not call an external API in an operation. Use `this.emit()` and an effect
   handler.
 - Write each operation so that it can run again. Delivery is at least once.
+- A reminder changes state only when it runs, and it runs only while a process
+  calls `runtime.run(signal)`. Do not compute expiry from the clock in a query;
+  read the state that the reminder committed.
+
+Avoid these mistakes:
+
+| Mistake                                                    | Correct form                                                                                                                 |
+| ---------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| `this.schedule({ at, key })` with no operation after it    | `this.schedule({ at, key }).expire({ buyer })`. `schedule()` stages a reminder only when you call an operation on its result |
+| `this.reject("room full")` or `this.reject(code, message)` | `this.reject("room_full", { message: "The room is full" })`                                                                  |
+| `registerEffect(name, (context, argumentsValue) => ...)`   | `registerEffect(name, (argumentsValue, context) => ...)`. The staged arguments come first                                    |
+| A worker process that never names the actor class          | `runtime.register(TicketSale)` before `runtime.run(signal)`. See step 7                                                      |
 
 [State and lifecycle](state-and-lifecycle.md) and the
 [public API](api.md) give the full rules.
@@ -206,12 +225,24 @@ runs in the caller. These features need a process that calls
 - Messages to other actors.
 - Realtime broadcasts.
 
+The worker process runs only the actor classes that it knows. For a message
+whose class is not registered, actor setup fails with `UnknownActorType`. The
+worker reports `solid_objects.activation.failed` through instrumentation,
+returns the message to the queue without counting an attempt, and tries again.
+Nothing prints unless the application sets an `instrumentation` callback, so
+the message seems to wait with no error. Register each class before `run()`:
+
 ```typescript
+runtime.register(TicketSale)
+
 const controller = new AbortController()
 process.once("SIGTERM", () => controller.abort())
 await runtime.run(controller.signal)
 await runtime.close()
 ```
+
+`TicketSale.ref(...)` also registers the class, so a script that calls `ref()`
+before `run()`, like the direct call above, already works.
 
 The packaged `solid-objects start` command does the same for a runtime that
 `solid-objects.config.js` exports. When no process runs, committed work waits

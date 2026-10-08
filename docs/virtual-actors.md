@@ -113,6 +113,10 @@ buyer gets the ticket. The hold and its reminder commit in one transaction. If
 the worker stops, the reminder stays in `tickets.sqlite3`. It runs when the
 worker starts again.
 
+The `work` branch can run the reminder because `TicketSale.ref(...)` registers
+the class first. A separate worker process must call
+`runtime.register(TicketSale)` before `runtime.run(signal)`.
+
 The authorization callbacks above allow every caller. Use them only for a
 local example. The package release check runs this file against the packed
 npm tarball. The source is [`examples/ticket-sale.ts`](../examples/ticket-sale.ts).
