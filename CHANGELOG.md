@@ -2,6 +2,10 @@
 
 ## 0.17.1 - 2026-10-08
 
+- Override `sharp` with 0.35.5 and `source-map-js` with 1.2.2. Two high
+  advisories reach the repository only through the development tooling:
+  `sharp` through Miniflare and `source-map-js` through Vite and PostCSS. The
+  published package does not depend on either.
 - Name the category in the package metadata and the README: Solid Objects is
   a SQL-backed virtual actor library for TypeScript and Node.js. The package
   now declares `https://solidobjects.dev/js` as its homepage and adds the
