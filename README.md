@@ -49,7 +49,8 @@ subscriptions. Start with the [Cloudflare example](examples/cloudflare/README.md
 ## Installation
 
 Solid Objects is ESM-only and requires Node.js 24.4 or newer. TypeScript users
-need TypeScript 5.9 or newer.
+need TypeScript 5.9 or newer. Coding agents should follow the
+[agent guide](docs/agents.md), which gives each step in order.
 
 ```bash
 npm install solid-objects

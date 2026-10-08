@@ -198,6 +198,9 @@ Obey these rules in actor code:
 - Do not call an external API in an operation. Use `this.emit()` and an effect
   handler.
 - Write each operation so that it can run again. Delivery is at least once.
+- A reminder changes state only when it runs, and it runs only while a process
+  calls `runtime.run(signal)`. Do not compute expiry from the clock in a query;
+  read the state that the reminder committed.
 
 Avoid these mistakes:
 

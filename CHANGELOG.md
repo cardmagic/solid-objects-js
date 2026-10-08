@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- The README names the agent guide at the start of Installation, and the agent
+  guide says that a reminder changes state only when it runs under
+  `runtime.run(signal)`, so a query must not compute expiry from the clock.
 - Correct `docs/agents.md`: `reject` takes a code and an options object,
   `this.reject(code, { message })`, not `this.reject(code, message)`.
 - `docs/agents.md` now says that a worker process runs only the actor classes
