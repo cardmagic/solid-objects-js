@@ -2,6 +2,7 @@ import {
   IdempotencyConflict,
   InvalidPayload,
   receiveTransmitEnvelope,
+  UnknownOperation,
   type SolidObjectsRuntime,
   type TransmitEnvelope,
 } from "solid-objects"
@@ -22,7 +23,11 @@ export async function handleInspectionSync({
     await receiveTransmitEnvelope({ runtime, envelope })
     return Response.json({})
   } catch (error) {
-    if (error instanceof InvalidPayload || error instanceof IdempotencyConflict) {
+    if (
+      error instanceof InvalidPayload ||
+      error instanceof IdempotencyConflict ||
+      error instanceof UnknownOperation
+    ) {
       return new Response(null, { status: 422 })
     }
     throw error

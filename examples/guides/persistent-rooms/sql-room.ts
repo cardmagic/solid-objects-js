@@ -1,5 +1,7 @@
 import { DatabaseSync } from "node:sqlite"
 
+export type RoomState = { players: string[]; turnNumber: number }
+
 export function openRoomStore({ path }: { path: string }): DatabaseSync {
   const database = new DatabaseSync(path)
   database.exec(`
@@ -22,7 +24,7 @@ export function saveRoom({
 }: {
   database: DatabaseSync
   roomId: string
-  state: unknown
+  state: RoomState
   expectedVersion: number
   turnDeadline: number | null
 }): { saved: boolean } {
@@ -48,11 +50,13 @@ export function loadRoom({
 }: {
   database: DatabaseSync
   roomId: string
-}): { state: unknown; version: number } | undefined {
+}): { state: RoomState; version: number } | undefined {
   const row = database.prepare("SELECT state, version FROM rooms WHERE room_id = ?").get(roomId) as
     { state: string; version: number } | undefined
   if (!row) return undefined
-  return { state: JSON.parse(row.state), version: row.version }
+  const state: unknown = JSON.parse(row.state)
+  if (!isRoomState(state)) throw new Error(`stored room ${roomId} has an unexpected shape`)
+  return { state, version: row.version }
 }
 
 export function dueTurnDeadlines({
@@ -66,4 +70,11 @@ export function dueTurnDeadlines({
     .prepare("SELECT room_id FROM rooms WHERE turn_deadline <= ? ORDER BY turn_deadline")
     .all(now) as { room_id: string }[]
   return rows.map((row) => row.room_id)
+}
+
+function isRoomState(value: unknown): value is RoomState {
+  if (typeof value !== "object" || value === null) return false
+  if (!("players" in value) || !Array.isArray(value.players)) return false
+  if (!value.players.every((player) => typeof player === "string")) return false
+  return "turnNumber" in value && Number.isSafeInteger(value.turnNumber)
 }

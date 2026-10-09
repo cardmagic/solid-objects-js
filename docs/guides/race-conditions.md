@@ -184,6 +184,9 @@ export class EventSeats extends Actor {
   setCapacity({ capacity, expectedRevision }: { capacity: number; expectedRevision: number }): {
     revision: number
   } {
+    if (!Number.isSafeInteger(capacity) || capacity < 0) {
+      this.reject("invalid_capacity", { message: "Capacity must be a whole number of seats" })
+    }
     if (expectedRevision !== this.revision) {
       this.reject("stale_revision", {
         message: "The event changed after you loaded it",
@@ -202,7 +205,7 @@ export class EventSeats extends Actor {
     if (Object.hasOwn(this.holds, holdId) || Object.hasOwn(this.sold, holdId)) {
       return { held: true, available: this.available }
     }
-    if (this.available === 0) return { held: false, available: 0 }
+    if (this.available <= 0) return { held: false, available: 0 }
 
     const expiresAt = Date.now() + HOLD_MILLISECONDS
     this.holds = { ...this.holds, [holdId]: { buyer, expiresAt } }
@@ -252,7 +255,7 @@ Calls for one event run one at a time, in order, across processes. Different eve
 
 An old form can overwrite newer data even when calls run in order. The calls run in order, but the second call still carries old data. The actor needs a rule that detects this conflict.
 
-`setCapacity` takes `expectedRevision` and compares it with `revision`. A mismatch rejects the change with `stale_revision`. An accepted capacity change increases the revision.
+`setCapacity` takes `expectedRevision` and compares it with `revision`. A mismatch rejects the change with `stale_revision`. An accepted capacity change increases the revision. A capacity that is not a whole, non-negative number rejects with `invalid_capacity`, so a fractional capacity cannot leave a part of a seat to hold.
 
 The test accepts a change from 10 seats to 12 seats. An old form then requests eight seats with the previous revision. The actor rejects that request and keeps the capacity at 12.
 
@@ -337,6 +340,7 @@ The [test file](../../test/guide-race-conditions.test.ts) checks these outcomes:
 - A late expiry after a confirmation changes nothing.
 - A confirmation after expiry rejects with `hold_expired`.
 - A capacity change from a stale form rejects with `stale_revision`.
+- A fractional or negative capacity rejects with `invalid_capacity`.
 - A buyer cannot change capacity.
 
 The assertions check both results and stored state. They show the behavior of these examples and their conflict cases.

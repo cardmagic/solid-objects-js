@@ -25,12 +25,14 @@ const paymentJob: EventCaller = { userId: "payment-job", role: "system" }
 
 let directory: string
 const runtimes: SolidObjectsRuntime[] = []
+const children: ChildProcess[] = []
 
 beforeEach(async () => {
   directory = await mkdtemp(join(tmpdir(), "guide-race-"))
 })
 
 afterEach(async () => {
+  for (const child of children.splice(0)) child.kill()
   for (const runtime of runtimes.splice(0)) await runtime.close()
   await rm(directory, { recursive: true, force: true })
 })
@@ -43,7 +45,7 @@ async function startRuntime(): Promise<SolidObjectsRuntime> {
 }
 
 function startHoldProcess(): ChildProcess {
-  return fork(fileURLToPath(new URL("./fixtures/event-hold-process.ts", import.meta.url)), {
+  const child = fork(fileURLToPath(new URL("./fixtures/event-hold-process.ts", import.meta.url)), {
     execArgv: [
       "--experimental-transform-types",
       "--disable-warning=ExperimentalWarning",
@@ -52,6 +54,8 @@ function startHoldProcess(): ChildProcess {
     ],
     stdio: ["ignore", "inherit", "inherit", "ipc"],
   })
+  children.push(child)
+  return child
 }
 
 function nextMessage(child: ChildProcess): Promise<unknown> {
@@ -264,6 +268,18 @@ describe("the EventSeats actor", () => {
       (await runtime.ref(EventSeats, "concert").snapshot({ authorizationContext: organizer }))
         .capacity,
     ).toBe(12)
+  })
+
+  it("rejects a capacity that is not a whole number of seats", async () => {
+    const runtime = await startRuntime()
+    const seats = runtime.ref(EventSeats, "concert").with({ authorizationContext: organizer })
+
+    await expect(seats.setCapacity({ capacity: 1.5, expectedRevision: 0 })).rejects.toMatchObject({
+      code: "invalid_capacity",
+    })
+    await expect(seats.setCapacity({ capacity: -1, expectedRevision: 0 })).rejects.toMatchObject({
+      code: "invalid_capacity",
+    })
   })
 
   it("lets only an organizer change the capacity", async () => {

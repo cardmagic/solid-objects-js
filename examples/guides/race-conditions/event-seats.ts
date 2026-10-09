@@ -21,6 +21,9 @@ export class EventSeats extends Actor {
   setCapacity({ capacity, expectedRevision }: { capacity: number; expectedRevision: number }): {
     revision: number
   } {
+    if (!Number.isSafeInteger(capacity) || capacity < 0) {
+      this.reject("invalid_capacity", { message: "Capacity must be a whole number of seats" })
+    }
     if (expectedRevision !== this.revision) {
       this.reject("stale_revision", {
         message: "The event changed after you loaded it",
@@ -39,7 +42,7 @@ export class EventSeats extends Actor {
     if (Object.hasOwn(this.holds, holdId) || Object.hasOwn(this.sold, holdId)) {
       return { held: true, available: this.available }
     }
-    if (this.available === 0) return { held: false, available: 0 }
+    if (this.available <= 0) return { held: false, available: 0 }
 
     const expiresAt = Date.now() + HOLD_MILLISECONDS
     this.holds = { ...this.holds, [holdId]: { buyer, expiresAt } }

@@ -60,6 +60,8 @@ The test models a restart with two instances of `createMemoryRooms`. It starts a
 ```typescript
 import { DatabaseSync } from "node:sqlite"
 
+export type RoomState = { players: string[]; turnNumber: number }
+
 export function openRoomStore({ path }: { path: string }): DatabaseSync {
   const database = new DatabaseSync(path)
   database.exec(`
@@ -82,7 +84,7 @@ export function saveRoom({
 }: {
   database: DatabaseSync
   roomId: string
-  state: unknown
+  state: RoomState
   expectedVersion: number
   turnDeadline: number | null
 }): { saved: boolean } {
@@ -108,11 +110,13 @@ export function loadRoom({
 }: {
   database: DatabaseSync
   roomId: string
-}): { state: unknown; version: number } | undefined {
+}): { state: RoomState; version: number } | undefined {
   const row = database.prepare("SELECT state, version FROM rooms WHERE room_id = ?").get(roomId) as
     { state: string; version: number } | undefined
   if (!row) return undefined
-  return { state: JSON.parse(row.state), version: row.version }
+  const state: unknown = JSON.parse(row.state)
+  if (!isRoomState(state)) throw new Error(`stored room ${roomId} has an unexpected shape`)
+  return { state, version: row.version }
 }
 
 export function dueTurnDeadlines({
@@ -127,9 +131,16 @@ export function dueTurnDeadlines({
     .all(now) as { room_id: string }[]
   return rows.map((row) => row.room_id)
 }
+
+function isRoomState(value: unknown): value is RoomState {
+  if (typeof value !== "object" || value === null) return false
+  if (!("players" in value) || !Array.isArray(value.players)) return false
+  if (!value.players.every((player) => typeof player === "string")) return false
+  return "turnNumber" in value && Number.isSafeInteger(value.turnNumber)
+}
 ```
 
-The SQL design stores each room as JSON in a row with a `version` column and a turn deadline. `loadRoom` returns the state and its version. The caller passes that version to `saveRoom` as `expectedVersion`.
+The SQL design stores each room as JSON in a row with a `version` column and a turn deadline. `loadRoom` returns the state and its version. It checks the stored JSON against `RoomState` and throws when the shape is unexpected, so the caller never uses unchecked data. The caller passes that version to `saveRoom` as `expectedVersion`.
 
 `saveRoom` updates a row only when its version still matches. A successful update also increases the version. A write from an old version returns `{ saved: false }`. The caller then reloads the room and tries again. An old copy of the state cannot replace a newer copy.
 
@@ -356,7 +367,7 @@ In tests, `runtime.testing.runDueReminders({ now })` finds due reminders at the 
 The [tests for persistent rooms](../../test/guide-persistent-rooms.test.ts) check these cases in this order:
 
 1. A new instance of the memory design has no room and no timer after a simulated restart.
-2. The SQL room survives a database reopen. A write from an old version fails, and the sweep finds the due room.
+2. The SQL room survives a database reopen. A write from an old version fails, and the sweep finds the due room. A stored room with an unexpected shape fails to load.
 3. Two submissions for one turn produce one accepted move and one `stale_turn` rejection.
 4. A move from the wrong player rejects with `not_your_turn`.
 5. A caller cannot submit a move for another player.

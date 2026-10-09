@@ -113,4 +113,17 @@ describe("the inspection sync route", () => {
 
     expect(response.status).toBe(422)
   })
+
+  it("answers 422 for a write to an operation that the server removed", async () => {
+    const runtime = await serverRuntime()
+    const removed = { ...envelope, operation: "removedOperation" }
+
+    const response = await handleInspectionSync({
+      request: syncRequest({ device: "tablet-7", body: removed }),
+      runtime,
+      canWrite,
+    })
+
+    expect(response.status).toBe(422)
+  })
 })

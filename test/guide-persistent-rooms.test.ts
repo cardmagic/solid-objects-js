@@ -74,7 +74,7 @@ describe("the native fix with a version column", () => {
     saveRoom({
       database: beforeRestart,
       roomId: "table-1",
-      state: { turn: 0 },
+      state: { players: ["ada"], turnNumber: 0 },
       expectedVersion: 0,
       turnDeadline: 1_000,
     })
@@ -82,13 +82,13 @@ describe("the native fix with a version column", () => {
 
     const afterRestart = openRoomStore({ path })
     const loaded = loadRoom({ database: afterRestart, roomId: "table-1" })
-    expect(loaded).toEqual({ state: { turn: 0 }, version: 1 })
+    expect(loaded).toEqual({ state: { players: ["ada"], turnNumber: 0 }, version: 1 })
 
     expect(
       saveRoom({
         database: afterRestart,
         roomId: "table-1",
-        state: { turn: 1 },
+        state: { players: ["ada"], turnNumber: 1 },
         expectedVersion: 1,
         turnDeadline: 2_000,
       }),
@@ -97,13 +97,25 @@ describe("the native fix with a version column", () => {
       saveRoom({
         database: afterRestart,
         roomId: "table-1",
-        state: { turn: 9 },
+        state: { players: ["ada"], turnNumber: 9 },
         expectedVersion: 1,
         turnDeadline: 3_000,
       }),
     ).toEqual({ saved: false })
     expect(dueTurnDeadlines({ database: afterRestart, now: 2_000 })).toEqual(["table-1"])
     afterRestart.close()
+  })
+})
+
+describe("a stored room with an unexpected shape", () => {
+  it("fails to load instead of returning unchecked state", () => {
+    const database = openRoomStore({ path: join(directory, "store.sqlite3") })
+    database
+      .prepare("INSERT INTO rooms (room_id, state, version, turn_deadline) VALUES (?, ?, 1, NULL)")
+      .run("table-9", JSON.stringify({ players: "ada" }))
+
+    expect(() => loadRoom({ database, roomId: "table-9" })).toThrow("unexpected shape")
+    database.close()
   })
 })
 
