@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.17.5 - 2026-10-09
+
+- Correct `docs/agents.md` and `docs/fit.md`: Solid Objects Pro ships for
+  Node.js as `@solidobjects/pro` from the private registry at
+  <https://solidobjects.pro>, beside the Rails gem. The docs said that its
+  Node build was in development.
+
 ## 0.17.4 - 2026-10-08
 
 - Step 12 of `docs/agents.md` now says plainly that every authorization
