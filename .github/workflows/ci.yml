@@ -56,7 +56,7 @@ jobs:
         postgresql-version: ["14", "18"]
     services:
       postgres:
-        image: postgres:${{ matrix.postgresql-version }}
+        image: public.ecr.aws/docker/library/postgres:${{ matrix.postgresql-version }}
         env:
           POSTGRES_USER: solid_objects
           POSTGRES_PASSWORD: solid_objects
@@ -88,7 +88,7 @@ jobs:
         mysql-version: ["8.0", "8.4"]
     services:
       mysql:
-        image: mysql:${{ matrix.mysql-version }}
+        image: public.ecr.aws/docker/library/mysql:${{ matrix.mysql-version }}
         env:
           MYSQL_ROOT_PASSWORD: solid_objects
           MYSQL_DATABASE: solid_objects_test
@@ -130,7 +130,7 @@ jobs:
     timeout-minutes: 15
     services:
       redis:
-        image: redis:7
+        image: public.ecr.aws/docker/library/redis:7
         ports:
           - 6379:6379
         options: >-
