@@ -42,8 +42,8 @@ history, and no actor-state migration contract.
   fits, because each check is one durable ordered message. For the high-QPS
   limiter, see [Solid Objects Pro](https://solidobjects.pro/): grouped commits
   coalesce concurrent writes into one insert, and ephemeral operations keep
-  loss-tolerant calls out of the durable journal. It ships for the Rails gem
-  today, and the Node build is in development. Distributed per-actor rate
+  loss-tolerant calls out of the durable journal. It ships for Node.js as
+  `@solidobjects/pro` and for the Rails gem. Distributed per-actor rate
   limits, global admission control, and cache-capacity eviction are answered
   there rather than in this runtime, and are not open roadmap items here.
 - Durable workflow replay across named steps is more important than a mutable

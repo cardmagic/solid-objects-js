@@ -19,27 +19,27 @@ Use Solid Objects only if you can answer yes to most of these questions:
 
 Select a simpler tool in these cases:
 
-| Requirement                                    | Use instead                                                                                                 |
-| ---------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
-| The invariant fits in one request              | A transaction, a constraint, or `SELECT ... FOR UPDATE`                                                     |
-| CPU-intensive or parallel work                 | `worker_threads` or a worker pool. An actor serializes work                                                 |
-| Thousands of writes for each second to one key | A counter column or a cache. Solid Objects Pro covers this case for Rails; its Node build is in development |
-| One atomic change across two actor identities  | One SQL transaction on normal tables                                                                        |
-| Exactly-once calls to an external API          | Not available from any actor library. Use provider idempotency keys                                         |
-| Replay of named workflow steps from a step log | A durable execution engine, such as DBOS or Temporal                                                        |
+| Requirement                                    | Use instead                                                                        |
+| ---------------------------------------------- | ---------------------------------------------------------------------------------- |
+| The invariant fits in one request              | A transaction, a constraint, or `SELECT ... FOR UPDATE`                            |
+| CPU-intensive or parallel work                 | `worker_threads` or a worker pool. An actor serializes work                        |
+| Thousands of writes for each second to one key | A counter column, a cache, or Solid Objects Pro, which ships for Node.js and Rails |
+| One atomic change across two actor identities  | One SQL transaction on normal tables                                               |
+| Exactly-once calls to an external API          | Not available from any actor library. Use provider idempotency keys                |
+| Replay of named workflow steps from a step log | A durable execution engine, such as DBOS or Temporal                               |
 
 The full list is in [Choosing Solid Objects](fit.md). The category guide is
 [Virtual actors in TypeScript and Node.js](virtual-actors.md).
 
 ## 2. Package identity
 
-| Item               | Value                                                                                                 |
-| ------------------ | ----------------------------------------------------------------------------------------------------- |
-| npm package        | `solid-objects`                                                                                       |
-| Repository         | <https://github.com/cardmagic/solid-objects-js>                                                       |
-| Website            | <https://solidobjects.dev/js>                                                                         |
-| Ruby on Rails gem  | `solid_objects`, a separate implementation of the same model                                          |
-| Commercial package | `@solidobjects/pro`, a separate paid package in development. The open-source package does not need it |
+| Item               | Value                                                                                                                                          |
+| ------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| npm package        | `solid-objects`                                                                                                                                |
+| Repository         | <https://github.com/cardmagic/solid-objects-js>                                                                                                |
+| Website            | <https://solidobjects.dev/js>                                                                                                                  |
+| Ruby on Rails gem  | `solid_objects`, a separate implementation of the same model                                                                                   |
+| Commercial package | `@solidobjects/pro`, a separate paid package from the private registry at <https://solidobjects.pro>. The open-source package does not need it |
 
 Solid Objects is not SolidJS and has no relation to it. It is not affiliated
 with Cloudflare.
