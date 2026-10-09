@@ -7,9 +7,15 @@
       "solid-objects": ["./src/index.ts"],
       "solid-objects/database/sqlite": ["./src/database/sqlite.ts"],
       "solid-objects/database/postgresql": ["./src/database/postgresql.ts"],
-      "solid-objects/database/mysql": ["./src/database/mysql.ts"]
+      "solid-objects/database/mysql": ["./src/database/mysql.ts"],
+      "solid-objects/core": ["./src/core.ts"]
     }
   },
-  "include": ["examples/**/*.ts", "benchmarks/**/*.ts"],
+  "include": [
+    "examples/**/*.ts",
+    "benchmarks/**/*.ts",
+    "test/guide-*.test.ts",
+    "test/fixtures/event-hold-process.ts"
+  ],
   "exclude": ["examples/cloudflare"]
 }

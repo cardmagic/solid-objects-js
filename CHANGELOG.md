@@ -1,5 +1,27 @@
 # Changelog
 
+## 0.17.6 - 2026-10-09
+
+- Add three problem guides in `docs/guides/`. Each one reproduces a failure,
+  shows the simplest fix without an actor, and then shows a tested Solid
+  Objects version with its limits:
+  - `race-conditions.md`: a lost update across an `await`, why a mutex in one
+    process does not help, the conditional `UPDATE` fix, and an `EventSeats`
+    actor whose holds, payment confirmations, and expiry reminders race.
+  - `persistent-rooms.md`: a turn-based room whose state and turn timer
+    survive a restart, the SQL version-column fix, and reconnect that returns
+    the current authorized room state.
+  - `offline-first.md`: browser state in SQLite WASM shared across tabs, and
+    writes queued with `solid-objects/transmit` that a server applies once, in
+    order, after the network returns.
+- The examples live in `examples/guides/`. Vitest and Chromium tests prove each
+  claim, including two real processes that hold seats at the same time.
+  `pnpm run check:documentation` requires each guide to embed its current
+  example files and rejects an em dash in a guide.
+- Tests resolve `solid-objects` to `src/` through the Vitest and TypeScript
+  configuration, so an example that imports the package name runs under test
+  before a build.
+
 ## 0.17.5 - 2026-10-09
 
 - Correct `docs/agents.md` and `docs/fit.md`: Solid Objects Pro ships for

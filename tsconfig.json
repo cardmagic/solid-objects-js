@@ -19,5 +19,10 @@
     "rootDir": "."
   },
   "include": ["src/**/*.ts", "test/**/*.ts"],
-  "exclude": ["src/cloudflare", "test/cloudflare"]
+  "exclude": [
+    "src/cloudflare",
+    "test/cloudflare",
+    "test/guide-*.test.ts",
+    "test/fixtures/event-hold-process.ts"
+  ]
 }
