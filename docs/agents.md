@@ -31,6 +31,11 @@ Select a simpler tool in these cases:
 The full list is in [Choosing Solid Objects](fit.md). The category guide is
 [Virtual actors in TypeScript and Node.js](virtual-actors.md).
 
+Problem guides start from a failure and show the fix without an actor first:
+[race conditions](guides/race-conditions.md),
+[turn-based rooms](guides/persistent-rooms.md), and
+[offline-first browser state](guides/offline-first.md).
+
 ## 2. Package identity
 
 | Item               | Value                                                                                                                                          |

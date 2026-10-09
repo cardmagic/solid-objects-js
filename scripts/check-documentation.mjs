@@ -10,6 +10,10 @@ const documentationPaths = [
     .filter((name) => name.endsWith(".md"))
     .sort()
     .map((name) => `docs/${name}`),
+  ...(await readdir(resolve(repositoryRoot, "docs/guides")))
+    .filter((name) => name.endsWith(".md"))
+    .sort()
+    .map((name) => `docs/guides/${name}`),
 ]
 
 for (const documentationPath of documentationPaths) {
@@ -52,6 +56,81 @@ const embeddedExamples = [
     example: "examples/browser/page.js",
     language: "javascript",
   },
+  {
+    documentation: "docs/guides/race-conditions.md",
+    example: "examples/guides/race-conditions/seat-inventory.ts",
+    language: "typescript",
+  },
+  {
+    documentation: "docs/guides/race-conditions.md",
+    example: "examples/guides/race-conditions/lost-update.ts",
+    language: "typescript",
+  },
+  {
+    documentation: "docs/guides/race-conditions.md",
+    example: "examples/guides/race-conditions/atomic-hold.ts",
+    language: "typescript",
+  },
+  {
+    documentation: "docs/guides/race-conditions.md",
+    example: "examples/guides/race-conditions/event-seats.ts",
+    language: "typescript",
+  },
+  {
+    documentation: "docs/guides/race-conditions.md",
+    example: "examples/guides/race-conditions/event-runtime.ts",
+    language: "typescript",
+  },
+  {
+    documentation: "docs/guides/persistent-rooms.md",
+    example: "examples/guides/persistent-rooms/memory-room.ts",
+    language: "typescript",
+  },
+  {
+    documentation: "docs/guides/persistent-rooms.md",
+    example: "examples/guides/persistent-rooms/sql-room.ts",
+    language: "typescript",
+  },
+  {
+    documentation: "docs/guides/persistent-rooms.md",
+    example: "examples/guides/persistent-rooms/turn-room.ts",
+    language: "typescript",
+  },
+  {
+    documentation: "docs/guides/persistent-rooms.md",
+    example: "examples/guides/persistent-rooms/room-runtime.ts",
+    language: "typescript",
+  },
+  {
+    documentation: "docs/guides/persistent-rooms.md",
+    example: "examples/guides/persistent-rooms/reconnect.ts",
+    language: "typescript",
+  },
+  {
+    documentation: "docs/guides/offline-first.md",
+    example: "examples/guides/offline-first/memory-outbox.js",
+    language: "javascript",
+  },
+  {
+    documentation: "docs/guides/offline-first.md",
+    example: "examples/guides/offline-first/inspection-worker.js",
+    language: "javascript",
+  },
+  {
+    documentation: "docs/guides/offline-first.md",
+    example: "examples/guides/offline-first/page.js",
+    language: "javascript",
+  },
+  {
+    documentation: "docs/guides/offline-first.md",
+    example: "examples/guides/offline-first/server-inspection.ts",
+    language: "typescript",
+  },
+  {
+    documentation: "docs/guides/offline-first.md",
+    example: "examples/guides/offline-first/sync-route.ts",
+    language: "typescript",
+  },
 ]
 for (const { documentation, example, language } of embeddedExamples) {
   const documentationSource = await readFile(resolve(repositoryRoot, documentation), "utf8")
@@ -59,6 +138,13 @@ for (const { documentation, example, language } of embeddedExamples) {
   if (!documentationSource.includes(`\`\`\`${language}\n${exampleSource}\`\`\``)) {
     throw new Error(`${documentation} does not embed the current ${example}`)
   }
+}
+
+for (const documentationPath of documentationPaths.filter((path) =>
+  path.startsWith("docs/guides/"),
+)) {
+  const source = await readFile(resolve(repositoryRoot, documentationPath), "utf8")
+  if (source.includes("\u2014")) throw new Error(`${documentationPath} contains an em dash`)
 }
 
 const publicApi = await readFile(resolve(repositoryRoot, "docs/api.md"), "utf8")
