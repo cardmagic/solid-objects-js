@@ -2,6 +2,7 @@ import {
   IdempotencyConflict,
   InvalidPayload,
   receiveTransmitEnvelope,
+  UnknownActorType,
   UnknownOperation,
   type SolidObjectsRuntime,
   type TransmitEnvelope,
@@ -26,6 +27,7 @@ export async function handleInspectionSync({
     if (
       error instanceof InvalidPayload ||
       error instanceof IdempotencyConflict ||
+      error instanceof UnknownActorType ||
       error instanceof UnknownOperation
     ) {
       return new Response(null, { status: 422 })

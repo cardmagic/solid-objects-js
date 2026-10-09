@@ -189,6 +189,7 @@ import {
   IdempotencyConflict,
   InvalidPayload,
   receiveTransmitEnvelope,
+  UnknownActorType,
   UnknownOperation,
   type SolidObjectsRuntime,
   type TransmitEnvelope,
@@ -213,6 +214,7 @@ export async function handleInspectionSync({
     if (
       error instanceof InvalidPayload ||
       error instanceof IdempotencyConflict ||
+      error instanceof UnknownActorType ||
       error instanceof UnknownOperation
     ) {
       return new Response(null, { status: 422 })
@@ -228,7 +230,7 @@ Delivery through `receiveTransmitEnvelope` skips `authorizeMessage`. The route m
 
 The example gives those checks to `canWrite`. If that callback denies the request, the route answers 403 and does not enqueue the write. The browser policy cannot replace these server checks.
 
-The route answers 422 for `InvalidPayload`, `IdempotencyConflict`, and `UnknownOperation`. An `UnknownOperation` occurs when a device queued a write for an operation that a later server deploy removed. The browser converts that response to `NonRetryableError` and stops retries for that write. This response prevents repeated attempts for an envelope that cannot apply.
+The route answers 422 for `InvalidPayload`, `IdempotencyConflict`, `UnknownActorType`, and `UnknownOperation`. The last two occur when a device queued a write for an actor type or an operation that a later server deploy removed. The browser converts that response to `NonRetryableError` and stops retries for that write. This response prevents repeated attempts for an envelope that cannot apply.
 
 A Rails server can receive the same envelopes with `SolidObjects::Transmission.receive`. That method also skips message authorization. Authenticate the device before the call. Check its permission to write the actor.
 
@@ -270,7 +272,7 @@ The [route tests](../../test/guide-offline-first.test.ts) check these cases:
 - An authorized request receives 200 and adds the expected finding.
 - A repeated envelope receives 200 and leaves one finding.
 - An envelope with an empty operation receives 422.
-- An envelope for an operation that the server removed receives 422.
+- An envelope for an actor type or an operation that the server removed receives 422.
 
 These tests do not check every browser engine or every interruption during delivery. They also do not test `IdempotencyConflict` or the browser response to 422.
 
