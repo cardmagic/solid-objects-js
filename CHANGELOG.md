@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- `docs/parity.md` now cites Ruby `solid_objects` 0.17.3. That Ruby release
+  adds guides, tests, and one development dependency, and does not change the
+  runtime, so the ledger has no new row.
+
 ## 0.17.6 - 2026-10-09
 
 - Add three problem guides in `docs/guides/`. Each one reproduces a failure,
