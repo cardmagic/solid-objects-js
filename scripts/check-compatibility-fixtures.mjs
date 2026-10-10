@@ -22,16 +22,18 @@ if (absentDirectories.length > 0) {
   process.exit(1)
 }
 
-const fixtureNames = [...new Set(directories.flatMap(jsonFileNames))].sort()
+const fixtureNames = [
+  ...new Set(
+    directories.flatMap((directory) =>
+      fs.readdirSync(directory).filter((name) => name.endsWith(".json")),
+    ),
+  ),
+].sort()
 const differences = fixtureNames.flatMap(findDifferences)
 
 if (differences.length > 0) {
   process.stderr.write(`${differences.join("\n")}\n`)
   process.exitCode = 1
-}
-
-function jsonFileNames(directory) {
-  return fs.readdirSync(directory).filter((name) => name.endsWith(".json"))
 }
 
 function findDifferences(name) {
