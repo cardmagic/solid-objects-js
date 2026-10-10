@@ -4,7 +4,7 @@ This ledger tracks capability parity with the Ruby `solid_objects` gem.
 Parity preserves a capability and its correctness or security boundary. It does
 not copy a Rails API into Node.
 
-Reference: Ruby `solid_objects` 0.17.2. The JavaScript package began at the Ruby
+Reference: Ruby `solid_objects` 0.17.3. The JavaScript package began at the Ruby
 design's `0.12` capability generation; that version number did not imply earlier
 JavaScript releases.
 
@@ -283,6 +283,14 @@ sides of the repository boundary. Manual cross-runtime QA (Node to Rails
 and Rails to Node) ran in solid-objects-ruby#49; the one disagreement it
 found (the optional `arguments` default) is fixed and pinned by the shared
 fixture.
+
+The `Compatibility fixtures` workflow compares each `compatibility/*.json` file
+with the same file in solid-objects-ruby at `main`, byte for byte. It runs on
+each push to `main`, one time each day, and on demand. It does not run on a
+pull request, because the other repository holds the old fixture until the two
+pull requests of a paired change merge. Run the same check on a local clone of
+the Ruby repository with
+`node scripts/check-compatibility-fixtures.mjs compatibility ../solid-objects-ruby/compatibility`.
 
 ## JavaScript-only: Cloudflare hosting
 
