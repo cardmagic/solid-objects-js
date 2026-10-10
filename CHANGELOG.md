@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+- Add `scripts/check-compatibility-fixtures.mjs` and a workflow with the name
+  `Compatibility fixtures`. The script compares the `*.json` files in two
+  directories by name and by bytes. It fails with one line for each file that
+  is missing on one side or different. The workflow runs the script on this
+  repository's `compatibility/` directory and on the `compatibility/` directory
+  of solid-objects-ruby at `main`. It runs on each push to `main`, one time
+  each day, and on demand. Before this change, no job compared the shared
+  fixtures.
 - `docs/parity.md` now cites Ruby `solid_objects` 0.17.3. That Ruby release
   adds guides, tests, and one development dependency, and does not change the
   runtime, so the ledger has no new row.

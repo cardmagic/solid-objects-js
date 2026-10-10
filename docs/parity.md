@@ -284,6 +284,14 @@ and Rails to Node) ran in solid-objects-ruby#49; the one disagreement it
 found (the optional `arguments` default) is fixed and pinned by the shared
 fixture.
 
+The `Compatibility fixtures` workflow compares each `compatibility/*.json` file
+with the same file in solid-objects-ruby at `main`, byte for byte. It runs on
+each push to `main`, one time each day, and on demand. It does not run on a
+pull request, because the other repository holds the old fixture until the two
+pull requests of a paired change merge. Run the same check on a local clone of
+the Ruby repository with
+`node scripts/check-compatibility-fixtures.mjs compatibility ../solid-objects-ruby/compatibility`.
+
 ## JavaScript-only: Cloudflare hosting
 
 The experimental `solid-objects/cloudflare` backend hosts each actor identity

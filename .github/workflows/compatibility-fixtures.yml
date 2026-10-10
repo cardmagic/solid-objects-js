@@ -1,0 +1,29 @@
+name: Compatibility fixtures
+
+on:
+  push:
+    branches:
+      - main
+  schedule:
+    - cron: "23 7 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  compare:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          repository: cardmagic/solid-objects-ruby
+          ref: main
+          path: solid-objects-ruby
+          sparse-checkout: compatibility
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: "24.15.0"
+      - run: node scripts/check-compatibility-fixtures.mjs compatibility solid-objects-ruby/compatibility
