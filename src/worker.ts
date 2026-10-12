@@ -9,6 +9,7 @@ import {
 import type { ActivationLease, ClaimedTurn } from "./records.js"
 import type { SolidObjectsRuntime } from "./runtime.js"
 import { PollingBackoff } from "./polling-backoff.js"
+import { yieldToEventLoop } from "./yield-to-event-loop.js"
 
 interface CachedActivation {
   actor: Actor
@@ -132,6 +133,7 @@ export class Worker {
         const count = await this.runOnce()
         if (count === 0) break
         processed += count
+        await yieldToEventLoop()
       }
       return processed
     } finally {
@@ -147,6 +149,8 @@ export class Worker {
       const processed = await this.runOnce()
       if (processed > 0) {
         this.pollingBackoff.reset("work")
+        if (signal.aborted || this.stopping) break
+        await yieldToEventLoop()
         continue
       }
       const notified = await wakeUp.wait({

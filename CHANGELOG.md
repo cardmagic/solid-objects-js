@@ -2,6 +2,19 @@
 
 ## 0.17.8 - 2026-10-12
 
+- Back off repeated interrupted-message recovery using `retryDelayMilliseconds`.
+  The first claimed attempt recovers immediately; after attempts 2, 3, 4,
+  and onward, the delay callback receives 1, 2, 3, and onward (defaults:
+  1, 2, 4 seconds, capped at 60 seconds). Total persisted claim attempts,
+  including earlier handler failures, determine the delay. The ready timestamp
+  survives worker replacement and preserves mailbox order while other actors
+  can proceed. Lease loss alone still does not dead-letter a message; handler
+  failure attempt limits, setting names, defaults, and schema stay unchanged.
+- Yield to timers and input between busy passes in actor, effect, reminder,
+  and broadcast workers and drain helpers, including repeated lease loss.
+  Timer-driven aborts can stop the runtime between attempts; an instrumentation
+  abort stops before another pass. Synchronous handlers remain non-preemptible.
+
 - Give overlapping synchronous caller passes separate, reusable workers so
   cleanup cannot discard another turn's staged effects or other intents.
   Calls to different actors still execute concurrently; workers are reused

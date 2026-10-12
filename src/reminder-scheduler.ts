@@ -2,6 +2,7 @@ import { randomUUID } from "./platform/uuid.js"
 import { UnknownOperation } from "./errors.js"
 import type { SolidObjectsRuntime } from "./runtime.js"
 import { PollingBackoff } from "./polling-backoff.js"
+import { yieldToEventLoop } from "./yield-to-event-loop.js"
 
 export class ReminderScheduler {
   readonly processId = randomUUID()
@@ -66,6 +67,7 @@ export class ReminderScheduler {
       const count = await this.runOnce()
       if (count === 0) break
       processed += count
+      await yieldToEventLoop()
     }
     return processed
   }
@@ -78,6 +80,8 @@ export class ReminderScheduler {
       const processed = await this.runOnce()
       if (processed > 0) {
         this.pollingBackoff.reset("work")
+        if (signal.aborted || this.stopping) break
+        await yieldToEventLoop()
         continue
       }
       const notified = await wakeUp.wait({

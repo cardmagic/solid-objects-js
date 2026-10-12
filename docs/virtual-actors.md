@@ -213,6 +213,10 @@ run again without harm.
   after a crash or a lost lease.
 - Ordered turns do not cancel stale JavaScript. Fencing stops a stale
   activation from a commit, but that code can continue to run.
+- An interrupted first attempt recovers immediately. Repeated interruptions
+  use growing, durable retry delays while keeping mailbox order. Lease loss
+  alone has no attempt limit; use instrumentation and an application stopping
+  policy when a hard bound is required.
 - External effects can run more than once. Use the stable effect ID, or
   another durable key, as the idempotency key at the provider.
 - There are no transactions across actor identities, and there is no replay of

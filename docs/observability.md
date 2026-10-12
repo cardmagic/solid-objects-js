@@ -44,21 +44,22 @@ result. When an exporter or observer raises, both runtimes log
 Delivery is best effort and synchronous callbacks should be short;
 JavaScript does not await exporters. Telemetry is not a durable audit trail.
 
-| Event                                       | Meaning                                                                      |
-| ------------------------------------------- | ---------------------------------------------------------------------------- |
-| `activation.started/completed/failed`       | Local actor activation hook lifecycle                                        |
-| `message.started/completed/failed/rejected` | One attempt's execution outcome                                              |
-| `message.retry`                             | Failed attempt durably queued for another attempt                            |
-| `dead_letter.created`                       | Message exhausted retries or failed permanently                              |
-| `commit_action.started/completed/failed`    | One registered commit action inside the commit transaction                   |
-| `mailbox.depth`                             | On-demand diagnostic sample; `depth` is null when the sample is truncated    |
-| `reminder.enqueued`                         | Due reminder dispatch; lateness is measured from due time                    |
-| `outbox.age`                                | Delivery observation; age is time since the item's current availability time |
-| `recovery.reclaimed`                        | A previously claimed, interrupted message begins another attempt             |
-| `recovery.completed/failed`                 | Durable effect recovery callback commits or enters the dead-letter queue     |
-| `snapshot.read`                             | Authorized snapshot constructed without exposing its contents                |
-| `realtime.connected/disconnected`           | Actor subscription added or removed                                          |
-| `payload_broadcast.failed`                  | One personalized payload failed; `payload` names it                          |
+| Event                                       | Meaning                                                                               |
+| ------------------------------------------- | ------------------------------------------------------------------------------------- |
+| `activation.started/completed/failed`       | Local actor activation hook lifecycle                                                 |
+| `message.started/completed/failed/rejected` | One attempt's execution outcome                                                       |
+| `activation.lost`                           | A message turn lost its activation fence; includes message ID and total attempt count |
+| `message.retry`                             | Failed attempt durably queued for another attempt                                     |
+| `dead_letter.created`                       | Message exhausted retries or failed permanently                                       |
+| `commit_action.started/completed/failed`    | One registered commit action inside the commit transaction                            |
+| `mailbox.depth`                             | On-demand diagnostic sample; `depth` is null when the sample is truncated             |
+| `reminder.enqueued`                         | Due reminder dispatch; lateness is measured from due time                             |
+| `outbox.age`                                | Delivery observation; age is time since the item's current availability time          |
+| `recovery.reclaimed`                        | A previously claimed, interrupted message begins another attempt                      |
+| `recovery.completed/failed`                 | Durable effect recovery callback commits or enters the dead-letter queue              |
+| `snapshot.read`                             | Authorized snapshot constructed without exposing its contents                         |
+| `realtime.connected/disconnected`           | Actor subscription added or removed                                                   |
+| `payload_broadcast.failed`                  | One personalized payload failed; `payload` names it                                   |
 
 Events describe local observations. Concurrent deletion, crashes, and failed
 exporters can omit events. Never infer exactly-once delivery from event counts.

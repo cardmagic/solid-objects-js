@@ -21,11 +21,11 @@ through `runtime.ref(ActorClass, actorId)`. Both validate options immediately.
 | `maxStateBytes`                       |              `5_242_880` | Positive persisted actor-state byte limit.                                    |
 | `warnStateBytes`                      |                `131_072` | Positive persisted actor-state byte threshold that reports one warning.       |
 | `maxResultBytes`                      |              `1_048_576` | Positive operation-result byte limit.                                         |
-| `maxAttempts`                         |                      `5` | Positive maximum operation, effect, and broadcast attempts.                   |
+| `maxAttempts`                         |                      `5` | Positive attempt limit evaluated on handler failure.                          |
 | `maxMessagesPerActivationPass`        |                     `50` | Positive integer turn budget before fairness yield.                           |
 | `maxActivationDurationMilliseconds`   |                  `5_000` | Positive elapsed-time budget before fairness yield.                           |
 | `claimScanLimit`                      |                    `100` | Positive integer ready-actor candidates considered per global claim.          |
-| `retryDelayMilliseconds`              | exponential 1-60 seconds | Receives the next attempt number and returns its delay.                       |
+| `retryDelayMilliseconds`              | exponential 1-60 seconds | Receives a retry index; returns milliseconds (see below).                     |
 
 The limits measure normalized JSON encoded as UTF-8. `maxResultBytes` also
 limits each computed snapshot getter and effect-handler result. Explicit
@@ -35,6 +35,22 @@ separate aggregate byte limit. This includes values wrapped in
 names enter the broadcast outbox. `retryDelayMilliseconds` should return a
 non-negative finite number; an invalid application callback will fail the
 affected failure path rather than schedule an invalid timestamp.
+
+Interrupted actor messages use the existing `retryDelayMilliseconds` callback
+on recovery. After the first claimed attempt they are immediately eligible;
+after persisted attempts 2, 3, 4, ... the callback receives 1, 2, 3, ... . Its
+default delays are 1, 2, 4 seconds up to 60 seconds. This is the total claim count,
+including earlier handler failures, not a separate lease-loss counter. The
+availability timestamp is stored transactionally in ready membership, survives
+worker replacement and stale-process cleanup, and keeps the message ahead of
+later messages for that actor. Other actors remain eligible. Custom delays,
+including zero, remain authoritative.
+
+Lease loss alone never creates a dead letter, including with `maxAttempts: 1`.
+A handler failure still uses the full attempt count with `maxAttempts` and
+passes that count to `retryDelayMilliseconds`, as before. Applications needing
+a hard retry or elapsed-time bound must observe `activation.lost` and stop or
+intervene. No setting or schema change is required.
 
 `maxStateBytes` is a hard limit that fails the turn. `warnStateBytes` is a soft
 threshold that keeps the turn. A commit above the threshold reports one
@@ -75,6 +91,12 @@ fixed cadence. A custom wake-up adapter must return `true` for a notification
 and `false` for a timeout. An older adapter that returns `void` remains
 compatible and keeps the fast cadence. Wake-ups reduce latency, while database
 polling remains the correctness path.
+
+Busy SQL workers and testing drains give the event loop a turn between passes.
+In Node this lets timers and input run even with synchronous SQLite calls.
+An instrumentation callback can abort `runtime.run()` before its next pass.
+This does not interrupt a synchronous handler: responsiveness is bounded by
+one pass, or by a single overlong handler that must return first.
 
 ## Retention and cleanup
 
