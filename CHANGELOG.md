@@ -8,6 +8,8 @@
   lease loss. The next worker pass recovers the message in mailbox order
   without a process restart, including with `maxAttempts: 1`. Reclaiming
   increments `attempt_count`; lease loss alone does not create a dead letter.
+- Run activation lease regressions in PostgreSQL and MySQL CI, reusing and
+  resetting their test tables so repeated runs leave no messages or extra tables.
 
 - Add `scripts/check-compatibility-fixtures.mjs` and a workflow with the name
   `Compatibility fixtures`. The script compares the `*.json` files in two

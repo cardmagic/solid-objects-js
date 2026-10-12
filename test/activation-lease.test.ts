@@ -1,4 +1,3 @@
-import { randomUUID } from "node:crypto"
 import { postgresql } from "../src/database/postgresql.js"
 import { mysql } from "../src/database/mysql.js"
 import { afterEach, describe, expect, it } from "vitest"
@@ -23,6 +22,7 @@ let runtime: SolidObjectsRuntime
 const events: InstrumentationEvent[] = []
 
 afterEach(async () => {
+  await runtime?.repository.resetForTesting()
   await runtime?.close()
   events.length = 0
   LeaseCounter.beforeCommit = () => {}
@@ -37,7 +37,7 @@ async function setup(): Promise<void> {
       : sqlite({ path: ":memory:" })
   runtime = configure({
     database,
-    tableNamePrefix: `lease_${randomUUID().slice(0, 8)}_`,
+    tableNamePrefix: "lease_test_",
     authorizeMessage: () => true,
     authorizeQuery: () => true,
     leaseDurationMilliseconds: 200,
@@ -47,6 +47,7 @@ async function setup(): Promise<void> {
   })
   runtime.register(LeaseCounter)
   await runtime.install()
+  await runtime.repository.resetForTesting()
 }
 
 function blockFor(milliseconds: number): void {
