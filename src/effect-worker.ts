@@ -2,6 +2,7 @@ import { randomUUID } from "./platform/uuid.js"
 import type { SolidObjectsRuntime } from "./runtime.js"
 import { withProcessHeartbeat } from "./worker.js"
 import { PollingBackoff } from "./polling-backoff.js"
+import { yieldToEventLoop } from "./yield-to-event-loop.js"
 
 export class EffectWorker {
   readonly processId = randomUUID()
@@ -28,7 +29,6 @@ export class EffectWorker {
   async runOnce(): Promise<number> {
     if (this.stopping) return 0
     await this.ensureRegistered()
-    await this.runtime.repository.heartbeatProcess(this.processId)
     const effect = await this.runtime.repository.claimEffect(this.processId)
     if (!effect) return 0
     await withProcessHeartbeat({
@@ -46,6 +46,7 @@ export class EffectWorker {
       const count = await this.runOnce()
       if (count === 0) break
       processed += count
+      await yieldToEventLoop()
     }
     return processed
   }
@@ -56,8 +57,10 @@ export class EffectWorker {
     while (!signal.aborted && !this.stopping) {
       const wakeUp = await this.runtime.watchWakeUp("effects")
       const processed = await this.runOnce()
+      if (signal.aborted || this.stopping) break
       if (processed > 0) {
         this.pollingBackoff.reset("work")
+        await yieldToEventLoop()
         continue
       }
       const notified = await wakeUp.wait({
@@ -88,7 +91,6 @@ export class EffectWorker {
   }
 
   private async ensureRegistered(): Promise<void> {
-    if (this.registered) return
     await this.runtime.repository.registerProcess(this.processId, "effect_worker")
     this.registered = true
   }

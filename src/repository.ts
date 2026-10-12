@@ -227,7 +227,12 @@ export class Repository {
         `INSERT INTO ${this.table("ready_messages")}
          (message_id, instance_id, sequence, available_at_ms)
          VALUES (?, ?, ?, ?) ON CONFLICT(message_id) DO NOTHING`,
-        [claim.message_id, claim.instance_id, currentClaim.sequence, now],
+        [
+          claim.message_id,
+          claim.instance_id,
+          currentClaim.sequence,
+          await this.recoveryAvailableAt({ connection, messageId: claim.message_id, now }),
+        ],
       )
       const ownsActivation =
         instance.activation_owner_id === processId &&
@@ -2211,6 +2216,22 @@ export class Repository {
     )
   }
 
+  private async recoveryAvailableAt(options: {
+    connection: DatabaseConnection
+    messageId: string
+    now: number
+  }): Promise<number> {
+    const { connection, messageId, now } = options
+    const message = await connection.get<{ attempt_count: number | bigint }>(
+      `SELECT attempt_count FROM ${this.table("messages")} WHERE id = ?`,
+      [messageId],
+    )
+    if (!message) throw new Error("claimed message does not exist")
+    const attempt = Number(message.attempt_count)
+    if (attempt <= 1) return now
+    return now + this.settings.retryDelayMilliseconds(attempt - 1)
+  }
+
   private async recoverExpiredClaims(connection: DatabaseConnection, now: number): Promise<void> {
     const expired = await connection.all<{
       message_id: string
@@ -2258,7 +2279,12 @@ export class Repository {
       await connection.run(
         `INSERT INTO ${this.table("ready_messages")}(message_id, instance_id, sequence, available_at_ms)
          VALUES (?, ?, ?, ?) ON CONFLICT(message_id) DO NOTHING`,
-        [claim.message_id, claim.instance_id, currentClaim.sequence, now],
+        [
+          claim.message_id,
+          claim.instance_id,
+          currentClaim.sequence,
+          await this.recoveryAvailableAt({ connection, messageId: claim.message_id, now }),
+        ],
       )
       const released = await connection.run(
         `UPDATE ${this.table("instances")}

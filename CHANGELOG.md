@@ -1,5 +1,42 @@
 # Changelog
 
+## 0.17.8 - 2026-10-12
+
+- Back off repeated interrupted-message recovery using `retryDelayMilliseconds`.
+  The first claimed attempt recovers immediately; after attempts 2, 3, 4,
+  and onward, the delay callback receives 1, 2, 3, and onward (defaults:
+  1, 2, 4 seconds, capped at 60 seconds). Total persisted claim attempts,
+  including earlier handler failures, determine the delay. The ready timestamp
+  survives worker replacement and preserves mailbox order while other actors
+  can proceed. Lease loss alone still does not dead-letter a message; handler
+  failure attempt limits, setting names, defaults, and schema stay unchanged.
+- Yield to timers and input between busy passes in actor, effect, reminder,
+  and broadcast workers and drain helpers, including repeated lease loss.
+  Timer-driven aborts can stop the runtime between attempts; an instrumentation
+  abort stops before another pass. Synchronous handlers remain non-preemptible.
+- Report `activation.lost` when a handler failure or rejection cannot commit
+  because its lease expired. These attempts recover with the same fencing and
+  backoff as lost completions, and instrumentation can stop the worker.
+
+- Give overlapping synchronous caller passes separate, reusable workers so
+  cleanup cannot discard another turn's staged effects or other intents.
+  Calls to different actors still execute concurrently; workers are reused
+  once their pass and activation cleanup finish.
+  A caller interrupted by test reset cannot return its stopped worker to
+  the pool and stall subsequent calls.
+- Re-establish actor, effect, reminder, and broadcast process registrations
+  before each pass, including after stale-process cleanup and retention.
+  Explicitly stopped workers stay stopped. No schema or setting changes.
+- Cover caller concurrency and process retention on SQLite, PostgreSQL, and
+  MySQL, with `maxAttempts: 1` and both default and single-message pass limits.
+  Keep adapter and worker-role selection explicit in the regression fixtures.
+- Drain recovered turns in the failure-recovery demo before checking committed
+  state. Verify completion and allow additional fenced retries when a worker
+  loses its lease on a delayed runner.
+- Advance the database test clock after acquiring commit locks in PostgreSQL
+  and MySQL fencing tests, so runner delays cannot expire the lease before
+  the commit barrier is reached.
+
 ## 0.17.7 - 2026-10-12
 
 - Renew retained activations between short turns and across worker passes,

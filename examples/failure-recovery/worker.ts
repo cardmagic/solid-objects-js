@@ -1,6 +1,7 @@
 import { createRuntime } from "solid-objects"
 import { sqlite } from "solid-objects/database/sqlite"
 import { RecoverableReport, RecoveryCounter } from "./actor.ts"
+import { processMessages } from "./process-messages.ts"
 
 const databasePath = requiredArgument(2)
 const runtime = createRuntime({
@@ -36,11 +37,7 @@ if (process.argv[3] === "retire-effects") {
 const worker = runtime.worker()
 
 try {
-  let processed = 0
-  for (let attempt = 0; attempt < 200 && processed === 0; attempt += 1) {
-    processed = await worker.runOnce({ activationRetention: "release" })
-    if (processed === 0) await new Promise((resolve) => setTimeout(resolve, 10))
-  }
+  const processed = await processMessages(worker)
   process.send?.({ event: "worker.finished", processed })
 } finally {
   await worker.stop()

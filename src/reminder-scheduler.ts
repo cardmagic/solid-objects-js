@@ -2,6 +2,7 @@ import { randomUUID } from "./platform/uuid.js"
 import { UnknownOperation } from "./errors.js"
 import type { SolidObjectsRuntime } from "./runtime.js"
 import { PollingBackoff } from "./polling-backoff.js"
+import { yieldToEventLoop } from "./yield-to-event-loop.js"
 
 export class ReminderScheduler {
   readonly processId = randomUUID()
@@ -32,7 +33,6 @@ export class ReminderScheduler {
       throw new TypeError("reminder test time must be a valid date")
     }
     await this.ensureRegistered()
-    await this.runtime.repository.heartbeatProcess(this.processId)
     const reminder = await this.runtime.repository.claimReminder(this.processId, {
       ...(nowMilliseconds === undefined ? {} : { nowMilliseconds }),
     })
@@ -67,6 +67,7 @@ export class ReminderScheduler {
       const count = await this.runOnce()
       if (count === 0) break
       processed += count
+      await yieldToEventLoop()
     }
     return processed
   }
@@ -77,8 +78,10 @@ export class ReminderScheduler {
     while (!signal.aborted && !this.stopping) {
       const wakeUp = await this.runtime.watchWakeUp("reminders")
       const processed = await this.runOnce()
+      if (signal.aborted || this.stopping) break
       if (processed > 0) {
         this.pollingBackoff.reset("work")
+        await yieldToEventLoop()
         continue
       }
       const notified = await wakeUp.wait({
@@ -109,7 +112,6 @@ export class ReminderScheduler {
   }
 
   private async ensureRegistered(): Promise<void> {
-    if (this.registered) return
     await this.runtime.repository.registerProcess(this.processId, "reminder_scheduler")
     this.registered = true
   }

@@ -9,6 +9,7 @@ import {
 import type { ActivationLease, ClaimedTurn } from "./records.js"
 import type { SolidObjectsRuntime } from "./runtime.js"
 import { PollingBackoff } from "./polling-backoff.js"
+import { yieldToEventLoop } from "./yield-to-event-loop.js"
 
 interface CachedActivation {
   actor: Actor
@@ -53,7 +54,6 @@ export class Worker {
     try {
       if (this.stopping) return 0
       await this.ensureRegistered()
-      await this.runtime.repository.heartbeatProcess(this.processId)
       await this.maintainCachedActivations()
       let cached: CachedActivation | undefined = await this.claimCachedActivation()
       let turn = cached?.turn ?? (await this.runtime.repository.claim(this.processId))
@@ -133,6 +133,7 @@ export class Worker {
         const count = await this.runOnce()
         if (count === 0) break
         processed += count
+        await yieldToEventLoop()
       }
       return processed
     } finally {
@@ -146,8 +147,10 @@ export class Worker {
     while (!signal.aborted && !this.stopping) {
       const wakeUp = await this.runtime.watchWakeUp("actors")
       const processed = await this.runOnce()
+      if (signal.aborted || this.stopping) break
       if (processed > 0) {
         this.pollingBackoff.reset("work")
+        await yieldToEventLoop()
         continue
       }
       const notified = await wakeUp.wait({
@@ -190,7 +193,6 @@ export class Worker {
   }
 
   private async ensureRegistered(): Promise<void> {
-    if (this.registered) return
     await this.runtime.repository.registerProcess(this.processId, "worker")
     this.registered = true
   }

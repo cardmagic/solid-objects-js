@@ -230,7 +230,8 @@ for the same time emits nothing.
 
 ## Dead letters, retry, and redrive
 
-A message that exhausts its attempts becomes a dead letter. An effect or a
+A handler failure that exhausts its attempts becomes a dead letter.
+Lease loss alone remains pending with [recovery backoff](configuration.md). An effect or a
 broadcast that exhausts its attempts stays in its own table with
 `status = 'dead'`. All three are read and retried through one receiver, which
 carries the kind:

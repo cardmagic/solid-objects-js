@@ -1,6 +1,7 @@
 import type { SolidObjectsRuntime } from "./runtime.js"
 import type { LongRunningComponent } from "./types.js"
 import { broadcastsEnabled } from "./configuration.js"
+import { yieldToEventLoop } from "./yield-to-event-loop.js"
 
 export type TestHelperRole = "actors" | "effects" | "reminders" | "broadcasts"
 
@@ -40,7 +41,11 @@ export class SolidObjectsTestHelper {
     try {
       for (let pass = 0; pass < maxPasses; pass += 1) {
         let processed = 0
-        for (const runner of sequence) processed += await runner.runOnce()
+        for (const runner of sequence) {
+          const count = await runner.runOnce()
+          processed += count
+          if (count > 0) await yieldToEventLoop()
+        }
         if (processed === 0) return total
         total += processed
       }
@@ -70,6 +75,7 @@ export class SolidObjectsTestHelper {
         const count = await scheduler.runOnce({ now: options.now })
         if (count === 0) return processed
         processed += count
+        await yieldToEventLoop()
       }
       return processed
     } finally {

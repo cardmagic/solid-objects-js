@@ -1,6 +1,6 @@
 {
   "name": "solid-objects",
-  "version": "0.17.7",
+  "version": "0.17.8",
   "description": "SQL-backed virtual actor library for TypeScript and Node.js, with durable state, ordered operations, and automatic activation on SQLite, PostgreSQL, or MySQL",
   "type": "module",
   "license": "MIT",
@@ -118,8 +118,8 @@
     "test": "vitest run",
     "test:browser": "pnpm run build && playwright test",
     "test:coverage": "vitest run --coverage",
-    "test:postgresql": "vitest run test/postgresql.test.ts test/activation-lease.test.ts test/effect-recovery.test.ts test/instance-retention.test.ts test/transmit-ordering.test.ts",
-    "test:mysql": "vitest run test/mysql.test.ts test/activation-lease.test.ts test/effect-recovery.test.ts test/instance-retention.test.ts test/transmit-ordering.test.ts",
+    "test:postgresql": "vitest run test/postgresql.test.ts test/activation-lease.test.ts test/activation-recovery-backoff.test.ts test/caller-lifecycle.test.ts test/effect-recovery.test.ts test/instance-retention.test.ts test/transmit-ordering.test.ts",
+    "test:mysql": "vitest run test/mysql.test.ts test/activation-lease.test.ts test/activation-recovery-backoff.test.ts test/caller-lifecycle.test.ts test/effect-recovery.test.ts test/instance-retention.test.ts test/transmit-ordering.test.ts",
     "test:package": "node scripts/release-artifact-smoke.mjs",
     "test:recovery": "pnpm run build && node examples/failure-recovery/demo.ts",
     "test:at-least-once": "pnpm run build && node examples/at-least-once/demo.ts",
