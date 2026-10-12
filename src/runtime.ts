@@ -555,7 +555,7 @@ export class SolidObjectsRuntime {
     try {
       return await worker.runOnce({ activationRetention: "release" })
     } finally {
-      this.idleCallerWorkers.push(worker)
+      if (!worker.stopped()) this.idleCallerWorkers.push(worker)
     }
   }
 

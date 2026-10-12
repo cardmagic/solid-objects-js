@@ -6,6 +6,8 @@
   cleanup cannot discard another turn's staged effects or other intents.
   Calls to different actors still execute concurrently; workers are reused
   once their pass and activation cleanup finish.
+  A caller interrupted by test reset cannot return its stopped worker to
+  the pool and stall subsequent calls.
 - Re-establish actor, effect, reminder, and broadcast process registrations
   before each pass, including after stale-process cleanup and retention.
   Explicitly stopped workers stay stopped. No schema or setting changes.

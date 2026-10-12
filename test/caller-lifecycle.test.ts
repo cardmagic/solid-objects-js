@@ -4,6 +4,7 @@ import type { InstrumentationEvent } from "../src/configuration.js"
 import { mysql } from "../src/database/mysql.js"
 import { postgresql } from "../src/database/postgresql.js"
 import { sqlite } from "../src/database/sqlite.js"
+import { ActorDestroyed } from "../src/errors.js"
 import { configure, type SolidObjectsRuntime } from "../src/runtime.js"
 import { Worker } from "../src/worker.js"
 
@@ -218,6 +219,31 @@ async function beforeDeadline(operation: Promise<void>): Promise<void> {
     clearTimeout(timeout)
   }
 }
+
+it("discards a stopped caller that finishes after test reset", async () => {
+  await setup()
+  const entered = Promise.withResolvers<void>()
+  const release = Promise.withResolvers<void>()
+  CallerCounter.beforeCommit = async (label) => {
+    if (label !== "interrupted") return
+    entered.resolve()
+    await release.promise
+  }
+  const reference = CallerCounter.ref("reset-during-call").with({ timeoutMilliseconds: 1000 })
+  const interrupted = reference.increment({ label: "interrupted" }).catch((error: unknown) => error)
+  try {
+    await beforeDeadline(entered.promise)
+    await runtime.resetForTesting()
+  } finally {
+    release.resolve()
+    await interrupted
+  }
+
+  expect(await interrupted).toBeInstanceOf(ActorDestroyed)
+  expect(await reference.increment({ label: "after-reset" })).toBe(1)
+  expect(await reference.increment({ label: "reused" })).toBe(2)
+  expect(await effectLabels()).toEqual(["after-reset", "reused"])
+})
 
 it.each(["stopped", "pruned"])(
   "recovers a %s caller registration after runtime shutdown",
