@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.17.8 - 2026-10-12
 
 - Give overlapping synchronous caller passes separate, reusable workers so
   cleanup cannot discard another turn's staged effects or other intents.
