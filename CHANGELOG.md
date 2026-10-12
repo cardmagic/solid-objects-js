@@ -26,6 +26,7 @@
   Explicitly stopped workers stay stopped. No schema or setting changes.
 - Cover caller concurrency and process retention on SQLite, PostgreSQL, and
   MySQL, with `maxAttempts: 1` and both default and single-message pass limits.
+  Keep adapter and worker-role selection explicit in the regression fixtures.
 - Drain recovered turns in the failure-recovery demo before checking committed
   state. Verify completion and allow additional fenced retries when a worker
   loses its lease on a delayed runner.

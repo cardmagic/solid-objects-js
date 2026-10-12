@@ -94,6 +94,13 @@ if (role !== "actors") {
   await setupWorker.stop()
 }
 
+function workerForRole() {
+  if (role === "actors") return runtime.worker()
+  if (role === "effects") return runtime.effectWorker()
+  if (role === "reminders") return runtime.reminderScheduler()
+  return runtime.broadcastWorker()
+}
+
 const startedAt = performance.now()
 lastTick = startedAt
 const timer = setInterval(() => {
@@ -117,14 +124,7 @@ try {
     })
   else if (execution === "due-reminders") await runtime.testing.runDueReminders({ now: new Date() })
   else {
-    const worker =
-      role === "actors"
-        ? runtime.worker()
-        : role === "effects"
-          ? runtime.effectWorker()
-          : role === "reminders"
-            ? runtime.reminderScheduler()
-            : runtime.broadcastWorker()
+    const worker = workerForRole()
     try {
       await worker.runUntilIdle()
     } finally {

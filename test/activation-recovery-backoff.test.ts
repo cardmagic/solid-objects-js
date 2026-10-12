@@ -5,6 +5,7 @@ import { Actor } from "../src/actor.js"
 import { mysql } from "../src/database/mysql.js"
 import { postgresql } from "../src/database/postgresql.js"
 import { sqlite } from "../src/database/sqlite.js"
+import type { Database } from "../src/database/types.js"
 import { createRuntime, type SolidObjectsRuntime } from "../src/runtime.js"
 import { controlledDatabaseClock } from "./support/fenced-commit.js"
 
@@ -35,11 +36,14 @@ async function setup(
   options: { retryDelayMilliseconds?: (attempt: number) => number; maxAttempts?: number } = {},
 ): Promise<void> {
   const connectionString = process.env.SOLID_OBJECTS_DATABASE_URL
-  const database = connectionString?.startsWith("postgres")
-    ? postgresql({ connectionString })
-    : connectionString?.startsWith("mysql")
-      ? mysql({ connectionString })
-      : sqlite({ path: ":memory:" })
+  let database: Database
+  if (connectionString?.startsWith("postgres")) {
+    database = postgresql({ connectionString })
+  } else if (connectionString?.startsWith("mysql")) {
+    database = mysql({ connectionString })
+  } else {
+    database = sqlite({ path: ":memory:" })
+  }
   clock = controlledDatabaseClock(database)
   events = []
   runtime = createRuntime({

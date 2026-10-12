@@ -4,6 +4,7 @@ import type { InstrumentationEvent } from "../src/configuration.js"
 import { mysql } from "../src/database/mysql.js"
 import { postgresql } from "../src/database/postgresql.js"
 import { sqlite } from "../src/database/sqlite.js"
+import type { Database } from "../src/database/types.js"
 import { ActorDestroyed } from "../src/errors.js"
 import { configure, type SolidObjectsRuntime } from "../src/runtime.js"
 import { Worker } from "../src/worker.js"
@@ -46,11 +47,14 @@ afterEach(async () => {
 
 async function setup(options: { maxMessagesPerActivationPass?: number } = {}): Promise<void> {
   const connectionString = process.env.SOLID_OBJECTS_DATABASE_URL
-  const database = connectionString?.startsWith("postgres")
-    ? postgresql({ connectionString })
-    : connectionString?.startsWith("mysql")
-      ? mysql({ connectionString })
-      : sqlite({ path: ":memory:" })
+  let database: Database
+  if (connectionString?.startsWith("postgres")) {
+    database = postgresql({ connectionString })
+  } else if (connectionString?.startsWith("mysql")) {
+    database = mysql({ connectionString })
+  } else {
+    database = sqlite({ path: ":memory:" })
+  }
   runtime = configure({
     database,
     tableNamePrefix: "caller_test_",
