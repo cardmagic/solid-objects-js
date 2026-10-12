@@ -1,9 +1,10 @@
 import { postgresql } from "../src/database/postgresql.js"
 import { mysql } from "../src/database/mysql.js"
-import { afterEach, describe, expect, it } from "vitest"
+import { afterEach, describe, expect, it, vi } from "vitest"
 import { Actor } from "../src/actor.js"
 import type { InstrumentationEvent } from "../src/configuration.js"
 import { sqlite } from "../src/database/sqlite.js"
+import type { Database, DatabaseConnection } from "../src/database/types.js"
 import { configure, type SolidObjectsRuntime } from "../src/runtime.js"
 
 class LeaseCounter extends Actor {
@@ -19,11 +20,15 @@ class LeaseCounter extends Actor {
 }
 
 let runtime: SolidObjectsRuntime
+let elapsedMilliseconds: number | undefined
 const events: InstrumentationEvent[] = []
 
 afterEach(async () => {
   await runtime?.repository.resetForTesting()
   await runtime?.close()
+  vi.useRealTimers()
+  vi.restoreAllMocks()
+  elapsedMilliseconds = undefined
   events.length = 0
   LeaseCounter.beforeCommit = () => {}
 })
@@ -36,7 +41,7 @@ async function setup(): Promise<void> {
       ? mysql({ connectionString })
       : sqlite({ path: ":memory:" })
   runtime = configure({
-    database,
+    database: withControlledServerClock(database),
     tableNamePrefix: "lease_test_",
     authorizeMessage: () => true,
     authorizeQuery: () => true,
@@ -48,9 +53,39 @@ async function setup(): Promise<void> {
   runtime.register(LeaseCounter)
   await runtime.install()
   await runtime.repository.resetForTesting()
+  if (database.family !== "sqlite") {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] })
+  }
+}
+
+function withControlledServerClock(database: Database): Database {
+  if (database.family === "sqlite") return database
+  elapsedMilliseconds = 0
+  const startedAt = Date.now()
+  vi.spyOn(performance, "now").mockImplementation(() => elapsedMilliseconds!)
+  const clockedConnection = (connection: DatabaseConnection): DatabaseConnection => ({
+    run: connection.run.bind(connection),
+    get: connection.get.bind(connection),
+    all: connection.all.bind(connection),
+    nowMilliseconds: async () => startedAt + elapsedMilliseconds!,
+  })
+  return {
+    family: database.family,
+    schemaIdentity: database.schemaIdentity,
+    transactionActive: () => database.transactionActive?.() ?? false,
+    connection: (callback) =>
+      database.connection((connection) => callback(clockedConnection(connection))),
+    transaction: (callback, options) =>
+      database.transaction((connection) => callback(clockedConnection(connection)), options),
+    close: () => database.close(),
+  }
 }
 
 function blockFor(milliseconds: number): void {
+  if (elapsedMilliseconds !== undefined) {
+    elapsedMilliseconds += milliseconds
+    return
+  }
   Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, milliseconds)
 }
 
