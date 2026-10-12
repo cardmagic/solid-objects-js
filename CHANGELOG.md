@@ -12,6 +12,7 @@
   resetting their test tables so repeated runs leave no messages or extra tables.
   Control the server-database test clocks to avoid runner scheduling delays;
   SQLite keeps real synchronous waits with a 200 ms lease.
+  Allow 15 seconds for the 34-turn test's database round trips in CI.
 - Add `scripts/check-compatibility-fixtures.mjs` and a workflow with the name
   `Compatibility fixtures`. The script compares the `*.json` files in two
   directories by name and by bytes. It fails with one line for each file that

@@ -136,7 +136,7 @@ describe("activation lease recovery", () => {
       34,
     )
     await worker.stop()
-  })
+  }, 15_000)
 
   it("renews between short turns in a single pass without timer ticks", async () => {
     await setup()
