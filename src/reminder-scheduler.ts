@@ -32,7 +32,6 @@ export class ReminderScheduler {
       throw new TypeError("reminder test time must be a valid date")
     }
     await this.ensureRegistered()
-    await this.runtime.repository.heartbeatProcess(this.processId)
     const reminder = await this.runtime.repository.claimReminder(this.processId, {
       ...(nowMilliseconds === undefined ? {} : { nowMilliseconds }),
     })
@@ -109,7 +108,6 @@ export class ReminderScheduler {
   }
 
   private async ensureRegistered(): Promise<void> {
-    if (this.registered) return
     await this.runtime.repository.registerProcess(this.processId, "reminder_scheduler")
     this.registered = true
   }

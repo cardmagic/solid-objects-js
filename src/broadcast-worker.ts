@@ -28,7 +28,6 @@ export class BroadcastWorker {
   async runOnce(): Promise<number> {
     if (this.stopping) return 0
     await this.ensureRegistered()
-    await this.runtime.repository.heartbeatProcess(this.processId)
     const broadcast = await this.runtime.repository.claimBroadcast(this.processId)
     if (!broadcast) return 0
     await withProcessHeartbeat({
@@ -88,7 +87,6 @@ export class BroadcastWorker {
   }
 
   private async ensureRegistered(): Promise<void> {
-    if (this.registered) return
     await this.runtime.repository.registerProcess(this.processId, "broadcast_worker")
     this.registered = true
   }

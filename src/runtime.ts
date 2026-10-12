@@ -216,7 +216,8 @@ export class SolidObjectsRuntime {
   private readonly effects = new Map<string, EffectHandler>()
   private readonly commitActions = new Map<string, CommitActionHandler>()
   private readonly additionalComponents: ComponentRegistration[] = []
-  private callerWorker: Worker | undefined
+  private readonly callerWorkers = new Set<Worker>()
+  private readonly idleCallerWorkers: Worker[] = []
   private running = false
   private pollingOnlyWakeUpWarningEmitted = false
   private pollingOnlyWakeUpWarningCheck: Promise<void> | undefined
@@ -496,7 +497,6 @@ export class SolidObjectsRuntime {
     messageReference: MessageReference<Result>,
     options: { timeout: number; deadline: number },
   ): Promise<DeepReadonly<Result>> {
-    this.callerWorker ??= new Worker(this, { setupFailure: "throw" })
     while (performance.now() < options.deadline) {
       let snapshot: { message: MessageRow | undefined; status: MessageStatus }
       try {
@@ -513,7 +513,7 @@ export class SolidObjectsRuntime {
       if (status === "completed")
         return readonlyCopy(parseResult(message.result)) as DeepReadonly<Result>
       if (status === "dead") throw messageFailure(message)
-      const processed = await this.callerWorker.runOnce({ activationRetention: "release" })
+      const processed = await this.assistCaller()
       const remaining = options.deadline - performance.now()
       if (processed === 0 && remaining > 0)
         await new Promise((resolve) =>
@@ -547,6 +547,22 @@ export class SolidObjectsRuntime {
       throw messageFailure(finalMessage)
     }
     throw await this.syncTimeout(messageReference, options.timeout)
+  }
+
+  private async assistCaller(): Promise<number> {
+    const worker = this.idleCallerWorkers.pop() ?? new Worker(this, { setupFailure: "throw" })
+    this.callerWorkers.add(worker)
+    try {
+      return await worker.runOnce({ activationRetention: "release" })
+    } finally {
+      this.idleCallerWorkers.push(worker)
+    }
+  }
+
+  private async stopCallerWorkers(): Promise<void> {
+    await Promise.all([...this.callerWorkers].map((worker) => worker.stop()))
+    this.callerWorkers.clear()
+    this.idleCallerWorkers.length = 0
   }
 
   private messageSnapshotBeforeDeadline(
@@ -1493,7 +1509,7 @@ export class SolidObjectsRuntime {
   async close(): Promise<void> {
     if (this.running)
       throw new Error("abort runtime.run() and wait for it before closing the runtime")
-    await this.callerWorker?.stop()
+    await this.stopCallerWorkers()
     this.realtime.close()
     await this.closeWakeUp()
     this.observers.clear()
@@ -1545,8 +1561,7 @@ export class SolidObjectsRuntime {
 
   async resetForTesting(): Promise<void> {
     if (this.running) throw new Error("abort runtime.run() before resetting test state")
-    await this.callerWorker?.stop()
-    this.callerWorker = undefined
+    await this.stopCallerWorkers()
     this.realtime.close()
     await this.discardWakeUp()
     await this.repository.resetForTesting()

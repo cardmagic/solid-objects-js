@@ -1,5 +1,17 @@
 # Changelog
 
+## Unreleased
+
+- Give overlapping synchronous caller passes separate, reusable workers so
+  cleanup cannot discard another turn's staged effects or other intents.
+  Calls to different actors still execute concurrently; workers are reused
+  once their pass and activation cleanup finish.
+- Re-establish actor, effect, reminder, and broadcast process registrations
+  before each pass, including after stale-process cleanup and retention.
+  Explicitly stopped workers stay stopped. No schema or setting changes.
+- Cover caller concurrency and process retention on SQLite, PostgreSQL, and
+  MySQL, with `maxAttempts: 1` and both default and single-message pass limits.
+
 ## 0.17.7 - 2026-10-12
 
 - Renew retained activations between short turns and across worker passes,

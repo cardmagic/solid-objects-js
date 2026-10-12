@@ -53,7 +53,6 @@ export class Worker {
     try {
       if (this.stopping) return 0
       await this.ensureRegistered()
-      await this.runtime.repository.heartbeatProcess(this.processId)
       await this.maintainCachedActivations()
       let cached: CachedActivation | undefined = await this.claimCachedActivation()
       let turn = cached?.turn ?? (await this.runtime.repository.claim(this.processId))
@@ -190,7 +189,6 @@ export class Worker {
   }
 
   private async ensureRegistered(): Promise<void> {
-    if (this.registered) return
     await this.runtime.repository.registerProcess(this.processId, "worker")
     this.registered = true
   }
