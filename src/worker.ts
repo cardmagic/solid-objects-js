@@ -87,7 +87,9 @@ export class Worker {
           actor: execution.actor,
           turn,
           lastUsedAt: now,
-          renewAt: now + this.runtime.settings.leaseRenewalIntervalMilliseconds,
+          renewAt:
+            cached?.renewAt ??
+            passStartedAt + this.runtime.settings.leaseRenewalIntervalMilliseconds,
         }
         this.activations.set(turn.instance.id, cached)
         passExhausted =
@@ -95,6 +97,7 @@ export class Worker {
           performance.now() - passStartedAt >=
             this.runtime.settings.maxActivationDurationMilliseconds
         if (passExhausted) break
+        await this.maintainCachedActivations()
         turn = await this.runtime.repository.claim(this.processId, {
           activation: activationLease(cached.turn),
         })

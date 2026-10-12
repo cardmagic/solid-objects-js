@@ -1,7 +1,18 @@
 # Changelog
 
-## Unreleased
+## 0.17.7 - 2026-10-12
 
+- Renew retained activations between short turns and across worker passes,
+  even when synchronous work prevents renewal timers from running.
+- Keep an activation with an outstanding message claim discoverable after
+  lease loss. The next worker pass recovers the message in mailbox order
+  without a process restart, including with `maxAttempts: 1`. Reclaiming
+  increments `attempt_count`; lease loss alone does not create a dead letter.
+- Run activation lease regressions in PostgreSQL and MySQL CI, reusing and
+  resetting their test tables so repeated runs leave no messages or extra tables.
+  Control the server-database test clocks to avoid runner scheduling delays;
+  SQLite keeps real synchronous waits with a 200 ms lease.
+  Allow 15 seconds for the 34-turn test's database round trips in CI.
 - Add `scripts/check-compatibility-fixtures.mjs` and a workflow with the name
   `Compatibility fixtures`. The script compares the `*.json` files in two
   directories by name and by bytes. It fails with one line for each file that
@@ -10,9 +21,8 @@
   of solid-objects-ruby at `main`. It runs on each push to `main`, one time
   each day, and on demand. Before this change, no job compared the shared
   fixtures.
-- `docs/parity.md` now cites Ruby `solid_objects` 0.17.3. That Ruby release
-  adds guides, tests, and one development dependency, and does not change the
-  runtime, so the ledger has no new row.
+- Track Ruby `solid_objects` 0.17.4 in the parity ledger, including renewal
+  between short turns and preservation of activation fences for claimed messages.
 
 ## 0.17.6 - 2026-10-09
 
