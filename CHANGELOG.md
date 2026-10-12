@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- Renew retained activations between short turns and across worker passes,
+  even when synchronous work prevents renewal timers from running.
+- Keep an activation with an outstanding message claim discoverable after
+  lease loss. The next worker pass recovers the message in mailbox order
+  without a process restart, including with `maxAttempts: 1`. Reclaiming
+  increments `attempt_count`; lease loss alone does not create a dead letter.
+
 - Add `scripts/check-compatibility-fixtures.mjs` and a workflow with the name
   `Compatibility fixtures`. The script compares the `*.json` files in two
   directories by name and by bytes. It fails with one line for each file that

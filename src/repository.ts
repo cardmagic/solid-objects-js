@@ -651,13 +651,18 @@ export class Repository {
          SET activation_owner_id = NULL, activation_token = NULL,
            activation_expires_at_ms = NULL, updated_at_ms = ?
          WHERE id = ? AND activation_owner_id = ? AND activation_token = ?
-           AND activation_generation = ?`,
+           AND activation_generation = ?
+           AND NOT EXISTS (
+             SELECT 1 FROM ${this.table("claimed_messages")} claimed
+             WHERE claimed.instance_id = ?
+           )`,
         [
           now,
           activation.instanceId,
           activation.processId,
           activation.activationToken,
           activation.activationGeneration,
+          activation.instanceId,
         ],
       )
     })
