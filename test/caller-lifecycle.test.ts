@@ -230,7 +230,10 @@ it("discards a stopped caller that finishes after test reset", async () => {
     await release.promise
   }
   const reference = CallerCounter.ref("reset-during-call").with({ timeoutMilliseconds: 1000 })
-  const interrupted = reference.increment({ label: "interrupted" }).catch((error: unknown) => error)
+  const interrupted = reference.increment({ label: "interrupted" }).catch((error: unknown) => {
+    if (error instanceof Error) return error
+    throw new TypeError("Expected an Error rejection")
+  })
   try {
     await beforeDeadline(entered.promise)
     await runtime.resetForTesting()
