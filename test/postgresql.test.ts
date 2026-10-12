@@ -16,7 +16,7 @@ import { withDatabaseDeadline } from "../src/database/deadline.js"
 import type { JsonObject } from "../src/types.js"
 import { createDashboard } from "../src/web/index.js"
 import { captureAttempt, PausingClaimDatabase } from "./support/pausing-claim-database.js"
-import { deferred, delay, waitForActivationExpiration } from "./support/fenced-commit.js"
+import { controlledDatabaseClock, deferred, delay } from "./support/fenced-commit.js"
 
 const connectionString = process.env.SOLID_OBJECTS_DATABASE_URL
 const describePostgreSQL = connectionString?.startsWith("postgresql:") ? describe : describe.skip
@@ -104,6 +104,7 @@ class PostgreSQLFencedCommitActor extends Actor {
   count = 0
 
   increment(): number {
+    Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 200)
     this.count += 1
     this.commitAction("pause_fenced_commit")
     return this.count
@@ -226,8 +227,9 @@ describePostgreSQL("PostgreSQL adapter", () => {
   it("keeps a fenced commit exclusive after its lease expires", async () => {
     if (!connectionString) throw new Error("PostgreSQL connection string is required")
     database = postgresql({ connectionString, maximumConnections: 5 })
+    const clock = controlledDatabaseClock(database)
     runtime = configure({
-      database,
+      database: clock.database,
       tableNamePrefix: "postgresql_test_",
       authorizeMessage: () => true,
       authorizeQuery: () => true,
@@ -250,7 +252,7 @@ describePostgreSQL("PostgreSQL adapter", () => {
     const firstRun = firstWorker.runOnce()
     await commitStarted.promise
     try {
-      await waitForActivationExpiration(runtime, PostgreSQLFencedCommitActor.actorType, actorId)
+      clock.advanceMilliseconds(101)
       await runtime.repository.registerProcess("replacement-worker", "worker")
       const replacementClaim = runtime.repository.claim("replacement-worker")
       const replacementBeforeRelease = await Promise.race([

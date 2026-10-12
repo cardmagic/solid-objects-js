@@ -16,6 +16,9 @@
 - Drain recovered turns in the failure-recovery demo before checking committed
   state. Verify completion and allow additional fenced retries when a worker
   loses its lease on a delayed runner.
+- Advance the database test clock after acquiring commit locks in PostgreSQL
+  and MySQL fencing tests, so runner delays cannot expire the lease before
+  the commit barrier is reached.
 
 ## 0.17.7 - 2026-10-12
 
