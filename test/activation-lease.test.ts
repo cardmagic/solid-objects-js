@@ -34,12 +34,7 @@ afterEach(async () => {
 })
 
 async function setup(): Promise<void> {
-  const connectionString = process.env.SOLID_OBJECTS_DATABASE_URL
-  const database = connectionString?.startsWith("postgres")
-    ? postgresql({ connectionString })
-    : connectionString?.startsWith("mysql")
-      ? mysql({ connectionString })
-      : sqlite({ path: ":memory:" })
+  const database = databaseFor(process.env.SOLID_OBJECTS_DATABASE_URL)
   runtime = configure({
     database: withControlledServerClock(database),
     tableNamePrefix: "lease_test_",
@@ -56,6 +51,12 @@ async function setup(): Promise<void> {
   if (database.family !== "sqlite") {
     vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] })
   }
+}
+
+function databaseFor(connectionString: string | undefined): Database {
+  if (connectionString?.startsWith("postgres")) return postgresql({ connectionString })
+  if (connectionString?.startsWith("mysql")) return mysql({ connectionString })
+  return sqlite({ path: ":memory:" })
 }
 
 function withControlledServerClock(database: Database): Database {
