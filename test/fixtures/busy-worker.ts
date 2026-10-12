@@ -1,5 +1,5 @@
 import { writeSync } from "node:fs"
-import { Actor, createRuntime } from "../../src/index.js"
+import { Actor, Rejected, createRuntime } from "../../src/index.js"
 import { sqlite } from "../../src/database/sqlite.js"
 
 const scenario = process.argv[2] ?? "lease-timer"
@@ -34,6 +34,9 @@ class BusyActor extends Actor {
 
   increment(): void {
     if (leaseScenario) block(400)
+    if (scenario === "lease-callback-failure") throw new Error("handler failed")
+    if (scenario === "lease-callback-rejection")
+      throw new Rejected({ code: "declined", message: "declined" })
     this.count += 1
   }
 
@@ -70,7 +73,7 @@ const runtime = createRuntime({
       attempts.push(event.attempt)
       ticksAtLoss.push(ticks)
       writeSync(1, `${JSON.stringify({ event: "lost", attempts, ticks })}\n`)
-      if (scenario === "lease-callback" && attempts.length === 3) controller.abort()
+      if (scenario.startsWith("lease-callback") && attempts.length === 3) controller.abort()
     }
     if (!lastTick || leaseScenario) return
     if (role === "actors" && event.name === "solid_objects.message.completed") finishWork()

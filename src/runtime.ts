@@ -1429,45 +1429,48 @@ export class SolidObjectsRuntime {
       await renewal
       actor.discardIntents()
       if (stateBefore) restoreActorState({ actor, definition, state: stateBefore })
-      if (error instanceof LostActivation) {
+      try {
+        if (error instanceof LostActivation) throw error
+        if (error instanceof Rejected) {
+          await this.repository.reject(turn, {
+            code: error.code,
+            message: error.message,
+            details: error.details,
+          })
+          this.emitInstrumentation("message.rejected", {
+            ...messageInstrumentation(turn.message),
+            code: error.code,
+            durationMilliseconds: performance.now() - startedAt,
+          })
+          return { actor, retainActivation: activated, activated }
+        }
+        const retryable = !(error instanceof NonRetryableError)
+        const outcome = await this.repository.fail(turn, {
+          error,
+          retryable,
+        })
+        this.emitInstrumentation("message.failed", {
+          ...messageInstrumentation(turn.message),
+          retryable,
+          errorName: error instanceof Error ? error.name : "Error",
+          durationMilliseconds: performance.now() - startedAt,
+          outcome,
+        })
+        if (outcome === "retrying")
+          this.emitInstrumentation("message.retry", messageInstrumentation(turn.message))
+        if (outcome === "dead" && recoveryMessage(turn.message))
+          this.emitInstrumentation("recovery.failed", messageInstrumentation(turn.message))
+        if (outcome === "dead")
+          this.emitInstrumentation("dead_letter.created", messageInstrumentation(turn.message))
+        return { actor, retainActivation: activated, activated }
+      } catch (outcomeError) {
+        if (!(outcomeError instanceof LostActivation)) throw outcomeError
         this.emitInstrumentation("activation.lost", {
           ...messageInstrumentation(turn.message),
           durationMilliseconds: performance.now() - startedAt,
         })
         return { actor, retainActivation: false, activated }
       }
-      if (error instanceof Rejected) {
-        await this.repository.reject(turn, {
-          code: error.code,
-          message: error.message,
-          details: error.details,
-        })
-        this.emitInstrumentation("message.rejected", {
-          ...messageInstrumentation(turn.message),
-          code: error.code,
-          durationMilliseconds: performance.now() - startedAt,
-        })
-        return { actor, retainActivation: activated, activated }
-      }
-      const retryable = !(error instanceof NonRetryableError)
-      const outcome = await this.repository.fail(turn, {
-        error,
-        retryable,
-      })
-      this.emitInstrumentation("message.failed", {
-        ...messageInstrumentation(turn.message),
-        retryable,
-        errorName: error instanceof Error ? error.name : "Error",
-        durationMilliseconds: performance.now() - startedAt,
-        outcome,
-      })
-      if (outcome === "retrying")
-        this.emitInstrumentation("message.retry", messageInstrumentation(turn.message))
-      if (outcome === "dead" && recoveryMessage(turn.message))
-        this.emitInstrumentation("recovery.failed", messageInstrumentation(turn.message))
-      if (outcome === "dead")
-        this.emitInstrumentation("dead_letter.created", messageInstrumentation(turn.message))
-      return { actor, retainActivation: activated, activated }
     }
   }
 

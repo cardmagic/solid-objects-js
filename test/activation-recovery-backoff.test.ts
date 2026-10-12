@@ -6,6 +6,7 @@ import { mysql } from "../src/database/mysql.js"
 import { postgresql } from "../src/database/postgresql.js"
 import { sqlite } from "../src/database/sqlite.js"
 import type { Database } from "../src/database/types.js"
+import { Rejected } from "../src/errors.js"
 import { createRuntime, type SolidObjectsRuntime } from "../src/runtime.js"
 import { controlledDatabaseClock } from "./support/fenced-commit.js"
 
@@ -162,6 +163,48 @@ it.each(["stop", "stale cleanup", "replacement worker"])(
     } finally {
       await firstWorker.stop()
       await replacement.stop()
+    }
+  },
+)
+
+it.each(["failure", "rejection"])(
+  "reports lease loss while saving a handler %s and recovers",
+  async (outcome) => {
+    await setup()
+    const worker = runtime.worker()
+    const reference = runtime.ref(RecoveryCounter, "one")
+    const message = await reference.send.increment({ label: "slow" })
+    RecoveryCounter.beforeCommit = () => {
+      clock.advanceMilliseconds(201)
+      if (outcome === "rejection") throw new Rejected({ code: "declined", message: "declined" })
+      throw new Error("handler failed")
+    }
+    try {
+      await worker.runOnce()
+      const losses = events.filter((event) => event.name === "solid_objects.activation.lost")
+      expect(losses.map((event) => event.attempt)).toEqual([1])
+      expect(losses.map((event) => event.messageId)).toEqual([message.id])
+      losses.forEach(expectPortableAttributes)
+      expect((await reference.snapshot()).count).toBe(0)
+      expect((await runtime.repository.findMessage(message.id))?.error).toBeNull()
+      expect((await runtime.repository.findMessage(message.id))?.rejection).toBeNull()
+      expect(await message.status()).toBe("claimed")
+      expect(
+        events.some((event) =>
+          ["solid_objects.message.failed", "solid_objects.message.rejected"].includes(event.name),
+        ),
+      ).toBe(false)
+
+      RecoveryCounter.beforeCommit = () => {}
+      expect(await worker.runOnce()).toBe(1)
+      expect(await message.result()).toBe(1)
+      expect(Number((await runtime.repository.findMessage(message.id))?.attempt_count)).toBe(2)
+      const effects = await runtime.settings.database.connection((connection) =>
+        connection.all(`SELECT id FROM ${runtime.repository.table("effects")}`),
+      )
+      expect(effects).toHaveLength(1)
+    } finally {
+      await worker.stop()
     }
   },
 )

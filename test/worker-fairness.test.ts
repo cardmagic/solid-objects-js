@@ -78,12 +78,16 @@ it("lets timers and input run between lost attempts and honors a timer abort", a
   expect(result.count).toBe(0)
 }, 6_000)
 
-it("stops at the third lost attempt when instrumentation aborts the run", async () => {
-  const result = await runWorker({ scenario: "lease-callback" })
-  expect(result.attempts).toEqual([1, 2, 3])
-  expect(result.elapsedMilliseconds).toBeLessThan(3_000)
-  expect(result.count).toBe(0)
-}, 6_000)
+it.each(["lease-callback", "lease-callback-failure", "lease-callback-rejection"])(
+  "stops at the third lost attempt when instrumentation aborts %s",
+  async (scenario) => {
+    const result = await runWorker({ scenario })
+    expect(result.attempts).toEqual([1, 2, 3])
+    expect(result.elapsedMilliseconds).toBeLessThan(3_000)
+    expect(result.count).toBe(0)
+  },
+  6_000,
+)
 
 for (const role of ["actors", "effects", "reminders", "broadcasts"]) {
   for (const execution of ["run", "until-idle", "drain"]) {

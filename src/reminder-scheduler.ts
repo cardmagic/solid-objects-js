@@ -78,9 +78,9 @@ export class ReminderScheduler {
     while (!signal.aborted && !this.stopping) {
       const wakeUp = await this.runtime.watchWakeUp("reminders")
       const processed = await this.runOnce()
+      if (signal.aborted || this.stopping) break
       if (processed > 0) {
         this.pollingBackoff.reset("work")
-        if (signal.aborted || this.stopping) break
         await yieldToEventLoop()
         continue
       }

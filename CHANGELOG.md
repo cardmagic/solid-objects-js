@@ -14,6 +14,9 @@
   and broadcast workers and drain helpers, including repeated lease loss.
   Timer-driven aborts can stop the runtime between attempts; an instrumentation
   abort stops before another pass. Synchronous handlers remain non-preemptible.
+- Report `activation.lost` when a handler failure or rejection cannot commit
+  because its lease expired. These attempts recover with the same fencing and
+  backoff as lost completions, and instrumentation can stop the worker.
 
 - Give overlapping synchronous caller passes separate, reusable workers so
   cleanup cannot discard another turn's staged effects or other intents.
