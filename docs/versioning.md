@@ -15,6 +15,14 @@ export.
 | Minor, for example 1.1.0 | New behavior. Code that uses the public API continues to work |
 | Major, for example 2.0.0 | A change that breaks code that uses the public API            |
 
+## Supported versions
+
+A minor release can raise the minimum version of Node.js, TypeScript, SQLite,
+PostgreSQL, MySQL, or Redis. It does this only for a version that its own
+project no longer supports, and [CHANGELOG.md](../CHANGELOG.md) names the
+change. A patch release does not raise a minimum version.
+[Supported versions](support.md) lists the current minimum versions.
+
 ## Outside the promise
 
 - The Cloudflare backend, `solid-objects/cloudflare`. It is experimental, and a
