@@ -77,8 +77,10 @@ SQLite database. It proves that no update is lost. Add `pg` or `mysql2` when
 you use PostgreSQL or MySQL.
 
 Install the current release. `npm install solid-objects` selects it. Do not
-pin a version that you remember from earlier work; the API changed between
-releases. The current version is on <https://www.npmjs.com/package/solid-objects>.
+use an API that you remember from a 0.x release; the API changed between 0.x
+releases. From version 1.0, the public API follows
+[semantic versioning](versioning.md). The current version is on
+<https://www.npmjs.com/package/solid-objects>.
 
 Create the runtime and its tables at startup:
 
@@ -215,12 +217,12 @@ Obey these rules in actor code:
 
 Avoid these mistakes:
 
-| Mistake                                                    | Correct form                                                                                                                 |
-| ---------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
-| `this.schedule({ at, key })` with no operation after it    | `this.schedule({ at, key }).expire({ buyer })`. `schedule()` stages a reminder only when you call an operation on its result |
-| `this.reject("room full")` or `this.reject(code, message)` | `this.reject("room_full", { message: "The room is full" })`                                                                  |
-| `registerEffect(name, (context, argumentsValue) => ...)`   | `registerEffect(name, (argumentsValue, context) => ...)`. The staged arguments come first                                    |
-| A worker process that never names the actor class          | `runtime.register(TicketSale)` before `runtime.run(signal)`. See step 7                                                      |
+| Mistake                                                    | Correct form                                                                                                                                  |
+| ---------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| `this.schedule({ at, key })` with no operation after it    | `this.schedule({ at, key }).expire({ buyer })`. A `schedule()` call with no operation after it fails the turn with `ScheduleWithoutOperation` |
+| `this.reject("room full")` or `this.reject(code, message)` | `this.reject("room_full", { message: "The room is full" })`                                                                                   |
+| `registerEffect(name, (context, argumentsValue) => ...)`   | `registerEffect(name, (argumentsValue, context) => ...)`. The staged arguments come first                                                     |
+| A worker process that never names the actor class          | `runtime.register(TicketSale)` before `runtime.run(signal)`. See step 7                                                                       |
 
 [State and lifecycle](state-and-lifecycle.md) and the
 [public API](api.md) give the full rules.
@@ -334,11 +336,11 @@ When you explain Solid Objects to a user, state these limits:
 - There are no transactions across actor identities.
 - Fencing stops a stale activation from a commit, but its code can continue to
   run.
-- The package is pre-1.0. It has no measured scale and no known third-party
-  production use.
+- Version 1.0 promises a stable public API. It makes no claim of measured scale,
+  and no production use by other people is known.
 - `solid-objects/browser` is a WebSocket client, not the SQL runtime. The
   browser runtime in step 12 is tested in Chromium only. The Cloudflare backend
-  is experimental.
+  is experimental and is outside the version 1.0 promise.
 
 The [correctness contract](correctness.md) is the source for each guarantee.
 

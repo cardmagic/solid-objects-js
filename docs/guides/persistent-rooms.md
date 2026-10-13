@@ -383,7 +383,7 @@ The seventh test does not inject a late or repeated timer. The turn number check
 
 Delivery is at least once. Write each operation so that it can run again. One room runs one write at a time. This fits turn-based play, not a high-frequency game loop or fast real-time physics.
 
-The application owns the WebSocket server, authentication, and the display of the room. There are no transactions across two rooms. The package requires Node.js 24.4 or newer and ESM only. The package is pre-1.0.
+The application owns the WebSocket server, authentication, and the display of the room. There are no transactions across two rooms. The package requires Node.js 24.4 or newer and ESM only. Version 1.0 promises a stable public API. It makes no claim of measured scale.
 
 See [Correctness and delivery semantics](../correctness.md) and [Virtual actors in TypeScript and Node.js](../virtual-actors.md).
 

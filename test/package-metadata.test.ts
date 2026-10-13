@@ -12,6 +12,23 @@ describe("package metadata", () => {
     )
   })
 
+  it("starts the description with the problems that the package solves", () => {
+    expect(packageDefinition.description).toMatch(
+      /^Fix race conditions across Node\.js processes: ordered operations, expiring holds/,
+    )
+  })
+
+  it("has the keywords for the problems that the package solves", () => {
+    expect(packageDefinition.keywords).toEqual(
+      expect.arrayContaining([
+        "race-conditions",
+        "concurrency",
+        "reservations",
+        "transactional-outbox",
+      ]),
+    )
+  })
+
   it("keeps the existing keywords and adds the actor categories", () => {
     expect(packageDefinition.keywords).toEqual(
       expect.arrayContaining(["actors", "durable-objects", "virtual-actors", "actor-model"]),

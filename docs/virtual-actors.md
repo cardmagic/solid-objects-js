@@ -7,11 +7,13 @@ Node.js. The npm package is `solid-objects`. It gives each actor a stable
 identity, durable state, ordered operations, and automatic activation.
 
 The actor runtime runs in your Node.js processes. State and mailboxes live in
-SQLite, PostgreSQL, or MySQL. It needs no broker, no daemon, no Cloudflare
-account, and no new datastore. Redis is optional and only shortens wake-up
-latency.
+SQLite, PostgreSQL, or MySQL. It needs no separate actor service, no broker,
+no Cloudflare account, and no new datastore. A process of your application
+calls `runtime.run(signal)` to run reminders, effects, and queued messages.
+Redis is optional and only shortens wake-up latency.
 
-Solid Objects is a pre-1.0 release. Read
+Solid Objects 1.0 promises a stable public API. It makes no claim of measured
+scale. Read
 [Compatibility and maturity](#compatibility-and-maturity) before you choose it.
 
 ## What a virtual actor is
@@ -244,7 +246,10 @@ These runtimes have different compatibility statements:
 | Browser runtime (`solid-objects/browser/host`)  | The actor runtime in a browser module worker on SQLite WASM. Tested in Chromium                                                                |
 | Cloudflare backend (`solid-objects/cloudflare`) | Experimental. It runs the actor API on Cloudflare Durable Objects, with different capability limits                                            |
 
-The package is pre-1.0. It has one deployed first-party reference
-application, no measured scale, and no known third-party production use.
+Version 1.0: the public API follows [semantic versioning](versioning.md). The
+Cloudflare backend is outside that promise. One first-party application with
+more than 100,000 users runs the package in production. That is a count of
+users, not a measure of load. The project makes no claim of measured scale,
+and no production use by other people is known.
 [Supported versions](support.md) lists the CI matrix. For Ruby on Rails, use
 the [solid_objects](https://github.com/cardmagic/solid-objects-ruby) gem.
