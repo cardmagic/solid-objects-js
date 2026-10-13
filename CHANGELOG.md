@@ -12,7 +12,9 @@
   retry that turn, and the message becomes a dead letter. Before this release,
   such a call stored no reminder and gave no error. Correct code, such as
   `this.schedule({ at }).expire()`, does not change. The turn can keep the
-  result and call the operation later. Ruby has the same behavior.
+  result and call the operation later. A `schedule()` call with no operation
+  in `observables()` fails the turn with `QueryMutatedState`. Ruby has the
+  same behavior.
 - The package description now starts with the problems that the package
   solves, and the keywords add `race-conditions`, `reservations`, and
   `transactional-outbox`. The README has a status statement and names the

@@ -169,12 +169,12 @@ const REMINDER_NAME_LIMIT = 255
 const REMINDER_KEY_SEPARATOR = ":"
 
 interface ScheduleCall {
-  at: Date
+  atMilliseconds: number
   key: string | undefined
 }
 
 function scheduleCallArguments(call: ScheduleCall): string {
-  const at = `at: ${call.at.toISOString()}`
+  const at = `at: ${new Date(call.atMilliseconds).toISOString()}`
   if (call.key === undefined) return `{ ${at} }`
 
   return `{ ${at}, key: ${JSON.stringify(call.key)} }`
@@ -402,7 +402,7 @@ export abstract class Actor {
       throw new TypeError("reminder interval must be positive")
     }
     const key = validatedReminderKey(options.key)
-    const call: ScheduleCall = { at: options.at, key }
+    const call: ScheduleCall = { atMilliseconds, key }
     this.#openScheduleCalls.add(call)
 
     return createStagedOperationMap(this.#operations, (operation, argumentsValue) => {
@@ -571,7 +571,10 @@ export abstract class Actor {
   }
 
   intentSnapshot(): string {
-    return JSON.stringify(this.#intents)
+    return JSON.stringify({
+      intents: this.#intents,
+      openScheduleCalls: [...this.#openScheduleCalls],
+    })
   }
 }
 

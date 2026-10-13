@@ -192,6 +192,9 @@ this.schedule({ at: holdEnd, key: buyer }).expire({ buyer })
 
 You can keep the result and call the operation later in the same turn.
 
+`observables()` cannot call `schedule()`, with or without an operation. The
+turn that reads the observables fails with `QueryMutatedState`.
+
 #### Cancelling a reminder
 
 The operation that you call on the result of `schedule()` returns a

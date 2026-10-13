@@ -39,8 +39,34 @@ class Holder extends Actor {
     reminder.expire()
   }
 
+  holdWithAChangedDate(): boolean {
+    const at = holdEnd()
+    this.schedule({ at, key: "ada" })
+    at.setTime(Number.NaN)
+    return true
+  }
+
   expire(): void {
     this.status = "open"
+  }
+}
+
+class ProjectionScheduler extends Actor {
+  static override readonly actorType = "schedule-in-projection"
+
+  status = "open"
+
+  hold(): void {
+    this.status = "held"
+  }
+
+  release(): void {
+    this.status = "open"
+  }
+
+  override observables() {
+    if (this.status === "held") this.schedule({ at: holdEnd(), key: "ada" })
+    return { status: this.status }
   }
 }
 
@@ -60,6 +86,7 @@ async function start(): Promise<SolidObjectsRuntime> {
     retryDelayMilliseconds: () => 0,
   })
   runtime.register(Holder)
+  runtime.register(ProjectionScheduler)
   await runtime.install()
   return runtime
 }
@@ -142,5 +169,43 @@ describe("a schedule call without an operation", () => {
     await reference.hold()
 
     expect(await reminderNames(started)).toEqual(["expire:ada"])
+  })
+
+  it("reports the call when the turn changed its date afterward", async () => {
+    const started = await start()
+    const message = await started.ref(Holder, "one").send.holdWithAChangedDate()
+    await started.worker().runUntilIdle()
+
+    expect(await message.outcome()).toMatchObject({
+      status: "dead",
+      error: { name: "ScheduleWithoutOperation" },
+      attempts: 1,
+    })
+  })
+
+  it("fails the turn that reads an observable with such a call", async () => {
+    const started = await start()
+    const reference = started.ref(ProjectionScheduler, "one")
+    const message = await reference.send.hold()
+    await started.worker().runUntilIdle()
+
+    expect(await message.outcome()).toMatchObject({
+      status: "dead",
+      error: { name: "QueryMutatedState" },
+      attempts: 1,
+    })
+    expect((await reference.snapshot()).status).toBe("open")
+  })
+
+  it("does not make the turn after such an observable fail", async () => {
+    const started = await start()
+    const reference = started.ref(ProjectionScheduler, "one")
+    await expect(reference.hold()).rejects.toMatchObject({
+      details: { name: "QueryMutatedState" },
+    })
+
+    await reference.release()
+
+    expect((await reference.snapshot()).status).toBe("open")
   })
 })
