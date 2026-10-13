@@ -78,6 +78,7 @@ export class ActorSetupFailed extends SolidObjectsError {
 }
 export class ActorCallCycle extends NonRetryableError {}
 export class QueryMutatedState extends NonRetryableError {}
+export class ScheduleWithoutOperation extends NonRetryableError {}
 export class ApplicationWriteForbidden extends NonRetryableError {}
 export class UnknownEffect extends NonRetryableError {}
 export class UnknownCommitAction extends NonRetryableError {}

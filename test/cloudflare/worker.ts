@@ -69,6 +69,11 @@ export class Counter extends Actor {
     this.schedule({ at: new Date(options.at) }).increment()
   }
 
+  armWithoutOperation(options: { at: number }): void {
+    this.count = 100
+    this.schedule({ at: new Date(options.at) })
+  }
+
   armKeyed(options: { at: number; keys: string[] }): void {
     for (const key of options.keys) {
       this.schedule({ at: new Date(options.at), key }).increment()

@@ -355,7 +355,7 @@ There are no transactions across two actor identities. One identity runs one wri
 
 Each operation adds a message row. The runtime keeps completed messages for 30 days by default through `messageRetentionMilliseconds`. See [Configuration](../configuration.md#retention-and-cleanup) for retention and cleanup controls.
 
-The package requires Node.js 24.4 or newer and supports ESM only. The package is pre-1.0. See [Correctness and delivery semantics](../correctness.md) and [Virtual actors in TypeScript and Node.js](../virtual-actors.md).
+The package requires Node.js 24.4 or newer and supports ESM only. Version 1.0 promises a stable public API. It makes no claim of measured scale. See [Correctness and delivery semantics](../correctness.md) and [Virtual actors in TypeScript and Node.js](../virtual-actors.md).
 
 ## Sources
 

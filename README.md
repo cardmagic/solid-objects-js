@@ -11,6 +11,18 @@ has a stable identity, and its state lives in the SQL database that your app
 already uses. [Virtual actors in TypeScript and Node.js](docs/virtual-actors.md)
 explains the model and when to use it.
 
+**Status.** Version 1.0: the public API follows semantic versioning and does
+not break before 2.0. [Versioning](docs/versioning.md) gives the limits of the
+promise. First public release: August 13, 2026. One maintainer.
+
+**Production use.** One first-party application with more than 100,000 users
+runs it in production. That is a count of users, not a measure of load. No
+production use by other people is known. The [benchmarks](docs/benchmarks.md)
+are development measurements, and longer soak tests are open work.
+
+**It is not** Solid Queue, SolidJS, or the `service_actor` gem, and it is not
+affiliated with Rails or Cloudflare.
+
 In a shopping cart, paying twice at the same time is a big problem. The payment provider might time out, and your Node site could be restarting before recovery finishes.
 
 To deal with this safely, you often need logic scattered between 7-10 files like database row locks, Redis locks, delayed jobs, retries, and cleanup code to keep that process straight. They are not all large, but they must agree about the same payment state and failure rules. That coordination is the difficult part.
@@ -150,8 +162,10 @@ that must agree with the write. The original transaction now depends on four oth
 
 Solid Objects makes the application-defined identity the coordination boundary.
 Its state, mailbox, retries, reminders, and staged consequences live in SQLite,
-PostgreSQL, or MySQL. No daemon, broker, Cloudflare account, or new datastore is
-required. Redis is optional wake-up plumbing, not durable state.
+PostgreSQL, or MySQL. No separate actor service, broker, Cloudflare account, or
+new datastore is required. A process of your application calls
+`runtime.run(signal)` to run reminders, effects, and queued messages. Redis is
+optional wake-up plumbing, not durable state.
 
 ## Good uses
 
@@ -275,6 +289,7 @@ then shows a tested Solid Objects version with its limits:
 - [Guide for coding agents](docs/agents.md)
 - [Choosing Solid Objects](docs/fit.md)
 - [Public API](docs/api.md)
+- [Versioning](docs/versioning.md)
 - [Operations and recovery](docs/operations.md)
 - [Observability and diagnostics](docs/observability.md)
 - [Detailed architecture](docs/architecture.md)
@@ -285,11 +300,12 @@ notes remain in `docs/`, where long documentation can be long on purpose.
 
 ## Status and license
 
-Solid Objects JS is a pre-1.0 early release. The correctness core has
-automated coverage across the supported databases, browser runtime, recovery
-paths, and packaged artifact. There is one deployed first-party reference
-application, no measured scale, and no known third-party production use yet.
-Pre-1.0 is doing actual work in that sentence.
+Version 1.0 promises a stable public API. The correctness core has automated
+coverage across the supported databases, browser runtime, recovery paths, and
+packaged artifact. It makes no claim of measured scale: the
+[benchmarks](docs/benchmarks.md) are development measurements, and longer soak
+tests are open work. [Versioning](docs/versioning.md) says what a release can
+change. The Cloudflare backend is experimental and is outside that promise.
 
 Solid Objects is released under the [MIT License](MIT-LICENSE). It is an
 independent project and is not affiliated with or endorsed by Cloudflare.

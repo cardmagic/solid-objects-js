@@ -1,7 +1,7 @@
 {
   "name": "solid-objects",
-  "version": "0.17.8",
-  "description": "SQL-backed virtual actor library for TypeScript and Node.js, with durable state, ordered operations, and automatic activation on SQLite, PostgreSQL, or MySQL",
+  "version": "1.0.0",
+  "description": "Fix race conditions across Node.js processes: ordered operations, expiring holds, and state that survives a restart, in your SQL database. A SQL-backed virtual actor library for TypeScript and Node.js.",
   "type": "module",
   "license": "MIT",
   "author": "Lucas Carlson",
@@ -19,7 +19,10 @@
     "actors",
     "durable-objects",
     "virtual-actors",
-    "actor-model"
+    "actor-model",
+    "race-conditions",
+    "reservations",
+    "transactional-outbox"
   ],
   "repository": {
     "type": "git",

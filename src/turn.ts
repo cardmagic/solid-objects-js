@@ -60,6 +60,7 @@ export async function evaluateActorTurn(options: {
   const rawResult = await withActorContext({ actor, runtime, message: options.message }, () =>
     actor.invoke(operation, options.argumentsValue),
   )
+  actor.assertScheduleCallsHaveOperations()
   const state = jsonObject(actorState(actor, definition.stateKeys), {
     maxBytes: options.maxStateBytes,
   })

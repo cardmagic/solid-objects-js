@@ -71,6 +71,18 @@ describe("Durable Objects runtime", () => {
     expect(await runtime().ref(Counter, "cancelled").with({ authorizationContext }).count).toBe(0)
   })
 
+  it("fails a turn that has a schedule call without an operation", async () => {
+    const reference = runtime().ref(Counter, "bare-schedule").with({ authorizationContext })
+
+    await expect(reference.armWithoutOperation({ at: Date.now() + 60_000 })).rejects.toMatchObject({
+      details: { name: "ScheduleWithoutOperation" },
+    })
+    expect(await remainingReminders("bare-schedule")).toEqual([])
+    expect(
+      (await runtime().ref(Counter, "bare-schedule").snapshot({ authorizationContext })).count,
+    ).toBe(0)
+  })
+
   it("reads its own schedule inside a durable object", async () => {
     const reference = runtime().ref(Counter, "reads-schedule").with({ authorizationContext })
     expect(await reference.readArmed()).toBeNull()

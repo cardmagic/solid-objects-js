@@ -175,10 +175,30 @@ row per item. It also cannot strand an entry when the runtime coalesces an
 occurrence. Prefer it for a large queue of interchangeable items. Prefer `key`
 when one item needs an alarm that you can move on its own.
 
+#### A schedule call needs an operation
+
+`schedule()` returns an object, and the reminder exists only after you call an
+operation on that object. A turn that calls `schedule()` and then calls no
+operation on the result fails with `ScheduleWithoutOperation`. The runtime
+does not retry that turn, and the message becomes a dead letter.
+
+```typescript
+// Wrong. The turn fails.
+this.schedule({ at: holdEnd, key: buyer })
+
+// Correct.
+this.schedule({ at: holdEnd, key: buyer }).expire({ buyer })
+```
+
+You can keep the result and call the operation later in the same turn.
+
+`observables()` cannot call `schedule()`, with or without an operation. The
+turn that reads the observables fails with `QueryMutatedState`.
+
 #### Cancelling a reminder
 
-`schedule()` returns a `ReminderHandle` (`{ name: string }`) naming the alarm it
-armed. `unschedule()` cancels one alarm, by operation, by operation and key, or
+The operation that you call on the result of `schedule()` returns a
+`ReminderHandle` (`{ name: string }`) naming the alarm it armed. `unschedule()` cancels one alarm, by operation, by operation and key, or
 by that handle. `unscheduleAll()` cancels every key of one operation.
 
 ```typescript
@@ -742,7 +762,7 @@ The root exports `SolidObjectsError` and its supported subclasses:
 - definition and execution failures: `InvalidActor`, `InvalidRejectionCode`,
   `UnknownActorType`,
   `UnknownOperation`, `ActorCallCycle`, `QueryMutatedState`,
-  `StateMigrationError`, `ApplicationWriteForbidden`, `UnknownEffect`, and
+  `ScheduleWithoutOperation`, `StateMigrationError`, `ApplicationWriteForbidden`, `UnknownEffect`, and
   `UnknownCommitAction`;
 - operational failures: `LostActivation`, `DatabaseDeadlineExceeded`,
   `UnknownDeadLetter`, `UnknownReminder`, `ReminderNotPaused`, and
