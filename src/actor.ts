@@ -1,7 +1,12 @@
 import { currentMessage, currentRuntime } from "./context.js"
 import { getDefaultRuntime } from "./default-runtime.js"
 import type { StateMigration } from "./definition.js"
-import { InvalidRejectionCode, Rejected, UnknownOperation } from "./errors.js"
+import {
+  InvalidRejectionCode,
+  Rejected,
+  ScheduleWithoutOperation,
+  UnknownOperation,
+} from "./errors.js"
 import { TRANSMIT_EFFECT } from "./transmit-effect.js"
 import { randomUUID } from "./platform/uuid.js"
 import {
@@ -163,6 +168,18 @@ export interface ReminderOptions {
 const REMINDER_NAME_LIMIT = 255
 const REMINDER_KEY_SEPARATOR = ":"
 
+interface ScheduleCall {
+  at: Date
+  key: string | undefined
+}
+
+function scheduleCallArguments(call: ScheduleCall): string {
+  const at = `at: ${call.at.toISOString()}`
+  if (call.key === undefined) return `{ ${at} }`
+
+  return `{ ${at}, key: ${JSON.stringify(call.key)} }`
+}
+
 function validatedReminderKey(key: string | number | undefined): string | undefined {
   if (key === undefined) return undefined
 
@@ -256,6 +273,7 @@ export abstract class Actor {
     reminders: [],
     outboundMessages: [],
   }
+  readonly #openScheduleCalls = new Set<ScheduleCall>()
   #operations: ReadonlySet<string> = new Set()
 
   constructor(actorId = "") {
@@ -384,8 +402,11 @@ export abstract class Actor {
       throw new TypeError("reminder interval must be positive")
     }
     const key = validatedReminderKey(options.key)
+    const call: ScheduleCall = { at: options.at, key }
+    this.#openScheduleCalls.add(call)
 
     return createStagedOperationMap(this.#operations, (operation, argumentsValue) => {
+      this.#openScheduleCalls.delete(call)
       const name = reminderName(operation, key)
       this.#intents.reminders.push({
         name,
@@ -525,6 +546,18 @@ export abstract class Actor {
   /** @internal */
   discardIntents(): void {
     this.drainIntents()
+    this.#openScheduleCalls.clear()
+  }
+
+  /** @internal */
+  assertScheduleCallsHaveOperations(): void {
+    const [call] = this.#openScheduleCalls
+    if (!call) return
+
+    throw new ScheduleWithoutOperation(
+      `schedule(${scheduleCallArguments(call)}) has no operation after it, so it stores no reminder. ` +
+        "Call an operation on the result, for example schedule({ at: time }).expire()",
+    )
   }
 
   /** @internal */

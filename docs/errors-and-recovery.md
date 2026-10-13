@@ -50,6 +50,8 @@ These errors normally require a code or deployment correction:
   reference's `send`, or destroy an actor. Stage delivery with `this.sendTo()`.
 - `QueryMutatedState`: a field/getter query, snapshot, observable, or payload
   projection changed state or staged durable work.
+- `ScheduleWithoutOperation`: a turn called `schedule()` and then called no
+  operation on the result, so the call stored no reminder.
 - `ApplicationWriteForbidden`: actor-owned code attempted a write through
   `guardApplicationDatabase()` outside the fenced commit-action connection.
 - `InvalidPayload`, `InvalidPayloadBroadcast`, and

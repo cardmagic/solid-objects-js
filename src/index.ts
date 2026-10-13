@@ -200,6 +200,7 @@ export {
   QueryMutatedState,
   Rejected,
   ReminderNotPaused,
+  ScheduleWithoutOperation,
   SolidObjectsError,
   StateMigrationError,
   SyncTimeout,

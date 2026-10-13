@@ -111,6 +111,7 @@ export function unwrapReply(reply: RpcReply): JsonValue {
     PayloadTooLarge: errors.PayloadTooLarge,
     InvalidPayload: errors.InvalidPayload,
     QueryMutatedState: errors.QueryMutatedState,
+    ScheduleWithoutOperation: errors.ScheduleWithoutOperation,
     ApplicationWriteForbidden: errors.ApplicationWriteForbidden,
     NonRetryableError: errors.NonRetryableError,
     UnsupportedCapability: errors.UnsupportedCapability,
