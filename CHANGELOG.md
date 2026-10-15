@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 1.0.1 - 2026-10-14
 
 - The agent guide now lists the import path, the call, and the driver of each
   SQL database adapter, and it shows how to cancel a reminder with
