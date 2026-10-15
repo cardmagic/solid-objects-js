@@ -2,6 +2,22 @@
 
 This guide compares coordination models so an application can choose the
 smallest mechanism that meets its requirements. It does not rank the projects.
+
+## Comparison pages
+
+Each page compares Solid Objects with one system on one real task. Each page
+says when the other system is the better choice. The Solid Objects actor and
+runtime code on each page runs in the test suite.
+
+| Page                                                                         | The task               |
+| ---------------------------------------------------------------------------- | ---------------------- |
+| [Restate virtual objects and Solid Objects](compare/restate.md)              | AI agent sessions      |
+| [DBOS Transact and Solid Objects](compare/dbos.md)                           | Shopping cart checkout |
+| [RivetKit actors and Solid Objects](compare/rivetkit.md)                     | Chat rooms             |
+| [Graphile Worker named queues and Solid Objects](compare/graphile-worker.md) | Chat rooms             |
+
+## Coordination models
+
 Solid Objects is a virtual actor library; the
 [virtual actor guide](virtual-actors.md) defines the term. Facts about other
 projects were checked on October 7, 2026.
@@ -13,7 +29,7 @@ projects were checked on October 7, 2026.
 | Solid Objects               | Actor class and application-defined ID   | Node processes plus existing SQLite, PostgreSQL, or MySQL                          | No; Redis wake-up is optional                                                              | The operation retries against durable actor state                               | Committed projections; application-owned transport; no edge placement                      | No                                                             | Relational tables, typed administration, CLI, and dashboard         |
 | Cloudflare Durable Objects  | Object class and globally unique ID      | Cloudflare Workers plus per-object managed storage                                 | Cloudflare platform                                                                        | Object activation with durable state, not workflow-step replay                  | WebSockets and Cloudflare-selected object location                                         | Storage transactions are scoped to one object                  | Object storage APIs and platform tooling                            |
 | celld                       | Object class and object name             | celld nodes plus one object-storage bucket; each object is its own SQLite database | Yes, the celld daemon on every node                                                        | The new owner restores the object's SQLite database from the bucket and resumes | Cloudflare Workers APIs; an object runs on one node of your fleet, not at an edge location | No                                                             | Per-object SQLite through the Workers storage APIs, plus the bucket |
-| Rivet Actors                | Addressable actor                        | Rivet Engine or managed compute with actor state, KV, or per-actor SQLite          | Rivet Engine                                                                               | Actor persistence and lifecycle; workflows add recorded steps                   | Actor events and deployment-dependent placement                                            | No general transaction across actors                           | Actor APIs and selected persistence model                           |
+| Rivet Actors                | Addressable actor                        | Rivet control plane or managed compute with actor state, KV, or per-actor SQLite   | Rivet control plane                                                                        | Actor persistence and lifecycle; workflows add recorded steps                   | Actor events and deployment-dependent placement                                            | No general transaction across actors                           | Actor APIs and selected persistence model                           |
 | DBOS                        | Workflow ID and checkpointed steps       | Application processes plus PostgreSQL system database                              | No orchestration server for the library; Conductor is recommended for distributed recovery | Deterministic workflow replay skips checkpointed steps                          | Workflow events; application placement                                                     | PostgreSQL transactions remain separate from workflow identity | PostgreSQL system database, client, CLI, and optional Conductor     |
 | Dapr actors                 | Actor type and ID, one turn at a time    | Application services plus Dapr sidecars and a transactional actor state store      | Yes: the Dapr sidecar plus the placement and Scheduler services                            | Actor state persists in the state store; actors do not replay workflow steps    | Sidecar-routed actor placement; no edge placement                                          | No transaction across actors                                   | Dapr actor APIs and the configured state store                      |
 | Restate                     | Service handler or keyed virtual object  | Application services plus Restate's durable log and state store                    | Yes                                                                                        | Durable execution journals handler progress and object state                    | Service protocol and Restate deployment                                                    | No shared SQL transaction across object keys                   | Restate APIs, state tools, snapshots, and backups                   |

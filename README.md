@@ -288,6 +288,7 @@ then shows a tested Solid Objects version with its limits:
 - [Virtual actors in TypeScript and Node.js](docs/virtual-actors.md)
 - [Guide for coding agents](docs/agents.md)
 - [Choosing Solid Objects](docs/fit.md)
+- [Comparisons with Restate, DBOS, RivetKit, and Graphile Worker](docs/comparisons.md)
 - [Public API](docs/api.md)
 - [Versioning](docs/versioning.md)
 - [Operations and recovery](docs/operations.md)
