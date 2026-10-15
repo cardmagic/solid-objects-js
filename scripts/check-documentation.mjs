@@ -14,6 +14,16 @@ const documentationPaths = [
     .filter((name) => name.endsWith(".md"))
     .sort()
     .map((name) => `docs/guides/${name}`),
+  ...(await readdir(resolve(repositoryRoot, "docs/compare")))
+    .filter((name) => name.endsWith(".md"))
+    .sort()
+    .map((name) => `docs/compare/${name}`),
+]
+const comparisonPages = [
+  "docs/compare/restate.md",
+  "docs/compare/dbos.md",
+  "docs/compare/rivetkit.md",
+  "docs/compare/graphile-worker.md",
 ]
 
 for (const documentationPath of documentationPaths) {
@@ -131,6 +141,36 @@ const embeddedExamples = [
     example: "examples/guides/offline-first/sync-route.ts",
     language: "typescript",
   },
+  {
+    documentation: "docs/compare/restate.md",
+    example: "examples/compare/agent-session.ts",
+    language: "typescript",
+  },
+  {
+    documentation: "docs/compare/restate.md",
+    example: "examples/compare/agent-runtime.ts",
+    language: "typescript",
+  },
+  {
+    documentation: "docs/compare/dbos.md",
+    example: "examples/compare/shopping-cart.ts",
+    language: "typescript",
+  },
+  {
+    documentation: "docs/compare/dbos.md",
+    example: "examples/compare/cart-runtime.ts",
+    language: "typescript",
+  },
+  {
+    documentation: "docs/compare/rivetkit.md",
+    example: "examples/compare/chat-room.ts",
+    language: "typescript",
+  },
+  {
+    documentation: "docs/compare/graphile-worker.md",
+    example: "examples/compare/chat-room.ts",
+    language: "typescript",
+  },
 ]
 for (const { documentation, example, language } of embeddedExamples) {
   const documentationSource = await readFile(resolve(repositoryRoot, documentation), "utf8")
@@ -140,11 +180,22 @@ for (const { documentation, example, language } of embeddedExamples) {
   }
 }
 
-for (const documentationPath of documentationPaths.filter((path) =>
-  path.startsWith("docs/guides/"),
+for (const documentationPath of documentationPaths.filter(
+  (path) =>
+    path.startsWith("docs/guides/") ||
+    path.startsWith("docs/compare/") ||
+    path === "docs/comparisons.md",
 )) {
   const source = await readFile(resolve(repositoryRoot, documentationPath), "utf8")
   if (source.includes("\u2014")) throw new Error(`${documentationPath} contains an em dash`)
+  if (source.includes("\u2013")) throw new Error(`${documentationPath} contains an en dash`)
+}
+
+const comparisonsIndex = await readFile(resolve(repositoryRoot, "docs/comparisons.md"), "utf8")
+for (const comparisonPage of comparisonPages) {
+  if (!comparisonsIndex.includes(`(${comparisonPage.replace("docs/", "")})`)) {
+    throw new Error(`docs/comparisons.md does not link ${comparisonPage}`)
+  }
 }
 
 const publicApi = await readFile(resolve(repositoryRoot, "docs/api.md"), "utf8")

@@ -15,6 +15,7 @@
     "examples/**/*.ts",
     "benchmarks/**/*.ts",
     "test/guide-*.test.ts",
+    "test/compare-*.test.ts",
     "test/fixtures/event-hold-process.ts"
   ],
   "exclude": ["examples/cloudflare"]
