@@ -1,5 +1,20 @@
 # Changelog
 
+## 1.0.2 - 2026-10-15
+
+- Add four comparison pages in `docs/compare/`: Restate virtual objects, DBOS
+  Transact, RivetKit actors, and Graphile Worker named queues. Each page
+  compares one real task, says when the other system is the better choice, and
+  links the primary sources that were checked on October 15, 2026. The Solid
+  Objects code on each page is in `examples/compare/` and runs in the test
+  suite. `docs/comparisons.md` and the README link the pages. An evaluation on
+  October 15, 2026 found that Claude Code, with web search, searched only for
+  these names and never found Solid Objects.
+- `pnpm run check:documentation` now checks the comparison pages. Each page
+  must embed its current example files, link only to files and headings that
+  exist, and use no em dash or en dash. `docs/comparisons.md` must link each
+  page.
+
 ## 1.0.1 - 2026-10-14
 
 - The agent guide now lists the import path, the call, and the driver of each
