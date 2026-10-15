@@ -20,7 +20,9 @@ export function chatRuntime({ path }: { path: string }): SolidObjectsRuntime {
     }) => {
       const field = MEMBER_FIELDS[operation]
       if (actorType !== ChatRoom.actorType || !field) return false
-      return argumentsValue[field] === memberIdOf(authorizationContext)
+      const memberId = memberIdOf(authorizationContext)
+      if (memberId === null) return false
+      return argumentsValue[field] === memberId
     },
     authorizeQuery: ({ actorType, authorizationContext }) =>
       actorType === ChatRoom.actorType && memberIdOf(authorizationContext) !== null,

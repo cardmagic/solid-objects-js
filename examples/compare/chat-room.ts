@@ -13,7 +13,8 @@ export class ChatRoom extends Actor {
   messages: ChatMessage[] = []
   nextSequence = 1
   lastRead: Record<string, number> = {}
-  pinnedSequence: number | null = null
+  pinned: ChatMessage | null = null
+  activity = 0
   archived = false
 
   get unreadCounts(): Record<string, number> {
@@ -52,11 +53,14 @@ export class ChatRoom extends Actor {
 
   pin({ memberId, sequence }: { memberId: string; sequence: number }): void {
     this.#requireMember(memberId)
-    this.pinnedSequence = sequence
+    const message = this.messages.find((candidate) => candidate.sequence === sequence)
+    if (!message) this.reject("unknown_message", { message: "That message is not in the room" })
+    this.pinned = message
     this.#armArchive()
   }
 
-  archiveIfIdle(): void {
+  archiveIfIdle({ activity }: { activity: number }): void {
+    if (activity !== this.activity) return
     this.archived = true
   }
 
@@ -72,6 +76,9 @@ export class ChatRoom extends Actor {
   }
 
   #armArchive(): void {
-    this.schedule({ at: new Date(Date.now() + ARCHIVE_AFTER_MILLISECONDS) }).archiveIfIdle()
+    this.activity += 1
+    this.schedule({ at: new Date(Date.now() + ARCHIVE_AFTER_MILLISECONDS) }).archiveIfIdle({
+      activity: this.activity,
+    })
   }
 }

@@ -3,15 +3,18 @@ import { Actor, type EffectFailurePayload, type EffectSuccessPayload } from "sol
 export const IDLE_MILLISECONDS = 30 * 60 * 1000
 
 type ChargeArguments = { cartId: string; amountCents: number }
-type ChargeResult = { paymentId: string }
+type ChargeResult = { status: "paid"; paymentId: string } | { status: "declined" }
+type CheckArguments = { paymentKey: string }
+type CheckResult = { status: "paid"; paymentId: string } | { status: "not_found" }
 
 export class ShoppingCart extends Actor {
   static override readonly actorType = "ShoppingCart"
 
   items: Record<string, number> = {}
   couponCode: string | null = null
-  status: "open" | "paying" | "paid" | "released" = "open"
+  status: "open" | "paying" | "checking" | "paid" | "released" = "open"
   paymentId: string | null = null
+  activity = 0
 
   addItem({ productId, quantity }: { productId: string; quantity: number }): {
     items: Record<string, number>
@@ -29,31 +32,57 @@ export class ShoppingCart extends Actor {
   }
 
   checkOut({ amountCents }: { amountCents: number }): { status: string } {
-    if (this.status === "paying" || this.status === "paid") return { status: this.status }
+    if (this.status === "paying" || this.status === "checking" || this.status === "paid") {
+      return { status: this.status }
+    }
     this.#requireOpen()
     this.status = "paying"
     this.emit("charge_payment", {
       arguments: { cartId: this.actorId, amountCents },
-      onSuccess: "paid",
-      onFailure: "paymentFailed",
+      onSuccess: "paymentSettled",
+      onFailure: "paymentUnknown",
     })
     return { status: this.status }
   }
 
-  paid({ result }: EffectSuccessPayload<ChargeArguments, ChargeResult>): void {
-    this.status = "paid"
-    this.paymentId = result.paymentId
+  paymentSettled({ result }: EffectSuccessPayload<ChargeArguments, ChargeResult>): void {
+    if (result.status === "paid") {
+      this.#markPaid(result.paymentId)
+      return
+    }
+    this.#reopen()
   }
 
-  paymentFailed(_payload: EffectFailurePayload<ChargeArguments>): void {
-    this.status = "open"
-    this.#armIdleRelease()
+  paymentUnknown({ effectId }: EffectFailurePayload<ChargeArguments>): void {
+    this.status = "checking"
+    this.emit("check_payment", {
+      arguments: { paymentKey: effectId },
+      onSuccess: "paymentChecked",
+    })
   }
 
-  releaseIfIdle(): void {
-    if (this.status !== "open") return
+  paymentChecked({ result }: EffectSuccessPayload<CheckArguments, CheckResult>): void {
+    if (result.status === "paid") {
+      this.#markPaid(result.paymentId)
+      return
+    }
+    this.#reopen()
+  }
+
+  releaseIfIdle({ activity }: { activity: number }): void {
+    if (activity !== this.activity || this.status !== "open") return
     this.status = "released"
     this.emit("release_stock", { arguments: { cartId: this.actorId, items: this.items } })
+  }
+
+  #markPaid(paymentId: string): void {
+    this.status = "paid"
+    this.paymentId = paymentId
+  }
+
+  #reopen(): void {
+    this.status = "open"
+    this.#armIdleRelease()
   }
 
   #requireOpen(): void {
@@ -63,6 +92,9 @@ export class ShoppingCart extends Actor {
   }
 
   #armIdleRelease(): void {
-    this.schedule({ at: new Date(Date.now() + IDLE_MILLISECONDS) }).releaseIfIdle()
+    this.activity += 1
+    this.schedule({ at: new Date(Date.now() + IDLE_MILLISECONDS) }).releaseIfIdle({
+      activity: this.activity,
+    })
   }
 }

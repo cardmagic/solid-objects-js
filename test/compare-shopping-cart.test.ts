@@ -17,6 +17,8 @@ class FakePayments implements PaymentProvider {
   readonly calls: string[] = []
   readonly charges = new Map<string, { paymentId: string; amountCents: number }>()
   loseNextResponse = false
+  loseEveryResponse = false
+  failWithoutCharging = false
   declineEveryCall = false
 
   async charge({
@@ -26,19 +28,31 @@ class FakePayments implements PaymentProvider {
     idempotencyKey: string
     cartId: string
     amountCents: number
-  }): Promise<{ paymentId: string }> {
+  }): Promise<{ status: "paid"; paymentId: string } | { status: "declined" }> {
     this.calls.push(idempotencyKey)
-    if (this.declineEveryCall) throw new Error("the card was declined")
+    if (this.failWithoutCharging) throw new Error("the provider did not answer")
+    if (this.declineEveryCall) return { status: "declined" }
     const charge = this.charges.get(idempotencyKey) ?? {
       paymentId: `payment-${this.charges.size + 1}`,
       amountCents,
     }
     this.charges.set(idempotencyKey, charge)
+    if (this.loseEveryResponse) throw new Error("the response was lost")
     if (this.loseNextResponse) {
       this.loseNextResponse = false
       throw new Error("the worker stopped before it recorded the result")
     }
-    return { paymentId: charge.paymentId }
+    return { status: "paid", paymentId: charge.paymentId }
+  }
+
+  async lookup({
+    idempotencyKey,
+  }: {
+    idempotencyKey: string
+  }): Promise<{ status: "paid"; paymentId: string } | { status: "not_found" }> {
+    const charge = this.charges.get(idempotencyKey)
+    if (!charge) return { status: "not_found" }
+    return { status: "paid", paymentId: charge.paymentId }
   }
 }
 
@@ -136,7 +150,7 @@ describe("the ShoppingCart actor", () => {
     expect(payments.charges.size).toBe(1)
   })
 
-  it("opens the cart again when the payment fails on every attempt", async () => {
+  it("opens the cart again when the card is declined", async () => {
     const payments = new FakePayments()
     payments.declineEveryCall = true
     const runtime = await startRuntime({ payments })
@@ -145,11 +159,69 @@ describe("the ShoppingCart actor", () => {
 
     await cart.checkOut({ amountCents: 2_500 })
     await runtime.testing.drain({ roles: ["effects", "actors"] })
-    await runtime.testing.drain({ roles: ["effects", "actors"] })
 
     const snapshot = await runtime.ref(ShoppingCart, "ada").snapshot(asOwner)
     expect(snapshot.status).toBe("open")
     await expect(cart.addItem({ productId: "socks", quantity: 1 })).resolves.toBeDefined()
+  })
+
+  it("checks the charge before it opens the cart when every payment response is lost", async () => {
+    const payments = new FakePayments()
+    payments.loseEveryResponse = true
+    const runtime = await startRuntime({ payments })
+    const cart = runtime.ref(ShoppingCart, "ada").with(asOwner)
+    await cart.addItem({ productId: "shirt", quantity: 1 })
+
+    await cart.checkOut({ amountCents: 2_500 })
+    for (let pass = 0; pass < 4; pass += 1) {
+      await runtime.testing.drain({ roles: ["effects", "actors"] })
+    }
+    await cart.checkOut({ amountCents: 2_500 })
+    await runtime.testing.drain({ roles: ["effects", "actors"] })
+
+    const snapshot = await runtime.ref(ShoppingCart, "ada").snapshot(asOwner)
+    expect(snapshot).toMatchObject({ status: "paid", paymentId: "payment-1" })
+    expect(payments.charges.size).toBe(1)
+  })
+
+  it("opens the cart again when the check finds no charge", async () => {
+    const payments = new FakePayments()
+    payments.failWithoutCharging = true
+    const runtime = await startRuntime({ payments })
+    const cart = runtime.ref(ShoppingCart, "ada").with(asOwner)
+    await cart.addItem({ productId: "shirt", quantity: 1 })
+
+    await cart.checkOut({ amountCents: 2_500 })
+    for (let pass = 0; pass < 4; pass += 1) {
+      await runtime.testing.drain({ roles: ["effects", "actors"] })
+    }
+
+    const snapshot = await runtime.ref(ShoppingCart, "ada").snapshot(asOwner)
+    expect(snapshot.status).toBe("open")
+    expect(payments.charges.size).toBe(0)
+  })
+
+  it("ignores a release reminder that was queued behind newer activity", async () => {
+    const inventory = new FakeInventory()
+    const runtime = await startRuntime({ inventory })
+    await runtime
+      .ref(ShoppingCart, "ada")
+      .send.with({ ...asOwner, idempotencyKey: "late-add" })
+      .addItem({ productId: "shirt", quantity: 1 })
+    await runtime.testing.drain({ roles: ["actors"] })
+    await runtime
+      .ref(ShoppingCart, "ada")
+      .send.with({ ...asOwner, idempotencyKey: "later-add" })
+      .addItem({ productId: "socks", quantity: 1 })
+
+    await runtime.testing.runDueReminders({
+      now: new Date(Date.now() + IDLE_MILLISECONDS + 1_000),
+    })
+    await runtime.testing.drain({ roles: ["actors", "effects"] })
+
+    const snapshot = await runtime.ref(ShoppingCart, "ada").snapshot(asOwner)
+    expect(snapshot.status).toBe("open")
+    expect(inventory.releases.size).toBe(0)
   })
 
   it("releases the reserved stock of an idle cart after a restart", async () => {

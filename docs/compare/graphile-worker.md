@@ -157,7 +157,8 @@ export class ChatRoom extends Actor {
   messages: ChatMessage[] = []
   nextSequence = 1
   lastRead: Record<string, number> = {}
-  pinnedSequence: number | null = null
+  pinned: ChatMessage | null = null
+  activity = 0
   archived = false
 
   get unreadCounts(): Record<string, number> {
@@ -196,11 +197,14 @@ export class ChatRoom extends Actor {
 
   pin({ memberId, sequence }: { memberId: string; sequence: number }): void {
     this.#requireMember(memberId)
-    this.pinnedSequence = sequence
+    const message = this.messages.find((candidate) => candidate.sequence === sequence)
+    if (!message) this.reject("unknown_message", { message: "That message is not in the room" })
+    this.pinned = message
     this.#armArchive()
   }
 
-  archiveIfIdle(): void {
+  archiveIfIdle({ activity }: { activity: number }): void {
+    if (activity !== this.activity) return
     this.archived = true
   }
 
@@ -216,7 +220,10 @@ export class ChatRoom extends Actor {
   }
 
   #armArchive(): void {
-    this.schedule({ at: new Date(Date.now() + ARCHIVE_AFTER_MILLISECONDS) }).archiveIfIdle()
+    this.activity += 1
+    this.schedule({ at: new Date(Date.now() + ARCHIVE_AFTER_MILLISECONDS) }).archiveIfIdle({
+      activity: this.activity,
+    })
   }
 }
 ```
@@ -228,7 +235,8 @@ How it works:
 - Calls for one room run one at a time, on any process. Each `post` gets the next sequence number, and the number commits with the message.
 - If a turn throws, the runtime runs the same message again. Later messages for the room wait, so the order holds. See [errors and recovery](../errors-and-recovery.md).
 - `lastRead` keeps the last message that each member read. `unreadCounts` is a query that computes the counts from it.
-- Each join, post, or pin moves the one `archiveIfIdle` reminder 7 days ahead. The reminder is a row in the database, so it runs after a restart. A post to an archived room gets `archived`.
+- Each join, post, or pin moves the one `archiveIfIdle` reminder 7 days ahead and counts up `activity`. The reminder is a row in the database, so it runs after a restart. A reminder that was already queued behind a newer change carries an old count, so it does nothing. A post to an archived room gets `archived`.
+- `pin` keeps a copy of the message, so the pinned text stays after newer messages push it out of the last 200.
 - The actor keeps the last 200 messages in its state. Keep the full history in your own table with a commit action if you need it.
 
 ### What the tests prove
@@ -238,7 +246,10 @@ How it works:
 - Twenty messages from two members that arrive at the same time get the sequence numbers 1 to 20, with no gap.
 - Unread counts are correct for each member after one member marks messages read.
 - After a restart and seven idle days, the room is archived, keeps its pinned message, and refuses a new post.
+- An archive reminder that was queued behind a newer post does nothing.
+- A pinned message keeps its text after 200 newer messages.
 - A member cannot post in the name of another member.
+- A caller with no credentials cannot join or post, even with a `null` member ID.
 - A caller who did not join cannot post.
 
 ## Questions that teams ask

@@ -7,7 +7,10 @@ export type PaymentProvider = {
     idempotencyKey: string
     cartId: string
     amountCents: number
-  }): Promise<{ paymentId: string }>
+  }): Promise<{ status: "paid"; paymentId: string } | { status: "declined" }>
+  lookup(options: {
+    idempotencyKey: string
+  }): Promise<{ status: "paid"; paymentId: string } | { status: "not_found" }>
 }
 
 export type Inventory = {
@@ -51,6 +54,9 @@ export function cartRuntime({
       cartId: String(argumentsValue.cartId),
       amountCents: Number(argumentsValue.amountCents),
     }),
+  )
+  runtime.registerEffect("check_payment", (argumentsValue) =>
+    payments.lookup({ idempotencyKey: String(argumentsValue.paymentKey) }),
   )
   runtime.registerEffect("release_stock", (argumentsValue, context) =>
     inventory.release({

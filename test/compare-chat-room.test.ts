@@ -99,7 +99,7 @@ describe("the ChatRoom actor", () => {
     await afterRestart.testing.drain({ roles: ["actors"] })
 
     const snapshot = await afterRestart.ref(ChatRoom, "general").snapshot(asMember("ada"))
-    expect(snapshot).toMatchObject({ archived: true, pinnedSequence: sequence })
+    expect(snapshot).toMatchObject({ archived: true, pinned: { sequence, text: "Read the rules" } })
     await expect(
       afterRestart
         .ref(ChatRoom, "general")
@@ -118,6 +118,52 @@ describe("the ChatRoom actor", () => {
         .with(asMember("grace"))
         .post({ authorId: "ada", text: "Not mine" }),
     ).rejects.toBeInstanceOf(Unauthorized)
+  })
+
+  it("refuses a caller with no credentials, even with a null member ID", async () => {
+    const runtime = await startRuntime()
+    await roomWithMembers(runtime)
+    const anonymous = runtime.ref(ChatRoom, "general").with({ authorizationContext: undefined })
+
+    await expect(anonymous.join({ memberId: null as unknown as string })).rejects.toBeInstanceOf(
+      Unauthorized,
+    )
+    await expect(
+      anonymous.post({ authorId: null as unknown as string, text: "Hello" }),
+    ).rejects.toBeInstanceOf(Unauthorized)
+  })
+
+  it("keeps the text of a pinned message after newer messages push it out", async () => {
+    const runtime = await startRuntime()
+    await roomWithMembers(runtime)
+    const ada = runtime.ref(ChatRoom, "general").with(asMember("ada"))
+    const { sequence } = await ada.post({ authorId: "ada", text: "Read the rules" })
+    await ada.pin({ memberId: "ada", sequence })
+    for (let index = 0; index < 200; index += 1) {
+      await ada.post({ authorId: "ada", text: `message ${index}` })
+    }
+
+    const snapshot = await runtime.ref(ChatRoom, "general").snapshot(asMember("ada"))
+    expect(snapshot.messages.some((message) => message.sequence === sequence)).toBe(false)
+    expect(snapshot.pinned).toEqual({ sequence, authorId: "ada", text: "Read the rules" })
+  })
+
+  it("ignores an archive reminder that was queued behind newer activity", async () => {
+    const runtime = await startRuntime()
+    await roomWithMembers(runtime)
+    await runtime
+      .ref(ChatRoom, "general")
+      .send.with({ ...asMember("ada"), idempotencyKey: "late-post" })
+      .post({ authorId: "ada", text: "Still here" })
+
+    await runtime.testing.runDueReminders({
+      now: new Date(Date.now() + ARCHIVE_AFTER_MILLISECONDS + 1_000),
+    })
+    await runtime.testing.drain({ roles: ["actors"] })
+
+    const snapshot = await runtime.ref(ChatRoom, "general").snapshot(asMember("ada"))
+    expect(snapshot.archived).toBe(false)
+    expect(snapshot.messages.map((message) => message.text)).toEqual(["Still here"])
   })
 
   it("refuses a post from someone who did not join", async () => {

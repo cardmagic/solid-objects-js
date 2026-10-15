@@ -131,15 +131,18 @@ import { Actor, type EffectFailurePayload, type EffectSuccessPayload } from "sol
 export const IDLE_MILLISECONDS = 30 * 60 * 1000
 
 type ChargeArguments = { cartId: string; amountCents: number }
-type ChargeResult = { paymentId: string }
+type ChargeResult = { status: "paid"; paymentId: string } | { status: "declined" }
+type CheckArguments = { paymentKey: string }
+type CheckResult = { status: "paid"; paymentId: string } | { status: "not_found" }
 
 export class ShoppingCart extends Actor {
   static override readonly actorType = "ShoppingCart"
 
   items: Record<string, number> = {}
   couponCode: string | null = null
-  status: "open" | "paying" | "paid" | "released" = "open"
+  status: "open" | "paying" | "checking" | "paid" | "released" = "open"
   paymentId: string | null = null
+  activity = 0
 
   addItem({ productId, quantity }: { productId: string; quantity: number }): {
     items: Record<string, number>
@@ -157,31 +160,57 @@ export class ShoppingCart extends Actor {
   }
 
   checkOut({ amountCents }: { amountCents: number }): { status: string } {
-    if (this.status === "paying" || this.status === "paid") return { status: this.status }
+    if (this.status === "paying" || this.status === "checking" || this.status === "paid") {
+      return { status: this.status }
+    }
     this.#requireOpen()
     this.status = "paying"
     this.emit("charge_payment", {
       arguments: { cartId: this.actorId, amountCents },
-      onSuccess: "paid",
-      onFailure: "paymentFailed",
+      onSuccess: "paymentSettled",
+      onFailure: "paymentUnknown",
     })
     return { status: this.status }
   }
 
-  paid({ result }: EffectSuccessPayload<ChargeArguments, ChargeResult>): void {
-    this.status = "paid"
-    this.paymentId = result.paymentId
+  paymentSettled({ result }: EffectSuccessPayload<ChargeArguments, ChargeResult>): void {
+    if (result.status === "paid") {
+      this.#markPaid(result.paymentId)
+      return
+    }
+    this.#reopen()
   }
 
-  paymentFailed(_payload: EffectFailurePayload<ChargeArguments>): void {
-    this.status = "open"
-    this.#armIdleRelease()
+  paymentUnknown({ effectId }: EffectFailurePayload<ChargeArguments>): void {
+    this.status = "checking"
+    this.emit("check_payment", {
+      arguments: { paymentKey: effectId },
+      onSuccess: "paymentChecked",
+    })
   }
 
-  releaseIfIdle(): void {
-    if (this.status !== "open") return
+  paymentChecked({ result }: EffectSuccessPayload<CheckArguments, CheckResult>): void {
+    if (result.status === "paid") {
+      this.#markPaid(result.paymentId)
+      return
+    }
+    this.#reopen()
+  }
+
+  releaseIfIdle({ activity }: { activity: number }): void {
+    if (activity !== this.activity || this.status !== "open") return
     this.status = "released"
     this.emit("release_stock", { arguments: { cartId: this.actorId, items: this.items } })
+  }
+
+  #markPaid(paymentId: string): void {
+    this.status = "paid"
+    this.paymentId = paymentId
+  }
+
+  #reopen(): void {
+    this.status = "open"
+    this.#armIdleRelease()
   }
 
   #requireOpen(): void {
@@ -191,12 +220,15 @@ export class ShoppingCart extends Actor {
   }
 
   #armIdleRelease(): void {
-    this.schedule({ at: new Date(Date.now() + IDLE_MILLISECONDS) }).releaseIfIdle()
+    this.activity += 1
+    this.schedule({ at: new Date(Date.now() + IDLE_MILLISECONDS) }).releaseIfIdle({
+      activity: this.activity,
+    })
   }
 }
 ```
 
-The runtime registers the actor and the two effects:
+The runtime registers the actor and the three effects:
 
 ```typescript
 import { createRuntime, type SolidObjectsRuntime } from "solid-objects"
@@ -208,7 +240,10 @@ export type PaymentProvider = {
     idempotencyKey: string
     cartId: string
     amountCents: number
-  }): Promise<{ paymentId: string }>
+  }): Promise<{ status: "paid"; paymentId: string } | { status: "declined" }>
+  lookup(options: {
+    idempotencyKey: string
+  }): Promise<{ status: "paid"; paymentId: string } | { status: "not_found" }>
 }
 
 export type Inventory = {
@@ -253,6 +288,9 @@ export function cartRuntime({
       amountCents: Number(argumentsValue.amountCents),
     }),
   )
+  runtime.registerEffect("check_payment", (argumentsValue) =>
+    payments.lookup({ idempotencyKey: String(argumentsValue.paymentKey) }),
+  )
   runtime.registerEffect("release_stock", (argumentsValue, context) =>
     inventory.release({
       idempotencyKey: context.id,
@@ -289,10 +327,11 @@ At least one process calls `runtime.run(signal)`. It runs the effects and the re
 How it works:
 
 - Calls for one cart run one at a time on any of the four processes. Each call reads the state that the previous call committed, so no item is lost.
-- Each change moves the one `releaseIfIdle` reminder 30 minutes ahead. The reminder is a row in the database, so it runs after a restart. When it runs, it releases the stock only if the cart is still open.
+- Each change moves the one `releaseIfIdle` reminder 30 minutes ahead and counts up `activity`. The reminder is a row in the database, so it runs after a restart. When it runs, it releases the stock only if the cart is still open and no newer change came after it.
 - `checkOut` sets the status to `paying` and stages the `charge_payment` effect in the same transaction. A second `checkOut` while the payment runs changes nothing.
 - The effect handler uses `context.id` as the idempotency key. If the payment response is lost, the runtime runs the effect again with the same ID, and the provider charges once.
-- If every attempt fails, `paymentFailed` opens the cart again and arms the reminder again.
+- A declined card is an answer, so `paymentSettled` opens the cart again.
+- If every attempt fails with no answer, the charge may have happened. `paymentUnknown` sets the status to `checking` and stages `check_payment` with the same payment key, the effect ID of the charge. The cart opens again only if the provider has no charge for that key. A new checkout can never get a new key while the first charge is in doubt.
 - Compute the amount on the server from your own prices. Do not take it from the browser.
 
 ### What the tests prove
@@ -302,7 +341,10 @@ How it works:
 - Ten concurrent `addItem` calls for one cart keep all ten items.
 - When the payment response is lost, the effect runs again with the same idempotency key, and the provider charges once.
 - A second checkout while the first one runs does not charge again.
-- When every payment attempt fails, the cart opens again.
+- A declined card opens the cart again.
+- When every payment response is lost after a charge, the cart checks the charge, ends as paid, and the provider charges once.
+- When every payment call fails with no charge, the check finds no charge, and the cart opens again.
+- A release reminder that was queued behind a newer change does nothing.
 - After a restart, an idle cart releases its reserved stock and refuses a checkout.
 
 ## Questions that teams ask
