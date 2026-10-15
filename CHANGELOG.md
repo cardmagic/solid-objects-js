@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+- The agent guide now lists the import path, the call, and the driver of each
+  SQL database adapter, and it shows how to cancel a reminder with
+  `unschedule()`. Agents in the Track B evaluation invented the names
+  `solid-objects/database/postgres` and `this.cancelReminder()`.
+
 ## 1.0.0 - 2026-10-13
 
 - Version 1.0 freezes the public API under semantic versioning.

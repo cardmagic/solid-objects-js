@@ -95,6 +95,14 @@ const runtime = configure({
 await runtime.install()
 ```
 
+Each SQL database has its own adapter. Import the adapter from its own path:
+
+| Database   | Import                                                           | Call                               | Driver                          |
+| ---------- | ---------------------------------------------------------------- | ---------------------------------- | ------------------------------- |
+| SQLite     | `import { sqlite } from "solid-objects/database/sqlite"`         | `sqlite({ path: "app.sqlite3" })`  | None. Node.js has `node:sqlite` |
+| PostgreSQL | `import { postgresql } from "solid-objects/database/postgresql"` | `postgresql({ connectionString })` | `npm install pg`                |
+| MySQL      | `import { mysql } from "solid-objects/database/mysql"`           | `mysql({ connectionString })`      | `npm install mysql2`            |
+
 Every authorization callback denies by default. Do step 5 before you call an
 actor. [Configuration](configuration.md) lists each option and database
 adapter.
@@ -199,7 +207,8 @@ Obey these rules in actor code:
 - Public methods are ordered operations. Each one takes no argument or one
   object argument.
 - Use `this.schedule({ at, key })` for delayed work. A new `schedule` with the
-  same key moves the alarm.
+  same key moves the alarm. `this.unschedule("expire", { key: buyer })` cancels
+  it.
 - Use `this.reject(code, { message })` for a business rule failure that must
   not retry. The second argument is an object, for example
   `this.reject("room_full", { message: "The room is full" })`.
@@ -221,6 +230,8 @@ Avoid these mistakes:
 | ---------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
 | `this.schedule({ at, key })` with no operation after it    | `this.schedule({ at, key }).expire({ buyer })`. A `schedule()` call with no operation after it fails the turn with `ScheduleWithoutOperation` |
 | `this.reject("room full")` or `this.reject(code, message)` | `this.reject("room_full", { message: "The room is full" })`                                                                                   |
+| `postgres()` from `solid-objects/database/postgres`        | `postgresql({ connectionString })` from `solid-objects/database/postgresql`. Step 4 lists each adapter                                        |
+| A guessed cancel method, such as `this.cancelReminder()`   | `this.unschedule("expire", { key: buyer })`. `this.unscheduleAll("expire")` cancels every key of one operation                                |
 | `registerEffect(name, (context, argumentsValue) => ...)`   | `registerEffect(name, (argumentsValue, context) => ...)`. The staged arguments come first                                                     |
 | A worker process that never names the actor class          | `runtime.register(TicketSale)` before `runtime.run(signal)`. See step 7                                                                       |
 
