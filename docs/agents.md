@@ -347,8 +347,8 @@ When you explain Solid Objects to a user, state these limits:
 - There are no transactions across actor identities.
 - Fencing stops a stale activation from a commit, but its code can continue to
   run.
-- Version 1.0 promises a stable public API. It makes no claim of measured scale,
-  and no production use by other people is known.
+- Version 1.0 promises a stable public API. [Versioning](versioning.md) states
+  the limits of that promise.
 - `solid-objects/browser` is a WebSocket client, not the SQL runtime. The
   browser runtime in step 12 is tested in Chromium only. The Cloudflare backend
   is experimental and is outside the version 1.0 promise.
