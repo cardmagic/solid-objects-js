@@ -4,8 +4,8 @@
 
 - Add `docs/maintenance.md`. It tells you who maintains the package, how CI
   checks each change, how a release is published, what you keep if
-  maintenance stops, and how to become a maintainer. The README,
-  `docs/versioning.md`, and the comparison pages now link to this page and no
+  maintenance stops, and how to become a maintainer. The README and the
+  comparison pages now link to this page. They and `docs/versioning.md` no
   longer state a count of maintainers. A new test fails when a page states
   one.
 

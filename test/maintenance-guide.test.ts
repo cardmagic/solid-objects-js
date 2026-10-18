@@ -2,7 +2,8 @@ import { existsSync, readdirSync, readFileSync } from "node:fs"
 import { describe, expect, it } from "vitest"
 
 const root = new URL("../", import.meta.url)
-const maintainerCount = /\b(?:one|only|sole|single)\s+maintainer\b/i
+const maintainerCount =
+  /\b(?:\d+|one|two|three|four|five|six|seven|eight|nine|ten|only|sole|single)\s+maintainers?\b/i
 const documentationPaths = [
   "README.md",
   "CONTRIBUTING.md",
@@ -23,7 +24,23 @@ describe("maintenance guide", () => {
   })
 
   it("names the lead maintainer", () => {
-    expect(read("docs/maintenance.md")).toMatch(/is the lead\s+maintainer/)
+    expect(read("docs/maintenance.md")).toMatch(
+      /Lucas Carlson \(\[@cardmagic\]\(https:\/\/github\.com\/cardmagic\)\) is the lead\s+maintainer/,
+    )
+  })
+
+  it("has a count pattern that finds a count of maintainers in each form", () => {
+    for (const text of [
+      "One maintainer.",
+      "1 maintainer",
+      "two maintainers",
+      "the only\nmaintainer",
+    ]) {
+      expect(text).toMatch(maintainerCount)
+    }
+    for (const text of ["the lead maintainer", "wants more maintainers", "become a maintainer"]) {
+      expect(text).not.toMatch(maintainerCount)
+    }
   })
 
   it("has no page in the documentation that states a count of maintainers", () => {
