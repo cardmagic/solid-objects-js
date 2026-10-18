@@ -32,7 +32,7 @@ Two DBOS pages differ on more than one process. The FAQ says "Conductor is requi
 - "If you're sending a message from a workflow, DBOS guarantees exactly-once delivery" ([DBOS workflow communication](https://docs.dbos.dev/typescript/tutorials/workflow-communication)).
 - With `delaySeconds` on enqueue, the workflow "is initially placed in `DELAYED` status and transitions to `ENQUEUED` after the delay expires" ([DBOS methods reference](https://docs.dbos.dev/typescript/reference/methods)).
 - A partitioned queue with `partitionConcurrency: 1` runs one workflow at a time for each `queuePartitionKey`.
-- In Solid Objects, a message to the actor replaces `send` and `recv`, and a reminder (`this.schedule({ at, key })`) replaces a durable sleep. Solid Objects has no durable wait inside a turn. The turn that stores the reminder ends, so other messages for the same cart run before the reminder runs.
+- In Solid Objects, a message to the actor replaces `send` and `recv`, and a reminder (`this.schedule({ at, key }).operation(input)`) replaces a durable sleep. Solid Objects has no durable wait inside a turn. The turn that stores the reminder ends, so other messages for the same cart run before the reminder runs.
 
 ## Choose DBOS when
 
