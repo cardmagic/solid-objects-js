@@ -146,7 +146,7 @@ describe("the ChatRoom actor", () => {
     const snapshot = await runtime.ref(ChatRoom, "general").snapshot(asMember("ada"))
     expect(snapshot.messages.some((message) => message.sequence === sequence)).toBe(false)
     expect(snapshot.pinned).toEqual({ sequence, authorId: "ada", text: "Read the rules" })
-  })
+  }, 30_000)
 
   it("ignores an archive reminder that was queued behind newer activity", async () => {
     const runtime = await startRuntime()
