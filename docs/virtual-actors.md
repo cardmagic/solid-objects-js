@@ -12,8 +12,8 @@ no Cloudflare account, and no new datastore. A process of your application
 calls `runtime.run(signal)` to run reminders, effects, and queued messages.
 Redis is optional and only shortens wake-up latency.
 
-Solid Objects 1.0 promises a stable public API. It makes no claim of measured
-scale. Read
+Solid Objects 1.0 promises a stable public API. [Versioning](versioning.md)
+states the limits of that promise. Read
 [Compatibility and maturity](#compatibility-and-maturity) before you choose it.
 
 ## What a virtual actor is
