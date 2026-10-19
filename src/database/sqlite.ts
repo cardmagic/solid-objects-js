@@ -135,20 +135,11 @@ export class SQLiteDatabase implements Database {
 
   private async configureJournalWithRetry(): Promise<void> {
     if (this.journalConfigured) return
-    let retries = 0
-    while (true) {
-      try {
-        this.database.exec("PRAGMA journal_mode = WAL")
-        this.database.exec(`PRAGMA synchronous = ${this.synchronous.toUpperCase()}`)
-        this.journalConfigured = true
-        return
-      } catch (error) {
-        if (databaseDeadlineRemainingMilliseconds() !== undefined) throw error
-        if (!sqliteBusyError(error) || retries >= this.lockRetryAttempts) throw error
-        retries += 1
-        await waitForRetry(retries)
-      }
-    }
+    await this.retryWhileBusy(() => {
+      this.database.exec("PRAGMA journal_mode = WAL")
+      this.database.exec(`PRAGMA synchronous = ${this.synchronous.toUpperCase()}`)
+    })
+    this.journalConfigured = true
   }
 
   private async withBusyTimeout<Result>(callback: () => Promise<Result>): Promise<Result> {
@@ -180,10 +171,14 @@ export class SQLiteDatabase implements Database {
   }
 
   private async beginTransactionWithRetry(): Promise<void> {
+    await this.retryWhileBusy(() => this.database.exec("BEGIN IMMEDIATE"))
+  }
+
+  private async retryWhileBusy(operation: () => void): Promise<void> {
     let retries = 0
     while (true) {
       try {
-        this.database.exec("BEGIN IMMEDIATE")
+        operation()
         return
       } catch (error) {
         if (databaseDeadlineRemainingMilliseconds() !== undefined) throw error
