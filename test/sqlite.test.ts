@@ -73,7 +73,7 @@ describe("SQLite adapter", () => {
 
   it("rejects a synchronous level other than normal or full", () => {
     expect(() =>
-      sqlite({ path: ":memory:", synchronous: "off" as unknown as SQLiteSynchronous }),
+      sqlite({ path: ":memory:", synchronous: "off" as SQLiteSynchronous }),
     ).toThrow(new TypeError('synchronous must be "normal" or "full"'))
   })
 

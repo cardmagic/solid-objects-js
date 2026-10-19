@@ -175,9 +175,11 @@ short capped backoff only when no synchronous deadline is active.
 A file database uses write-ahead logging (WAL). On its first access, the
 adapter sets `journal_mode = WAL` and the `synchronous` level, with the same
 retries as a transaction. WAL keeps two more files next to the database:
-`<path>-wal` and `<path>-shm`. Copy the three files together, or close the
-database first: a clean close writes the WAL into the database file. An
-in-memory database (`":memory:"`) keeps its memory journal.
+`<path>-wal` and `<path>-shm`. Committed data can be in the `-wal` file, so a
+copy of the database file alone can miss it. To back up a database that is in
+use, run `VACUUM INTO '<backup path>'` or use the SQLite backup command. Copy
+the files only when no process has the database open. An in-memory database
+(`":memory:"`) keeps its memory journal.
 
 `synchronous` is `"normal"` or `"full"`:
 
