@@ -167,10 +167,27 @@ IDs, while PostgreSQL callers should use `RETURNING` with `get()`.
 
 ### SQLite
 
-`sqlite({ path, timeoutMilliseconds = 5_000, lockRetryAttempts = 10 })` uses
-Node's built-in `node:sqlite`. `lockRetryAttempts` is a positive integer. The
-timeout controls SQLite's busy timeout; transaction acquisition retries use
+`sqlite({ path, timeoutMilliseconds = 5_000, lockRetryAttempts = 10, synchronous = "normal" })`
+uses Node's built-in `node:sqlite`. `lockRetryAttempts` is a positive integer.
+The timeout controls SQLite's busy timeout; transaction acquisition retries use
 short capped backoff only when no synchronous deadline is active.
+
+A file database uses write-ahead logging (WAL). On its first access, the
+adapter sets `journal_mode = WAL` and the `synchronous` level, with the same
+retries as a transaction. WAL keeps two more files next to the database:
+`<path>-wal` and `<path>-shm`. Copy the three files together, or close the
+database first: a clean close writes the WAL into the database file. An
+in-memory database (`":memory:"`) keeps its memory journal.
+
+`synchronous` is `"normal"` or `"full"`:
+
+- `"normal"`, the default, is the level that the Ruby gem gets from Active
+  Record. A commit makes almost no `fsync` call. A process crash loses no
+  commit. A power loss or an operating system crash can lose the last commits,
+  but the database stays consistent.
+- `"full"` flushes each commit to disk before the commit returns. A commit
+  costs about one `fsync` call, and `node:sqlite` blocks the event loop while
+  it waits for the disk.
 
 ### PostgreSQL
 
