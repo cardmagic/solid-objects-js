@@ -12,8 +12,8 @@ no Cloudflare account, and no new datastore. A process of your application
 calls `runtime.run(signal)` to run reminders, effects, and queued messages.
 Redis is optional and only shortens wake-up latency.
 
-Solid Objects 1.0 promises a stable public API. It makes no claim of measured
-scale. Read
+Solid Objects 1.0 promises a stable public API. [Versioning](versioning.md)
+states the limits of that promise. Read
 [Compatibility and maturity](#compatibility-and-maturity) before you choose it.
 
 ## What a virtual actor is
@@ -246,10 +246,9 @@ These runtimes have different compatibility statements:
 | Browser runtime (`solid-objects/browser/host`)  | The actor runtime in a browser module worker on SQLite WASM. Tested in Chromium                                                                |
 | Cloudflare backend (`solid-objects/cloudflare`) | Experimental. It runs the actor API on Cloudflare Durable Objects, with different capability limits                                            |
 
-Version 1.0: the public API follows [semantic versioning](versioning.md). The
-Cloudflare backend is outside that promise. One first-party application with
-more than 100,000 users runs the package in production. That is a count of
-users, not a measure of load. The project makes no claim of measured scale,
-and no production use by other people is known.
+Version 1.0: the public API follows [semantic versioning](versioning.md),
+which also states the limits of that promise. The Cloudflare backend is outside
+that promise. One first-party application with more than 100,000 users runs the
+package in production. That is a count of users, not a measure of load.
 [Supported versions](support.md) lists the CI matrix. For Ruby on Rails, use
 the [solid_objects](https://github.com/cardmagic/solid-objects-ruby) gem.

@@ -12,6 +12,19 @@
   page answers whether jobs with the same `queue_name` run serially, and
   describes `job_key` and `run_at`. Each answer quotes the official
   documentation and gives the date that it was checked.
+- The short answer in `docs/virtual-actors.md` no longer states that version
+  1.0 makes no claim of measured scale. It links `docs/versioning.md`, the one
+  page that states the limits of version 1.0. Version 1.0.5 missed this
+  sentence.
+
+## 1.0.5 - 2026-10-18
+
+- `docs/versioning.md` is now the only page that states that version 1.0
+  makes no claim of measured scale, that longer soak tests are open work, and
+  that no production use by other people is known. The comparison pages,
+  `docs/agents.md`, `docs/virtual-actors.md`, and the problem guides link it
+  instead. The comparison pages no longer state the first public release
+  date.
 
 ## 1.0.4 - 2026-10-18
 
