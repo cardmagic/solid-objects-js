@@ -25,6 +25,13 @@ describe("SQLite adapter", () => {
     await expect(journalSettings(database)).resolves.toEqual({ journal: "wal", synchronous: 1 })
   })
 
+  it("opens a file database with write-ahead logging and full sync when synchronous is full", async () => {
+    path = `/tmp/solid-objects-sqlite-${crypto.randomUUID()}.sqlite3`
+    database = sqlite({ path, synchronous: "full" })
+
+    await expect(journalSettings(database)).resolves.toEqual({ journal: "wal", synchronous: 2 })
+  })
+
   it("switches a rollback-journal file to write-ahead logging after another writer releases its lock", async () => {
     path = `/tmp/solid-objects-sqlite-${crypto.randomUUID()}.sqlite3`
     const setup = new DatabaseSync(path)

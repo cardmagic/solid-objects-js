@@ -9,10 +9,13 @@ import {
 import { DatabaseDeadlineExceeded } from "../errors.js"
 import { databaseTransactionActive, withDatabaseTransaction } from "./transaction-context.js"
 
+export type SQLiteSynchronous = "normal" | "full"
+
 export interface SQLiteDatabaseOptions {
   path: string
   timeoutMilliseconds?: number
   lockRetryAttempts?: number
+  synchronous?: SQLiteSynchronous
 }
 
 class SQLiteConnection implements DatabaseConnection {
@@ -57,11 +60,13 @@ export class SQLiteDatabase implements Database {
   private closed = false
   private readonly timeoutMilliseconds: number
   private readonly lockRetryAttempts: number
+  private readonly synchronous: SQLiteSynchronous
   private journalConfigured = false
 
   constructor(options: SQLiteDatabaseOptions) {
     this.timeoutMilliseconds = options.timeoutMilliseconds ?? 5_000
     this.lockRetryAttempts = options.lockRetryAttempts ?? 10
+    this.synchronous = options.synchronous ?? "normal"
     if (!Number.isSafeInteger(this.lockRetryAttempts) || this.lockRetryAttempts < 1) {
       throw new TypeError("lockRetryAttempts must be a positive safe integer")
     }
@@ -131,7 +136,7 @@ export class SQLiteDatabase implements Database {
     while (true) {
       try {
         this.database.exec("PRAGMA journal_mode = WAL")
-        this.database.exec("PRAGMA synchronous = NORMAL")
+        this.database.exec(`PRAGMA synchronous = ${this.synchronous.toUpperCase()}`)
         this.journalConfigured = true
         return
       } catch (error) {
