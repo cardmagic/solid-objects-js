@@ -45,7 +45,9 @@ afterEach(async () => {
   CallerCounter.deactivated = () => {}
 })
 
-async function setup(options: { maxMessagesPerActivationPass?: number } = {}): Promise<void> {
+async function setup(
+  options: { maxMessagesPerActivationPass?: number; retentionIntervalMilliseconds?: number } = {},
+): Promise<void> {
   const connectionString = process.env.SOLID_OBJECTS_DATABASE_URL
   let database: Database
   if (connectionString?.startsWith("postgres")) {
@@ -255,7 +257,21 @@ it("discards a stopped caller that finishes after test reset", async () => {
 it.each(["stopped", "pruned"])(
   "recovers a %s caller registration after runtime shutdown",
   async (state) => {
-    await setup()
+    await setup({ retentionIntervalMilliseconds: 0 })
+    const pruneRetention = runtime.repository.pruneRetention.bind(runtime.repository)
+    const backdated = Promise.withResolvers<void>()
+    const scheduledPassDone = Promise.withResolvers<void>()
+    let scheduledPassStarted = false
+    vi.spyOn(runtime.repository, "pruneRetention").mockImplementation(async (target) => {
+      if (target === "messages") {
+        scheduledPassStarted = true
+        await backdated.promise
+        return pruneRetention(target)
+      }
+      const count = await pruneRetention(target)
+      if (scheduledPassStarted) scheduledPassDone.resolve()
+      return count
+    })
     const reference = CallerCounter.ref("retained-process")
     expect(await reference.increment({ label: "before" })).toBe(1)
     const caller = (await runtime.repository.listProcesses()).rows[0]!
@@ -284,8 +300,11 @@ it.each(["stopped", "pruned"])(
           [now - 8 * 86_400_000, caller.id],
         )
       })
+      backdated.resolve()
+      if (scheduledPassStarted) await scheduledPassDone.promise
       expect((await runtime.retention.prune({ target: "processes" })).count).toBe(1)
     }
+    backdated.resolve()
     controller.abort()
     await running
     running = undefined
