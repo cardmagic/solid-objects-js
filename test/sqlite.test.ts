@@ -40,6 +40,7 @@ describe("SQLite adapter", () => {
   it("retries a transaction after transient writer contention", async () => {
     path = `/tmp/solid-objects-sqlite-${crypto.randomUUID()}.sqlite3`
     const setup = new DatabaseSync(path)
+    setup.exec("PRAGMA journal_mode = WAL")
     setup.exec("CREATE TABLE records(id INTEGER PRIMARY KEY)")
     setup.close()
     blocker = lockDatabase(path)
@@ -66,6 +67,7 @@ describe("SQLite adapter", () => {
   it("stops retrying after its transaction retry budget", async () => {
     path = `/tmp/solid-objects-sqlite-${crypto.randomUUID()}.sqlite3`
     const setup = new DatabaseSync(path)
+    setup.exec("PRAGMA journal_mode = WAL")
     setup.exec("CREATE TABLE records(id INTEGER PRIMARY KEY)")
     setup.close()
     blocker = lockDatabase(path, { holdMilliseconds: 1_000 })
