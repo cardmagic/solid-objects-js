@@ -32,6 +32,12 @@ describe("SQLite adapter", () => {
     await expect(journalSettings(database)).resolves.toEqual({ journal: "wal", synchronous: 2 })
   })
 
+  it("keeps the memory journal for an in-memory database", async () => {
+    database = sqlite({ path: ":memory:" })
+
+    await expect(journalSettings(database)).resolves.toEqual({ journal: "memory", synchronous: 1 })
+  })
+
   it("switches a rollback-journal file to write-ahead logging after another writer releases its lock", async () => {
     path = `/tmp/solid-objects-sqlite-${crypto.randomUUID()}.sqlite3`
     const setup = new DatabaseSync(path)
