@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it } from "vitest"
 import { rm } from "node:fs/promises"
 import { DatabaseSync } from "node:sqlite"
 import { Worker } from "node:worker_threads"
-import { sqlite, type SQLiteDatabase } from "../src/database/sqlite.js"
+import { sqlite, type SQLiteDatabase, type SQLiteSynchronous } from "../src/database/sqlite.js"
 
 let database: SQLiteDatabase | undefined
 let blocker: Worker | undefined
@@ -63,6 +63,12 @@ describe("SQLite adapter", () => {
         connection.get<{ count: number | bigint }>("SELECT COUNT(*) AS count FROM records"),
       ),
     ).resolves.toEqual({ count: 1n })
+  })
+
+  it("rejects a synchronous level other than normal or full", () => {
+    expect(() =>
+      sqlite({ path: ":memory:", synchronous: "off" as unknown as SQLiteSynchronous }),
+    ).toThrow(new TypeError('synchronous must be "normal" or "full"'))
   })
 
   it("validates its transaction retry budget", () => {

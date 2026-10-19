@@ -67,6 +67,9 @@ export class SQLiteDatabase implements Database {
     this.timeoutMilliseconds = options.timeoutMilliseconds ?? 5_000
     this.lockRetryAttempts = options.lockRetryAttempts ?? 10
     this.synchronous = options.synchronous ?? "normal"
+    if (this.synchronous !== "normal" && this.synchronous !== "full") {
+      throw new TypeError('synchronous must be "normal" or "full"')
+    }
     if (!Number.isSafeInteger(this.lockRetryAttempts) || this.lockRetryAttempts < 1) {
       throw new TypeError("lockRetryAttempts must be a positive safe integer")
     }
