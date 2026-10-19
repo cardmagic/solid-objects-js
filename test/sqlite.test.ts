@@ -18,6 +18,25 @@ afterEach(async () => {
 })
 
 describe("SQLite adapter", () => {
+  it("opens a file database with write-ahead logging and normal sync by default", async () => {
+    path = `/tmp/solid-objects-sqlite-${crypto.randomUUID()}.sqlite3`
+    database = sqlite({ path })
+
+    await expect(journalSettings(database)).resolves.toEqual({ journal: "wal", synchronous: 1 })
+  })
+
+  it("switches a rollback-journal file to write-ahead logging after another writer releases its lock", async () => {
+    path = `/tmp/solid-objects-sqlite-${crypto.randomUUID()}.sqlite3`
+    const setup = new DatabaseSync(path)
+    setup.exec("CREATE TABLE records(id INTEGER PRIMARY KEY)")
+    setup.close()
+    blocker = lockDatabase(path, { holdMilliseconds: 50 })
+    await nextMessage(blocker)
+    database = sqlite({ path, timeoutMilliseconds: 1, lockRetryAttempts: 10 })
+
+    await expect(journalSettings(database)).resolves.toEqual({ journal: "wal", synchronous: 1 })
+  })
+
   it("retries a transaction after transient writer contention", async () => {
     path = `/tmp/solid-objects-sqlite-${crypto.randomUUID()}.sqlite3`
     const setup = new DatabaseSync(path)
@@ -63,6 +82,16 @@ describe("SQLite adapter", () => {
     expect(performance.now() - startedAt).toBeLessThan(100)
   })
 })
+
+async function journalSettings(
+  target: SQLiteDatabase,
+): Promise<{ journal: string; synchronous: number }> {
+  return target.connection(async (connection) => {
+    const journal = await connection.get<{ journal_mode: string }>("PRAGMA journal_mode")
+    const synchronous = await connection.get<{ synchronous: number | bigint }>("PRAGMA synchronous")
+    return { journal: journal!.journal_mode, synchronous: Number(synchronous!.synchronous) }
+  })
+}
 
 function lockDatabase(databasePath: string, options: { holdMilliseconds?: number } = {}): Worker {
   return new Worker(

@@ -57,6 +57,7 @@ export class SQLiteDatabase implements Database {
   private closed = false
   private readonly timeoutMilliseconds: number
   private readonly lockRetryAttempts: number
+  private journalConfigured = false
 
   constructor(options: SQLiteDatabaseOptions) {
     this.timeoutMilliseconds = options.timeoutMilliseconds ?? 5_000
@@ -115,9 +116,30 @@ export class SQLiteDatabase implements Database {
     }
     try {
       if (initialRemaining !== undefined) requireDatabaseDeadlineRemaining()
-      return await this.withBusyTimeout(callback)
+      return await this.withBusyTimeout(async () => {
+        await this.configureJournalWithRetry()
+        return callback()
+      })
     } finally {
       release()
+    }
+  }
+
+  private async configureJournalWithRetry(): Promise<void> {
+    if (this.journalConfigured) return
+    let retries = 0
+    while (true) {
+      try {
+        this.database.exec("PRAGMA journal_mode = WAL")
+        this.database.exec("PRAGMA synchronous = NORMAL")
+        this.journalConfigured = true
+        return
+      } catch (error) {
+        if (databaseDeadlineRemainingMilliseconds() !== undefined) throw error
+        if (!sqliteBusyError(error) || retries >= this.lockRetryAttempts) throw error
+        retries += 1
+        await waitForRetry(retries)
+      }
     }
   }
 
