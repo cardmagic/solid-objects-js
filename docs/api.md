@@ -776,7 +776,10 @@ and `SyncTimeoutWaitingOn` type timeout diagnostics. See
 
 - `sqlite(options)`: construct `SQLiteDatabase`.
 - `SQLiteDatabase`: `Database` implementation and `close()` owner.
-- `SQLiteDatabaseOptions`: path, busy timeout, and lock retry options.
+- `SQLiteDatabaseOptions`: path, busy timeout, lock retry, and `synchronous`
+  options.
+- `SQLiteSynchronous`: `"normal" | "full"`, the `synchronous` level of a file
+  database.
 
 ## `solid-objects/database/sqlite-wasm`
 

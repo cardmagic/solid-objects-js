@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+- A SQLite file database now uses write-ahead logging (WAL) with
+  `synchronous = NORMAL`, the settings that the Ruby gem gets from Active
+  Record. Before, each commit made about four `fsync` calls, and
+  `node:sqlite` blocked the event loop while it waited for the disk; on a slow
+  disk this stopped timers, heartbeats, and lease renewals. A process crash
+  loses no commit. A power loss or an operating system crash can now lose the
+  last commits, and the database stays consistent. Pass `synchronous: "full"`
+  to flush each commit before it returns. The adapter switches an existing file
+  to WAL on its first access, with the same retries as a transaction. WAL keeps
+  `-wal` and `-shm` files next to the database.
 - Add `docs/compare/ai-agents.md`, durable execution for TypeScript AI agents
   on PostgreSQL. One table compares Restate, DBOS Transact, Temporal, and
   Solid Objects: where the state lives, what a crash repeats, how a delayed
