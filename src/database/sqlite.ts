@@ -9,10 +9,13 @@ import {
 import { DatabaseDeadlineExceeded } from "../errors.js"
 import { databaseTransactionActive, withDatabaseTransaction } from "./transaction-context.js"
 
+export type SQLiteSynchronous = "normal" | "full"
+
 export interface SQLiteDatabaseOptions {
   path: string
   timeoutMilliseconds?: number
   lockRetryAttempts?: number
+  synchronous?: SQLiteSynchronous
 }
 
 class SQLiteConnection implements DatabaseConnection {
@@ -57,10 +60,16 @@ export class SQLiteDatabase implements Database {
   private closed = false
   private readonly timeoutMilliseconds: number
   private readonly lockRetryAttempts: number
+  private readonly synchronous: SQLiteSynchronous
+  private journalConfigured = false
 
   constructor(options: SQLiteDatabaseOptions) {
     this.timeoutMilliseconds = options.timeoutMilliseconds ?? 5_000
     this.lockRetryAttempts = options.lockRetryAttempts ?? 10
+    this.synchronous = options.synchronous ?? "normal"
+    if (this.synchronous !== "normal" && this.synchronous !== "full") {
+      throw new TypeError('synchronous must be "normal" or "full"')
+    }
     if (!Number.isSafeInteger(this.lockRetryAttempts) || this.lockRetryAttempts < 1) {
       throw new TypeError("lockRetryAttempts must be a positive safe integer")
     }
@@ -115,10 +124,22 @@ export class SQLiteDatabase implements Database {
     }
     try {
       if (initialRemaining !== undefined) requireDatabaseDeadlineRemaining()
-      return await this.withBusyTimeout(callback)
+      return await this.withBusyTimeout(async () => {
+        await this.configureJournalWithRetry()
+        return callback()
+      })
     } finally {
       release()
     }
+  }
+
+  private async configureJournalWithRetry(): Promise<void> {
+    if (this.journalConfigured) return
+    await this.retryWhileBusy(() => {
+      this.database.exec("PRAGMA journal_mode = WAL")
+      this.database.exec(`PRAGMA synchronous = ${this.synchronous.toUpperCase()}`)
+    })
+    this.journalConfigured = true
   }
 
   private async withBusyTimeout<Result>(callback: () => Promise<Result>): Promise<Result> {
@@ -150,10 +171,14 @@ export class SQLiteDatabase implements Database {
   }
 
   private async beginTransactionWithRetry(): Promise<void> {
+    await this.retryWhileBusy(() => this.database.exec("BEGIN IMMEDIATE"))
+  }
+
+  private async retryWhileBusy(operation: () => void): Promise<void> {
     let retries = 0
     while (true) {
       try {
-        this.database.exec("BEGIN IMMEDIATE")
+        operation()
         return
       } catch (error) {
         if (databaseDeadlineRemainingMilliseconds() !== undefined) throw error

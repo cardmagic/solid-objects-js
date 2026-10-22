@@ -93,6 +93,7 @@ describe("database deadlines", () => {
   it("turns SQLite lock contention into a deadline error", async () => {
     const path = `/tmp/solid-objects-deadline-${crypto.randomUUID()}.sqlite3`
     const blocker = new DatabaseSync(path)
+    blocker.exec("PRAGMA journal_mode = WAL")
     blocker.exec("CREATE TABLE records(id INTEGER PRIMARY KEY)")
     blocker.exec("BEGIN IMMEDIATE")
     const database = sqlite({ path, timeoutMilliseconds: 5_000 })

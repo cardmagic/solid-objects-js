@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it } from "vitest"
 import { rm } from "node:fs/promises"
 import { DatabaseSync } from "node:sqlite"
 import { Worker } from "node:worker_threads"
-import { sqlite, type SQLiteDatabase } from "../src/database/sqlite.js"
+import { sqlite, type SQLiteDatabase, type SQLiteSynchronous } from "../src/database/sqlite.js"
 
 let database: SQLiteDatabase | undefined
 let blocker: Worker | undefined
@@ -18,9 +18,42 @@ afterEach(async () => {
 })
 
 describe("SQLite adapter", () => {
+  it("opens a file database with write-ahead logging and normal sync by default", async () => {
+    path = `/tmp/solid-objects-sqlite-${crypto.randomUUID()}.sqlite3`
+    database = sqlite({ path })
+
+    await expect(journalSettings(database)).resolves.toEqual({ journal: "wal", synchronous: 1 })
+  })
+
+  it("opens a file database with write-ahead logging and full sync when synchronous is full", async () => {
+    path = `/tmp/solid-objects-sqlite-${crypto.randomUUID()}.sqlite3`
+    database = sqlite({ path, synchronous: "full" })
+
+    await expect(journalSettings(database)).resolves.toEqual({ journal: "wal", synchronous: 2 })
+  })
+
+  it("keeps the memory journal for an in-memory database", async () => {
+    database = sqlite({ path: ":memory:" })
+
+    await expect(journalSettings(database)).resolves.toEqual({ journal: "memory", synchronous: 1 })
+  })
+
+  it("switches a rollback-journal file to write-ahead logging after another writer releases its lock", async () => {
+    path = `/tmp/solid-objects-sqlite-${crypto.randomUUID()}.sqlite3`
+    const setup = new DatabaseSync(path)
+    setup.exec("CREATE TABLE records(id INTEGER PRIMARY KEY)")
+    setup.close()
+    blocker = lockDatabase(path, { holdMilliseconds: 50 })
+    await nextMessage(blocker)
+    database = sqlite({ path, timeoutMilliseconds: 1, lockRetryAttempts: 10 })
+
+    await expect(journalSettings(database)).resolves.toEqual({ journal: "wal", synchronous: 1 })
+  })
+
   it("retries a transaction after transient writer contention", async () => {
     path = `/tmp/solid-objects-sqlite-${crypto.randomUUID()}.sqlite3`
     const setup = new DatabaseSync(path)
+    setup.exec("PRAGMA journal_mode = WAL")
     setup.exec("CREATE TABLE records(id INTEGER PRIMARY KEY)")
     setup.close()
     blocker = lockDatabase(path)
@@ -38,6 +71,12 @@ describe("SQLite adapter", () => {
     ).resolves.toEqual({ count: 1n })
   })
 
+  it("rejects a synchronous level other than normal or full", () => {
+    expect(() => sqlite({ path: ":memory:", synchronous: "off" as SQLiteSynchronous })).toThrow(
+      new TypeError('synchronous must be "normal" or "full"'),
+    )
+  })
+
   it("validates its transaction retry budget", () => {
     expect(() => sqlite({ path: ":memory:", lockRetryAttempts: 0 })).toThrow(
       "lockRetryAttempts must be a positive safe integer",
@@ -47,6 +86,7 @@ describe("SQLite adapter", () => {
   it("stops retrying after its transaction retry budget", async () => {
     path = `/tmp/solid-objects-sqlite-${crypto.randomUUID()}.sqlite3`
     const setup = new DatabaseSync(path)
+    setup.exec("PRAGMA journal_mode = WAL")
     setup.exec("CREATE TABLE records(id INTEGER PRIMARY KEY)")
     setup.close()
     blocker = lockDatabase(path, { holdMilliseconds: 1_000 })
@@ -63,6 +103,16 @@ describe("SQLite adapter", () => {
     expect(performance.now() - startedAt).toBeLessThan(100)
   })
 })
+
+async function journalSettings(
+  target: SQLiteDatabase,
+): Promise<{ journal: string; synchronous: number }> {
+  return target.connection(async (connection) => {
+    const journal = await connection.get<{ journal_mode: string }>("PRAGMA journal_mode")
+    const synchronous = await connection.get<{ synchronous: number | bigint }>("PRAGMA synchronous")
+    return { journal: journal!.journal_mode, synchronous: Number(synchronous!.synchronous) }
+  })
+}
 
 function lockDatabase(databasePath: string, options: { holdMilliseconds?: number } = {}): Worker {
   return new Worker(
