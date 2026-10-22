@@ -20,6 +20,15 @@ Solid Objects is an independent project. It is not affiliated with Restate.
 
 The Restate facts come from the [Restate documentation](https://docs.restate.dev) and the [Restate server licence](https://github.com/restatedev/restate/blob/main/LICENSE) (checked October 15, 2026).
 
+## How do delayed messages and timers work in Restate?
+
+Restate names two ways to schedule work later in TypeScript. You can send a delayed message ([`restate.rpc.sendOpts({ delay })`](https://docs.restate.dev/develop/ts/service-communication)), or you can sleep (`ctx.sleep`) and then send a message. Restate recommends delayed messages, because "Other requests to the same Virtual Object can be processed during the delay period" ([Restate scheduling and timers](https://docs.restate.dev/develop/ts/durable-timers), checked October 18, 2026).
+
+- Restate "tracks and manages timers, ensuring they survive failures and restarts".
+- "If you sleep in an exclusive handler in a Virtual Object, all other calls to this object will be queued."
+- The SDK pages, the TypeScript pages included, call this a delayed message. Some operations pages, such as versioning and managing invocations, call it a delayed call.
+- In Solid Objects, `this.schedule({ at, key }).operation(input)` stores a reminder in the same SQL transaction as the turn. The turn ends at once, so other messages do not wait. One operation and key hold one alarm, and you can [cancel a reminder](../api.md#cancelling-a-reminder).
+
 ## Choose Restate when
 
 - You want a journal of each step, so that a retry resumes after the last completed step.
@@ -272,13 +281,15 @@ Restate reached 1.0 in June 2024. If a longer history matters more than keeping 
 Checked October 15, 2026:
 
 - [Restate services and virtual objects](https://docs.restate.dev/foundations/services)
-- [Restate service communication and delayed calls](https://docs.restate.dev/develop/ts/service-communication)
+- [Restate service communication and delayed messages](https://docs.restate.dev/develop/ts/service-communication)
 - [Restate durable steps](https://docs.restate.dev/develop/ts/durable-steps)
 - [Restate durable agents](https://docs.restate.dev/ai/patterns/durable-agents)
 - [Restate agent sessions](https://docs.restate.dev/ai/patterns/sessions)
 - [Restate sagas](https://docs.restate.dev/guides/sagas)
 - [Restate service configuration](https://docs.restate.dev/services/configuration)
 - [Restate server overview](https://docs.restate.dev/server/overview)
+- [Restate databases guide](https://docs.restate.dev/guides/databases)
+- [Restate scheduling and timers](https://docs.restate.dev/develop/ts/durable-timers) (checked October 18, 2026)
 - [Restate server licence](https://github.com/restatedev/restate/blob/main/LICENSE)
 
 ## More information

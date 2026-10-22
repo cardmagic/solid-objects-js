@@ -23,6 +23,16 @@ Solid Objects is an independent project. It is not affiliated with Graphile.
 
 The Graphile Worker facts come from the [Graphile Worker documentation](https://worker.graphile.org/docs) and its [source code](https://github.com/graphile/worker) (checked October 15, 2026).
 
+## Do jobs with the same `queue_name` run serially?
+
+Yes. Jobs in the same named queue run one at a time. The SQL function `graphile_worker.add_job` takes `queue_name`, and the JavaScript `addJob` takes `queueName`: "if you want certain tasks to run one at a time, add them to the same named queue" ([Graphile Worker `add_job`](https://worker.graphile.org/docs/sql-add-job), checked October 18, 2026).
+
+- The `TaskSpec` type describes `queueName` as "The queue to run this task under (only specify if you want jobs in this queue to run serially)" ([`addJob`](https://worker.graphile.org/docs/library/add-job)).
+- Serial is not the same as ordered after a failure. See the "Order after a failure" row above.
+- `job_key` (`jobKey` in JavaScript) is a "unique identifier for the job, used to replace, update or remove it later if needed" ([`add_job`](https://worker.graphile.org/docs/sql-add-job)). `job_key_mode` (`jobKeyMode` in JavaScript) is `replace` (the default), `preserve_run_at`, or `unsafe_dedupe` ([job keys](https://worker.graphile.org/docs/job-key)).
+- `run_at` (`runAt` in JavaScript) is "a timestamp after which to run the job; defaults to now".
+- In Solid Objects, the actor ID replaces `queue_name`, and `this.schedule({ at, key }).operation(input)` replaces `run_at` with a `job_key`.
+
 ## Choose Graphile Worker when
 
 - The work is background jobs, such as emails, webhooks, or reports.
@@ -277,6 +287,7 @@ Checked October 15, 2026:
 
 - [Graphile Worker introduction](https://worker.graphile.org/docs)
 - [Graphile Worker `addJob`](https://worker.graphile.org/docs/library/add-job)
+- [Graphile Worker `add_job` in SQL](https://worker.graphile.org/docs/sql-add-job) (checked October 18, 2026)
 - [Graphile Worker job keys](https://worker.graphile.org/docs/job-key)
 - [Graphile Worker error handling](https://worker.graphile.org/docs/error-handling)
 - [Graphile Worker exponential backoff](https://worker.graphile.org/docs/exponential-backoff)

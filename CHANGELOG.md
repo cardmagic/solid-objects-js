@@ -12,6 +12,16 @@
   to flush each commit before it returns. The adapter switches an existing file
   to WAL on its first access, with the same retries as a transaction. WAL keeps
   `-wal` and `-shm` files next to the database.
+- Add `docs/compare/ai-agents.md`, durable execution for TypeScript AI agents
+  on PostgreSQL. One table compares Restate, DBOS Transact, Temporal, and
+  Solid Objects: where the state lives, what a crash repeats, how a delayed
+  follow-up works, and what you run. The page embeds the tested agent session
+  example. `docs/comparisons.md` lists it.
+- The Restate page now answers how delayed messages and timers work. The DBOS
+  page answers how durable sleep, `send`, and `recv` work. The Graphile Worker
+  page answers whether jobs with the same `queue_name` run serially, and
+  describes `job_key` and `run_at`. Each answer quotes the official
+  documentation and gives the date that it was checked.
 - The short answer in `docs/virtual-actors.md` no longer states that version
   1.0 makes no claim of measured scale. It links `docs/versioning.md`, the one
   page that states the limits of version 1.0. Version 1.0.5 missed this
