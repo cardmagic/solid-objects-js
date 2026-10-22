@@ -1,6 +1,7 @@
 allowBuilds:
   esbuild: true
   workerd: true
+minimumReleaseAge: 14400
 minimumReleaseAgeExclude:
   - vitest@4.1.11
   - "@vitest/mocker@4.1.11"
