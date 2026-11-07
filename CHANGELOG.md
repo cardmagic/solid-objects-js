@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- Refresh the benchmark evidence against the released v1.0.5 source, with
+  repeated SQLite, PostgreSQL, and MySQL scenarios, a cart/outbox workload,
+  state-size measurements, retained per-operation latency data, and source and
+  artifact hashes. Read the loaded runtime version instead of reporting a
+  hardcoded old version, verify committed counts, and type-check the harness.
+
 - A SQLite file database now uses write-ahead logging (WAL) with
   `synchronous = NORMAL`, the settings that the Ruby gem gets from Active
   Record. Before, each commit made about four `fsync` calls, and

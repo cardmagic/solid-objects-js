@@ -4,6 +4,7 @@ import { postgresql } from "solid-objects/database/postgresql"
 import { sqlite } from "solid-objects/database/sqlite"
 
 export type BenchmarkDatabase = "sqlite" | "postgresql" | "mysql"
+export type BenchmarkWorkload = "counter" | "cart-outbox"
 
 export class BenchmarkCounter extends Actor {
   static override readonly actorType = "BenchmarkCounter"
@@ -19,6 +20,31 @@ export class BenchmarkCounter extends Actor {
     await new Promise((resolve) => setImmediate(resolve))
     this.count += 1
     return this.count
+  }
+}
+
+export class BenchmarkCart extends Actor {
+  static override readonly actorType = "BenchmarkCart"
+  count = 0
+  totalCents = 0
+  lines = Array.from({ length: 20 }, (_value, index) => ({
+    sku: `sku-${index}`,
+    quantity: 1,
+    priceCents: 100 + index,
+  }))
+
+  increment(): number {
+    const line = this.lines[this.count % this.lines.length]!
+    line.quantity += 1
+    this.count += 1
+    this.totalCents = this.lines.reduce((sum, item) => sum + item.quantity * item.priceCents, 0)
+    this.emit("cartChanged", { arguments: { totalCents: this.totalCents } })
+    return this.count
+  }
+
+  async incrementAfterYield(): Promise<number> {
+    await new Promise((resolve) => setImmediate(resolve))
+    return this.increment()
   }
 }
 
@@ -59,7 +85,9 @@ export function benchmarkRuntime(options: {
     authorizeQuery: () => true,
   })
   runtime.register(BenchmarkCounter)
+  runtime.register(BenchmarkCart)
   runtime.register(LargeStateCounter)
+  runtime.registerEffect("cartChanged", async () => null)
   return runtime
 }
 

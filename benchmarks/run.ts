@@ -1,19 +1,28 @@
 import assert from "node:assert/strict"
 import { mkdtemp, rm } from "node:fs/promises"
-import { cpus, freemem, platform, release, tmpdir, totalmem } from "node:os"
+import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { fileURLToPath } from "node:url"
 import { fork, type ChildProcess } from "node:child_process"
 import { performance } from "node:perf_hooks"
-import type { MessageReference } from "solid-objects"
+import type { ActorClass, MessageReference } from "solid-objects"
+import { benchmarkMetadata } from "./metadata.ts"
 import { waitForWorkerExit, waitForWorkerReady } from "./processes.ts"
-import { BenchmarkCounter, benchmarkRuntime, type BenchmarkDatabase } from "./shared.ts"
+import {
+  BenchmarkCounter,
+  BenchmarkCart,
+  benchmarkRuntime,
+  type BenchmarkDatabase,
+  type BenchmarkWorkload,
+} from "./shared.ts"
 
 type Shape = "warm-hot" | "warm-many" | "cold-many"
 type Handler = "synchronous" | "asynchronous"
 type Topology = "one-process" | "four-processes"
 
 interface Result {
+  sample: number
+  latenciesMilliseconds: number[]
   shape: Shape
   handler: Handler
   topology: Topology
@@ -30,6 +39,13 @@ if (!(["sqlite", "postgresql", "mysql"] as const).includes(database)) {
 const operations = positiveIntegerOption("operations", 250)
 const warmupOperations = positiveIntegerOption("warmup", 25)
 const concurrency = positiveIntegerOption("concurrency", 16)
+const repetitions = positiveIntegerOption("repetitions", 3)
+const workload = option("workload", "counter") as BenchmarkWorkload
+if (workload !== "counter" && workload !== "cart-outbox") {
+  throw new TypeError(`unsupported workload ${workload}`)
+}
+const actorClass: ActorClass<BenchmarkCounter> =
+  workload === "cart-outbox" ? BenchmarkCart : BenchmarkCounter
 const temporaryDirectory = await mkdtemp(join(tmpdir(), "solid-objects-benchmark-"))
 const databasePath = join(temporaryDirectory, "benchmark.sqlite3")
 const databaseLocation =
@@ -42,55 +58,57 @@ const tableNamePrefix = `solid_objects_benchmark_${process.pid}_`
 const results: Result[] = []
 
 try {
-  for (const topology of ["one-process", "four-processes"] as const) {
-    const runtime = benchmarkRuntime({
-      database,
-      ...(database === "sqlite"
-        ? { databasePath: databaseLocation }
-        : { databaseUrl: databaseLocation }),
-      tableNamePrefix,
-      workerCount: topology === "one-process" ? 4 : 1,
-    })
-    const shutdown = new AbortController()
-    let running: Promise<void> | undefined
-    let workers: ChildProcess[] = []
-    try {
-      await runtime.install()
-      if (topology === "one-process") {
-        running = runtime.run(shutdown.signal)
-      } else {
-        workers = await spawnWorkers({
-          database,
-          location: databaseLocation,
-          tableNamePrefix,
-        })
-      }
-      for (const shape of ["warm-hot", "warm-many", "cold-many"] as const) {
-        for (const handler of ["synchronous", "asynchronous"] as const) {
-          results.push(
-            await measure({
-              runtime,
-              shape,
-              handler,
-              topology,
-              operations,
-              warmupOperations,
-              concurrency,
-            }),
-          )
+  for (let sample = 1; sample <= repetitions; sample += 1) {
+    for (const topology of ["one-process", "four-processes"] as const) {
+      const runtime = benchmarkRuntime({
+        database,
+        ...(database === "sqlite"
+          ? { databasePath: databaseLocation }
+          : { databaseUrl: databaseLocation }),
+        tableNamePrefix,
+        workerCount: topology === "one-process" ? 4 : 1,
+      })
+      const shutdown = new AbortController()
+      let running: Promise<void> | undefined
+      let workers: ChildProcess[] = []
+      try {
+        await runtime.install()
+        if (topology === "one-process") {
+          running = runtime.run(shutdown.signal)
+        } else {
+          workers = await spawnWorkers({
+            database,
+            location: databaseLocation,
+            tableNamePrefix,
+          })
         }
+        for (const shape of ["warm-hot", "warm-many", "cold-many"] as const) {
+          for (const handler of ["synchronous", "asynchronous"] as const) {
+            results.push(
+              await measure({
+                sample,
+                runtime,
+                shape,
+                handler,
+                topology,
+                operations,
+                warmupOperations,
+                concurrency,
+              }),
+            )
+          }
+        }
+      } finally {
+        shutdown.abort()
+        await running
+        const workerExits = workers.map(waitForWorkerExit)
+        for (const worker of workers) worker.send("stop")
+        await Promise.all(workerExits)
+        await runtime.testing.reset()
+        await runtime.close()
       }
-    } finally {
-      shutdown.abort()
-      await running
-      const workerExits = workers.map(waitForWorkerExit)
-      for (const worker of workers) worker.send("stop")
-      await Promise.all(workerExits)
-      await runtime.testing.reset()
-      await runtime.close()
     }
   }
-
   const runtime = benchmarkRuntime({
     database,
     ...(database === "sqlite"
@@ -101,27 +119,37 @@ try {
   })
   await runtime.install()
   const databaseVersion = await readDatabaseVersion(runtime)
+  const durability = await runtime.settings.database.connection(async (connection) => {
+    if (database === "sqlite")
+      return {
+        journalMode: await connection.get("PRAGMA journal_mode"),
+        synchronous: await connection.get("PRAGMA synchronous"),
+      }
+    if (database === "postgresql")
+      return connection.get(
+        "SELECT current_setting('fsync') AS fsync, current_setting('synchronous_commit') AS synchronous_commit",
+      )
+    return connection.get(
+      "SELECT @@innodb_flush_log_at_trx_commit AS innodb_flush_log_at_trx_commit, @@sync_binlog AS sync_binlog",
+    )
+  })
   await runtime.close()
   process.stdout.write(
     `${JSON.stringify(
       {
-        measuredAt: new Date().toISOString(),
-        packageVersion: "0.13.0",
-        runtime: {
-          node: process.version,
-          platform: `${platform()} ${release()}`,
-          cpu: cpus()[0]?.model ?? "unknown",
-          logicalCpus: cpus().length,
-          totalMemoryBytes: totalmem(),
-          freeMemoryBytesAtReport: freemem(),
-        },
-        database: { adapter: database, version: databaseVersion },
+        ...(await benchmarkMetadata()),
+        database: { adapter: database, version: databaseVersion, durability },
         methodology: {
+          workload,
+          effectDelivery: "not measured; cart-outbox stages one effect per operation",
           operations,
           warmupOperations,
           concurrency,
+          repetitions,
           warmIdentityCount: 100,
           workerCount: 4,
+          pollingIntervalMilliseconds: 5,
+          idlePollingIntervalMilliseconds: 1000,
           latencyBoundary: "durable enqueue through committed result",
           percentile: "nearest rank",
         },
@@ -137,6 +165,7 @@ try {
 
 async function measure(options: {
   runtime: ReturnType<typeof benchmarkRuntime>
+  sample: number
   shape: Shape
   handler: Handler
   topology: Topology
@@ -144,24 +173,41 @@ async function measure(options: {
   warmupOperations: number
   concurrency: number
 }): Promise<Result> {
-  const runId = `${options.topology}-${options.shape}-${options.handler}-${Date.now()}`
+  process.stderr.write(
+    `sample ${options.sample}/${repetitions}: ${options.topology} ${options.shape} ${options.handler}\n`,
+  )
+  const expectedCounts = new Map<string, number>()
+  const runId = `${options.sample}-${options.topology}-${options.shape}-${options.handler}-${Date.now()}`
   const actorIds = Array.from({ length: 100 }, (_value, index) => `${runId}-warm-${index}`)
   if (options.shape !== "cold-many") {
     const ids = options.shape === "warm-hot" ? [actorIds[0] as string] : actorIds
-    await runBatch({ ...options, operations: ids.length, actorId: (index) => ids[index] as string })
+    await runBatch({
+      ...options,
+      expectedCounts,
+      operations: ids.length,
+      actorId: (index) => ids[index] as string,
+    })
   }
   await runBatch({
     ...options,
+    expectedCounts,
     operations: options.warmupOperations,
     actorId: identitySelector(options.shape, actorIds, `${runId}-warmup`),
   })
   const startedAt = performance.now()
   const latencies = await runBatch({
     ...options,
+    expectedCounts,
     actorId: identitySelector(options.shape, actorIds, `${runId}-measure`),
   })
   const elapsedMilliseconds = performance.now() - startedAt
+  for (const [actorId, count] of expectedCounts) {
+    const snapshot = await options.runtime.ref(actorClass, actorId).snapshot()
+    assert.equal(snapshot.count, count, `committed count mismatch for ${actorId}`)
+  }
   return {
+    sample: options.sample,
+    latenciesMilliseconds: latencies.map(round),
     shape: options.shape,
     handler: options.handler,
     topology: options.topology,
@@ -182,6 +228,7 @@ async function runBatch(options: {
   operations: number
   concurrency: number
   actorId(index: number): string
+  expectedCounts: Map<string, number>
 }): Promise<number[]> {
   let nextIndex = 0
   const latencies: number[] = []
@@ -191,7 +238,9 @@ async function runBatch(options: {
         const index = nextIndex
         nextIndex += 1
         if (index >= options.operations) return
-        const reference = options.runtime.ref(BenchmarkCounter, options.actorId(index))
+        const actorId = options.actorId(index)
+        options.expectedCounts.set(actorId, (options.expectedCounts.get(actorId) ?? 0) + 1)
+        const reference = options.runtime.ref(actorClass, actorId)
         const startedAt = performance.now()
         const message =
           options.handler === "synchronous"
