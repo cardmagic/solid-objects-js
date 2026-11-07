@@ -2,11 +2,6 @@
 
 ## Unreleased
 
-- Specify `instanceId` equality as the snapshot incarnation fence and creation
-  timestamps as metadata. Share the portable and SQL snapshot type comments,
-  document the non-persisted sentinel and external compare-and-set boundary,
-  and test recreation at a fixed database clock with identical state/revision.
-
 - A SQLite file database now uses write-ahead logging (WAL) with
   `synchronous = NORMAL`, the settings that the Ruby gem gets from Active
   Record. Before, each commit made about four `fsync` calls, and
@@ -21,6 +16,11 @@
   1.0 makes no claim of measured scale. It links `docs/versioning.md`, the one
   page that states the limits of version 1.0. Version 1.0.5 missed this
   sentence.
+
+- Specify `instanceId` equality as the snapshot incarnation fence and creation
+  timestamps as metadata. Share the portable and SQL snapshot type comments,
+  document the non-persisted sentinel and external compare-and-set boundary,
+  and test recreation at a fixed database clock with identical state/revision.
 
 ## 1.0.5 - 2026-10-18
 
