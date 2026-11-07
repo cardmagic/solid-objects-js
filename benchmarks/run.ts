@@ -6,6 +6,7 @@ import { fileURLToPath } from "node:url"
 import { fork, type ChildProcess } from "node:child_process"
 import { performance } from "node:perf_hooks"
 import type { ActorClass, MessageReference } from "solid-objects"
+import { benchmarkDurability } from "./durability.ts"
 import { benchmarkMetadata } from "./metadata.ts"
 import { waitForWorkerExit, waitForWorkerReady } from "./processes.ts"
 import {
@@ -119,20 +120,7 @@ try {
   })
   await runtime.install()
   const databaseVersion = await readDatabaseVersion(runtime)
-  const durability = await runtime.settings.database.connection(async (connection) => {
-    if (database === "sqlite")
-      return {
-        journalMode: await connection.get("PRAGMA journal_mode"),
-        synchronous: await connection.get("PRAGMA synchronous"),
-      }
-    if (database === "postgresql")
-      return connection.get(
-        "SELECT current_setting('fsync') AS fsync, current_setting('synchronous_commit') AS synchronous_commit",
-      )
-    return connection.get(
-      "SELECT @@innodb_flush_log_at_trx_commit AS innodb_flush_log_at_trx_commit, @@sync_binlog AS sync_binlog",
-    )
-  })
+  const durability = await benchmarkDurability(runtime.settings.database)
   await runtime.close()
   process.stdout.write(
     `${JSON.stringify(

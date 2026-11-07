@@ -10,7 +10,7 @@ const first = reports[0].report
 const lines = [
   `# Version ${first.packageVersion} benchmark results`,
   "",
-  "Each statistic is the median across independent samples. Percentiles are calculated within each sample; samples are not pooled. Raw reports retain every measured operation latency.",
+  "Each statistic is the median across separate samples. Percentiles are calculated within each sample; samples are not pooled. Raw reports retain every measured operation latency.",
   "",
 ]
 for (const { path, report } of reports) {

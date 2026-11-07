@@ -3,6 +3,83 @@
 The benchmark harness measures committed actor operations. It shows tradeoffs
 and catches large regressions. It does not predict application capacity.
 
+## Version 1.0.5 measurements
+
+The current dataset runs the released `v1.0.5` source at commit
+`8975f6e2ad94c114f3638cea8f167956061a9bc3`. The runtime source is unchanged;
+the measurement harness is overlaid from this repository. Every JSON report
+records that source revision, runtime source and built-artifact SHA-256 values,
+harness SHA-256, the loaded package version, actual driver versions, database
+version, host, and Node version. A package version alone is insufficient:
+current `main` also reports 1.0.5 but contains unreleased SQLite WAL changes.
+
+### Workloads and measurement boundary
+
+The counter matrix includes one hot identity, 100 warm identities, and newly
+created identities, each with synchronous and yielding handlers and one or four
+processes. A second matrix uses a cart with 20 line items. Every cart operation
+updates a quantity, recalculates the total, and commits one outbox effect with
+the actor state. Effect workers are disabled: the cart results measure durable
+outbox staging, not delivery to an external service. The yielding handler uses
+`setImmediate()`; it does not model external network latency.
+
+Each scenario has three separate samples of 250 measured operations after
+25 warmup operations, at client concurrency 16 and four actor workers. Counters
+are verified against all submitted operations after the timed batch. Tables
+report the median of each statistic across the three samples. Percentiles use
+nearest rank within each sample; samples are not pooled. The raw JSON retains
+all operation latencies, including slow samples. This short run is a development
+measurement, not a soak test or an application capacity guarantee.
+
+The state-size run has three samples of 300 operations after 25 warmups, at
+concurrency one. It verifies final committed count and payload size, records
+actual serialized state bytes, and retains operation latencies. Idle CPU uses
+three seconds of warmup and ten seconds of measurement per polling interval.
+The historical idle wake-up latency table below has not been rerun as part of
+this dataset.
+
+### Reproduce the released runtime
+
+Use a separate checkout so unreleased runtime changes cannot enter the result.
+Install the locked dependencies and overlay the measurement harness from the
+commit containing this dataset before building the runtime:
+
+```bash
+# Run from your normal checkout; save its benchmark harness commit first.
+harness_ref=$(git rev-parse HEAD)
+git worktree add --detach /tmp/solid-objects-v1.0.5 v1.0.5
+git archive "$harness_ref" benchmarks | tar -x -C /tmp/solid-objects-v1.0.5
+cd /tmp/solid-objects-v1.0.5
+pnpm install --frozen-lockfile
+pnpm exec tsc -p tsconfig.build.json
+git diff --exit-code v1.0.5 -- src
+
+node benchmarks/run.ts --database sqlite --workload counter \
+  --operations 250 --warmup 25 --repetitions 3 > sqlite-counter.json
+node benchmarks/run.ts --database sqlite --workload cart-outbox \
+  --operations 250 --warmup 25 --repetitions 3 > sqlite-cart-outbox.json
+node benchmarks/large-state.ts --operations 300 --warmup 25 \
+  --repetitions 3 > sqlite-large-state.json
+node benchmarks/idle.ts > sqlite-idle.json
+```
+
+Repeat the matrix with `--database postgresql` and `--database mysql` and the
+benchmark URLs shown below, using disposable local databases. Reports contain
+driver versions and durability settings without connection URLs or credentials.
+Run all scenarios sequentially. Use the recorded host, Node, database settings,
+and driver versions when comparing results; ordinary shared-host activity and
+storage behavior still affect them.
+
+Generate the complete tables from the retained reports with:
+
+```bash
+node benchmarks/summarize.mjs benchmarks/results/v1.0.5-2026-11-07/*.json
+```
+
+The summarizer rejects mixed runtime/harness provenance, missing scenarios or
+samples, and missing per-operation latencies. Keep the per-sample JSON when
+reporting a median so the variability remains reviewable.
+
 ## Idle polling
 
 The idle harness measures process CPU and empty database passes for the four
@@ -114,8 +191,10 @@ SOLID_OBJECTS_MYSQL_BENCHMARK_URL=mysql://... \
   pnpm run benchmark -- --database mysql
 ```
 
-Use `--operations`, `--warmup`, and `--concurrency` to change the recorded
-dataset. Redirect stdout to retain the JSON result.
+Use `--operations`, `--warmup`, `--concurrency`, and `--repetitions` to change
+the recorded dataset. The matrix defaults to three repetitions. Select
+`--workload counter` or `--workload cart-outbox`. Redirect stdout to retain the
+JSON result; progress and runtime diagnostics go to stderr.
 
 ## Observed results
 
