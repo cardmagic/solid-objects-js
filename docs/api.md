@@ -886,14 +886,31 @@ entry points; the last registration wins.
 - The turn-scoped context store expects serialized actor turns. One worker
   hosts one runtime. A page talks to that worker through messages, not
   through direct actor references.
-- The store scopes only the synchronous part of a callback and restores
-  the previous scope in strict stack order, so an interleaved task never
-  observes another turn's scope. The cost of that isolation: after the
-  first `await` inside an actor operation, `currentActor()`,
-  `applicationWritesForbidden()`, and the database deadline read as unset.
-  Keep guarded application-database writes in synchronous actor code or in
-  commit actions; Node keeps full `AsyncLocalStorage` propagation.
 - Alarms and reminders fire only while the hosting worker is alive.
+
+### Browser async context
+
+**The browser guards are best-effort after `await`.** The turn-scoped store
+restores its previous scope as soon as a callback returns a promise. After the
+first `await`, `currentActor()`, `applicationWritesForbidden()`, and the ambient
+inside-transaction check read as unset. A direct application write that was
+rejected before the yield can therefore execute afterward, including a write
+through a row-returning method. Do not rely on the facade to make browser
+actor code safe against such writes. Async callbacks passed to database
+transactions also lose the inside-transaction check; never wait for an actor
+on the same database while holding its transaction.
+
+Keep external writes in staged effects, or use a commit action's supplied
+fenced connection for SQL that must commit with actor state. Direct writes to a
+separate application database can survive a failed actor turn. Node retains
+these guards across awaits through `AsyncLocalStorage`.
+
+Durable actor-state fencing, mailbox ordering, and the SQLite WASM adapter's
+explicit transaction deadline enforcement remain active. The real-browser
+context regression attempts prohibited writes before a yield, after a promise,
+and after a timer, and verifies actor-state rollback independently. The context
+store intentionally does not retain a global scope until a promise settles:
+that would leak one actor's context into unrelated interleaved tasks.
 
 ## `solid-objects/browser/tab-host`
 

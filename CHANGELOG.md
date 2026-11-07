@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- Make the browser async-context limit prominent in the README, browser API,
+  and agent guide. Real-browser regression coverage attempts application writes
+  before and after yields, checks transaction-guard scope loss, and verifies
+  actor-state rollback. Correct guidance to use effects or the fenced commit
+  connection instead of direct application writes.
+
 - A SQLite file database now uses write-ahead logging (WAL) with
   `synchronous = NORMAL`, the settings that the Ruby gem gets from Active
   Record. Before, each commit made about four `fsync` calls, and

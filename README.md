@@ -177,6 +177,13 @@ Different identities can run concurrently. One global identity serializes everyt
 
 ## Solid Objects in the browser
 
+**Browser async-context limit:** after the first `await` in actor code,
+application-write and inside-transaction guards lose their context. Keep actor
+operations free of direct application database writes; use staged effects or
+commit actions with their supplied fenced connection. Durable actor commits
+remain fenced. Read the [browser context contract](docs/api.md#browser-async-context)
+before porting asynchronous Node actors.
+
 The full runtime runs inside a browser module worker. Actors look exactly
 like they do in Node; the database is SQLite WASM, and persistent storage
 lives in the origin's private file system (OPFS), so actor state survives
