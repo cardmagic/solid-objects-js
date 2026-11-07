@@ -22,7 +22,10 @@ Ruby capabilities. Ruby's equivalent primitives
 (`SolidObjects::Mailbox#enqueue`, `ActorSnapshot`) are already reachable
 in-process, and they need no dedicated public API. Node's `exports` map enforces
 a package-privacy boundary between a package and its dependents. Ruby has no
-such boundary between a gem and its dependents.
+such boundary between a gem and its dependents. The TypeScript snapshot contract
+uses `instanceId` equality for incarnation identity and numeric revisions within
+that identity; creation timestamps are metadata and may tie. This clarifies the
+existing integration API without changing shared commit fencing or Ruby behavior.
 
 ## Status vocabulary
 

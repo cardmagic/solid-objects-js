@@ -93,13 +93,13 @@
   inside-transaction check) read as unset. Durable-state fencing, mailbox
   ordering, and the SQLite WASM deadline enforcement do not depend on those
   guards. The guards are best-effort in the browser and exact in Node.
-- `snapshotWithIncarnation`'s `createdAtMs` orders actor incarnations to the
-  millisecond. Every adapter stores `created_at_ms` at that same precision. If
-  you destroy and recreate the same actor identity inside one database-clock
-  millisecond, the two incarnations get an equal `createdAtMs`. In that narrow
-  case, a caller cannot tell which of the two is current, so it cannot fence a
-  derived write on that value. `instanceId` still changes and shows that a
-  recreation occurred. It is a random UUID and carries no order of its own.
+- `snapshotWithIncarnation` identifies a persisted incarnation by `instanceId`.
+  Use exact ID equality, with numeric revision comparison only within that ID.
+  `createdAtMs` is millisecond creation metadata; destruction and recreation can
+  produce equal timestamps and revisions while their IDs differ. Neither a
+  timestamp nor a random UUID provides a total incarnation order. Snapshot
+  reads alone do not atomically fence an external write; see
+  [Snapshot incarnation identity](api.md#snapshot-incarnation-identity).
 - Large documents, bulk pipelines, globally placed edge state, and global
   counters are outside the intended workload. Prefer an ordinary row
   transaction when it completely enforces the invariant.
