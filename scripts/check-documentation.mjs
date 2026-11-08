@@ -24,6 +24,7 @@ const comparisonPages = [
   "docs/compare/dbos.md",
   "docs/compare/rivetkit.md",
   "docs/compare/graphile-worker.md",
+  "docs/compare/ai-agents.md",
 ]
 
 for (const documentationPath of documentationPaths) {
@@ -148,6 +149,16 @@ const embeddedExamples = [
   },
   {
     documentation: "docs/compare/restate.md",
+    example: "examples/compare/agent-runtime.ts",
+    language: "typescript",
+  },
+  {
+    documentation: "docs/compare/ai-agents.md",
+    example: "examples/compare/agent-session.ts",
+    language: "typescript",
+  },
+  {
+    documentation: "docs/compare/ai-agents.md",
     example: "examples/compare/agent-runtime.ts",
     language: "typescript",
   },

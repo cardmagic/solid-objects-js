@@ -24,6 +24,16 @@ The DBOS facts come from the [DBOS documentation](https://docs.dbos.dev) and the
 
 Two DBOS pages differ on more than one process. The FAQ says "Conductor is required for correct workflow recovery in applications that use more than one process". The recovery page describes recovery without Conductor: each process has an executor ID, and a restarted process recovers its own pending workflows.
 
+## How do durable sleep, send, and recv work in DBOS?
+
+`DBOS.sleep` is a durable sleep inside a workflow. It takes milliseconds. DBOS "saves the wakeup time in the database so that even if the workflow is interrupted and restarted multiple times while sleeping, it still wakes up on schedule" ([DBOS workflow tutorial](https://docs.dbos.dev/typescript/tutorials/workflow-tutorial), checked October 18, 2026). `DBOS.send` sends a message to a workflow, and `DBOS.recv` in that workflow waits for it. "Messages are dequeued first-in, first-out from a queue associated with the topic" ([DBOS methods reference](https://docs.dbos.dev/typescript/reference/methods)).
+
+- `DBOS.recv` waits up to `timeoutSeconds` and then returns `null`. "The default timeout is 60 seconds" ([DBOS workflow communication](https://docs.dbos.dev/typescript/tutorials/workflow-communication)).
+- "If you're sending a message from a workflow, DBOS guarantees exactly-once delivery" ([DBOS workflow communication](https://docs.dbos.dev/typescript/tutorials/workflow-communication)).
+- With `delaySeconds` on enqueue, the workflow "is initially placed in `DELAYED` status and transitions to `ENQUEUED` after the delay expires" ([DBOS methods reference](https://docs.dbos.dev/typescript/reference/methods)).
+- A partitioned queue with `partitionConcurrency: 1` runs one workflow at a time for each `queuePartitionKey`.
+- In Solid Objects, a message to the actor replaces `send` and `recv`, and a reminder (`this.schedule({ at, key }).operation(input)`) replaces a durable sleep. Solid Objects has no durable wait inside a turn. The turn that stores the reminder ends, so other messages for the same cart run before the reminder runs.
+
 ## Choose DBOS when
 
 - The work is a sequence of steps, and a completed step must not run again after a crash.
@@ -381,6 +391,8 @@ Checked October 15, 2026:
 - [DBOS upgrading workflows](https://docs.dbos.dev/typescript/tutorials/upgrading-workflows)
 - [Migrating from Temporal to DBOS](https://docs.dbos.dev/explanations/migrating-from-temporal)
 - [DBOS pricing](https://www.dbos.dev/dbos-pricing)
+- [DBOS methods reference](https://docs.dbos.dev/typescript/reference/methods) (checked October 18, 2026)
+- [DBOS workflow communication](https://docs.dbos.dev/typescript/tutorials/workflow-communication) (checked October 18, 2026)
 
 ## More information
 

@@ -15,6 +15,7 @@ runtime code on each page runs in the test suite.
 | [DBOS Transact and Solid Objects](compare/dbos.md)                           | Shopping cart checkout |
 | [RivetKit actors and Solid Objects](compare/rivetkit.md)                     | Chat rooms             |
 | [Graphile Worker named queues and Solid Objects](compare/graphile-worker.md) | Chat rooms             |
+| [Durable execution for TypeScript AI agents](compare/ai-agents.md)           | AI agent sessions      |
 
 ## Coordination models
 
