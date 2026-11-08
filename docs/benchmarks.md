@@ -9,8 +9,10 @@ The current dataset runs the released `v1.0.5` source at commit
 `8975f6e2ad94c114f3638cea8f167956061a9bc3`. The runtime source is unchanged; the measurement harness
 is overlaid from this repository. Every JSON report records that source revision, runtime source and
 built-artifact SHA-256 values, harness SHA-256, the loaded package version, actual driver versions,
-database version, host, and Node version. A package version alone is insufficient: current `main`
-also reports 1.0.5 but contains unreleased SQLite WAL changes.
+database version, host, and Node version. At collection time, the development branch also reported
+1.0.5 but contained SQLite WAL changes absent from the release tag. Use the recorded source and
+artifact hashes to reproduce the measured 1.0.5 implementation. Version 1.0.6 includes the later
+SQLite WAL changes.
 
 The archived reports were collected with harness revision
 `da5fe31b1ffa18eca92ce43fc26bca619d424d6e`. They verified committed operation
@@ -104,7 +106,7 @@ dataset.
 
 ### Reproduce the released runtime
 
-Use a separate checkout so unreleased runtime changes cannot enter the result. Install the locked
+Use a separate checkout so later runtime changes cannot enter the result. Install the locked
 dependencies and overlay the measurement harness from the commit containing this dataset before
 building the runtime:
 
