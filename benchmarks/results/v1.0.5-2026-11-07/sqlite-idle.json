@@ -1,0 +1,73 @@
+{
+  "measuredAt": "2026-11-07T19:07:17.817Z",
+  "packageVersion": "1.0.5",
+  "source": {
+    "revision": "8975f6e2ad94c114f3638cea8f167956061a9bc3",
+    "runtimeSourceSha256": "eb7d3285a5fbd457ea346c4cab3a970ce23082e9b5ab15f9d4f9f716aff67af0",
+    "runtimeArtifactSha256": "0f8c875c4a113c0ea8d9ec8f59a254046b363d670fa9db332b2370a4f434d829",
+    "harnessSha256": "34b1fa0bed8b0772682126274879d3b3774daa0de550b4075b443160529548d2",
+    "runtimeSourceDirty": false,
+    "workingTreeDirty": true
+  },
+  "dependencies": {
+    "pg": "8.23.0",
+    "mysql2": "3.23.3"
+  },
+  "runtime": {
+    "node": "v24.18.0",
+    "platform": "darwin 27.2.0",
+    "cpu": "Apple M2 Ultra",
+    "logicalCpus": 24,
+    "totalMemoryBytes": 68719476736,
+    "freeMemoryBytesAtReport": 367312896
+  },
+  "database": {
+    "adapter": "sqlite",
+    "version": "3.53.1",
+    "path": ":memory:"
+  },
+  "methodology": {
+    "roles": ["actors", "effects", "reminders", "broadcasts"],
+    "warmupMilliseconds": 3000,
+    "durationMilliseconds": 10000,
+    "cpuPercent": "process user plus system CPU time divided by wall time"
+  },
+  "results": [
+    {
+      "pollingIntervalMilliseconds": 20,
+      "idlePollingIntervalMilliseconds": 1000,
+      "polls": {
+        "actors": 10,
+        "effects": 10,
+        "reminders": 10,
+        "broadcasts": 10
+      },
+      "pollsPerSecond": 4,
+      "idleCpuPercent": 0.122
+    },
+    {
+      "pollingIntervalMilliseconds": 100,
+      "idlePollingIntervalMilliseconds": 1000,
+      "polls": {
+        "actors": 10,
+        "effects": 10,
+        "reminders": 10,
+        "broadcasts": 10
+      },
+      "pollsPerSecond": 3.999,
+      "idleCpuPercent": 0.124
+    },
+    {
+      "pollingIntervalMilliseconds": 500,
+      "idlePollingIntervalMilliseconds": 1000,
+      "polls": {
+        "actors": 10,
+        "effects": 10,
+        "reminders": 10,
+        "broadcasts": 10
+      },
+      "pollsPerSecond": 4,
+      "idleCpuPercent": 0.1
+    }
+  ]
+}

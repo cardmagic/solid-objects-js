@@ -7,13 +7,36 @@ const reports = await Promise.all(
   paths.map(async (path) => ({ path, report: JSON.parse(await readFile(path, "utf8")) })),
 )
 const first = reports[0].report
+assert.ok(first.source && first.runtime && first.dependencies, "missing report provenance")
 const lines = [
   `# Version ${first.packageVersion} benchmark results`,
   "",
-  "Each statistic is the median across separate samples. Percentiles are calculated within each sample; samples are not pooled. Raw reports retain every measured operation latency.",
+  "Matrix and state-size statistics are medians across three separate samples. Idle rows are single timed samples per interval. Percentiles are calculated within each sample; samples are not pooled. Raw reports retain every measured operation latency.",
+  "",
+  `Source: [${first.source.revision}](https://github.com/cardmagic/solid-objects-js/commit/${first.source.revision}). Runtime source is unchanged from that commit; the benchmark harness is overlaid.`,
+  "",
+  `Runtime: ${first.runtime.node}; ${first.runtime.platform}; ${first.runtime.cpu}; ${first.runtime.logicalCpus} logical CPUs; ${first.runtime.totalMemoryBytes / 2 ** 30} GiB RAM.`,
+  "",
+  `Drivers: pg ${first.dependencies.pg}, mysql2 ${first.dependencies.mysql2}.`,
+  "",
+  `Runtime source SHA-256: ${first.source.runtimeSourceSha256}`,
+  "",
+  `Built runtime SHA-256: ${first.source.runtimeArtifactSha256}`,
+  "",
+  `Harness SHA-256: ${first.source.harnessSha256}`,
   "",
 ]
 for (const { path, report } of reports) {
+  assert.ok(report.source && report.runtime && report.dependencies, "missing report provenance")
+  assert.deepEqual(report.dependencies, first.dependencies, "mixed driver versions")
+  for (const key of ["platform", "cpu", "logicalCpus", "totalMemoryBytes"]) {
+    assert.equal(report.runtime[key], first.runtime[key], `mixed host ${key}`)
+  }
+  assert.match(report.source.revision, /^[a-f0-9]{40}$/)
+  for (const key of ["runtimeSourceSha256", "runtimeArtifactSha256", "harnessSha256"]) {
+    assert.match(report.source[key], /^[a-f0-9]{64}$/)
+    assert.equal(report.source[key], first.source[key], `mixed ${key}`)
+  }
   assert.equal(report.packageVersion, first.packageVersion, "mixed package versions")
   assert.equal(report.source.revision, first.source.revision, "mixed source commits")
   assert.equal(
@@ -30,11 +53,26 @@ for (const { path, report } of reports) {
     "",
     `Raw report: [${name}](${name})`,
     "",
+    `Database version: ${report.database.version}. Durability settings: ${JSON.stringify(report.database.durability ?? "see methodology")}.`,
+    "",
   )
   if (report.methodology.workload) {
     const groups = new Map()
     for (const row of report.results) {
+      assert.equal(row.operations, report.methodology.operations)
       assert.equal(row.latenciesMilliseconds.length, report.methodology.operations)
+      assert.ok(
+        Number.isInteger(row.sample) &&
+          row.sample >= 1 &&
+          row.sample <= report.methodology.repetitions,
+      )
+      for (const [name, percent] of [
+        ["p50", 50],
+        ["p95", 95],
+        ["p99", 99],
+      ]) {
+        assert.equal(row.latencyMilliseconds[name], percentile(row.latenciesMilliseconds, percent))
+      }
       for (const latency of row.latenciesMilliseconds)
         assert.ok(Number.isFinite(latency) && latency >= 0)
       const key = `${row.topology}|${row.shape}|${row.handler}`
