@@ -1,3 +1,4 @@
+import type { SnapshotWithIncarnation } from "./actor-runtime.js"
 import { actorDiagnostics, type DiagnosticOptions, type ActorDiagnostics } from "./diagnostics.js"
 import { telemetryEvent, deliverTelemetry, type EventObserver } from "./telemetry.js"
 import type { Actor, ActorClass, ObservableProjection } from "./actor.js"
@@ -143,12 +144,7 @@ interface RegisteredActor {
   queries: ReadonlySet<string>
 }
 
-export interface SnapshotWithIncarnation<ActorType extends Actor> {
-  snapshot: ActorSnapshot<ActorType>
-  instanceId: string
-  revision: string
-  createdAtMs: number
-}
+export type { SnapshotWithIncarnation } from "./actor-runtime.js"
 
 interface PayloadProjectionSnapshot {
   state: JsonObject

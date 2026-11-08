@@ -3,6 +3,9 @@ import { Actor } from "../src/actor.js"
 import { createRuntime, type SolidObjectsRuntime } from "../src/runtime.js"
 import type { SolidObjectsConfiguration } from "../src/configuration.js"
 import { sqlite } from "../src/database/sqlite.js"
+import { postgresql } from "../src/database/postgresql.js"
+import { mysql } from "../src/database/mysql.js"
+import type { Database, DatabaseConnection } from "../src/database/types.js"
 import { Unauthorized } from "../src/errors.js"
 
 class Counter extends Actor {
@@ -19,6 +22,7 @@ class Counter extends Actor {
 let runtime: SolidObjectsRuntime | undefined
 
 afterEach(async () => {
+  await runtime?.testing.reset()
   await runtime?.close()
   runtime = undefined
 })
@@ -43,8 +47,10 @@ describe("snapshotWithIncarnation", () => {
     expect(withIncarnation.createdAtMs).toBeGreaterThan(0)
   })
 
-  it("gives a recreated actor a fresh instanceId; createdAtMs only orders it at millisecond granularity", async () => {
-    runtime = createRuntime(configuredSettings())
+  it("distinguishes identical snapshots recreated in the same database millisecond", async () => {
+    const settings = configuredSettings()
+    const now = Date.now()
+    runtime = createRuntime({ ...settings, database: frozenClock(settings.database!, now) })
     runtime.register(Counter)
     await runtime.install()
 
@@ -57,7 +63,34 @@ describe("snapshotWithIncarnation", () => {
     const second = await runtime.snapshotWithIncarnation(reference)
 
     expect(second.instanceId).not.toEqual(first.instanceId)
-    expect(second.createdAtMs).toBeGreaterThanOrEqual(first.createdAtMs)
+    expect(second.createdAtMs).toBe(now)
+    expect(first.createdAtMs).toBe(now)
+    expect(second.revision).toBe(first.revision)
+    expect(second.snapshot).toEqual(first.snapshot)
+    // Timestamp and revision equality cannot establish incarnation equality.
+    const refreshed = await runtime.snapshotWithIncarnation(reference)
+    expect(refreshed.instanceId).toBe(second.instanceId)
+    expect(refreshed.instanceId).not.toBe(first.instanceId)
+    await reference.increment()
+    const advanced = await runtime.snapshotWithIncarnation(reference)
+    expect(advanced.instanceId).toBe(second.instanceId)
+    expect(BigInt(advanced.revision)).toBeGreaterThan(BigInt(second.revision))
+  })
+
+  it("uses the non-persisted sentinel only until the first durable enqueue", async () => {
+    runtime = createRuntime(configuredSettings())
+    runtime.register(Counter)
+    await runtime.install()
+    const reference = runtime.ref(Counter, "not-yet-created")
+    expect(await runtime.snapshotWithIncarnation(reference)).toMatchObject({
+      instanceId: "0",
+      revision: "0",
+      createdAtMs: 0,
+    })
+    await reference.increment()
+    expect((await runtime.snapshotWithIncarnation(reference)).instanceId).not.toBe("0")
+    await reference.destroy()
+    expect((await runtime.snapshotWithIncarnation(reference)).instanceId).toBe("0")
   })
 
   it("honors authorizeQuery the same way snapshot() does", async () => {
@@ -75,7 +108,8 @@ function configuredSettings(
   overrides: Partial<SolidObjectsConfiguration> = {},
 ): SolidObjectsConfiguration {
   return {
-    database: sqlite({ path: ":memory:" }),
+    database: databaseForEnvironment(),
+    tableNamePrefix: "incarnation_test_",
     authorizeMessage: () => true,
     authorizeQuery: () => true,
     authorizeDestroy: () => true,
@@ -83,5 +117,30 @@ function configuredSettings(
     syncPollingIntervalMilliseconds: 1,
     maxAttempts: 2,
     ...overrides,
+  }
+}
+
+function databaseForEnvironment(): Database {
+  const connectionString = process.env.SOLID_OBJECTS_DATABASE_URL
+  if (connectionString?.startsWith("postgres")) return postgresql({ connectionString })
+  if (connectionString?.startsWith("mysql")) return mysql({ connectionString })
+  return sqlite({ path: ":memory:" })
+}
+
+function frozenClock(database: Database, now: number): Database {
+  const wrap = (connection: DatabaseConnection): DatabaseConnection => ({
+    run: connection.run.bind(connection),
+    get: connection.get.bind(connection),
+    all: connection.all.bind(connection),
+    nowMilliseconds: async () => now,
+  })
+  return {
+    family: database.family,
+    schemaIdentity: database.schemaIdentity,
+    transactionActive: () => database.transactionActive?.() ?? false,
+    connection: (callback) => database.connection((connection) => callback(wrap(connection))),
+    transaction: (callback, options) =>
+      database.transaction((connection) => callback(wrap(connection)), options),
+    close: () => database.close(),
   }
 }

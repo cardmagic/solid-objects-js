@@ -25,8 +25,11 @@ import type {
 
 export interface SnapshotWithIncarnation<ActorType extends Actor> {
   snapshot: ActorSnapshot<ActorType>
+  /** Opaque incarnation identity. Compare for equality; "0" means not persisted. */
   instanceId: string
+  /** Monotonic only within one instanceId; compare numerically with BigInt. */
   revision: string
+  /** Database creation time for display. Millisecond collisions are possible. */
   createdAtMs: number
 }
 

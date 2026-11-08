@@ -37,11 +37,10 @@ authorization, capability boundaries, and release validation.
   owner. The normal lifecycle is `install()`, `run(signal)`, then `close()`.
   `snapshotWithIncarnation(reference)` returns the same authorized fields as
   `snapshot()`. It adds the read instance's `instanceId`, `revision`, and
-  `createdAtMs` from that identical read. A caller can therefore fence a derived
-  write, such as a downstream projection, against a stale or superseded actor
-  incarnation. `createdAtMs` orders incarnations to the millisecond. See
-  [Limitations and non-goals](correctness.md#limitations-and-non-goals) for
-  the same-millisecond boundary.
+  `createdAtMs` from that identical read. Use `instanceId` for incarnation
+  equality and compare `revision` numerically only within that same instance.
+  `createdAtMs` is creation metadata, not a unique fence or a total ordering.
+  See [Snapshot incarnation identity](#snapshot-incarnation-identity).
 - `Actor`: base class providing `ref()`, `actorId`, `currentMessage`,
   `observables()`, `reject()`, `emit()`, `transmit()`, `commitAction()`,
   `schedule()`, `sendTo()`, and protected lifecycle hooks.
@@ -127,6 +126,35 @@ function playerForSession<PlayerType extends { sessionId: string }>(options: {
   return options.room.players.find((player) => player.sessionId === options.sessionId)
 }
 ```
+
+### Snapshot incarnation identity
+
+An actor's `instanceId` is its opaque persisted identity. It changes on destroy
+and recreation even when both creations share a database millisecond, state,
+and revision. Use exact `instanceId` equality to decide whether two reads refer
+to the same incarnation. Compare revisions with `BigInt` only when those IDs
+match. Neither `createdAtMs` nor a reset revision can establish identity.
+
+```typescript
+const observed = await runtime.snapshotWithIncarnation(reference)
+// After asynchronous work, check whether a newly authorized read still refers
+// to the same persisted incarnation.
+const current = await runtime.snapshotWithIncarnation(reference)
+const sameIncarnation = observed.instanceId !== "0" && current.instanceId === observed.instanceId
+const sameCommittedState = sameIncarnation && BigInt(current.revision) === BigInt(observed.revision)
+```
+
+This check is a comparison, not an atomic conditional write: the actor may
+change after the second read. A derived SQL write needs its own transactional
+compare-and-set on the expected instance ID and revision, with an authoritative
+procedure for adopting a new instance. A delayed callback must never replace a
+projection's instance merely because its UUID differs. UUIDs carry no ordering;
+creation timestamps can tie, and revision numbers restart on recreation.
+
+A snapshot of an actor that has no persisted row returns `instanceId: "0"`,
+`revision: "0"`, and `createdAtMs: 0`. That sentinel is not an incarnation token.
+The first durable enqueue materializes an instance with a fresh ID. Existing
+snapshot fields and durable commit fencing are unchanged.
 
 ### Reminders
 
@@ -886,14 +914,31 @@ entry points; the last registration wins.
 - The turn-scoped context store expects serialized actor turns. One worker
   hosts one runtime. A page talks to that worker through messages, not
   through direct actor references.
-- The store scopes only the synchronous part of a callback and restores
-  the previous scope in strict stack order, so an interleaved task never
-  observes another turn's scope. The cost of that isolation: after the
-  first `await` inside an actor operation, `currentActor()`,
-  `applicationWritesForbidden()`, and the database deadline read as unset.
-  Keep guarded application-database writes in synchronous actor code or in
-  commit actions; Node keeps full `AsyncLocalStorage` propagation.
 - Alarms and reminders fire only while the hosting worker is alive.
+
+### Browser async context
+
+**The browser guards are best-effort after `await`.** The turn-scoped store
+restores its previous scope as soon as a callback returns a promise. After the
+first `await`, `currentActor()`, `applicationWritesForbidden()`, and the ambient
+inside-transaction check read as unset. A direct application write that was
+rejected before the yield can therefore execute afterward, including a write
+through a row-returning method. Do not rely on the facade to make browser
+actor code safe against such writes. Async callbacks passed to database
+transactions also lose the inside-transaction check; never wait for an actor
+on the same database while holding its transaction.
+
+Keep external writes in staged effects, or use a commit action's supplied
+fenced connection for SQL that must commit with actor state. Direct writes to a
+separate application database can survive a failed actor turn. Node retains
+these guards across awaits through `AsyncLocalStorage`.
+
+Durable actor-state fencing, mailbox ordering, and the SQLite WASM adapter's
+explicit transaction deadline enforcement remain active. The real-browser
+context regression attempts prohibited writes before a yield, after a promise,
+and after a timer, and verifies actor-state rollback independently. The context
+store intentionally does not retain a global scope until a promise settles:
+that would leak one actor's context into unrelated interleaved tasks.
 
 ## `solid-objects/browser/tab-host`
 

@@ -22,7 +22,10 @@ Ruby capabilities. Ruby's equivalent primitives
 (`SolidObjects::Mailbox#enqueue`, `ActorSnapshot`) are already reachable
 in-process, and they need no dedicated public API. Node's `exports` map enforces
 a package-privacy boundary between a package and its dependents. Ruby has no
-such boundary between a gem and its dependents.
+such boundary between a gem and its dependents. The TypeScript snapshot contract
+uses `instanceId` equality for incarnation identity and numeric revisions within
+that identity; creation timestamps are metadata and may tie. This clarifies the
+existing integration API without changing shared commit fencing or Ruby behavior.
 
 ## Status vocabulary
 
@@ -217,7 +220,8 @@ next section tracks it as a shared capability. All four milestones are
 complete:
 
 - M1: the shared modules no longer import Node built-in modules, a
-  registered platform factory supplies async context propagation, and
+  registered platform factory supplies Node async context and synchronous-only
+  browser context (guards are unset after `await`), and
   `pnpm run check` enforces a Node-free import graph for the browser-safe
   modules.
 - M2: `solid-objects/database/sqlite-wasm` implements the `Database`

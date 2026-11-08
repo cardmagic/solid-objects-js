@@ -382,6 +382,10 @@ npm install solid-objects @sqlite.org/sqlite-wasm
 `@sqlite.org/sqlite-wasm` 3.50 or newer is an optional peer dependency. The
 browser runtime needs it.
 
+The browser does not propagate ambient guards across `await`. Read the
+[browser context contract](api.md#browser-async-context) before writing async
+actor operations or transaction callbacks.
+
 Every authorization callback denies by default in the browser too. Write the
 policy in [Authorize in the browser](#authorize-in-the-browser) before you call
 an actor. Reminders and effects run only while the worker calls
@@ -505,9 +509,12 @@ leaves the device.
 
 - One worker hosts one runtime. Do not import `solid-objects/browser/host` in
   a process that also imports the Node.js entry points.
-- After the first `await` in an operation, `currentActor()`,
-  `applicationWritesForbidden()`, and the database deadline read as unset. Keep
-  guarded writes in synchronous actor code or in commit actions.
+- After the first `await`, application-write and inside-transaction guards
+  read as unset. A direct application write can execute and survive a failed
+  turn. Use staged effects or a commit action's supplied fenced connection;
+  never wait for an actor while holding a transaction on its database. Read the
+  [browser context contract](api.md#browser-async-context). Durable actor fencing
+  and the SQLite WASM transaction deadline remain active.
 - Reminders and effects run only while a worker that calls
   `runtime.run(signal)` is alive. When the user closes every tab, nothing runs.
 - With `sharedSqliteWasm`, a statement can fail with `SharedDatabaseFailover`

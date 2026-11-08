@@ -147,6 +147,7 @@ const server = createServer(async (request, response) => {
   if (
     pathname === "/sqlite-wasm-worker.mjs" ||
     pathname === "/runtime-worker.mjs" ||
+    pathname === "/context-worker.mjs" ||
     pathname === "/tab-host-worker.mjs" ||
     pathname === "/transmit-worker.mjs" ||
     pathname === "/shared-db-worker.mjs" ||

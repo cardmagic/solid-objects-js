@@ -34,6 +34,12 @@ class DatabaseActor extends Actor {
     )
   }
 
+  async writeAfterYield({ timer }: { timer: boolean }): Promise<void> {
+    if (timer) await new Promise((resolve) => setTimeout(resolve, 0))
+    else await Promise.resolve()
+    await this.writeDirectly()
+  }
+
   writeAfterCommit(): void {
     this.commitAction("writeRecord", { value: "committed" })
   }
@@ -63,6 +69,19 @@ afterEach(async () => {
 })
 
 describe("guarded application database", () => {
+  it.each([false, true])(
+    "retains the Node write guard after a yield (timer: %s)",
+    async (timer) => {
+      await configureDatabases()
+      await expect(
+        DatabaseActor.ref("async-guard").writeAfterYield({ timer }),
+      ).rejects.toMatchObject({
+        details: { name: "ApplicationWriteForbidden" },
+      })
+      await expect(DatabaseActor.ref("async-guard").read()).resolves.toBe("initial")
+    },
+  )
+
   it("allows actor reads but rejects direct writes", async () => {
     await configureDatabases()
     const actor = DatabaseActor.ref("guarded")

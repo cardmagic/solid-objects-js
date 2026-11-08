@@ -22,10 +22,21 @@
   page answers whether jobs with the same `queue_name` run serially, and
   describes `job_key` and `run_at`. Each answer quotes the official
   documentation and gives the date that it was checked.
+- Make the browser async-context limit prominent in the README, browser API,
+  and agent guide. Real-browser regression coverage attempts application writes
+  before and after yields, checks transaction-guard scope loss, and verifies
+  actor-state rollback. Correct guidance to use effects or the fenced commit
+  connection instead of direct application writes.
+
 - The short answer in `docs/virtual-actors.md` no longer states that version
   1.0 makes no claim of measured scale. It links `docs/versioning.md`, the one
   page that states the limits of version 1.0. Version 1.0.5 missed this
   sentence.
+
+- Specify `instanceId` equality as the snapshot incarnation fence and creation
+  timestamps as metadata. Share the portable and SQL snapshot type comments,
+  document the non-persisted sentinel and external compare-and-set boundary,
+  and test recreation at a fixed database clock with identical state/revision.
 
 ## 1.0.5 - 2026-10-18
 
