@@ -217,7 +217,8 @@ next section tracks it as a shared capability. All four milestones are
 complete:
 
 - M1: the shared modules no longer import Node built-in modules, a
-  registered platform factory supplies async context propagation, and
+  registered platform factory supplies Node async context and synchronous-only
+  browser context (guards are unset after `await`), and
   `pnpm run check` enforces a Node-free import graph for the browser-safe
   modules.
 - M2: `solid-objects/database/sqlite-wasm` implements the `Database`
