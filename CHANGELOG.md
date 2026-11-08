@@ -23,6 +23,11 @@
   page that states the limits of version 1.0. Version 1.0.5 missed this
   sentence.
 
+- Specify `instanceId` equality as the snapshot incarnation fence and creation
+  timestamps as metadata. Share the portable and SQL snapshot type comments,
+  document the non-persisted sentinel and external compare-and-set boundary,
+  and test recreation at a fixed database clock with identical state/revision.
+
 ## 1.0.5 - 2026-10-18
 
 - `docs/versioning.md` is now the only page that states that version 1.0
