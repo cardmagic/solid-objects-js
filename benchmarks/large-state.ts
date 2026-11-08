@@ -1,8 +1,9 @@
-import { readFile } from "node:fs/promises"
 import { mkdtemp, rm } from "node:fs/promises"
-import { cpus, platform, release, tmpdir } from "node:os"
+import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { performance } from "node:perf_hooks"
+import assert from "node:assert/strict"
+import { benchmarkMetadata } from "./metadata.ts"
 import type { MessageReference } from "solid-objects"
 import { LargeStateCounter, benchmarkRuntime } from "./shared.ts"
 
@@ -12,33 +13,32 @@ const sizes = option("sizes", "0,16384,131072,1048576")
 const operations = positiveInteger(option("operations", "50"), "operations")
 const warmupOperations = positiveInteger(option("warmup", "5"), "warmup")
 
+const repetitions = positiveInteger(option("repetitions", "3"), "repetitions")
+
 const temporaryDirectory = await mkdtemp(join(tmpdir(), "solid-objects-large-state-"))
 const databasePath = join(temporaryDirectory, "large-state.sqlite3")
 const tableNamePrefix = `solid_objects_large_state_${process.pid}_`
 
 try {
-  const packageMetadata = JSON.parse(
-    await readFile(new URL("../package.json", import.meta.url), "utf8"),
-  ) as { version: string }
   const results = []
-  for (const size of sizes) results.push(await measure(size))
+  for (let sample = 1; sample <= repetitions; sample += 1) {
+    for (const size of sizes) results.push({ sample, ...(await measure(size)) })
+  }
 
   process.stdout.write(
     `${JSON.stringify(
       {
-        measuredAt: new Date().toISOString(),
-        packageVersion: packageMetadata.version,
-        runtime: {
-          node: process.version,
-          platform: `${platform()} ${release()}`,
-          cpu: cpus()[0]?.model ?? "unknown",
-          logicalCpus: cpus().length,
+        ...(await benchmarkMetadata()),
+        database: {
+          adapter: "sqlite",
+          storage: "temporary file",
+          version: results[0]?.databaseVersion,
         },
-        database: { adapter: "sqlite", path: databasePath },
         methodology: {
           sizes,
           operations,
           warmupOperations,
+          repetitions,
           concurrency: 1,
           shape: "one actor, one increment operation, sequential turns",
           latencyBoundary: "durable enqueue through committed result",
@@ -71,14 +71,27 @@ async function measure(size: number) {
       await waitForResult(await reference.send.increment())
     }
 
+    const latenciesMilliseconds: number[] = []
     const startedAt = performance.now()
     for (let index = 0; index < operations; index += 1) {
+      const operationStartedAt = performance.now()
       await waitForResult(await reference.send.increment())
+      latenciesMilliseconds.push(round(performance.now() - operationStartedAt))
     }
     const elapsedMilliseconds = performance.now() - startedAt
 
+    const snapshot = await reference.snapshot()
+    assert.equal(snapshot.count, operations + warmupOperations)
+    assert.equal(snapshot.payload.length, size)
+    const databaseVersion = await runtime.settings.database.connection(
+      async (connection) =>
+        (await connection.get<{ version: string }>("SELECT sqlite_version() AS version"))?.version,
+    )
     return {
-      stateBytes: size,
+      payloadBytes: size,
+      stateBytes: Buffer.byteLength(JSON.stringify(snapshot)),
+      databaseVersion,
+      latenciesMilliseconds,
       operations,
       millisecondsPerOperation: round(elapsedMilliseconds / operations),
       throughputPerSecond: round((operations * 1_000) / elapsedMilliseconds),

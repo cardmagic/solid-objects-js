@@ -1,0 +1,12 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "allowImportingTsExtensions": true,
+    "paths": {
+      "solid-objects": ["./src/index.ts"],
+      "solid-objects/*": ["./src/*.ts"]
+    }
+  },
+  "include": ["benchmarks/**/*.ts"]
+}

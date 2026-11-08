@@ -1,5 +1,4 @@
-import { readFile } from "node:fs/promises"
-import { cpus, platform, release } from "node:os"
+import { benchmarkMetadata } from "./metadata.ts"
 import { createRuntime } from "solid-objects"
 import { sqlite } from "solid-objects/database/sqlite"
 import type { WakeUpAdapter, WakeUpRole, WakeUpWatch } from "../src/wake-up.ts"
@@ -12,9 +11,6 @@ const warmupMilliseconds = positiveNumber(option("warmup", "3000"), "warmup")
 const durationMilliseconds = positiveNumber(option("duration", "10000"), "duration")
 
 async function main(): Promise<void> {
-  const packageMetadata = JSON.parse(
-    await readFile(new URL("../package.json", import.meta.url), "utf8"),
-  ) as { version: string }
   const results = []
   const databaseVersion = await readDatabaseVersion()
 
@@ -25,14 +21,7 @@ async function main(): Promise<void> {
   process.stdout.write(
     `${JSON.stringify(
       {
-        measuredAt: new Date().toISOString(),
-        packageVersion: packageMetadata.version,
-        runtime: {
-          node: process.version,
-          platform: `${platform()} ${release()}`,
-          cpu: cpus()[0]?.model ?? "unknown",
-          logicalCpus: cpus().length,
-        },
+        ...(await benchmarkMetadata()),
         database: { adapter: "sqlite", version: databaseVersion, path: ":memory:" },
         methodology: {
           roles,

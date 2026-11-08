@@ -111,7 +111,7 @@
     "deploy:cloudflare": "wrangler deploy --config examples/cloudflare/wrangler.jsonc",
     "check:cloudflare": "node scripts/check-cloudflare-imports.mjs && tsc -p tsconfig.cloudflare-example.json --noEmit && wrangler deploy --dry-run --config examples/cloudflare/wrangler.jsonc",
     "build": "pnpm run clean && tsc -p tsconfig.build.json && tsc -p tsconfig.cloudflare-build.json && tsc -p tsconfig.quickstart-build.json && node scripts/prepare-executable.mjs",
-    "check": "pnpm run check:parameters && pnpm run check:documentation && pnpm run check:browser-imports && tsc -p tsconfig.json --noEmit && tsc -p tsconfig.examples.json --noEmit && tsc -p tsconfig.cloudflare.json --noEmit",
+    "check": "pnpm run check:parameters && pnpm run check:documentation && pnpm run check:browser-imports && tsc -p tsconfig.json --noEmit && tsc -p tsconfig.examples.json --noEmit && tsc -p tsconfig.cloudflare.json --noEmit && tsc -p tsconfig.benchmarks.json",
     "check:browser-imports": "node scripts/check-browser-imports.mjs",
     "check:documentation": "node scripts/check-documentation.mjs",
     "check:parameters": "node scripts/check-parameter-style.mjs",
