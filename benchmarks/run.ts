@@ -6,6 +6,7 @@ import { fileURLToPath } from "node:url"
 import { fork, type ChildProcess } from "node:child_process"
 import { performance } from "node:perf_hooks"
 import type { ActorClass, MessageReference } from "solid-objects"
+import { verifyCartWork, type CartEffect } from "./cart-verification.ts"
 import { benchmarkDurability } from "./durability.ts"
 import { benchmarkMetadata } from "./metadata.ts"
 import { waitForWorkerExit, waitForWorkerReady } from "./processes.ts"
@@ -190,8 +191,23 @@ async function measure(options: {
   })
   const elapsedMilliseconds = performance.now() - startedAt
   for (const [actorId, count] of expectedCounts) {
-    const snapshot = await options.runtime.ref(actorClass, actorId).snapshot()
-    assert.equal(snapshot.count, count, `committed count mismatch for ${actorId}`)
+    if (workload === "cart-outbox") {
+      const snapshot = await options.runtime.ref(BenchmarkCart, actorId).snapshot()
+      const effects = await options.runtime.settings.database.connection((connection) =>
+        connection.all<CartEffect>(
+          `SELECT effects.name, effects.status, effects.arguments
+           FROM ${options.runtime.repository.table("effects")} effects
+           JOIN ${options.runtime.repository.table("instances")} instances
+             ON instances.id = effects.instance_id
+           WHERE instances.actor_type = ? AND instances.actor_id = ?`,
+          [BenchmarkCart.actorType, actorId],
+        ),
+      )
+      verifyCartWork({ actorId, expectedCount: count, snapshot, effects })
+    } else {
+      const snapshot = await options.runtime.ref(actorClass, actorId).snapshot()
+      assert.equal(snapshot.count, count, `committed count mismatch for ${actorId}`)
+    }
   }
   return {
     sample: options.sample,

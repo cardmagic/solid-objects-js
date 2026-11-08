@@ -12,6 +12,13 @@ built-artifact SHA-256 values, harness SHA-256, the loaded package version, actu
 database version, host, and Node version. A package version alone is insufficient: current `main`
 also reports 1.0.5 but contains unreleased SQLite WAL changes.
 
+The archived reports were collected with harness revision
+`da5fe31b1ffa18eca92ce43fc26bca619d424d6e`. They verified committed operation
+counts. The current collector additionally verifies cart quantities, totals, and
+one pending effect with the correct total for every committed operation, after
+the timed interval. Those additional assertions were not run retrospectively on
+the archived measurements.
+
 ### Recorded environment and results
 
 Measured November 7, 2026 on Apple M2 Ultra, 24 logical CPUs, 64 GiB RAM, darwin 27.2.0, and Node.js
@@ -22,7 +29,7 @@ shared. Absolute timings and workload comparisons require controlled repeats bef
 planning. For example, the three SQLite four-process synchronous hot-counter samples were 17.89,
 20.69, 79.42 operations/second. Every sample is retained.
 
-[Complete tables and raw reports](https://github.com/cardmagic/solid-objects-js/tree/main/benchmarks/results/v1.0.5-2026-11-07)
+[Complete tables and raw reports](../benchmarks/results/v1.0.5-2026-11-07/README.md)
 include all 216 matrix rows, 12 state-size rows, three idle rows, and 57,600 individual operation
 latencies.
 
@@ -102,8 +109,11 @@ dependencies and overlay the measurement harness from the commit containing this
 building the runtime:
 
 ```bash
-# Run from your normal checkout; save its benchmark harness commit first.
-harness_ref=$(git rev-parse HEAD)
+# Run from your normal checkout; pin the collector used by the archived reports.
+repository_root=$(pwd)
+harness_ref=da5fe31b1ffa18eca92ce43fc26bca619d424d6e
+# To collect new results with the stronger verifier instead:
+# harness_ref=$(git rev-parse HEAD)
 git worktree add --detach /tmp/solid-objects-v1.0.5 v1.0.5
 git archive "$harness_ref" benchmarks | tar -x -C /tmp/solid-objects-v1.0.5
 cd /tmp/solid-objects-v1.0.5
@@ -118,6 +128,7 @@ node benchmarks/run.ts --database sqlite --workload cart-outbox \
 node benchmarks/large-state.ts --operations 300 --warmup 25 \
   --repetitions 3 > sqlite-large-state.json
 node benchmarks/idle.ts > sqlite-idle.json
+cd "$repository_root"
 ```
 
 Repeat the matrix with `--database postgresql` and `--database mysql` and the benchmark URLs shown

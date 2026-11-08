@@ -1,8 +1,8 @@
 # Version 1.0.5 benchmark results
 
-Matrix and state-size statistics are medians across three separate samples. Idle rows are single
-timed samples per interval. Percentiles are calculated within each sample; samples are not pooled.
-Raw reports retain every measured operation latency.
+Matrix and state-size statistics are medians across the samples recorded in each report. Idle rows
+are single timed samples per interval. Percentiles are calculated within each sample; samples are
+not pooled. Raw reports retain every measured operation latency.
 
 Source:
 [8975f6e2ad94c114f3638cea8f167956061a9bc3](https://github.com/cardmagic/solid-objects-js/commit/8975f6e2ad94c114f3638cea8f167956061a9bc3).
@@ -23,6 +23,8 @@ Harness SHA-256: 34b1fa0bed8b0772682126274879d3b3774daa0de550b4075b443160529548d
 Raw report: [sqlite-counter.json](sqlite-counter.json)
 
 Database version: 3.53.1. Durability settings: {"journalMode":"delete","synchronous":2}.
+
+Samples per scenario: 3.
 
 | Topology       | Shape     | Handler      | ops/s |  p50 ms |  p95 ms |  p99 ms |
 | -------------- | --------- | ------------ | ----: | ------: | ------: | ------: |
@@ -45,6 +47,8 @@ Raw report: [sqlite-cart-outbox.json](sqlite-cart-outbox.json)
 
 Database version: 3.53.1. Durability settings: {"journalMode":"delete","synchronous":2}.
 
+Samples per scenario: 3.
+
 | Topology       | Shape     | Handler      |  ops/s | p50 ms |  p95 ms |  p99 ms |
 | -------------- | --------- | ------------ | -----: | -----: | ------: | ------: |
 | one-process    | warm-hot  | synchronous  |  88.77 |  174.2 |  259.59 |  273.36 |
@@ -65,6 +69,8 @@ Database version: 3.53.1. Durability settings: {"journalMode":"delete","synchron
 Raw report: [postgresql-counter.json](postgresql-counter.json)
 
 Database version: 16.15 (Homebrew). Durability settings: {"fsync":"on","synchronousCommit":"on"}.
+
+Samples per scenario: 3.
 
 | Topology       | Shape     | Handler      |  ops/s |  p50 ms |  p95 ms |  p99 ms |
 | -------------- | --------- | ------------ | -----: | ------: | ------: | ------: |
@@ -87,6 +93,8 @@ Raw report: [postgresql-cart-outbox.json](postgresql-cart-outbox.json)
 
 Database version: 16.15 (Homebrew). Durability settings: {"fsync":"on","synchronousCommit":"on"}.
 
+Samples per scenario: 3.
+
 | Topology       | Shape     | Handler      |  ops/s |  p50 ms |  p95 ms |  p99 ms |
 | -------------- | --------- | ------------ | -----: | ------: | ------: | ------: |
 | one-process    | warm-hot  | synchronous  |  79.27 |  200.34 |  255.44 |  269.94 |
@@ -107,6 +115,8 @@ Database version: 16.15 (Homebrew). Durability settings: {"fsync":"on","synchron
 Raw report: [mysql-counter.json](mysql-counter.json)
 
 Database version: 26.10.0. Durability settings: {"innodbFlushLogAtTrxCommit":1,"syncBinlog":1}.
+
+Samples per scenario: 3.
 
 | Topology       | Shape     | Handler      |  ops/s |  p50 ms |  p95 ms |  p99 ms |
 | -------------- | --------- | ------------ | -----: | ------: | ------: | ------: |
@@ -129,6 +139,8 @@ Raw report: [mysql-cart-outbox.json](mysql-cart-outbox.json)
 
 Database version: 26.10.0. Durability settings: {"innodbFlushLogAtTrxCommit":1,"syncBinlog":1}.
 
+Samples per scenario: 3.
+
 | Topology       | Shape     | Handler      | ops/s |  p50 ms |  p95 ms |  p99 ms |
 | -------------- | --------- | ------------ | ----: | ------: | ------: | ------: |
 | one-process    | warm-hot  | synchronous  |  31.2 |  520.94 |  700.73 |  801.39 |
@@ -149,6 +161,8 @@ Database version: 26.10.0. Durability settings: {"innodbFlushLogAtTrxCommit":1,"
 Raw report: [sqlite-large-state.json](sqlite-large-state.json)
 
 Database version: 3.53.1. Durability settings: "see methodology".
+
+Samples per scenario: 3.
 
 | Payload bytes | Persisted state bytes | ops/s | p50 ms | p95 ms | p99 ms |
 | ------------: | --------------------: | ----: | -----: | -----: | -----: |

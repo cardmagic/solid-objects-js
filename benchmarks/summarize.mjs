@@ -11,7 +11,7 @@ assert.ok(first.source && first.runtime && first.dependencies, "missing report p
 const lines = [
   `# Version ${first.packageVersion} benchmark results`,
   "",
-  "Matrix and state-size statistics are medians across three separate samples. Idle rows are single timed samples per interval. Percentiles are calculated within each sample; samples are not pooled. Raw reports retain every measured operation latency.",
+  "Matrix and state-size statistics are medians across the samples recorded in each report. Idle rows are single timed samples per interval. Percentiles are calculated within each sample; samples are not pooled. Raw reports retain every measured operation latency.",
   "",
   `Source: [${first.source.revision}](https://github.com/cardmagic/solid-objects-js/commit/${first.source.revision}). Runtime source is unchanged from that commit; the benchmark harness is overlaid.`,
   "",
@@ -56,16 +56,18 @@ for (const { path, report } of reports) {
     `Database version: ${report.database.version}. Durability settings: ${JSON.stringify(report.database.durability ?? "see methodology")}.`,
     "",
   )
+  if (report.methodology.workload || report.methodology.sizes) {
+    assert.ok(
+      Number.isSafeInteger(report.methodology.repetitions) && report.methodology.repetitions > 0,
+      "invalid repetition count",
+    )
+    lines.push(`Samples per scenario: ${report.methodology.repetitions}.`, "")
+  }
   if (report.methodology.workload) {
     const groups = new Map()
     for (const row of report.results) {
       assert.equal(row.operations, report.methodology.operations)
       assert.equal(row.latenciesMilliseconds.length, report.methodology.operations)
-      assert.ok(
-        Number.isInteger(row.sample) &&
-          row.sample >= 1 &&
-          row.sample <= report.methodology.repetitions,
-      )
       for (const [name, percent] of [
         ["p50", 50],
         ["p95", 95],
@@ -85,8 +87,7 @@ for (const { path, report } of reports) {
       "| --- | --- | --- | ---: | ---: | ---: | ---: |",
     )
     for (const [key, rows] of groups) {
-      assert.equal(rows.length, report.methodology.repetitions)
-      assert.equal(new Set(rows.map((row) => row.sample)).size, report.methodology.repetitions)
+      assertSamples(rows, report.methodology.repetitions)
       const stats = [
         median(rows.map((r) => r.throughputPerSecond)),
         ...["p50", "p95", "p99"].map((p) => median(rows.map((r) => r.latencyMilliseconds[p]))),
@@ -100,9 +101,13 @@ for (const { path, report } of reports) {
     )
     for (const size of report.methodology.sizes) {
       const rows = report.results.filter((r) => r.payloadBytes === size)
-      assert.equal(rows.length, report.methodology.repetitions)
-      for (const row of rows)
+      assertSamples(rows, report.methodology.repetitions)
+      for (const row of rows) {
+        assert.equal(row.operations, report.methodology.operations)
         assert.equal(row.latenciesMilliseconds.length, report.methodology.operations)
+        for (const latency of row.latenciesMilliseconds)
+          assert.ok(Number.isFinite(latency) && latency >= 0)
+      }
       const stats = [
         median(rows.map((r) => r.stateBytes)),
         median(rows.map((r) => r.throughputPerSecond)),
@@ -123,6 +128,19 @@ for (const { path, report } of reports) {
   lines.push("")
 }
 process.stdout.write(`${lines.join("\n")}\n`)
+
+function assertSamples(rows, repetitions) {
+  assert.equal(rows.length, repetitions, "missing samples")
+  const samples = new Set()
+  for (const row of rows) {
+    assert.ok(
+      Number.isSafeInteger(row.sample) && row.sample >= 1 && row.sample <= repetitions,
+      "invalid sample ID",
+    )
+    assert.ok(!samples.has(row.sample), "duplicate sample ID")
+    samples.add(row.sample)
+  }
+}
 
 function median(values) {
   return percentile(values, 50)
