@@ -28,9 +28,44 @@ export function validateComparison(comparison) {
     "invalid concurrency",
   )
   for (const variant of comparison.variants) {
-    assert.match(variant.name, /^[a-z0-9.-]+$/)
+    assert.match(variant.name, /^[a-z0-9][a-z0-9.-]*$/)
     assert.match(variant.version, /^\d+\.\d+\.\d+$/)
+    if (variant.databases)
+      assert.ok(
+        variant.databases.length > 0 &&
+          variant.databases.every((database) => comparison.databases.includes(database)),
+        "invalid variant databases",
+      )
+    if (
+      comparison.databases.includes("sqlite") &&
+      (!variant.databases || variant.databases.includes("sqlite"))
+    ) {
+      assert.ok(
+        variant.sqliteDurability &&
+          ["delete", "wal"].includes(variant.sqliteDurability.journalMode) &&
+          [1, 2].includes(variant.sqliteDurability.synchronous),
+        "missing or invalid SQLite durability",
+      )
+      if (variant.synchronous) {
+        assert.ok(
+          ["normal", "full"].includes(variant.synchronous),
+          "invalid SQLite synchronous option",
+        )
+        assert.equal(
+          variant.sqliteDurability.synchronous,
+          variant.synchronous === "full" ? 2 : 1,
+          "inconsistent SQLite durability",
+        )
+      }
+    }
   }
+  for (const database of comparison.databases)
+    assert.ok(
+      comparison.variants.filter(
+        (variant) => !variant.databases || variant.databases.includes(database),
+      ).length >= 2,
+      "each database requires multiple variants",
+    )
 }
 
 export function comparisonPlan(comparison, database, round) {

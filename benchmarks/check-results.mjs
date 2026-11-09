@@ -1,10 +1,14 @@
 import assert from "node:assert/strict"
 import { execFileSync } from "node:child_process"
 import { readFile } from "node:fs/promises"
-import { fileURLToPath } from "node:url"
+import { fileURLToPath, pathToFileURL } from "node:url"
+import { resolve } from "node:path"
 import { comparisonRows } from "./comparison.mjs"
+import { assertPublishedTables, controlledTable } from "./publication.mjs"
 
-const root = new URL("./results/", import.meta.url)
+const root = process.argv[3]
+  ? pathToFileURL(resolve(process.argv[3]) + "/")
+  : new URL("./results/", import.meta.url)
 const catalog = JSON.parse(await readFile(process.argv[2] ?? new URL("index.json", root), "utf8"))
 assert.equal(catalog.schemaVersion, 1, "unsupported benchmark catalog")
 const ids = new Set()
@@ -28,6 +32,14 @@ for (const dataset of catalog.datasets) {
       run.profile.comparison,
       "comparison differs from archived profile",
     )
+    const phases = result.comparison.databases.flatMap((database) =>
+      Array.from({ length: result.comparison.rounds }, (_value, index) =>
+        result.comparison.concurrencies.map(
+          (concurrency) => `${database}-round-${index + 1}-concurrency-${concurrency}`,
+        ),
+      ).flat(),
+    )
+    await checkQuiet(directory, run, phases)
     const samples = await Promise.all(
       result.samples.map(async (sample) => {
         assert.match(sample.file, /^[a-zA-Z0-9.-]+\.json$/)
@@ -40,6 +52,10 @@ for (const dataset of catalog.datasets) {
       comparisonRows(samples, result.comparison),
       result.rows,
       "summary differs from raw samples",
+    )
+    assertPublishedTables(
+      controlledTable(result.rows),
+      await readFile(new URL("README.md", directory), "utf8"),
     )
   } else {
     assert.ok(
@@ -69,17 +85,55 @@ for (const dataset of catalog.datasets) {
         run.destroyedAt && !run.cleanupError && !run.downloadError,
         "unconfirmed teardown or download",
       )
+      await checkQuiet(directory, run, names)
       for (const report of reports)
         assert.equal(report.source.revision, run.runtimeRevision, "wrong archived revision")
     }
-    execFileSync(
+    const generated = execFileSync(
       process.execPath,
       [
         fileURLToPath(new URL("./summarize.mjs", import.meta.url)),
         ...names.map((name) => fileURLToPath(new URL(`${name}.json`, directory))),
       ],
-      { stdio: ["ignore", "pipe", "pipe"] },
+      { stdio: ["ignore", "pipe", "pipe"], encoding: "utf8" },
     )
+    assertPublishedTables(generated, await readFile(new URL("README.md", directory), "utf8"))
   }
 }
 console.log(`Validated ${ids.size} versioned benchmark datasets`)
+
+async function checkQuiet(directory, run, phases) {
+  assert.match(run.resultsSha256, /^[a-f0-9]{64}$/, "missing downloaded archive checksum")
+  const rows = (await readFile(new URL("quiet.jsonl", directory), "utf8"))
+    .trim()
+    .split("\n")
+    .map((line) => JSON.parse(line))
+  const limits = run.profile.quiet
+  for (const phase of phases) {
+    const samples = rows.filter((row) => row.phase === phase).slice(-limits.consecutiveSamples)
+    assert.equal(samples.length, limits.consecutiveSamples, `missing readiness samples: ${phase}`)
+    for (const sample of samples) {
+      assert.equal(sample.quiet, true, `host was not ready: ${phase}`)
+      assert.ok(
+        sample.uptimeSeconds >= limits.minimumUptimeSeconds,
+        `boot had not settled: ${phase}`,
+      )
+      for (const [value, maximum] of [
+        [sample.cpuPercent, limits.maximumCpuPercent],
+        [sample.ioWaitPercent, limits.maximumIoWaitPercent],
+        [sample.stealPercent, limits.maximumStealPercent],
+        [sample.diskBytesPerSecond, limits.maximumDiskBytesPerSecond],
+        [sample.loadPerCpu, limits.maximumLoadPerCpu],
+      ]) {
+        assert.ok(
+          Number.isFinite(value) && value >= 0 && value <= maximum,
+          `readiness threshold exceeded: ${phase}`,
+        )
+      }
+    }
+    assert.ok(
+      samples.at(-1).consecutive >= limits.consecutiveSamples,
+      `incomplete quiet period: ${phase}`,
+    )
+  }
+}
