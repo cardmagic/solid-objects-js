@@ -4,7 +4,7 @@ import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { fileURLToPath } from "node:url"
 import { describe, expect, it } from "vitest"
-import { comparisonPlan, comparisonRows } from "../benchmarks/comparison.mjs"
+import { comparisonPlan, comparisonRows, validateComparison } from "../benchmarks/comparison.mjs"
 import { assertPublishedTables, controlledTable } from "../benchmarks/publication.mjs"
 
 const script = fileURLToPath(new URL("../benchmarks/check-results.mjs", import.meta.url))
@@ -179,7 +179,73 @@ describe("controlled benchmark publication", () => {
     expect(() => assertPublishedTables(generated, formatted.replace("1,200.00", "1,201"))).toThrow()
     expect(() => assertPublishedTables(generated, formatted.replace("sqlite", "mysql"))).toThrow()
   })
+
+  it("accepts SQLite durability that matches the synchronous option and skips server-only variants", () => {
+    expect(() => validateComparison(durabilityPlan())).not.toThrow()
+    expect(() =>
+      validateComparison({
+        ...durabilityPlan(),
+        databases: ["postgresql"],
+        variants: [
+          { name: "old", version: "1.0.5" },
+          { name: "new", version: "1.0.6" },
+        ],
+      }),
+    ).not.toThrow()
+  })
+
+  it.each([
+    [
+      "missing SQLite durability",
+      (plan) => {
+        delete plan.variants[0].sqliteDurability
+      },
+      /missing or invalid SQLite durability/,
+    ],
+    [
+      "an unknown synchronous option",
+      (plan) => {
+        plan.variants[1].synchronous = "extra"
+      },
+      /invalid SQLite synchronous option/,
+    ],
+    [
+      "durability that differs from the synchronous option",
+      (plan) => {
+        plan.variants[1].synchronous = "full"
+      },
+      /inconsistent SQLite durability/,
+    ],
+  ])("rejects %s", (_name, mutate, message) => {
+    const plan = durabilityPlan()
+    mutate(plan)
+    expect(() => validateComparison(plan)).toThrow(message)
+  })
 })
+
+function durabilityPlan() {
+  return {
+    databases: ["sqlite", "postgresql"],
+    rounds: 3,
+    operations: 3,
+    warmup: 1,
+    concurrencies: [16],
+    variants: [
+      {
+        name: "old",
+        version: "1.0.5",
+        sqliteDurability: { journalMode: "delete", synchronous: 2 },
+      },
+      {
+        name: "new",
+        version: "1.0.6",
+        synchronous: "normal",
+        sqliteDurability: { journalMode: "wal", synchronous: 1 },
+      },
+      { name: "server", version: "1.0.6", databases: ["postgresql"] },
+    ],
+  }
+}
 
 function makePartial(fixture) {
   fixture.kind = "partial-controlled-comparison"
