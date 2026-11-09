@@ -132,7 +132,7 @@ import { waitFor, Worker } from "./worker.js"
 import { EffectWorker } from "./effect-worker.js"
 import type { WakeUpAdapter, WakeUpCapability, WakeUpRole, WakeUpWatch } from "./wake-up.js"
 import { notifyWakeUp } from "./wake-up-notification.js"
-import { selectWakeUp, type SelectedWakeUp } from "./wake-up-selection.js"
+import { selectWakeUp, singleOwnerWakeUp, type SelectedWakeUp } from "./wake-up-selection.js"
 import { withDatabaseDeadline } from "./database/deadline.js"
 import type { DatabaseConnection } from "./database/types.js"
 import { evaluateActorTurn, readActorObservables } from "./turn.js"
@@ -2310,6 +2310,10 @@ export class SolidObjectsRuntime {
   }
 
   private resolveWakeUp(): Promise<SelectedWakeUp> {
+    if (this.settings.singleOwner) {
+      this.wakeUpSelection ??= Promise.resolve(singleOwnerWakeUp())
+      return this.wakeUpSelection
+    }
     this.wakeUpSelection ??= selectWakeUp({
       setting: this.settings.wakeUp,
       database: this.settings.database,

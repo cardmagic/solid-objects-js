@@ -42,6 +42,18 @@ export async function selectWakeUp(options: WakeUpSelectionOptions): Promise<Sel
   return await named({ ...options, name: setting })
 }
 
+export function singleOwnerWakeUp(): SelectedWakeUp {
+  return {
+    adapter: new InProcessWakeUpAdapter(),
+    capability: {
+      adapter: "in_process",
+      crossesProcesses: false,
+      reason:
+        "singleOwner is set, so one process owns the database and in-process signalling reaches every role",
+    },
+  }
+}
+
 function configured(adapter: WakeUpAdapter): SelectedWakeUp {
   if (adapter.defaultCapability) return { adapter, capability: adapter.defaultCapability }
   return {

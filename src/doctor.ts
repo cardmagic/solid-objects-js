@@ -167,7 +167,7 @@ export class Doctor {
       const summary = `${capability.adapter}: ${capability.reason}${
         floor === undefined ? "" : `, floor ${floor} ms`
       }`
-      if (capability.crossesProcesses) {
+      if (capability.crossesProcesses || this.runtime.settings.singleOwner) {
         return check({ name: "wakeUp", status: "pass", message: summary })
       }
       return check({

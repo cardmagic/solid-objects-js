@@ -101,6 +101,7 @@ export interface SolidObjectsConfiguration {
   instrumentation?: (event: InstrumentationEvent) => void
   broadcast?: (event: BroadcastEvent) => Promise<void>
   wakeUp?: WakeUpSetting
+  singleOwner?: boolean
   redriveBatchSize?: number
   redriveBatchPauseMilliseconds?: number
   administrationIdentity?: (
@@ -192,6 +193,7 @@ export function buildSettings(configuration: SolidObjectsConfiguration): Runtime
           : String(authorizationContext)),
     logger: configuration.logger ?? consoleLogger,
     wakeUp: configuration.wakeUp ?? "automatic",
+    singleOwner: configuration.singleOwner ?? false,
     authorizeMessage: configuration.authorizeMessage ?? (() => false),
     authorizeQuery: configuration.authorizeQuery ?? (() => false),
     authorizeDestroy: configuration.authorizeDestroy ?? (() => false),
@@ -244,8 +246,29 @@ function validateWakeUpAdapter(adapter: WakeUpAdapter): void {
   }
 }
 
+function validateSingleOwner(settings: RuntimeSettings): void {
+  if (typeof settings.singleOwner !== "boolean") {
+    throw new TypeError("singleOwner must be a boolean")
+  }
+  if (!settings.singleOwner) return
+  if (settings.database.family !== "sqlite") {
+    throw new TypeError(
+      `singleOwner needs a SQLite database, and this database is ${settings.database.family}`,
+    )
+  }
+  if (typeof settings.wakeUp !== "string") {
+    throw new TypeError("singleOwner needs in-process wake-ups, and wakeUp is an adapter")
+  }
+  if (settings.wakeUp === "automatic" || settings.wakeUp === "in_process") return
+
+  throw new TypeError(
+    `singleOwner needs in-process wake-ups, and wakeUp is ${JSON.stringify(settings.wakeUp)}`,
+  )
+}
+
 function validateSettings(settings: RuntimeSettings): void {
   validateWakeUp(settings.wakeUp)
+  validateSingleOwner(settings)
   if (!/^[a-z][a-z0-9_]*$/.test(settings.tableNamePrefix)) {
     throw new TypeError("tableNamePrefix must contain lowercase letters, digits, and underscores")
   }

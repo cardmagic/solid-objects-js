@@ -65,19 +65,20 @@ as an instruction to divide the actor. See
 
 ## Runtime roles and supervision
 
-| Option                                      |         Default | Contract                                                          |
-| ------------------------------------------- | --------------: | ----------------------------------------------------------------- |
-| `workerCount`                               |             `1` | Non-negative actor workers.                                       |
-| `effectWorkerCount`                         |             `1` | Non-negative effect workers.                                      |
-| `broadcastWorkerCount`                      |             `1` | Non-negative broadcast workers when realtime is enabled.          |
-| `reminderSchedulerCount`                    |             `1` | Non-negative reminder schedulers.                                 |
-| `processHeartbeatIntervalMilliseconds`      |        `15_000` | Positive persisted heartbeat cadence.                             |
-| `processAliveThresholdMilliseconds`         |        `60_000` | Positive age after which an owner is stale.                       |
-| `shutdownTimeoutMilliseconds`               |        `15_000` | Positive shared graceful-shutdown budget.                         |
-| `supervisorRestartDelayMilliseconds`        |           `100` | Positive initial failed-role replacement delay.                   |
-| `supervisorMaximumRestartDelayMilliseconds` |        `10_000` | Positive cap no smaller than the initial delay.                   |
-| `wakeUp`                                    |   `"automatic"` | A name or an adapter implementing `watch`, `notify`, and `close`. |
-| `logger`                                    | console methods | Structured `debug`, `info`, `warn`, and `error` sink.             |
+| Option                                      |         Default | Contract                                                            |
+| ------------------------------------------- | --------------: | ------------------------------------------------------------------- |
+| `workerCount`                               |             `1` | Non-negative actor workers.                                         |
+| `effectWorkerCount`                         |             `1` | Non-negative effect workers.                                        |
+| `broadcastWorkerCount`                      |             `1` | Non-negative broadcast workers when realtime is enabled.            |
+| `reminderSchedulerCount`                    |             `1` | Non-negative reminder schedulers.                                   |
+| `processHeartbeatIntervalMilliseconds`      |        `15_000` | Positive persisted heartbeat cadence.                               |
+| `processAliveThresholdMilliseconds`         |        `60_000` | Positive age after which an owner is stale.                         |
+| `shutdownTimeoutMilliseconds`               |        `15_000` | Positive shared graceful-shutdown budget.                           |
+| `supervisorRestartDelayMilliseconds`        |           `100` | Positive initial failed-role replacement delay.                     |
+| `supervisorMaximumRestartDelayMilliseconds` |        `10_000` | Positive cap no smaller than the initial delay.                     |
+| `wakeUp`                                    |   `"automatic"` | A name or an adapter implementing `watch`, `notify`, and `close`.   |
+| `singleOwner`                               |         `false` | `true` when this process is the only writer of its SQLite database. |
+| `logger`                                    | console methods | Structured `debug`, `info`, `warn`, and `error` sink.               |
 
 Counts may be zero, but the complete configuration must leave at least one
 runtime role enabled. Broadcast workers are started only when `broadcast` or
