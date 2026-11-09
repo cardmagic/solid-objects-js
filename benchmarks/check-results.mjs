@@ -4,6 +4,7 @@ import { readFile, writeFile } from "node:fs/promises"
 import { fileURLToPath, pathToFileURL } from "node:url"
 import { resolve } from "node:path"
 import { comparisonRows } from "./comparison.mjs"
+import { completedComparison, comparisonForDatabases } from "./comparison-scope.mjs"
 import {
   assertPublishedTables,
   baselineHeadline,
@@ -27,9 +28,10 @@ for (const dataset of catalog.datasets) {
   assert.ok(dataset.environment, "missing environment label")
   const directory = new URL(`${dataset.id}/`, root)
   const load = async (name) => JSON.parse(await readFile(new URL(name, directory), "utf8"))
-  if (dataset.kind === "controlled-comparison") {
+  if (["controlled-comparison", "partial-controlled-comparison"].includes(dataset.kind)) {
     const run = await load("run.json")
-    assert.equal(run.status, "complete", "incomplete cloud run")
+    const partial = dataset.kind === "partial-controlled-comparison"
+    assert.equal(run.status, partial ? "failed" : "complete", "wrong parent experiment status")
     assert.ok(
       run.destroyedAt && !run.cleanupError && !run.downloadError,
       "unconfirmed teardown or download",
@@ -40,7 +42,27 @@ for (const dataset of catalog.datasets) {
       run.profile.comparison,
       "comparison differs from archived profile",
     )
-    const phases = result.comparison.databases.flatMap((database) =>
+    let scope = result.comparison
+    if (partial) {
+      assert.equal(run.purpose, "incomplete-diagnostics")
+      assert.ok(run.error || run.recoveryError, "missing parent failure evidence")
+      assert.deepEqual(
+        await completedComparison(directory, result.comparison),
+        result,
+        "partial summary must retain every fully completed backend",
+      )
+      assert.ok(
+        result.completedDatabases.length < result.comparison.databases.length,
+        "the whole sampling plan completed; do not label it partial",
+      )
+      assert.deepEqual(
+        dataset.databases,
+        result.completedDatabases,
+        "mislabeled completed backends",
+      )
+      scope = comparisonForDatabases(result.comparison, result.completedDatabases)
+    }
+    const phases = scope.databases.flatMap((database) =>
       Array.from({ length: result.comparison.rounds }, (_value, index) =>
         result.comparison.concurrencies.map(
           (concurrency) => `${database}-round-${index + 1}-concurrency-${concurrency}`,
@@ -57,15 +79,20 @@ for (const dataset of catalog.datasets) {
     const versions = [...new Set(samples.map((sample) => sample.report.packageVersion))].sort()
     assert.deepEqual(versions, [...dataset.versions].sort(), "mislabeled runtime versions")
     assert.deepEqual(
-      comparisonRows(samples, result.comparison),
+      comparisonRows(samples, scope),
       result.rows,
       "summary differs from raw samples",
     )
-    assertPublishedTables(
-      controlledTable(result.rows),
-      await readFile(new URL("README.md", directory), "utf8"),
-    )
-    if (dataset.guideTable) guideTables.set(dataset.id, comparisonHeadline(result))
+    const markdown = await readFile(new URL("README.md", directory), "utf8")
+    if (partial)
+      assert.match(
+        markdown,
+        /^# Incomplete/m,
+        "partial parent must remain visibly labeled incomplete",
+      )
+    assertPublishedTables(controlledTable(result.rows), markdown)
+    if (dataset.guideTable)
+      guideTables.set(dataset.id, comparisonHeadline({ ...result, comparison: scope }))
   } else {
     assert.ok(
       ["isolated-baseline", "historical-shared-host"].includes(dataset.kind),

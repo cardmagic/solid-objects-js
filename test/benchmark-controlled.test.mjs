@@ -24,6 +24,66 @@ describe("controlled benchmark publication", () => {
     expect(result.status, result.stderr).toBe(0)
   })
 
+  it("publishes every completed backend while keeping the parent experiment failed", async () => {
+    const result = await checkFixture(makePartial)
+    expect(result.status, result.stderr).toBe(0)
+  })
+
+  it.each([
+    [
+      "missing raw round",
+      (fixture) => {
+        fixture.omitFiles.push(fixture.result.samples[0].file)
+      },
+    ],
+    [
+      "selected subset of rounds",
+      (fixture) => {
+        fixture.result.samples.pop()
+      },
+    ],
+    [
+      "wrong backend scope",
+      (fixture) => {
+        fixture.result.completedDatabases = ["mysql"]
+      },
+    ],
+    [
+      "rewritten original plan",
+      (fixture) => {
+        fixture.result.comparison = { ...fixture.result.comparison, databases: ["sqlite"] }
+      },
+    ],
+    [
+      "successful parent label",
+      (fixture) => {
+        fixture.run.status = "complete"
+      },
+    ],
+    [
+      "hidden failure label",
+      (fixture) => {
+        fixture.markdown = fixture.markdown.replace("# Incomplete fixture", "# Complete fixture")
+      },
+    ],
+    [
+      "omitted fully completed backend",
+      (fixture) => {
+        fixture.extraReports = fixture.result.samples.map((sample, index) => {
+          const report = structuredClone(fixture.reports[index])
+          report.database = { adapter: "mysql", version: "8.4.8", durability: { flush: 1 } }
+          return { file: sample.file.replace("sqlite-", "mysql-"), report }
+        })
+      },
+    ],
+  ])("rejects partial publication with %s", async (_name, mutate) => {
+    const result = await checkFixture((fixture) => {
+      makePartial(fixture)
+      mutate(fixture)
+    })
+    expect(result.status).not.toBe(0)
+  })
+
   it.each([
     [
       "missing sample",
@@ -121,6 +181,18 @@ describe("controlled benchmark publication", () => {
   })
 })
 
+function makePartial(fixture) {
+  fixture.kind = "partial-controlled-comparison"
+  fixture.run.status = "failed"
+  fixture.run.purpose = "incomplete-diagnostics"
+  fixture.run.error = "Synthetic failure in MySQL after every SQLite round completed"
+  fixture.result.comparison.databases.push("mysql")
+  fixture.result.completedDatabases = ["sqlite"]
+  fixture.result.plannedReportCount = 12
+  fixture.result.emittedReportCount = 6
+  fixture.markdown = "# Incomplete fixture\n\n" + fixture.markdown
+}
+
 async function checkFixture(mutate = () => {}) {
   const root = await mkdtemp(join(tmpdir(), "so-controlled-publication-"))
   try {
@@ -147,8 +219,8 @@ async function checkFixture(mutate = () => {}) {
         },
       ],
     }
-    const samples = comparison.variants.flatMap((variant) =>
-      [1, 2, 3].map((round) => {
+    const samples = [1, 2, 3].flatMap((round) =>
+      comparisonPlan(comparison, "sqlite", round).map((variant) => {
         const report = structuredClone(archived)
         report.packageVersion = variant.version
         report.source.revision = variant.revision
@@ -174,7 +246,7 @@ async function checkFixture(mutate = () => {}) {
           variant: variant.name,
           round,
           concurrency: 16,
-          file: `${variant.name}-${round}.json`,
+          file: `sqlite-round-${round}-concurrency-16-${variant.name}.json`,
           report,
         }
       }),
@@ -194,6 +266,9 @@ async function checkFixture(mutate = () => {}) {
       samples: samples.map(({ report, ...sample }) => sample),
     }
     const fixture = {
+      kind: "controlled-comparison",
+      omitFiles: [],
+      extraReports: [],
       result,
       reports: samples.map((sample) => sample.report),
       markdown: controlledTable(result.rows),
@@ -225,7 +300,8 @@ async function checkFixture(mutate = () => {}) {
         datasets: [
           {
             id: "fixture",
-            kind: "controlled-comparison",
+            kind: fixture.kind,
+            databases: fixture.result.completedDatabases,
             environment: "Synthetic validation fixture",
             versions: ["1.0.5", "1.0.6"],
           },
@@ -239,8 +315,12 @@ async function checkFixture(mutate = () => {}) {
       fixture.quiet.map((row) => JSON.stringify(row)).join("\n"),
     )
     await writeFile(join(directory, "README.md"), fixture.markdown)
-    for (const [index, sample] of samples.entries())
+    for (const [index, sample] of samples.entries()) {
+      if (fixture.omitFiles.includes(sample.file)) continue
       await writeFile(join(directory, sample.file), JSON.stringify(fixture.reports[index]))
+    }
+    for (const sample of fixture.extraReports)
+      await writeFile(join(directory, sample.file), JSON.stringify(sample.report))
     return spawnSync(process.execPath, [script, join(root, "index.json"), root], {
       encoding: "utf8",
     })

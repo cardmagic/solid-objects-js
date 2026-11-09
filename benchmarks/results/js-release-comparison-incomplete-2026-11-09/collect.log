@@ -1,0 +1,1560 @@
+docker.io/library/postgres@sha256:5983db9a9c6ad225a48a46cfe2e03e6680b1826662befd0465eb05b34cb1c64e: Pulling from library/postgres
+dd051e1b8c92: Pulling fs layer
+cda6e21da0f2: Pulling fs layer
+9bcbde3fb062: Pulling fs layer
+fce9821bac7d: Pulling fs layer
+136766c05e5f: Pulling fs layer
+68d798fb46d0: Pulling fs layer
+a8c21670182b: Pulling fs layer
+ffef70d379d2: Pulling fs layer
+61b3cc329be3: Pulling fs layer
+1d919c5645b1: Pulling fs layer
+b056e8cb2530: Pulling fs layer
+27df7b5bf0b5: Pulling fs layer
+2a13757dbdad: Pulling fs layer
+5760334e16b5: Pulling fs layer
+cda6e21da0f2: Download complete
+a8c21670182b: Download complete
+5760334e16b5: Download complete
+136766c05e5f: Download complete
+27df7b5bf0b5: Download complete
+fce9821bac7d: Download complete
+68d798fb46d0: Download complete
+b056e8cb2530: Download complete
+9bcbde3fb062: Download complete
+ffef70d379d2: Download complete
+2a13757dbdad: Download complete
+61b3cc329be3: Download complete
+dd051e1b8c92: Download complete
+1d919c5645b1: Download complete
+ffef70d379d2: Pull complete
+dd051e1b8c92: Pull complete
+136766c05e5f: Pull complete
+2a13757dbdad: Pull complete
+cda6e21da0f2: Pull complete
+a8c21670182b: Pull complete
+fce9821bac7d: Pull complete
+61b3cc329be3: Pull complete
+5760334e16b5: Pull complete
+27df7b5bf0b5: Pull complete
+68d798fb46d0: Pull complete
+b056e8cb2530: Pull complete
+9bcbde3fb062: Pull complete
+1d919c5645b1: Pull complete
+Digest: sha256:5983db9a9c6ad225a48a46cfe2e03e6680b1826662befd0465eb05b34cb1c64e
+Status: Downloaded newer image for postgres@sha256:5983db9a9c6ad225a48a46cfe2e03e6680b1826662befd0465eb05b34cb1c64e
+docker.io/library/postgres@sha256:5983db9a9c6ad225a48a46cfe2e03e6680b1826662befd0465eb05b34cb1c64e
+docker.io/library/mysql@sha256:72c368d898861f3b3a07af0e6d690400f44f048799ed46822783d9224cc2c86d: Pulling from library/mysql
+0b3d5697e820: Pulling fs layer
+335c0ba6129f: Pulling fs layer
+b14917cf1885: Pulling fs layer
+332288060cf8: Pulling fs layer
+5a7ab34260fd: Pulling fs layer
+c3e99775cc39: Pulling fs layer
+abda743cff12: Pulling fs layer
+a8a79f346bc1: Pulling fs layer
+16ff0dc0f366: Pulling fs layer
+084e06fe4d96: Pulling fs layer
+0b3d5697e820: Download complete
+16ff0dc0f366: Download complete
+335c0ba6129f: Download complete
+084e06fe4d96: Download complete
+332288060cf8: Download complete
+5a7ab34260fd: Download complete
+abda743cff12: Download complete
+c3e99775cc39: Download complete
+a8a79f346bc1: Download complete
+b14917cf1885: Download complete
+332288060cf8: Pull complete
+5a7ab34260fd: Pull complete
+c3e99775cc39: Pull complete
+335c0ba6129f: Pull complete
+084e06fe4d96: Pull complete
+abda743cff12: Pull complete
+16ff0dc0f366: Pull complete
+a8a79f346bc1: Pull complete
+0b3d5697e820: Pull complete
+b14917cf1885: Pull complete
+Digest: sha256:72c368d898861f3b3a07af0e6d690400f44f048799ed46822783d9224cc2c86d
+Status: Downloaded newer image for mysql@sha256:72c368d898861f3b3a07af0e6d690400f44f048799ed46822783d9224cc2c86d
+docker.io/library/mysql@sha256:72c368d898861f3b3a07af0e6d690400f44f048799ed46822783d9224cc2c86d
+START sqlite-round-1-concurrency-1-v0.14.0-default 2026-11-09T05:10:08.095Z
+{
+  event: 'solid_objects.polling_only_cross_process_wake_up',
+  pollingIntervalMilliseconds: 5,
+  idlePollingIntervalMilliseconds: 1000
+}
+sample 1/1: four-processes warm-hot synchronous
+{
+  event: 'solid_objects.polling_only_cross_process_wake_up',
+  pollingIntervalMilliseconds: 5,
+  idlePollingIntervalMilliseconds: 1000
+}
+{
+  event: 'solid_objects.polling_only_cross_process_wake_up',
+  pollingIntervalMilliseconds: 5,
+  idlePollingIntervalMilliseconds: 1000
+}
+sample 1/1: four-processes warm-many synchronous
+sample 1/1: four-processes cold-many synchronous
+DONE sqlite-round-1-concurrency-1-v0.14.0-default
+START sqlite-round-1-concurrency-1-v1.0.5-default 2026-11-09T05:11:24.562Z
+{
+  event: 'solid_objects.polling_only_cross_process_wake_up',
+  pollingIntervalMilliseconds: 5,
+  idlePollingIntervalMilliseconds: 1000
+}
+{
+  event: 'solid_objects.polling_only_cross_process_wake_up',
+  pollingIntervalMilliseconds: 5,
+  idlePollingIntervalMilliseconds: 1000
+}
+sample 1/1: four-processes warm-hot synchronous
+{
+  event: 'solid_objects.polling_only_cross_process_wake_up',
+  pollingIntervalMilliseconds: 5,
+  idlePollingIntervalMilliseconds: 1000
+}
+sample 1/1: four-processes warm-many synchronous
+sample 1/1: four-processes cold-many synchronous
+DONE sqlite-round-1-concurrency-1-v1.0.5-default
+START sqlite-round-1-concurrency-1-v1.0.6-default 2026-11-09T05:12:39.072Z
+{
+  event: 'solid_objects.polling_only_cross_process_wake_up',
+  pollingIntervalMilliseconds: 5,
+  idlePollingIntervalMilliseconds: 1000
+}
+{
+  event: 'solid_objects.polling_only_cross_process_wake_up',
+  pollingIntervalMilliseconds: 5,
+  idlePollingIntervalMilliseconds: 1000
+}
+sample 1/1: four-processes warm-hot synchronous
+{
+  event: 'solid_objects.polling_only_cross_process_wake_up',
+  pollingIntervalMilliseconds: 5,
+  idlePollingIntervalMilliseconds: 1000
+}
+sample 1/1: four-processes warm-many synchronous
+sample 1/1: four-processes cold-many synchronous
+DONE sqlite-round-1-concurrency-1-v1.0.6-default
+START sqlite-round-1-concurrency-1-v1.0.6-wal-full 2026-11-09T05:13:04.776Z
+{
+  event: 'solid_objects.polling_only_cross_process_wake_up',
+  pollingIntervalMilliseconds: 5,
+  idlePollingIntervalMilliseconds: 1000
+}
+sample 1/1: four-processes warm-hot synchronous
+{
+  event: 'solid_objects.polling_only_cross_process_wake_up',
+  pollingIntervalMilliseconds: 5,
+  idlePollingIntervalMilliseconds: 1000
+}
+{
+  event: 'solid_objects.polling_only_cross_process_wake_up',
+  pollingIntervalMilliseconds: 5,
+  idlePollingIntervalMilliseconds: 1000
+}
+sample 1/1: four-processes warm-many synchronous
+sample 1/1: four-processes cold-many synchronous
+DONE sqlite-round-1-concurrency-1-v1.0.6-wal-full
+START sqlite-round-1-concurrency-16-v0.14.0-default 2026-11-09T05:15:36.648Z
+{
+  event: 'solid_objects.polling_only_cross_process_wake_up',
+  pollingIntervalMilliseconds: 5,
+  idlePollingIntervalMilliseconds: 1000
+}
+{
+  event: 'solid_objects.polling_only_cross_process_wake_up',
+  pollingIntervalMilliseconds: 5,
+  idlePollingIntervalMilliseconds: 1000
+}
+sample 1/1: four-processes warm-hot synchronous
+{
+  event: 'solid_objects.polling_only_cross_process_wake_up',
+  pollingIntervalMilliseconds: 5,
+  idlePollingIntervalMilliseconds: 1000
+}
+sample 1/1: four-processes warm-many synchronous
+sample 1/1: four-processes cold-many synchronous
+DONE sqlite-round-1-concurrency-16-v0.14.0-default
+START sqlite-round-1-concurrency-16-v1.0.5-default 2026-11-09T05:16:20.732Z
+{
+  event: 'solid_objects.polling_only_cross_process_wake_up',
+  pollingIntervalMilliseconds: 5,
+  idlePollingIntervalMilliseconds: 1000
+}
+sample 1/1: four-processes warm-hot synchronous
+{
+  event: 'solid_objects.polling_only_cross_process_wake_up',
+  pollingIntervalMilliseconds: 5,
+  idlePollingIntervalMilliseconds: 1000
+}
+{
+  event: 'solid_objects.polling_only_cross_process_wake_up',
+  pollingIntervalMilliseconds: 5,
+  idlePollingIntervalMilliseconds: 1000
+}
+sample 1/1: four-processes warm-many synchronous
+sample 1/1: four-processes cold-many synchronous
+DONE sqlite-round-1-concurrency-16-v1.0.5-default
+START sqlite-round-1-concurrency-16-v1.0.6-default 2026-11-09T05:17:05.401Z
+{
+  event: 'solid_objects.polling_only_cross_process_wake_up',
+  pollingIntervalMilliseconds: 5,
+  idlePollingIntervalMilliseconds: 1000
+}
+sample 1/1: four-processes warm-hot synchronous
+{
+  event: 'solid_objects.polling_only_cross_process_wake_up',
+  pollingIntervalMilliseconds: 5,
+  idlePollingIntervalMilliseconds: 1000
+}
+{
+  event: 'solid_objects.polling_only_cross_process_wake_up',
+  pollingIntervalMilliseconds: 5,
+  idlePollingIntervalMilliseconds: 1000
+}
+sample 1/1: four-processes warm-many synchronous
+sample 1/1: four-processes cold-many synchronous
+DONE sqlite-round-1-concurrency-16-v1.0.6-default
+START sqlite-round-1-concurrency-16-v1.0.6-wal-full 2026-11-09T05:17:28.380Z
+{
+  event: 'solid_objects.polling_only_cross_process_wake_up',
+  pollingIntervalMilliseconds: 5,
+  idlePollingIntervalMilliseconds: 1000
+}
+{
+  event: 'solid_objects.polling_only_cross_process_wake_up',
+  pollingIntervalMilliseconds: 5,
+  idlePollingIntervalMilliseconds: 1000
+}
+sample 1/1: four-processes warm-hot synchronous
+{
+  event: 'solid_objects.polling_only_cross_process_wake_up',
+  pollingIntervalMilliseconds: 5,
+  idlePollingIntervalMilliseconds: 1000
+}
+sample 1/1: four-processes warm-many synchronous
+sample 1/1: four-processes cold-many synchronous
+DONE sqlite-round-1-concurrency-16-v1.0.6-wal-full
+START sqlite-round-2-concurrency-1-v1.0.5-default 2026-11-09T05:19:36.204Z
+{
+  event: 'solid_objects.polling_only_cross_process_wake_up',
+  pollingIntervalMilliseconds: 5,
+  idlePollingIntervalMilliseconds: 1000
+}
+{
+  event: 'solid_objects.polling_only_cross_process_wake_up',
+  pollingIntervalMilliseconds: 5,
+  idlePollingIntervalMilliseconds: 1000
+}
+{
+  event: 'solid_objects.polling_only_cross_process_wake_up',
+  pollingIntervalMilliseconds: 5,
+  idlePollingIntervalMilliseconds: 1000
+}
+sample 1/1: four-processes warm-hot synchronous
+{
+  event: 'solid_objects.polling_only_cross_process_wake_up',
+  pollingIntervalMilliseconds: 5,
+  idlePollingIntervalMilliseconds: 1000
+}
+sample 1/1: four-processes warm-many synchronous
+sample 1/1: four-processes cold-many synchronous
+DONE sqlite-round-2-concurrency-1-v1.0.5-default
+START sqlite-round-2-concurrency-1-v1.0.6-default 2026-11-09T05:20:39.096Z
+{
+  event: 'solid_objects.polling_only_cross_process_wake_up',
+  pollingIntervalMilliseconds: 5,
+  idlePollingIntervalMilliseconds: 1000
+}
+{
+  event: 'solid_objects.polling_only_cross_process_wake_up',
+  pollingIntervalMilliseconds: 5,
+  idlePollingIntervalMilliseconds: 1000
+}
+sample 1/1: four-processes warm-hot synchronous
+{
+  event: 'solid_objects.polling_only_cross_process_wake_up',
+  pollingIntervalMilliseconds: 5,
+  idlePollingIntervalMilliseconds: 1000
+}
+sample 1/1: four-processes warm-many synchronous
+sample 1/1: four-processes cold-many synchronous
+DONE sqlite-round-2-concurrency-1-v1.0.6-default
+START sqlite-round-2-concurrency-1-v1.0.6-wal-full 2026-11-09T05:21:09.890Z
+{
+  event: 'solid_objects.polling_only_cross_process_wake_up',
+  pollingIntervalMilliseconds: 5,
+  idlePollingIntervalMilliseconds: 1000
+}
+{
+  event: 'solid_objects.polling_only_cross_process_wake_up',
+  pollingIntervalMilliseconds: 5,
+  idlePollingIntervalMilliseconds: 1000
+}
+sample 1/1: four-processes warm-hot synchronous
+{
+  event: 'solid_objects.polling_only_cross_process_wake_up',
+  pollingIntervalMilliseconds: 5,
+  idlePollingIntervalMilliseconds: 1000
+}
+sample 1/1: four-processes warm-many synchronous
+sample 1/1: four-processes cold-many synchronous
+DONE sqlite-round-2-concurrency-1-v1.0.6-wal-full
+START sqlite-round-2-concurrency-1-v0.14.0-default 2026-11-09T05:21:44.682Z
+{
+  event: 'solid_objects.polling_only_cross_process_wake_up',
+  pollingIntervalMilliseconds: 5,
+  idlePollingIntervalMilliseconds: 1000
+}
+{
+  event: 'solid_objects.polling_only_cross_process_wake_up',
+  pollingIntervalMilliseconds: 5,
+  idlePollingIntervalMilliseconds: 1000
+}
+sample 1/1: four-processes warm-hot synchronous
+{
+  event: 'solid_objects.polling_only_cross_process_wake_up',
+  pollingIntervalMilliseconds: 5,
+  idlePollingIntervalMilliseconds: 1000
+}
+sample 1/1: four-processes warm-many synchronous
+sample 1/1: four-processes cold-many synchronous
+DONE sqlite-round-2-concurrency-1-v0.14.0-default
+START sqlite-round-2-concurrency-16-v1.0.5-default 2026-11-09T05:24:20.084Z
+{
+  event: 'solid_objects.polling_only_cross_process_wake_up',
+  pollingIntervalMilliseconds: 5,
+  idlePollingIntervalMilliseconds: 1000
+}
+sample 1/1: four-processes warm-hot synchronous
+{
+  event: 'solid_objects.polling_only_cross_process_wake_up',
+  pollingIntervalMilliseconds: 5,
+  idlePollingIntervalMilliseconds: 1000
+}
+{
+  event: 'solid_objects.polling_only_cross_process_wake_up',
+  pollingIntervalMilliseconds: 5,
+  idlePollingIntervalMilliseconds: 1000
+}
+sample 1/1: four-processes warm-many synchronous
+sample 1/1: four-processes cold-many synchronous
+DONE sqlite-round-2-concurrency-16-v1.0.5-default
+START sqlite-round-2-concurrency-16-v1.0.6-default 2026-11-09T05:25:04.131Z
+{
+  event: 'solid_objects.polling_only_cross_process_wake_up',
+  pollingIntervalMilliseconds: 5,
+  idlePollingIntervalMilliseconds: 1000
+}
+{
+  event: 'solid_objects.polling_only_cross_process_wake_up',
+  pollingIntervalMilliseconds: 5,
+  idlePollingIntervalMilliseconds: 1000
+}
+sample 1/1: four-processes warm-hot synchronous
+{
+  event: 'solid_objects.polling_only_cross_process_wake_up',
+  pollingIntervalMilliseconds: 5,
+  idlePollingIntervalMilliseconds: 1000
+}
+sample 1/1: four-processes warm-many synchronous
+sample 1/1: four-processes cold-many synchronous
+DONE sqlite-round-2-concurrency-16-v1.0.6-default
+START sqlite-round-2-concurrency-16-v1.0.6-wal-full 2026-11-09T05:25:26.756Z
+{
+  event: 'solid_objects.polling_only_cross_process_wake_up',
+  pollingIntervalMilliseconds: 5,
+  idlePollingIntervalMilliseconds: 1000
+}
+sample 1/1: four-processes warm-hot synchronous
+{
+  event: 'solid_objects.polling_only_cross_process_wake_up',
+  pollingIntervalMilliseconds: 5,
+  idlePollingIntervalMilliseconds: 1000
+}
+{
+  event: 'solid_objects.polling_only_cross_process_wake_up',
+  pollingIntervalMilliseconds: 5,
+  idlePollingIntervalMilliseconds: 1000
+}
+sample 1/1: four-processes warm-many synchronous
+sample 1/1: four-processes cold-many synchronous
+DONE sqlite-round-2-concurrency-16-v1.0.6-wal-full
+START sqlite-round-2-concurrency-16-v0.14.0-default 2026-11-09T05:25:57.321Z
+{
+  event: 'solid_objects.polling_only_cross_process_wake_up',
+  pollingIntervalMilliseconds: 5,
+  idlePollingIntervalMilliseconds: 1000
+}
+sample 1/1: four-processes warm-hot synchronous
+{
+  event: 'solid_objects.polling_only_cross_process_wake_up',
+  pollingIntervalMilliseconds: 5,
+  idlePollingIntervalMilliseconds: 1000
+}
+{
+  event: 'solid_objects.polling_only_cross_process_wake_up',
+  pollingIntervalMilliseconds: 5,
+  idlePollingIntervalMilliseconds: 1000
+}
+sample 1/1: four-processes warm-many synchronous
+sample 1/1: four-processes cold-many synchronous
+DONE sqlite-round-2-concurrency-16-v0.14.0-default
+START sqlite-round-3-concurrency-1-v1.0.6-default 2026-11-09T05:28:34.453Z
+{
+  event: 'solid_objects.polling_only_cross_process_wake_up',
+  pollingIntervalMilliseconds: 5,
+  idlePollingIntervalMilliseconds: 1000
+}
+{
+  event: 'solid_objects.polling_only_cross_process_wake_up',
+  pollingIntervalMilliseconds: 5,
+  idlePollingIntervalMilliseconds: 1000
+}
+sample 1/1: four-processes warm-hot synchronous
+{
+  event: 'solid_objects.polling_only_cross_process_wake_up',
+  pollingIntervalMilliseconds: 5,
+  idlePollingIntervalMilliseconds: 1000
+}
+sample 1/1: four-processes warm-many synchronous
+sample 1/1: four-processes cold-many synchronous
+DONE sqlite-round-3-concurrency-1-v1.0.6-default
+START sqlite-round-3-concurrency-1-v1.0.6-wal-full 2026-11-09T05:29:00.851Z
+{
+  event: 'solid_objects.polling_only_cross_process_wake_up',
+  pollingIntervalMilliseconds: 5,
+  idlePollingIntervalMilliseconds: 1000
+}
+{
+  event: 'solid_objects.polling_only_cross_process_wake_up',
+  pollingIntervalMilliseconds: 5,
+  idlePollingIntervalMilliseconds: 1000
+}
+sample 1/1: four-processes warm-hot synchronous
+{
+  event: 'solid_objects.polling_only_cross_process_wake_up',
+  pollingIntervalMilliseconds: 5,
+  idlePollingIntervalMilliseconds: 1000
+}
+sample 1/1: four-processes warm-many synchronous
+sample 1/1: four-processes cold-many synchronous
+DONE sqlite-round-3-concurrency-1-v1.0.6-wal-full
+START sqlite-round-3-concurrency-1-v0.14.0-default 2026-11-09T05:29:35.074Z
+{
+  event: 'solid_objects.polling_only_cross_process_wake_up',
+  pollingIntervalMilliseconds: 5,
+  idlePollingIntervalMilliseconds: 1000
+}
+{
+  event: 'solid_objects.polling_only_cross_process_wake_up',
+  pollingIntervalMilliseconds: 5,
+  idlePollingIntervalMilliseconds: 1000
+}
+sample 1/1: four-processes warm-hot synchronous
+{
+  event: 'solid_objects.polling_only_cross_process_wake_up',
+  pollingIntervalMilliseconds: 5,
+  idlePollingIntervalMilliseconds: 1000
+}
+sample 1/1: four-processes warm-many synchronous
+sample 1/1: four-processes cold-many synchronous
+DONE sqlite-round-3-concurrency-1-v0.14.0-default
+START sqlite-round-3-concurrency-1-v1.0.5-default 2026-11-09T05:31:02.823Z
+sample 1/1: four-processes warm-hot synchronous
+{
+  event: 'solid_objects.polling_only_cross_process_wake_up',
+  pollingIntervalMilliseconds: 5,
+  idlePollingIntervalMilliseconds: 1000
+}
+{
+  event: 'solid_objects.polling_only_cross_process_wake_up',
+  pollingIntervalMilliseconds: 5,
+  idlePollingIntervalMilliseconds: 1000
+}
+{
+  event: 'solid_objects.polling_only_cross_process_wake_up',
+  pollingIntervalMilliseconds: 5,
+  idlePollingIntervalMilliseconds: 1000
+}
+sample 1/1: four-processes warm-many synchronous
+sample 1/1: four-processes cold-many synchronous
+DONE sqlite-round-3-concurrency-1-v1.0.5-default
+START sqlite-round-3-concurrency-16-v1.0.6-default 2026-11-09T05:34:19.430Z
+{
+  event: 'solid_objects.polling_only_cross_process_wake_up',
+  pollingIntervalMilliseconds: 5,
+  idlePollingIntervalMilliseconds: 1000
+}
+{
+  event: 'solid_objects.polling_only_cross_process_wake_up',
+  pollingIntervalMilliseconds: 5,
+  idlePollingIntervalMilliseconds: 1000
+}
+sample 1/1: four-processes warm-hot synchronous
+{
+  event: 'solid_objects.polling_only_cross_process_wake_up',
+  pollingIntervalMilliseconds: 5,
+  idlePollingIntervalMilliseconds: 1000
+}
+sample 1/1: four-processes warm-many synchronous
+sample 1/1: four-processes cold-many synchronous
+DONE sqlite-round-3-concurrency-16-v1.0.6-default
+START sqlite-round-3-concurrency-16-v1.0.6-wal-full 2026-11-09T05:34:44.182Z
+{
+  event: 'solid_objects.polling_only_cross_process_wake_up',
+  pollingIntervalMilliseconds: 5,
+  idlePollingIntervalMilliseconds: 1000
+}
+{
+  event: 'solid_objects.polling_only_cross_process_wake_up',
+  pollingIntervalMilliseconds: 5,
+  idlePollingIntervalMilliseconds: 1000
+}
+sample 1/1: four-processes warm-hot synchronous
+{
+  event: 'solid_objects.polling_only_cross_process_wake_up',
+  pollingIntervalMilliseconds: 5,
+  idlePollingIntervalMilliseconds: 1000
+}
+sample 1/1: four-processes warm-many synchronous
+sample 1/1: four-processes cold-many synchronous
+DONE sqlite-round-3-concurrency-16-v1.0.6-wal-full
+START sqlite-round-3-concurrency-16-v0.14.0-default 2026-11-09T05:35:14.204Z
+{
+  event: 'solid_objects.polling_only_cross_process_wake_up',
+  pollingIntervalMilliseconds: 5,
+  idlePollingIntervalMilliseconds: 1000
+}
+{
+  event: 'solid_objects.polling_only_cross_process_wake_up',
+  pollingIntervalMilliseconds: 5,
+  idlePollingIntervalMilliseconds: 1000
+}
+sample 1/1: four-processes warm-hot synchronous
+{
+  event: 'solid_objects.polling_only_cross_process_wake_up',
+  pollingIntervalMilliseconds: 5,
+  idlePollingIntervalMilliseconds: 1000
+}
+sample 1/1: four-processes warm-many synchronous
+sample 1/1: four-processes cold-many synchronous
+DONE sqlite-round-3-concurrency-16-v0.14.0-default
+START sqlite-round-3-concurrency-16-v1.0.5-default 2026-11-09T05:35:59.725Z
+{
+  event: 'solid_objects.polling_only_cross_process_wake_up',
+  pollingIntervalMilliseconds: 5,
+  idlePollingIntervalMilliseconds: 1000
+}
+{
+  event: 'solid_objects.polling_only_cross_process_wake_up',
+  pollingIntervalMilliseconds: 5,
+  idlePollingIntervalMilliseconds: 1000
+}
+sample 1/1: four-processes warm-hot synchronous
+{
+  event: 'solid_objects.polling_only_cross_process_wake_up',
+  pollingIntervalMilliseconds: 5,
+  idlePollingIntervalMilliseconds: 1000
+}
+sample 1/1: four-processes warm-many synchronous
+sample 1/1: four-processes cold-many synchronous
+DONE sqlite-round-3-concurrency-16-v1.0.5-default
+START sqlite-round-4-concurrency-1-v1.0.6-wal-full 2026-11-09T05:38:48.202Z
+{
+  event: 'solid_objects.polling_only_cross_process_wake_up',
+  pollingIntervalMilliseconds: 5,
+  idlePollingIntervalMilliseconds: 1000
+}
+{
+  event: 'solid_objects.polling_only_cross_process_wake_up',
+  pollingIntervalMilliseconds: 5,
+  idlePollingIntervalMilliseconds: 1000
+}
+sample 1/1: four-processes warm-hot synchronous
+{
+  event: 'solid_objects.polling_only_cross_process_wake_up',
+  pollingIntervalMilliseconds: 5,
+  idlePollingIntervalMilliseconds: 1000
+}
+sample 1/1: four-processes warm-many synchronous
+sample 1/1: four-processes cold-many synchronous
+DONE sqlite-round-4-concurrency-1-v1.0.6-wal-full
+START sqlite-round-4-concurrency-1-v0.14.0-default 2026-11-09T05:39:16.413Z
+{
+  event: 'solid_objects.polling_only_cross_process_wake_up',
+  pollingIntervalMilliseconds: 5,
+  idlePollingIntervalMilliseconds: 1000
+}
+{
+  event: 'solid_objects.polling_only_cross_process_wake_up',
+  pollingIntervalMilliseconds: 5,
+  idlePollingIntervalMilliseconds: 1000
+}
+sample 1/1: four-processes warm-hot synchronous
+{
+  event: 'solid_objects.polling_only_cross_process_wake_up',
+  pollingIntervalMilliseconds: 5,
+  idlePollingIntervalMilliseconds: 1000
+}
+sample 1/1: four-processes warm-many synchronous
+sample 1/1: four-processes cold-many synchronous
+DONE sqlite-round-4-concurrency-1-v0.14.0-default
+START sqlite-round-4-concurrency-1-v1.0.5-default 2026-11-09T05:41:00.151Z
+{
+  event: 'solid_objects.polling_only_cross_process_wake_up',
+  pollingIntervalMilliseconds: 5,
+  idlePollingIntervalMilliseconds: 1000
+}
+{
+  event: 'solid_objects.polling_only_cross_process_wake_up',
+  pollingIntervalMilliseconds: 5,
+  idlePollingIntervalMilliseconds: 1000
+}
+sample 1/1: four-processes warm-hot synchronous
+{
+  event: 'solid_objects.polling_only_cross_process_wake_up',
+  pollingIntervalMilliseconds: 5,
+  idlePollingIntervalMilliseconds: 1000
+}
+sample 1/1: four-processes warm-many synchronous
+sample 1/1: four-processes cold-many synchronous
+DONE sqlite-round-4-concurrency-1-v1.0.5-default
+START sqlite-round-4-concurrency-1-v1.0.6-default 2026-11-09T05:42:15.855Z
+{
+  event: 'solid_objects.polling_only_cross_process_wake_up',
+  pollingIntervalMilliseconds: 5,
+  idlePollingIntervalMilliseconds: 1000
+}
+{
+  event: 'solid_objects.polling_only_cross_process_wake_up',
+  pollingIntervalMilliseconds: 5,
+  idlePollingIntervalMilliseconds: 1000
+}
+sample 1/1: four-processes warm-hot synchronous
+{
+  event: 'solid_objects.polling_only_cross_process_wake_up',
+  pollingIntervalMilliseconds: 5,
+  idlePollingIntervalMilliseconds: 1000
+}
+sample 1/1: four-processes warm-many synchronous
+sample 1/1: four-processes cold-many synchronous
+DONE sqlite-round-4-concurrency-1-v1.0.6-default
+START sqlite-round-4-concurrency-16-v1.0.6-wal-full 2026-11-09T05:44:32.102Z
+{
+  event: 'solid_objects.polling_only_cross_process_wake_up',
+  pollingIntervalMilliseconds: 5,
+  idlePollingIntervalMilliseconds: 1000
+}
+{
+  event: 'solid_objects.polling_only_cross_process_wake_up',
+  pollingIntervalMilliseconds: 5,
+  idlePollingIntervalMilliseconds: 1000
+}
+sample 1/1: four-processes warm-hot synchronous
+{
+  event: 'solid_objects.polling_only_cross_process_wake_up',
+  pollingIntervalMilliseconds: 5,
+  idlePollingIntervalMilliseconds: 1000
+}
+sample 1/1: four-processes warm-many synchronous
+sample 1/1: four-processes cold-many synchronous
+DONE sqlite-round-4-concurrency-16-v1.0.6-wal-full
+START sqlite-round-4-concurrency-16-v0.14.0-default 2026-11-09T05:45:02.310Z
+{
+  event: 'solid_objects.polling_only_cross_process_wake_up',
+  pollingIntervalMilliseconds: 5,
+  idlePollingIntervalMilliseconds: 1000
+}
+{
+  event: 'solid_objects.polling_only_cross_process_wake_up',
+  pollingIntervalMilliseconds: 5,
+  idlePollingIntervalMilliseconds: 1000
+}
+sample 1/1: four-processes warm-hot synchronous
+{
+  event: 'solid_objects.polling_only_cross_process_wake_up',
+  pollingIntervalMilliseconds: 5,
+  idlePollingIntervalMilliseconds: 1000
+}
+sample 1/1: four-processes warm-many synchronous
+sample 1/1: four-processes cold-many synchronous
+DONE sqlite-round-4-concurrency-16-v0.14.0-default
+START sqlite-round-4-concurrency-16-v1.0.5-default 2026-11-09T05:45:46.725Z
+{
+  event: 'solid_objects.polling_only_cross_process_wake_up',
+  pollingIntervalMilliseconds: 5,
+  idlePollingIntervalMilliseconds: 1000
+}
+sample 1/1: four-processes warm-hot synchronous
+{
+  event: 'solid_objects.polling_only_cross_process_wake_up',
+  pollingIntervalMilliseconds: 5,
+  idlePollingIntervalMilliseconds: 1000
+}
+{
+  event: 'solid_objects.polling_only_cross_process_wake_up',
+  pollingIntervalMilliseconds: 5,
+  idlePollingIntervalMilliseconds: 1000
+}
+sample 1/1: four-processes warm-many synchronous
+sample 1/1: four-processes cold-many synchronous
+DONE sqlite-round-4-concurrency-16-v1.0.5-default
+START sqlite-round-4-concurrency-16-v1.0.6-default 2026-11-09T05:46:30.194Z
+{
+  event: 'solid_objects.polling_only_cross_process_wake_up',
+  pollingIntervalMilliseconds: 5,
+  idlePollingIntervalMilliseconds: 1000
+}
+{
+  event: 'solid_objects.polling_only_cross_process_wake_up',
+  pollingIntervalMilliseconds: 5,
+  idlePollingIntervalMilliseconds: 1000
+}
+sample 1/1: four-processes warm-hot synchronous
+{
+  event: 'solid_objects.polling_only_cross_process_wake_up',
+  pollingIntervalMilliseconds: 5,
+  idlePollingIntervalMilliseconds: 1000
+}
+sample 1/1: four-processes warm-many synchronous
+sample 1/1: four-processes cold-many synchronous
+DONE sqlite-round-4-concurrency-16-v1.0.6-default
+START sqlite-round-5-concurrency-1-v0.14.0-default 2026-11-09T05:48:40.682Z
+{
+  event: 'solid_objects.polling_only_cross_process_wake_up',
+  pollingIntervalMilliseconds: 5,
+  idlePollingIntervalMilliseconds: 1000
+}
+sample 1/1: four-processes warm-hot synchronous
+{
+  event: 'solid_objects.polling_only_cross_process_wake_up',
+  pollingIntervalMilliseconds: 5,
+  idlePollingIntervalMilliseconds: 1000
+}
+{
+  event: 'solid_objects.polling_only_cross_process_wake_up',
+  pollingIntervalMilliseconds: 5,
+  idlePollingIntervalMilliseconds: 1000
+}
+sample 1/1: four-processes warm-many synchronous
+sample 1/1: four-processes cold-many synchronous
+DONE sqlite-round-5-concurrency-1-v0.14.0-default
+START sqlite-round-5-concurrency-1-v1.0.5-default 2026-11-09T05:49:58.490Z
+{
+  event: 'solid_objects.polling_only_cross_process_wake_up',
+  pollingIntervalMilliseconds: 5,
+  idlePollingIntervalMilliseconds: 1000
+}
+{
+  event: 'solid_objects.polling_only_cross_process_wake_up',
+  pollingIntervalMilliseconds: 5,
+  idlePollingIntervalMilliseconds: 1000
+}
+sample 1/1: four-processes warm-hot synchronous
+{
+  event: 'solid_objects.polling_only_cross_process_wake_up',
+  pollingIntervalMilliseconds: 5,
+  idlePollingIntervalMilliseconds: 1000
+}
+sample 1/1: four-processes warm-many synchronous
+sample 1/1: four-processes cold-many synchronous
+DONE sqlite-round-5-concurrency-1-v1.0.5-default
+START sqlite-round-5-concurrency-1-v1.0.6-default 2026-11-09T05:51:07.983Z
+{
+  event: 'solid_objects.polling_only_cross_process_wake_up',
+  pollingIntervalMilliseconds: 5,
+  idlePollingIntervalMilliseconds: 1000
+}
+{
+  event: 'solid_objects.polling_only_cross_process_wake_up',
+  pollingIntervalMilliseconds: 5,
+  idlePollingIntervalMilliseconds: 1000
+}
+sample 1/1: four-processes warm-hot synchronous
+{
+  event: 'solid_objects.polling_only_cross_process_wake_up',
+  pollingIntervalMilliseconds: 5,
+  idlePollingIntervalMilliseconds: 1000
+}
+sample 1/1: four-processes warm-many synchronous
+sample 1/1: four-processes cold-many synchronous
+DONE sqlite-round-5-concurrency-1-v1.0.6-default
+START sqlite-round-5-concurrency-1-v1.0.6-wal-full 2026-11-09T05:51:37.624Z
+{
+  event: 'solid_objects.polling_only_cross_process_wake_up',
+  pollingIntervalMilliseconds: 5,
+  idlePollingIntervalMilliseconds: 1000
+}
+sample 1/1: four-processes warm-hot synchronous
+{
+  event: 'solid_objects.polling_only_cross_process_wake_up',
+  pollingIntervalMilliseconds: 5,
+  idlePollingIntervalMilliseconds: 1000
+}
+{
+  event: 'solid_objects.polling_only_cross_process_wake_up',
+  pollingIntervalMilliseconds: 5,
+  idlePollingIntervalMilliseconds: 1000
+}
+sample 1/1: four-processes warm-many synchronous
+sample 1/1: four-processes cold-many synchronous
+DONE sqlite-round-5-concurrency-1-v1.0.6-wal-full
+START sqlite-round-5-concurrency-16-v0.14.0-default 2026-11-09T05:54:02.948Z
+{
+  event: 'solid_objects.polling_only_cross_process_wake_up',
+  pollingIntervalMilliseconds: 5,
+  idlePollingIntervalMilliseconds: 1000
+}
+sample 1/1: four-processes warm-hot synchronous
+{
+  event: 'solid_objects.polling_only_cross_process_wake_up',
+  pollingIntervalMilliseconds: 5,
+  idlePollingIntervalMilliseconds: 1000
+}
+{
+  event: 'solid_objects.polling_only_cross_process_wake_up',
+  pollingIntervalMilliseconds: 5,
+  idlePollingIntervalMilliseconds: 1000
+}
+sample 1/1: four-processes warm-many synchronous
+sample 1/1: four-processes cold-many synchronous
+DONE sqlite-round-5-concurrency-16-v0.14.0-default
+START sqlite-round-5-concurrency-16-v1.0.5-default 2026-11-09T05:54:45.545Z
+{
+  event: 'solid_objects.polling_only_cross_process_wake_up',
+  pollingIntervalMilliseconds: 5,
+  idlePollingIntervalMilliseconds: 1000
+}
+{
+  event: 'solid_objects.polling_only_cross_process_wake_up',
+  pollingIntervalMilliseconds: 5,
+  idlePollingIntervalMilliseconds: 1000
+}
+sample 1/1: four-processes warm-hot synchronous
+{
+  event: 'solid_objects.polling_only_cross_process_wake_up',
+  pollingIntervalMilliseconds: 5,
+  idlePollingIntervalMilliseconds: 1000
+}
+sample 1/1: four-processes warm-many synchronous
+sample 1/1: four-processes cold-many synchronous
+DONE sqlite-round-5-concurrency-16-v1.0.5-default
+START sqlite-round-5-concurrency-16-v1.0.6-default 2026-11-09T05:55:28.616Z
+{
+  event: 'solid_objects.polling_only_cross_process_wake_up',
+  pollingIntervalMilliseconds: 5,
+  idlePollingIntervalMilliseconds: 1000
+}
+sample 1/1: four-processes warm-hot synchronous
+{
+  event: 'solid_objects.polling_only_cross_process_wake_up',
+  pollingIntervalMilliseconds: 5,
+  idlePollingIntervalMilliseconds: 1000
+}
+{
+  event: 'solid_objects.polling_only_cross_process_wake_up',
+  pollingIntervalMilliseconds: 5,
+  idlePollingIntervalMilliseconds: 1000
+}
+sample 1/1: four-processes warm-many synchronous
+sample 1/1: four-processes cold-many synchronous
+DONE sqlite-round-5-concurrency-16-v1.0.6-default
+START sqlite-round-5-concurrency-16-v1.0.6-wal-full 2026-11-09T05:55:54.090Z
+{
+  event: 'solid_objects.polling_only_cross_process_wake_up',
+  pollingIntervalMilliseconds: 5,
+  idlePollingIntervalMilliseconds: 1000
+}
+{
+  event: 'solid_objects.polling_only_cross_process_wake_up',
+  pollingIntervalMilliseconds: 5,
+  idlePollingIntervalMilliseconds: 1000
+}
+sample 1/1: four-processes warm-hot synchronous
+{
+  event: 'solid_objects.polling_only_cross_process_wake_up',
+  pollingIntervalMilliseconds: 5,
+  idlePollingIntervalMilliseconds: 1000
+}
+sample 1/1: four-processes warm-many synchronous
+sample 1/1: four-processes cold-many synchronous
+DONE sqlite-round-5-concurrency-16-v1.0.6-wal-full
+36c0e671d804e395a3decd811173cf5b7fec8b61da19bb37d496978d0af324aa
+127.0.0.1:5432 - no response
+127.0.0.1:5432 - accepting connections
+START postgresql-round-1-concurrency-1-v0.14.0-default 2026-11-09T05:58:03.219Z
+{
+  event: 'solid_objects.polling_only_cross_process_wake_up',
+  pollingIntervalMilliseconds: 5,
+  idlePollingIntervalMilliseconds: 1000
+}
+sample 1/1: four-processes warm-hot synchronous
+{
+  event: 'solid_objects.polling_only_cross_process_wake_up',
+  pollingIntervalMilliseconds: 5,
+  idlePollingIntervalMilliseconds: 1000
+}
+{
+  event: 'solid_objects.polling_only_cross_process_wake_up',
+  pollingIntervalMilliseconds: 5,
+  idlePollingIntervalMilliseconds: 1000
+}
+sample 1/1: four-processes warm-many synchronous
+sample 1/1: four-processes cold-many synchronous
+DONE postgresql-round-1-concurrency-1-v0.14.0-default
+START postgresql-round-1-concurrency-1-v1.0.5-default 2026-11-09T05:59:00.293Z
+sample 1/1: four-processes warm-hot synchronous
+sample 1/1: four-processes warm-many synchronous
+sample 1/1: four-processes cold-many synchronous
+DONE postgresql-round-1-concurrency-1-v1.0.5-default
+START postgresql-round-1-concurrency-1-v1.0.6-default 2026-11-09T05:59:54.763Z
+sample 1/1: four-processes warm-hot synchronous
+sample 1/1: four-processes warm-many synchronous
+sample 1/1: four-processes cold-many synchronous
+DONE postgresql-round-1-concurrency-1-v1.0.6-default
+START postgresql-round-1-concurrency-16-v0.14.0-default 2026-11-09T06:04:10.726Z
+{
+  event: 'solid_objects.polling_only_cross_process_wake_up',
+  pollingIntervalMilliseconds: 5,
+  idlePollingIntervalMilliseconds: 1000
+}
+{
+  event: 'solid_objects.polling_only_cross_process_wake_up',
+  pollingIntervalMilliseconds: 5,
+  idlePollingIntervalMilliseconds: 1000
+}
+sample 1/1: four-processes warm-hot synchronous
+{
+  event: 'solid_objects.polling_only_cross_process_wake_up',
+  pollingIntervalMilliseconds: 5,
+  idlePollingIntervalMilliseconds: 1000
+}
+sample 1/1: four-processes warm-many synchronous
+sample 1/1: four-processes cold-many synchronous
+DONE postgresql-round-1-concurrency-16-v0.14.0-default
+START postgresql-round-1-concurrency-16-v1.0.5-default 2026-11-09T06:04:51.625Z
+sample 1/1: four-processes warm-hot synchronous
+sample 1/1: four-processes warm-many synchronous
+(node:11563) DeprecationWarning: Calling client.query() when the client is already executing a query is deprecated and will be removed in pg@9.0. Use async/await or an external async flow control mechanism instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+sample 1/1: four-processes cold-many synchronous
+DONE postgresql-round-1-concurrency-16-v1.0.5-default
+START postgresql-round-1-concurrency-16-v1.0.6-default 2026-11-09T06:05:36.256Z
+sample 1/1: four-processes warm-hot synchronous
+sample 1/1: four-processes warm-many synchronous
+(node:11719) DeprecationWarning: Calling client.query() when the client is already executing a query is deprecated and will be removed in pg@9.0. Use async/await or an external async flow control mechanism instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+sample 1/1: four-processes cold-many synchronous
+DONE postgresql-round-1-concurrency-16-v1.0.6-default
+START postgresql-round-2-concurrency-1-v1.0.5-default 2026-11-09T06:10:10.670Z
+sample 1/1: four-processes warm-hot synchronous
+sample 1/1: four-processes warm-many synchronous
+sample 1/1: four-processes cold-many synchronous
+DONE postgresql-round-2-concurrency-1-v1.0.5-default
+START postgresql-round-2-concurrency-1-v1.0.6-default 2026-11-09T06:11:05.867Z
+sample 1/1: four-processes warm-hot synchronous
+sample 1/1: four-processes warm-many synchronous
+sample 1/1: four-processes cold-many synchronous
+DONE postgresql-round-2-concurrency-1-v1.0.6-default
+START postgresql-round-2-concurrency-1-v0.14.0-default 2026-11-09T06:11:59.369Z
+{
+  event: 'solid_objects.polling_only_cross_process_wake_up',
+  pollingIntervalMilliseconds: 5,
+  idlePollingIntervalMilliseconds: 1000
+}
+sample 1/1: four-processes warm-hot synchronous
+{
+  event: 'solid_objects.polling_only_cross_process_wake_up',
+  pollingIntervalMilliseconds: 5,
+  idlePollingIntervalMilliseconds: 1000
+}
+{
+  event: 'solid_objects.polling_only_cross_process_wake_up',
+  pollingIntervalMilliseconds: 5,
+  idlePollingIntervalMilliseconds: 1000
+}
+sample 1/1: four-processes warm-many synchronous
+sample 1/1: four-processes cold-many synchronous
+DONE postgresql-round-2-concurrency-1-v0.14.0-default
+START postgresql-round-2-concurrency-16-v1.0.5-default 2026-11-09T06:16:06.526Z
+sample 1/1: four-processes warm-hot synchronous
+sample 1/1: four-processes warm-many synchronous
+(node:12784) DeprecationWarning: Calling client.query() when the client is already executing a query is deprecated and will be removed in pg@9.0. Use async/await or an external async flow control mechanism instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+sample 1/1: four-processes cold-many synchronous
+DONE postgresql-round-2-concurrency-16-v1.0.5-default
+START postgresql-round-2-concurrency-16-v1.0.6-default 2026-11-09T06:16:49.907Z
+sample 1/1: four-processes warm-hot synchronous
+sample 1/1: four-processes warm-many synchronous
+(node:12924) DeprecationWarning: Calling client.query() when the client is already executing a query is deprecated and will be removed in pg@9.0. Use async/await or an external async flow control mechanism instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+sample 1/1: four-processes cold-many synchronous
+DONE postgresql-round-2-concurrency-16-v1.0.6-default
+START postgresql-round-2-concurrency-16-v0.14.0-default 2026-11-09T06:17:33.135Z
+{
+  event: 'solid_objects.polling_only_cross_process_wake_up',
+  pollingIntervalMilliseconds: 5,
+  idlePollingIntervalMilliseconds: 1000
+}
+{
+  event: 'solid_objects.polling_only_cross_process_wake_up',
+  pollingIntervalMilliseconds: 5,
+  idlePollingIntervalMilliseconds: 1000
+}
+{
+  event: 'solid_objects.polling_only_cross_process_wake_up',
+  pollingIntervalMilliseconds: 5,
+  idlePollingIntervalMilliseconds: 1000
+}
+sample 1/1: four-processes warm-hot synchronous
+{
+  event: 'solid_objects.polling_only_cross_process_wake_up',
+  pollingIntervalMilliseconds: 5,
+  idlePollingIntervalMilliseconds: 1000
+}
+sample 1/1: four-processes warm-many synchronous
+sample 1/1: four-processes cold-many synchronous
+DONE postgresql-round-2-concurrency-16-v0.14.0-default
+START postgresql-round-3-concurrency-1-v1.0.6-default 2026-11-09T06:21:59.312Z
+sample 1/1: four-processes warm-hot synchronous
+sample 1/1: four-processes warm-many synchronous
+sample 1/1: four-processes cold-many synchronous
+DONE postgresql-round-3-concurrency-1-v1.0.6-default
+START postgresql-round-3-concurrency-1-v0.14.0-default 2026-11-09T06:22:53.959Z
+{
+  event: 'solid_objects.polling_only_cross_process_wake_up',
+  pollingIntervalMilliseconds: 5,
+  idlePollingIntervalMilliseconds: 1000
+}
+{
+  event: 'solid_objects.polling_only_cross_process_wake_up',
+  pollingIntervalMilliseconds: 5,
+  idlePollingIntervalMilliseconds: 1000
+}
+sample 1/1: four-processes warm-hot synchronous
+{
+  event: 'solid_objects.polling_only_cross_process_wake_up',
+  pollingIntervalMilliseconds: 5,
+  idlePollingIntervalMilliseconds: 1000
+}
+sample 1/1: four-processes warm-many synchronous
+sample 1/1: four-processes cold-many synchronous
+DONE postgresql-round-3-concurrency-1-v0.14.0-default
+START postgresql-round-3-concurrency-1-v1.0.5-default 2026-11-09T06:24:08.858Z
+sample 1/1: four-processes warm-hot synchronous
+sample 1/1: four-processes warm-many synchronous
+sample 1/1: four-processes cold-many synchronous
+DONE postgresql-round-3-concurrency-1-v1.0.5-default
+START postgresql-round-3-concurrency-16-v1.0.6-default 2026-11-09T06:28:39.491Z
+sample 1/1: four-processes warm-hot synchronous
+sample 1/1: four-processes warm-many synchronous
+(node:14229) DeprecationWarning: Calling client.query() when the client is already executing a query is deprecated and will be removed in pg@9.0. Use async/await or an external async flow control mechanism instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+sample 1/1: four-processes cold-many synchronous
+DONE postgresql-round-3-concurrency-16-v1.0.6-default
+START postgresql-round-3-concurrency-16-v0.14.0-default 2026-11-09T06:29:23.555Z
+{
+  event: 'solid_objects.polling_only_cross_process_wake_up',
+  pollingIntervalMilliseconds: 5,
+  idlePollingIntervalMilliseconds: 1000
+}
+{
+  event: 'solid_objects.polling_only_cross_process_wake_up',
+  pollingIntervalMilliseconds: 5,
+  idlePollingIntervalMilliseconds: 1000
+}
+sample 1/1: four-processes warm-hot synchronous
+{
+  event: 'solid_objects.polling_only_cross_process_wake_up',
+  pollingIntervalMilliseconds: 5,
+  idlePollingIntervalMilliseconds: 1000
+}
+{
+  event: 'solid_objects.polling_only_cross_process_wake_up',
+  pollingIntervalMilliseconds: 5,
+  idlePollingIntervalMilliseconds: 1000
+}
+sample 1/1: four-processes warm-many synchronous
+sample 1/1: four-processes cold-many synchronous
+DONE postgresql-round-3-concurrency-16-v0.14.0-default
+START postgresql-round-3-concurrency-16-v1.0.5-default 2026-11-09T06:30:05.183Z
+sample 1/1: four-processes warm-hot synchronous
+sample 1/1: four-processes warm-many synchronous
+(node:14538) DeprecationWarning: Calling client.query() when the client is already executing a query is deprecated and will be removed in pg@9.0. Use async/await or an external async flow control mechanism instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+sample 1/1: four-processes cold-many synchronous
+DONE postgresql-round-3-concurrency-16-v1.0.5-default
+START postgresql-round-4-concurrency-1-v0.14.0-default 2026-11-09T06:34:34.454Z
+{
+  event: 'solid_objects.polling_only_cross_process_wake_up',
+  pollingIntervalMilliseconds: 5,
+  idlePollingIntervalMilliseconds: 1000
+}
+sample 1/1: four-processes warm-hot synchronous
+{
+  event: 'solid_objects.polling_only_cross_process_wake_up',
+  pollingIntervalMilliseconds: 5,
+  idlePollingIntervalMilliseconds: 1000
+}
+{
+  event: 'solid_objects.polling_only_cross_process_wake_up',
+  pollingIntervalMilliseconds: 5,
+  idlePollingIntervalMilliseconds: 1000
+}
+sample 1/1: four-processes warm-many synchronous
+sample 1/1: four-processes cold-many synchronous
+DONE postgresql-round-4-concurrency-1-v0.14.0-default
+START postgresql-round-4-concurrency-1-v1.0.5-default 2026-11-09T06:35:36.049Z
+sample 1/1: four-processes warm-hot synchronous
+sample 1/1: four-processes warm-many synchronous
+sample 1/1: four-processes cold-many synchronous
+DONE postgresql-round-4-concurrency-1-v1.0.5-default
+START postgresql-round-4-concurrency-1-v1.0.6-default 2026-11-09T06:36:29.915Z
+sample 1/1: four-processes warm-hot synchronous
+sample 1/1: four-processes warm-many synchronous
+sample 1/1: four-processes cold-many synchronous
+DONE postgresql-round-4-concurrency-1-v1.0.6-default
+START postgresql-round-4-concurrency-16-v0.14.0-default 2026-11-09T06:40:50.157Z
+{
+  event: 'solid_objects.polling_only_cross_process_wake_up',
+  pollingIntervalMilliseconds: 5,
+  idlePollingIntervalMilliseconds: 1000
+}
+sample 1/1: four-processes warm-hot synchronous
+{
+  event: 'solid_objects.polling_only_cross_process_wake_up',
+  pollingIntervalMilliseconds: 5,
+  idlePollingIntervalMilliseconds: 1000
+}
+{
+  event: 'solid_objects.polling_only_cross_process_wake_up',
+  pollingIntervalMilliseconds: 5,
+  idlePollingIntervalMilliseconds: 1000
+}
+sample 1/1: four-processes warm-many synchronous
+sample 1/1: four-processes cold-many synchronous
+DONE postgresql-round-4-concurrency-16-v0.14.0-default
+START postgresql-round-4-concurrency-16-v1.0.5-default 2026-11-09T06:41:32.649Z
+sample 1/1: four-processes warm-hot synchronous
+sample 1/1: four-processes warm-many synchronous
+(node:15679) DeprecationWarning: Calling client.query() when the client is already executing a query is deprecated and will be removed in pg@9.0. Use async/await or an external async flow control mechanism instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+sample 1/1: four-processes cold-many synchronous
+DONE postgresql-round-4-concurrency-16-v1.0.5-default
+START postgresql-round-4-concurrency-16-v1.0.6-default 2026-11-09T06:42:15.659Z
+sample 1/1: four-processes warm-hot synchronous
+sample 1/1: four-processes warm-many synchronous
+(node:15820) DeprecationWarning: Calling client.query() when the client is already executing a query is deprecated and will be removed in pg@9.0. Use async/await or an external async flow control mechanism instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+sample 1/1: four-processes cold-many synchronous
+DONE postgresql-round-4-concurrency-16-v1.0.6-default
+START postgresql-round-5-concurrency-1-v1.0.5-default 2026-11-09T06:46:43.903Z
+sample 1/1: four-processes warm-hot synchronous
+sample 1/1: four-processes warm-many synchronous
+sample 1/1: four-processes cold-many synchronous
+DONE postgresql-round-5-concurrency-1-v1.0.5-default
+START postgresql-round-5-concurrency-1-v1.0.6-default 2026-11-09T06:47:37.366Z
+sample 1/1: four-processes warm-hot synchronous
+sample 1/1: four-processes warm-many synchronous
+sample 1/1: four-processes cold-many synchronous
+DONE postgresql-round-5-concurrency-1-v1.0.6-default
+START postgresql-round-5-concurrency-1-v0.14.0-default 2026-11-09T06:48:30.358Z
+{
+  event: 'solid_objects.polling_only_cross_process_wake_up',
+  pollingIntervalMilliseconds: 5,
+  idlePollingIntervalMilliseconds: 1000
+}
+{
+  event: 'solid_objects.polling_only_cross_process_wake_up',
+  pollingIntervalMilliseconds: 5,
+  idlePollingIntervalMilliseconds: 1000
+}
+sample 1/1: four-processes warm-hot synchronous
+{
+  event: 'solid_objects.polling_only_cross_process_wake_up',
+  pollingIntervalMilliseconds: 5,
+  idlePollingIntervalMilliseconds: 1000
+}
+sample 1/1: four-processes warm-many synchronous
+sample 1/1: four-processes cold-many synchronous
+DONE postgresql-round-5-concurrency-1-v0.14.0-default
+START postgresql-round-5-concurrency-16-v1.0.5-default 2026-11-09T06:52:57.918Z
+sample 1/1: four-processes warm-hot synchronous
+sample 1/1: four-processes warm-many synchronous
+(node:16849) DeprecationWarning: Calling client.query() when the client is already executing a query is deprecated and will be removed in pg@9.0. Use async/await or an external async flow control mechanism instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+sample 1/1: four-processes cold-many synchronous
+DONE postgresql-round-5-concurrency-16-v1.0.5-default
+START postgresql-round-5-concurrency-16-v1.0.6-default 2026-11-09T06:53:40.725Z
+sample 1/1: four-processes warm-hot synchronous
+sample 1/1: four-processes warm-many synchronous
+(node:16979) DeprecationWarning: Calling client.query() when the client is already executing a query is deprecated and will be removed in pg@9.0. Use async/await or an external async flow control mechanism instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+sample 1/1: four-processes cold-many synchronous
+DONE postgresql-round-5-concurrency-16-v1.0.6-default
+START postgresql-round-5-concurrency-16-v0.14.0-default 2026-11-09T06:54:22.933Z
+{
+  event: 'solid_objects.polling_only_cross_process_wake_up',
+  pollingIntervalMilliseconds: 5,
+  idlePollingIntervalMilliseconds: 1000
+}
+sample 1/1: four-processes warm-hot synchronous
+{
+  event: 'solid_objects.polling_only_cross_process_wake_up',
+  pollingIntervalMilliseconds: 5,
+  idlePollingIntervalMilliseconds: 1000
+}
+{
+  event: 'solid_objects.polling_only_cross_process_wake_up',
+  pollingIntervalMilliseconds: 5,
+  idlePollingIntervalMilliseconds: 1000
+}
+sample 1/1: four-processes warm-many synchronous
+sample 1/1: four-processes cold-many synchronous
+DONE postgresql-round-5-concurrency-16-v0.14.0-default
+so-benchmark-pg
+3e4f31f98bfd91cf6709ea10c14f40201fe75500a2c7ff9c796746849cf2d5df
+mysqladmin: [Warning] Using a password on the command line interface can be insecure.
+mysqladmin: [Warning] Using a password on the command line interface can be insecure.
+mysqladmin: [Warning] Using a password on the command line interface can be insecure.
+mysqladmin: [Warning] Using a password on the command line interface can be insecure.
+mysqladmin: [Warning] Using a password on the command line interface can be insecure.
+mysqld is alive
+START mysql-round-1-concurrency-1-v0.14.0-default 2026-11-09T06:59:03.843Z
+{
+  event: 'solid_objects.polling_only_cross_process_wake_up',
+  pollingIntervalMilliseconds: 5,
+  idlePollingIntervalMilliseconds: 1000
+}
+{
+  event: 'solid_objects.polling_only_cross_process_wake_up',
+  pollingIntervalMilliseconds: 5,
+  idlePollingIntervalMilliseconds: 1000
+}
+sample 1/1: four-processes warm-hot synchronous
+{
+  event: 'solid_objects.polling_only_cross_process_wake_up',
+  pollingIntervalMilliseconds: 5,
+  idlePollingIntervalMilliseconds: 1000
+}
+{
+  event: 'solid_objects.polling_only_cross_process_wake_up',
+  pollingIntervalMilliseconds: 5,
+  idlePollingIntervalMilliseconds: 1000
+}
+sample 1/1: four-processes warm-many synchronous
+sample 1/1: four-processes cold-many synchronous
+DONE mysql-round-1-concurrency-1-v0.14.0-default
+START mysql-round-1-concurrency-1-v1.0.5-default 2026-11-09T07:00:38.281Z
+{
+  event: 'solid_objects.polling_only_cross_process_wake_up',
+  pollingIntervalMilliseconds: 5,
+  idlePollingIntervalMilliseconds: 1000
+}
+sample 1/1: four-processes warm-hot synchronous
+{
+  event: 'solid_objects.polling_only_cross_process_wake_up',
+  pollingIntervalMilliseconds: 5,
+  idlePollingIntervalMilliseconds: 1000
+}
+{
+  event: 'solid_objects.polling_only_cross_process_wake_up',
+  pollingIntervalMilliseconds: 5,
+  idlePollingIntervalMilliseconds: 1000
+}
+sample 1/1: four-processes warm-many synchronous
+sample 1/1: four-processes cold-many synchronous
+DONE mysql-round-1-concurrency-1-v1.0.5-default
+START mysql-round-1-concurrency-1-v1.0.6-default 2026-11-09T07:02:22.171Z
+{
+  event: 'solid_objects.polling_only_cross_process_wake_up',
+  pollingIntervalMilliseconds: 5,
+  idlePollingIntervalMilliseconds: 1000
+}
+{
+  event: 'solid_objects.polling_only_cross_process_wake_up',
+  pollingIntervalMilliseconds: 5,
+  idlePollingIntervalMilliseconds: 1000
+}
+sample 1/1: four-processes warm-hot synchronous
+{
+  event: 'solid_objects.polling_only_cross_process_wake_up',
+  pollingIntervalMilliseconds: 5,
+  idlePollingIntervalMilliseconds: 1000
+}
+sample 1/1: four-processes warm-many synchronous
+sample 1/1: four-processes cold-many synchronous
+DONE mysql-round-1-concurrency-1-v1.0.6-default
+START mysql-round-1-concurrency-16-v0.14.0-default 2026-11-09T07:07:04.851Z
+{
+  event: 'solid_objects.polling_only_cross_process_wake_up',
+  pollingIntervalMilliseconds: 5,
+  idlePollingIntervalMilliseconds: 1000
+}
+{
+  event: 'solid_objects.polling_only_cross_process_wake_up',
+  pollingIntervalMilliseconds: 5,
+  idlePollingIntervalMilliseconds: 1000
+}
+sample 1/1: four-processes warm-hot synchronous
+{
+  event: 'solid_objects.polling_only_cross_process_wake_up',
+  pollingIntervalMilliseconds: 5,
+  idlePollingIntervalMilliseconds: 1000
+}
+sample 1/1: four-processes warm-many synchronous
+sample 1/1: four-processes cold-many synchronous
+DONE mysql-round-1-concurrency-16-v0.14.0-default
+START mysql-round-1-concurrency-16-v1.0.5-default 2026-11-09T07:08:00.135Z
+sample 1/1: four-processes warm-hot synchronous
+{
+  event: 'solid_objects.polling_only_cross_process_wake_up',
+  pollingIntervalMilliseconds: 5,
+  idlePollingIntervalMilliseconds: 1000
+}
+{
+  event: 'solid_objects.polling_only_cross_process_wake_up',
+  pollingIntervalMilliseconds: 5,
+  idlePollingIntervalMilliseconds: 1000
+}
+{
+  event: 'solid_objects.polling_only_cross_process_wake_up',
+  pollingIntervalMilliseconds: 5,
+  idlePollingIntervalMilliseconds: 1000
+}
+sample 1/1: four-processes warm-many synchronous
+sample 1/1: four-processes cold-many synchronous
+DONE mysql-round-1-concurrency-16-v1.0.5-default
+START mysql-round-1-concurrency-16-v1.0.6-default 2026-11-09T07:08:56.796Z
+{
+  event: 'solid_objects.polling_only_cross_process_wake_up',
+  pollingIntervalMilliseconds: 5,
+  idlePollingIntervalMilliseconds: 1000
+}
+sample 1/1: four-processes warm-hot synchronous
+{
+  event: 'solid_objects.polling_only_cross_process_wake_up',
+  pollingIntervalMilliseconds: 5,
+  idlePollingIntervalMilliseconds: 1000
+}
+{
+  event: 'solid_objects.polling_only_cross_process_wake_up',
+  pollingIntervalMilliseconds: 5,
+  idlePollingIntervalMilliseconds: 1000
+}
+sample 1/1: four-processes warm-many synchronous
+sample 1/1: four-processes cold-many synchronous
+DONE mysql-round-1-concurrency-16-v1.0.6-default
+START mysql-round-2-concurrency-1-v1.0.5-default 2026-11-09T07:13:33.781Z
+sample 1/1: four-processes warm-hot synchronous
+{
+  event: 'solid_objects.polling_only_cross_process_wake_up',
+  pollingIntervalMilliseconds: 5,
+  idlePollingIntervalMilliseconds: 1000
+}
+{
+  event: 'solid_objects.polling_only_cross_process_wake_up',
+  pollingIntervalMilliseconds: 5,
+  idlePollingIntervalMilliseconds: 1000
+}
+{
+  event: 'solid_objects.polling_only_cross_process_wake_up',
+  pollingIntervalMilliseconds: 5,
+  idlePollingIntervalMilliseconds: 1000
+}
+{
+  event: 'solid_objects.polling_only_cross_process_wake_up',
+  pollingIntervalMilliseconds: 5,
+  idlePollingIntervalMilliseconds: 1000
+}
+sample 1/1: four-processes warm-many synchronous
+sample 1/1: four-processes cold-many synchronous
+DONE mysql-round-2-concurrency-1-v1.0.5-default
+START mysql-round-2-concurrency-1-v1.0.6-default 2026-11-09T07:15:00.378Z
+{
+  event: 'solid_objects.polling_only_cross_process_wake_up',
+  pollingIntervalMilliseconds: 5,
+  idlePollingIntervalMilliseconds: 1000
+}
+sample 1/1: four-processes warm-hot synchronous
+{
+  event: 'solid_objects.polling_only_cross_process_wake_up',
+  pollingIntervalMilliseconds: 5,
+  idlePollingIntervalMilliseconds: 1000
+}
+{
+  event: 'solid_objects.polling_only_cross_process_wake_up',
+  pollingIntervalMilliseconds: 5,
+  idlePollingIntervalMilliseconds: 1000
+}
+sample 1/1: four-processes warm-many synchronous
+sample 1/1: four-processes cold-many synchronous
+DONE mysql-round-2-concurrency-1-v1.0.6-default
+START mysql-round-2-concurrency-1-v0.14.0-default 2026-11-09T07:16:44.907Z
+{
+  event: 'solid_objects.polling_only_cross_process_wake_up',
+  pollingIntervalMilliseconds: 5,
+  idlePollingIntervalMilliseconds: 1000
+}
+{
+  event: 'solid_objects.polling_only_cross_process_wake_up',
+  pollingIntervalMilliseconds: 5,
+  idlePollingIntervalMilliseconds: 1000
+}
+sample 1/1: four-processes warm-hot synchronous
+{
+  event: 'solid_objects.polling_only_cross_process_wake_up',
+  pollingIntervalMilliseconds: 5,
+  idlePollingIntervalMilliseconds: 1000
+}
+{
+  event: 'solid_objects.polling_only_cross_process_wake_up',
+  pollingIntervalMilliseconds: 5,
+  idlePollingIntervalMilliseconds: 1000
+}
+sample 1/1: four-processes warm-many synchronous
+sample 1/1: four-processes cold-many synchronous
+DONE mysql-round-2-concurrency-1-v0.14.0-default
+START mysql-round-2-concurrency-16-v1.0.5-default 2026-11-09T07:21:23.575Z
+{
+  event: 'solid_objects.polling_only_cross_process_wake_up',
+  pollingIntervalMilliseconds: 5,
+  idlePollingIntervalMilliseconds: 1000
+}
+{
+  event: 'solid_objects.polling_only_cross_process_wake_up',
+  pollingIntervalMilliseconds: 5,
+  idlePollingIntervalMilliseconds: 1000
+}
+sample 1/1: four-processes warm-hot synchronous
+{
+  event: 'solid_objects.polling_only_cross_process_wake_up',
+  pollingIntervalMilliseconds: 5,
+  idlePollingIntervalMilliseconds: 1000
+}
+sample 1/1: four-processes warm-many synchronous
+sample 1/1: four-processes cold-many synchronous
+DONE mysql-round-2-concurrency-16-v1.0.5-default
+START mysql-round-2-concurrency-16-v1.0.6-default 2026-11-09T07:22:22.774Z
+sample 1/1: four-processes warm-hot synchronous
+{
+  event: 'solid_objects.polling_only_cross_process_wake_up',
+  pollingIntervalMilliseconds: 5,
+  idlePollingIntervalMilliseconds: 1000
+}
+{
+  event: 'solid_objects.polling_only_cross_process_wake_up',
+  pollingIntervalMilliseconds: 5,
+  idlePollingIntervalMilliseconds: 1000
+}
+{
+  event: 'solid_objects.polling_only_cross_process_wake_up',
+  pollingIntervalMilliseconds: 5,
+  idlePollingIntervalMilliseconds: 1000
+}
+{
+  event: 'solid_objects.polling_only_cross_process_wake_up',
+  pollingIntervalMilliseconds: 5,
+  idlePollingIntervalMilliseconds: 1000
+}
+sample 1/1: four-processes warm-many synchronous
+sample 1/1: four-processes cold-many synchronous
+DONE mysql-round-2-concurrency-16-v1.0.6-default
+START mysql-round-2-concurrency-16-v0.14.0-default 2026-11-09T07:23:20.193Z
+{
+  event: 'solid_objects.polling_only_cross_process_wake_up',
+  pollingIntervalMilliseconds: 5,
+  idlePollingIntervalMilliseconds: 1000
+}
+{
+  event: 'solid_objects.polling_only_cross_process_wake_up',
+  pollingIntervalMilliseconds: 5,
+  idlePollingIntervalMilliseconds: 1000
+}
+sample 1/1: four-processes warm-hot synchronous
+{
+  event: 'solid_objects.polling_only_cross_process_wake_up',
+  pollingIntervalMilliseconds: 5,
+  idlePollingIntervalMilliseconds: 1000
+}
+sample 1/1: four-processes warm-many synchronous
+sample 1/1: four-processes cold-many synchronous
+DONE mysql-round-2-concurrency-16-v0.14.0-default
+START mysql-round-3-concurrency-1-v1.0.6-default 2026-11-09T07:27:56.271Z
+{
+  event: 'solid_objects.polling_only_cross_process_wake_up',
+  pollingIntervalMilliseconds: 5,
+  idlePollingIntervalMilliseconds: 1000
+}
+{
+  event: 'solid_objects.polling_only_cross_process_wake_up',
+  pollingIntervalMilliseconds: 5,
+  idlePollingIntervalMilliseconds: 1000
+}
+sample 1/1: four-processes warm-hot synchronous
+{
+  event: 'solid_objects.polling_only_cross_process_wake_up',
+  pollingIntervalMilliseconds: 5,
+  idlePollingIntervalMilliseconds: 1000
+}
+{
+  event: 'solid_objects.polling_only_cross_process_wake_up',
+  pollingIntervalMilliseconds: 5,
+  idlePollingIntervalMilliseconds: 1000
+}
+sample 1/1: four-processes warm-many synchronous
+sample 1/1: four-processes cold-many synchronous
+DONE mysql-round-3-concurrency-1-v1.0.6-default
+START mysql-round-3-concurrency-1-v0.14.0-default 2026-11-09T07:29:14.215Z
+{
+  event: 'solid_objects.polling_only_cross_process_wake_up',
+  pollingIntervalMilliseconds: 5,
+  idlePollingIntervalMilliseconds: 1000
+}
+{
+  event: 'solid_objects.polling_only_cross_process_wake_up',
+  pollingIntervalMilliseconds: 5,
+  idlePollingIntervalMilliseconds: 1000
+}
+sample 1/1: four-processes warm-hot synchronous
+{
+  event: 'solid_objects.polling_only_cross_process_wake_up',
+  pollingIntervalMilliseconds: 5,
+  idlePollingIntervalMilliseconds: 1000
+}
+sample 1/1: four-processes warm-many synchronous
+node:internal/modules/run_main:107
+    triggerUncaughtException(
+    ^
+
+AssertionError [ERR_ASSERTION]: committed count mismatch for 1-four-processes-warm-many-synchronous-1794209365989-warm-74
+
+8 !== 7
+
+    at measure (file:///opt/solid-benchmark/variants/v0.14.0-default/benchmarks/run.ts:215:14)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async file:///opt/solid-benchmark/variants/v0.14.0-default/benchmarks/run.ts:93:15 {
+  generatedMessage: false,
+  code: 'ERR_ASSERTION',
+  actual: 8,
+  expected: 7,
+  operator: 'strictEqual',
+  diff: 'simple'
+}
+
+Node.js v24.18.0
+so-benchmark-mysql
+file:///opt/solid-benchmark/src/collect-comparison.mjs:82
+      child.on("exit", (code, signal) => code === 0 ? accept() : reject(new Error(`${program}: exit=${code} signal=${signal}`)))
+                                                                        ^
+
+Error: /usr/local/bin/node: exit=1 signal=null
+    at ChildProcess.<anonymous> (file:///opt/solid-benchmark/src/collect-comparison.mjs:82:73)
+    at ChildProcess.emit (node:events:509:28)
+    at ChildProcess._handle.onexit (node:internal/child_process:295:12)
+
+Node.js v24.18.0

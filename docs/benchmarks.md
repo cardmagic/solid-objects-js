@@ -10,11 +10,12 @@ workload and harness together. Numbers from different environments do not establ
 regression or speedup. In particular, dividing the August M5 figures by the November busy-Mac
 figures is not a release comparison.
 
-| Dataset                                                                         | Runtime measured                             | Environment                            | What it establishes                                                                |
-| ------------------------------------------------------------------------------- | -------------------------------------------- | -------------------------------------- | ---------------------------------------------------------------------------------- |
-| [Isolated baseline](../benchmarks/results/v1.0.5-isolated-2026-11-08/README.md) | 1.0.5                                        | Dedicated DigitalOcean c-8, November 8 | Reproducible single-version baseline, including raw samples and confirmed teardown |
-| [Shared workstation](../benchmarks/results/v1.0.5-2026-11-07/README.md)         | 1.0.5                                        | Busy M2 Ultra, November 7              | Historical observations; unsuitable for attributing a version regression           |
-| [August archive](benchmarks-history.md#historical-august-0140-matrix)           | 0.14.0 (matrix), 0.14.3/0.14.4 (state sizes) | M5 developer laptop                    | Historical measurements in their original environments                             |
+| Dataset                                                                                                     | Runtime measured                             | Environment                            | What it establishes                                                                |
+| ----------------------------------------------------------------------------------------------------------- | -------------------------------------------- | -------------------------------------- | ---------------------------------------------------------------------------------- |
+| [Controlled SQLite/PostgreSQL](../benchmarks/results/js-release-comparison-incomplete-2026-11-09/README.md) | 0.14.0, 1.0.5, 1.0.6                         | One dedicated c-8, November 9 UTC      | Complete backend plans from an incomplete matrix; MySQL failed its state check     |
+| [Isolated baseline](../benchmarks/results/v1.0.5-isolated-2026-11-08/README.md)                             | 1.0.5                                        | Dedicated DigitalOcean c-8, November 8 | Reproducible single-version baseline, including raw samples and confirmed teardown |
+| [Shared workstation](../benchmarks/results/v1.0.5-2026-11-07/README.md)                                     | 1.0.5                                        | Busy M2 Ultra, November 7              | Historical observations; unsuitable for attributing a version regression           |
+| [August archive](benchmarks-history.md#historical-august-0140-matrix)                                       | 0.14.0 (matrix), 0.14.3/0.14.4 (state sizes) | M5 developer laptop                    | Historical measurements in their original environments                             |
 
 The [dataset catalog](../benchmarks/results/index.json) records measured versions and environment
 classes. `pnpm run check:benchmarks` verifies those labels against raw reports, rechecks summaries,
@@ -28,48 +29,98 @@ journal behavior and power-loss durability. Its results must be labeled separate
 1.0.5, with WAL/FULL measured as a separate control. Do not relabel a 1.0.5 dataset as 1.0.6.
 
 The [1,000-operation feasibility pilot](../benchmarks/results/js-release-comparison-pilot-2026-11-09/README.md)
-was stopped after its first complete SQLite round showed the expanded matrix would exceed the
-three-hour measurement deadline. All completed and partial reports are retained, with the original
-plan and confirmed deletion. It is incomplete and is excluded from the controlled comparison.
-The replacement fixes 500 operations per condition before provisioning a fresh runner, while
-keeping five repetitions, 100 warmups, every version, both concurrency levels and all scenarios.
+was stopped when the first SQLite round projected a matrix beyond its original three-hour guard.
+The replacement fixed 500 operations before provisioning a fresh VM. All pilot reports and its stop
+reason remain separate diagnostics; none is pooled into the replacement.
 
-## Isolated 1.0.5 baseline
+## Controlled releases: SQLite and PostgreSQL
 
-The November 8 run uses an otherwise dedicated DigitalOcean c-8 in sfo3, eight dedicated vCPUs,
-16 GiB RAM, Ubuntu 24.04, Node 24.18.0, and pinned PostgreSQL/MySQL images on the same host.
-Collection waits for boot to settle and a sustained CPU, storage and load quiet period. The
-[archived profile and lifecycle](../benchmarks/results/v1.0.5-isolated-2026-11-08/run.json),
-[host metadata](../benchmarks/results/v1.0.5-isolated-2026-11-08/host.txt) and
-[quiet samples](../benchmarks/results/v1.0.5-isolated-2026-11-08/quiet.jsonl) are retained.
+The November 9 (UTC) experiment completed every planned SQLite and PostgreSQL condition on one
+DigitalOcean c-8: five fresh-process rounds per variant, 500 measured operations after 100 warmups,
+four worker processes, synchronous counters, three identity shapes, and client concurrency 1/16.
+The table summarizes 70 complete reports and 105,000 measured operation latencies.
 
-For counter operations with four processes, synchronous handlers and client concurrency 16,
-these are the median, minimum and maximum throughput across all three retained samples:
+The **parent matrix is incomplete**: 0.14.0's MySQL `warm-many` state check returned actor count 8,
+expected 7, in round 3 at concurrency 1. Its cause is unconfirmed. All emitted reports and failure
+diagnostics remain in the [failed parent archive](../benchmarks/results/js-release-comparison-incomplete-2026-11-09/README.md).
+Only the complete predeclared backend plans are summarized; no rounds or versions are dropped within
+a backend. `summarize-completed.mjs` derives every complete backend from the unchanged original plan,
+and CI rechecks that exact scope. MySQL's incomplete prefix does not supply a three-release ranking.
 
-<!-- benchmark-table: v1.0.5-isolated-2026-11-08 -->
+All variants use the same Node 24.18.0, locked dependencies, SQL drivers, compiler and workload
+harness. Released runtime source is unchanged. The explicit polling interval is 5 ms, idle ceiling
+1,000 ms and pool limit 20. Wake-up selection preserves release defaults: 0.14.0 uses in-process
+signals with cross-process polling; 1.0.5/1.0.6 can select PostgreSQL notifications after a successful
+probe. No Redis is configured. The experiment compares those defaults under common explicit options;
+it does not isolate every runtime feature.
 
-| Database   | Shape     | Median ops/s | Minimum ops/s | Maximum ops/s |
-| ---------- | --------- | -----------: | ------------: | ------------: |
-| sqlite     | warm-hot  |       198.83 |        196.78 |        206.03 |
-| sqlite     | warm-many |        69.08 |         65.76 |         73.95 |
-| sqlite     | cold-many |        34.78 |         34.42 |         35.39 |
-| postgresql | warm-hot  |        97.05 |         96.96 |        102.59 |
-| postgresql | warm-many |       142.57 |        138.77 |        147.83 |
-| postgresql | cold-many |         28.5 |         28.33 |         28.71 |
-| mysql      | warm-hot  |        71.23 |         65.77 |         77.93 |
-| mysql      | warm-many |        79.46 |         60.76 |        107.59 |
-| mysql      | cold-many |        26.42 |         26.27 |          27.1 |
+SQLite's 0.14.0/1.0.5 defaults are DELETE/FULL. Version 1.0.6 is measured as both WAL/NORMAL
+(`v1.0.6-default`) and WAL/FULL (`v1.0.6-wal-full`). NORMAL can lose recent committed transactions
+after power loss or an OS crash; FULL flushes each commit. Treat them as separate configurations.
 
-<!-- /benchmark-table: v1.0.5-isolated-2026-11-08 -->
+These are medians of five samples, in committed operations per second. The
+[complete-backend tables](../benchmarks/results/js-release-comparison-incomplete-2026-11-09/README.md)
+retain minimum/maximum throughput, p50/p99 and every operation latency.
 
-[Complete isolated results](../benchmarks/results/v1.0.5-isolated-2026-11-08/README.md) include
-cart/outbox staging, state sizes, idle polling and all 57,600 operation latencies. The source is
-released v1.0.5, with the recorded newer measurement harness overlaid and no runtime source edits.
-The cart verifier checks quantities, totals and pending effect payloads outside timed intervals.
+<!-- benchmark-table: js-release-comparison-incomplete-2026-11-09 -->
 
-This run does not establish how 0.14.0 or 1.0.6 performs on that machine. A droplet size alone is
-not a hardware identity: subsequent droplets may use different physical CPUs or storage. Compare
-release variants within one controlled run, rather than calculating speedups across these tables.
+| Database   | Concurrency | Shape     | v0.14.0-default ops/s | v1.0.5-default ops/s | v1.0.6-default ops/s | v1.0.6-wal-full ops/s |
+| ---------- | ----------: | --------- | --------------------: | -------------------: | -------------------: | --------------------: |
+| sqlite     |           1 | warm-hot  |                 89.33 |               112.76 |               356.72 |                261.03 |
+| sqlite     |           1 | warm-many |                 21.42 |                25.39 |                61.46 |                 61.22 |
+| sqlite     |           1 | cold-many |                 14.86 |                16.57 |                39.46 |                 35.39 |
+| sqlite     |          16 | warm-hot  |                168.43 |               166.35 |               549.58 |                343.35 |
+| sqlite     |          16 | warm-many |                 50.27 |                48.49 |               103.72 |                 78.09 |
+| sqlite     |          16 | cold-many |                 21.85 |                21.89 |                34.46 |                 30.56 |
+| postgresql |           1 | warm-hot  |                 79.03 |                93.28 |                94.44 |                   n/a |
+| postgresql |           1 | warm-many |                 21.63 |                35.41 |                35.64 |                   n/a |
+| postgresql |           1 | cold-many |                 23.66 |                19.87 |                19.92 |                   n/a |
+| postgresql |          16 | warm-hot  |                100.14 |                   80 |                80.82 |                   n/a |
+| postgresql |          16 | warm-many |                 91.44 |               121.29 |               120.34 |                   n/a |
+| postgresql |          16 | cold-many |                 19.72 |                19.38 |                19.27 |                   n/a |
+
+<!-- /benchmark-table: js-release-comparison-incomplete-2026-11-09 -->
+
+The results answer the earlier version questions:
+
+- The old 25-fold SQLite decline is **not reproduced**. At concurrency 16, the matched hot-actor
+  medians are 168.43 ops/s on 0.14.0 and 166.35 on 1.0.5, with overlapping sample ranges.
+  Warm-many and cold-many are also close. At concurrency 1, 1.0.5 has higher median throughput in
+  all three SQLite shapes. The August/busy-Mac ratios did not measure a code regression.
+- PostgreSQL has workload-specific tradeoffs. At concurrency 16, the hot-actor median falls from
+  100.14 to 80.00 ops/s (20.1%), while warm-many rises from 91.44 to 121.29 (32.6%). At concurrency 1,
+  cold-many falls from 23.66 to 19.87 (16.0%). These are findings to investigate with profiling;
+  this experiment does not attribute them to one particular feature.
+- SQLite 1.0.6 improves the hot-actor median even with FULL synchronization: 343.35 versus 166.35
+  ops/s at concurrency 16, about 2.06 times the throughput. WAL/NORMAL reaches 549.58, about
+  3.30 times, with the stated durability tradeoff. State-size and application workloads need their
+  own measurements.
+- PostgreSQL 1.0.6 is close to 1.0.5 in these samples. Independent rebuilds show that their emitted
+  JavaScript differs only in the SQLite adapter and version constant. Small PostgreSQL/MySQL
+  differences are not evidence of a new 1.0.6 runtime optimization.
+
+The host passed sustained CPU, storage and load quiet checks before every backend/round/concurrency
+block, and version order rotated within rounds. Source, compiled-code and harness hashes were
+independently reproduced. The archive was downloaded and verified, then the VM was confirmed deleted.
+A recorded supervision handoff extended the controller window without restarting the collector or
+changing the sampling plan. See [lifecycle and operator events](../benchmarks/results/js-release-comparison-incomplete-2026-11-09/operator-events.jsonl).
+
+## MySQL validation
+
+The 0.14.0 MySQL state assertion prevents a trustworthy three-release throughput comparison from
+that attempt. A fresh, separate runner is measuring all five rounds of 1.0.5 and 1.0.6; its complete
+results will remain a distinct same-host dataset. No incomplete MySQL samples are pooled into it.
+
+## Additional isolated 1.0.5 workloads
+
+The [November 8 isolated baseline](../benchmarks/results/v1.0.5-isolated-2026-11-08/README.md)
+retains all 57,600 latencies from counter/cart matrices, state-size and idle workloads. Its source
+is released 1.0.5 with the recorded newer measurement harness overlaid. Cart verification checks
+quantities, totals and pending effect payloads outside timed intervals.
+
+That run used another c-8 instance and a different sampling plan. Its absolute rates do not form a
+release comparison with the November 9 experiment. A droplet size alone does not identify physical
+CPU or storage performance. Keep each workload's source, harness and environment attached.
 
 ## Historical datasets
 

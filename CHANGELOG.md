@@ -5,6 +5,8 @@
 - Separate isolated benchmark baselines from historical shared-workstation measurements.
   Publish the retained DigitalOcean 1.0.5 baseline with provenance and teardown evidence,
   and validate dataset version labels and summaries in CI before publication.
+  Add controlled release comparisons with separate SQLite durability settings, retain the
+  incomplete MySQL attempt and state-check failure, and derive only fully completed backend plans.
 
 ## 1.0.6 - 2026-11-08
 

@@ -83,3 +83,12 @@ under its diagnostics list, and regenerate guide headlines with
 `pnpm run check:benchmarks --write-guide`. The normal quality checks verify version labels,
 raw samples, readiness evidence, summaries and published tables. See
 [Benchmarks](benchmarks.md) for the datasets and measurement boundaries.
+
+If one backend fails after other predeclared backend plans completed, keep the parent status
+failed and preserve its original full plan and all diagnostics. After export, run
+`node benchmarks/summarize-completed.mjs EXPORTED_DIAGNOSTIC_DIRECTORY` to derive every fully
+completed backend. Register that archive as `partial-controlled-comparison`, with its exact
+`databases` scope. CI requires all planned versions, rounds and scenarios for each included
+backend, rejects selective subsets, and requires the report to remain visibly labeled incomplete.
+Failed or partially sampled backends receive no comparative throughput claim. A new host's
+replacement measurements remain a separate dataset.
