@@ -1,0 +1,3 @@
+benchmarks/results/*/*.json linguist-generated=true
+benchmarks/results/*/*.jsonl linguist-generated=true
+benchmarks/results/*/*.log linguist-generated=true
