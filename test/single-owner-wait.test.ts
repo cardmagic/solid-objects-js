@@ -3,7 +3,7 @@ import { Actor } from "../src/actor.js"
 import { sqlite } from "../src/database/sqlite.js"
 import { ApplicationWriteForbidden } from "../src/errors.js"
 import { createRuntime, type SolidObjectsRuntime } from "../src/runtime.js"
-import { MAXIMUM_WAIT_MILLISECONDS, waitUntilDue } from "../src/single-owner.js"
+import { DueWait, MAXIMUM_WAIT_MILLISECONDS } from "../src/single-owner.js"
 
 const pollingInterval = 200
 
@@ -30,31 +30,48 @@ afterEach(async () => {
   BrokenSetup.activations = 0
 })
 
-describe("waitUntilDue", () => {
+describe("DueWait", () => {
   it("waits the maximum when nothing is due", () => {
+    const wait = new DueWait()
+
     expect(
-      waitUntilDue({ untilDueMilliseconds: undefined, pollingIntervalMilliseconds: 100 }),
+      wait.milliseconds({ untilDueMilliseconds: undefined, pollingIntervalMilliseconds: 100 }),
     ).toBe(MAXIMUM_WAIT_MILLISECONDS)
     expect(MAXIMUM_WAIT_MILLISECONDS).toBe(86_400_000)
   })
 
-  it("waits one millisecond past a future due time", () => {
-    expect(waitUntilDue({ untilDueMilliseconds: 1, pollingIntervalMilliseconds: 100 })).toBe(2)
-    expect(waitUntilDue({ untilDueMilliseconds: 500, pollingIntervalMilliseconds: 100 })).toBe(501)
-  })
+  it("waits one millisecond past a future due time, bounded at the maximum", () => {
+    const wait = new DueWait()
 
-  it("bounds a far due time at the maximum", () => {
+    expect(wait.milliseconds({ untilDueMilliseconds: 500, pollingIntervalMilliseconds: 100 })).toBe(
+      501,
+    )
     expect(
-      waitUntilDue({
+      wait.milliseconds({
         untilDueMilliseconds: 10 * MAXIMUM_WAIT_MILLISECONDS,
         pollingIntervalMilliseconds: 100,
       }),
     ).toBe(MAXIMUM_WAIT_MILLISECONDS)
   })
 
-  it("falls back to the polling interval when a due time is now or has passed", () => {
-    expect(waitUntilDue({ untilDueMilliseconds: 0, pollingIntervalMilliseconds: 100 })).toBe(100)
-    expect(waitUntilDue({ untilDueMilliseconds: -5, pollingIntervalMilliseconds: 100 })).toBe(100)
+  it("retries a due time that is now at once, then backs off to the polling interval", () => {
+    const wait = new DueWait()
+    const retries = [0, -5, 0, -1, 0, 0, 0, 0, 0].map((untilDueMilliseconds) =>
+      wait.milliseconds({ untilDueMilliseconds, pollingIntervalMilliseconds: 100 }),
+    )
+
+    expect(retries).toEqual([1, 2, 4, 8, 16, 32, 64, 100, 100])
+  })
+
+  it("starts the back-off again after a future due time", () => {
+    const wait = new DueWait()
+    for (let pass = 0; pass < 5; pass += 1) {
+      wait.milliseconds({ untilDueMilliseconds: 0, pollingIntervalMilliseconds: 100 })
+    }
+
+    wait.milliseconds({ untilDueMilliseconds: 50, pollingIntervalMilliseconds: 100 })
+
+    expect(wait.milliseconds({ untilDueMilliseconds: 0, pollingIntervalMilliseconds: 100 })).toBe(1)
   })
 })
 
@@ -79,8 +96,10 @@ describe("a singleOwner worker with work that it cannot take", () => {
     }
 
     await new Promise((resolve) => setTimeout(resolve, 5 * pollingInterval))
+    const afterBackOff = BrokenSetup.activations
+    await new Promise((resolve) => setTimeout(resolve, 5 * pollingInterval))
 
-    expect(BrokenSetup.activations).toBeGreaterThanOrEqual(2)
-    expect(BrokenSetup.activations).toBeLessThanOrEqual(10)
+    expect(BrokenSetup.activations - afterBackOff).toBeGreaterThanOrEqual(2)
+    expect(BrokenSetup.activations - afterBackOff).toBeLessThanOrEqual(8)
   })
 })

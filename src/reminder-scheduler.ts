@@ -2,7 +2,7 @@ import { randomUUID } from "./platform/uuid.js"
 import { UnknownOperation } from "./errors.js"
 import type { SolidObjectsRuntime } from "./runtime.js"
 import { PollingBackoff } from "./polling-backoff.js"
-import { idleWaitMilliseconds } from "./single-owner.js"
+import { DueWait, idleWaitMilliseconds } from "./single-owner.js"
 import { yieldToEventLoop } from "./yield-to-event-loop.js"
 
 export class ReminderScheduler {
@@ -10,6 +10,7 @@ export class ReminderScheduler {
   private registered = false
   private stopping = false
   private readonly pollingBackoff: PollingBackoff
+  private readonly dueWait = new DueWait()
 
   constructor(private readonly runtime: SolidObjectsRuntime) {
     this.pollingBackoff = new PollingBackoff({
@@ -89,6 +90,7 @@ export class ReminderScheduler {
         timeoutMilliseconds: await idleWaitMilliseconds({
           settings: this.runtime.settings,
           pollingIntervalMilliseconds: this.pollingBackoff.currentIntervalMilliseconds,
+          dueWait: this.dueWait,
           untilDue: () => this.runtime.dueWork.untilReminderWork(),
         }),
         signal,

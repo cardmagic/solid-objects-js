@@ -9,7 +9,7 @@ import {
 import type { ActivationLease, ClaimedTurn } from "./records.js"
 import type { SolidObjectsRuntime } from "./runtime.js"
 import { PollingBackoff } from "./polling-backoff.js"
-import { idleWaitMilliseconds } from "./single-owner.js"
+import { DueWait, idleWaitMilliseconds } from "./single-owner.js"
 import { yieldToEventLoop } from "./yield-to-event-loop.js"
 
 interface CachedActivation {
@@ -25,6 +25,7 @@ export class Worker {
   private stopping = false
   private readonly activations = new Map<string, CachedActivation>()
   private readonly pollingBackoff: PollingBackoff
+  private readonly dueWait = new DueWait()
 
   constructor(
     private readonly runtime: SolidObjectsRuntime,
@@ -197,6 +198,7 @@ export class Worker {
     const databaseWait = await idleWaitMilliseconds({
       settings: this.runtime.settings,
       pollingIntervalMilliseconds: this.pollingBackoff.currentIntervalMilliseconds,
+      dueWait: this.dueWait,
       untilDue: () => this.runtime.dueWork.untilActorWork({ processId: this.processId }),
     })
     if (!this.runtime.settings.singleOwner) return databaseWait

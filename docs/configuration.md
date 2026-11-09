@@ -138,10 +138,12 @@ With `singleOwner: true`, the runtime changes these behaviors:
   Node timers stop while the computer sleeps, so after a sleep, or after a jump
   of one second or more, every role reads its due time again. The watch sends
   no query.
-- When a due time has passed and a claim still finds nothing, the role waits
-  its polling interval before it tries again, so stuck work cannot spin.
-  `pollingIntervalMilliseconds` and `idlePollingIntervalMilliseconds` set only
-  this retry.
+- When a due time is now or has passed and a claim still finds nothing, the
+  role tries again after 1 ms. A timer can end a few milliseconds before the
+  database clock reaches the due time, and this retry takes the work at once.
+  Each further retry doubles the wait, up to the polling interval, so stuck
+  work cannot spin. `pollingIntervalMilliseconds` and
+  `idlePollingIntervalMilliseconds` set only this limit.
 
 Work that is active runs as before. A turn renews its lease, and an effect or a
 broadcast sends its process heartbeat while it runs. Automatic retention still

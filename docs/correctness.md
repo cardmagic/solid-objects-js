@@ -111,9 +111,10 @@ The guarantee has these limits:
   sees the jump of the wall clock within 10 seconds and makes every role read
   its due time again, so work that came due during a sleep runs at most about
   10 seconds after the computer wakes.
-- When a due time has passed and a claim still finds nothing, for example after
-  an actor setup failure, the role retries at its polling interval, as it does
-  without the option.
+- When a due time is now or has passed and a claim still finds nothing, for
+  example after an actor setup failure, the role retries after 1 ms and then
+  doubles the wait up to its polling interval. Stuck work is then retried at
+  the polling interval, as it is without the option.
 
 ## Limitations and non-goals
 
