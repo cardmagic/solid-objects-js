@@ -793,11 +793,13 @@ The root exports `SolidObjectsError` and its supported subclasses:
   `ScheduleWithoutOperation`, `StateMigrationError`, `ApplicationWriteForbidden`, `UnknownEffect`, and
   `UnknownCommitAction`;
 - operational failures: `LostActivation`, `DatabaseDeadlineExceeded`,
-  `UnknownDeadLetter`, `UnknownReminder`, `ReminderNotPaused`, and
-  `UnsupportedDatabase`.
+  `UnknownDeadLetter`, `UnknownReminder`, `ReminderNotPaused`,
+  `UnsupportedDatabase`, and `SingleOwnerConflict`.
 
 `NonRetryableError` is the application subclassing point. `SyncTimeoutDetails`
-and `SyncTimeoutWaitingOn` type timeout diagnostics. See
+and `SyncTimeoutWaitingOn` type timeout diagnostics. `SingleOwnerConflict`
+carries one `SingleOwnerConflictProcess` for each live process row that stopped
+a `singleOwner` runtime from starting. See
 [Errors and recovery](errors-and-recovery.md) before deciding what to catch.
 
 ## `solid-objects/database/sqlite`

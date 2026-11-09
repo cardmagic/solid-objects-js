@@ -9,6 +9,7 @@ import {
 import type { ActivationLease, ClaimedTurn } from "./records.js"
 import type { SolidObjectsRuntime } from "./runtime.js"
 import { PollingBackoff } from "./polling-backoff.js"
+import { DueWait, idleWaitMilliseconds } from "./single-owner.js"
 import { yieldToEventLoop } from "./yield-to-event-loop.js"
 
 interface CachedActivation {
@@ -24,6 +25,7 @@ export class Worker {
   private stopping = false
   private readonly activations = new Map<string, CachedActivation>()
   private readonly pollingBackoff: PollingBackoff
+  private readonly dueWait = new DueWait()
 
   constructor(
     private readonly runtime: SolidObjectsRuntime,
@@ -154,7 +156,7 @@ export class Worker {
         continue
       }
       const notified = await wakeUp.wait({
-        timeoutMilliseconds: this.pollingBackoff.currentIntervalMilliseconds,
+        timeoutMilliseconds: await this.idleWaitMilliseconds(),
         signal,
       })
       if (notified === false) this.pollingBackoff.recordIdle()
@@ -192,7 +194,29 @@ export class Worker {
     }
   }
 
+  private async idleWaitMilliseconds(): Promise<number> {
+    const databaseWait = await idleWaitMilliseconds({
+      settings: this.runtime.settings,
+      pollingIntervalMilliseconds: this.pollingBackoff.currentIntervalMilliseconds,
+      dueWait: this.dueWait,
+      untilDue: () => this.runtime.dueWork.untilActorWork({ processId: this.processId }),
+    })
+    if (!this.runtime.settings.singleOwner) return databaseWait
+    return Math.min(databaseWait, this.untilCachedActivationDue())
+  }
+
+  private untilCachedActivationDue(): number {
+    let earliest = Number.POSITIVE_INFINITY
+    for (const activation of this.activations.values()) {
+      const deactivateAt =
+        activation.lastUsedAt + this.runtime.settings.idleDeactivationTimeoutMilliseconds
+      earliest = Math.min(earliest, activation.renewAt, deactivateAt)
+    }
+    return Math.max(Math.ceil(earliest - performance.now()), 0)
+  }
+
   private async ensureRegistered(): Promise<void> {
+    if (this.registered && this.runtime.settings.singleOwner) return
     await this.runtime.repository.registerProcess(this.processId, "worker")
     this.registered = true
   }
@@ -291,15 +315,13 @@ function activationLease(turn: ClaimedTurn): ActivationLease {
 export function waitFor(milliseconds: number, signal?: AbortSignal): Promise<void> {
   if (signal?.aborted) return Promise.resolve()
   return new Promise((resolve) => {
-    const timeout = setTimeout(resolve, milliseconds)
-    signal?.addEventListener(
-      "abort",
-      () => {
-        clearTimeout(timeout)
-        resolve()
-      },
-      { once: true },
-    )
+    const finish = () => {
+      clearTimeout(timeout)
+      signal?.removeEventListener("abort", finish)
+      resolve()
+    }
+    const timeout = setTimeout(finish, milliseconds)
+    signal?.addEventListener("abort", finish, { once: true })
   })
 }
 

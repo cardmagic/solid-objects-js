@@ -6,6 +6,7 @@ import { BroadcastWorker } from "./broadcast-worker.js"
 import {
   buildSettings,
   broadcastsEnabled,
+  deadProcessCleanupScheduled,
   validateComponent,
   type BroadcastEvent,
   type ComponentRegistration,
@@ -45,6 +46,7 @@ import {
   NonRetryableError,
   QueryMutatedState,
   Rejected,
+  SingleOwnerConflict,
   SyncTimeout,
   SyncEnqueueTimeout,
   SyncInsideTransaction,
@@ -83,6 +85,9 @@ import {
 import { RealtimeManager } from "./realtime.js"
 import type { PayloadEnvelope } from "./browser/index.js"
 import { MaintenanceScheduler } from "./maintenance-scheduler.js"
+import { DueWork } from "./due-work.js"
+import { LocalSignal } from "./local-signal.js"
+import { WallClockWatch } from "./wall-clock-watch.js"
 import type {
   BroadcastRow,
   ClaimedTurn,
@@ -132,7 +137,7 @@ import { waitFor, Worker } from "./worker.js"
 import { EffectWorker } from "./effect-worker.js"
 import type { WakeUpAdapter, WakeUpCapability, WakeUpRole, WakeUpWatch } from "./wake-up.js"
 import { notifyWakeUp } from "./wake-up-notification.js"
-import { selectWakeUp, type SelectedWakeUp } from "./wake-up-selection.js"
+import { selectWakeUp, singleOwnerWakeUp, type SelectedWakeUp } from "./wake-up-selection.js"
 import { withDatabaseDeadline } from "./database/deadline.js"
 import type { DatabaseConnection } from "./database/types.js"
 import { evaluateActorTurn, readActorObservables } from "./turn.js"
@@ -197,6 +202,8 @@ function administrationEventId(occurredAtMilliseconds: number): string {
 export class SolidObjectsRuntime {
   readonly settings
   readonly repository
+  readonly dueWork
+  readonly redriveSignal = new LocalSignal()
   readonly deadLetters
   readonly redrives
   readonly reconciliation
@@ -225,6 +232,7 @@ export class SolidObjectsRuntime {
     this.repository = new Repository(this.settings, {
       wakeUpAdapter: () => this.wakeUpAdapter(),
     })
+    this.dueWork = new DueWork(this.settings)
     this.deadLetters = new DeadLetterManager(this)
     this.redrives = new RedriveManager(this)
     this.reconciliation = new ReconciliationManager(this)
@@ -327,7 +335,7 @@ export class SolidObjectsRuntime {
         ? this.settings.broadcastWorkerCount
         : 0,
       retentionEnabled: this.settings.retentionIntervalMilliseconds > 0,
-      deadProcessCleanupEnabled: this.settings.deadProcessCleanupIntervalMilliseconds > 0,
+      deadProcessCleanupEnabled: deadProcessCleanupScheduled(this.settings),
     })
     const controller = new AbortController()
     let shutdownDeadline: number | undefined
@@ -339,6 +347,7 @@ export class SolidObjectsRuntime {
     let slots: ComponentSlot[] = []
 
     try {
+      if (this.settings.singleOwner) await this.claimSingleOwnership()
       slots = await this.buildComponentSlots()
       await Promise.all(
         slots.map((slot) =>
@@ -1116,6 +1125,27 @@ export class SolidObjectsRuntime {
     return Object.freeze({ cleaned })
   }
 
+  private async claimSingleOwnership(): Promise<void> {
+    const live = await this.repository.liveProcesses({
+      excludedProcessIds: [...this.callerWorkers].map((worker) => worker.processId),
+    })
+    if (live.length > 0) {
+      throw new SingleOwnerConflict({
+        processes: live.map((row) => ({
+          id: row.id,
+          kind: row.kind,
+          hostname: row.hostname,
+          hostProcessId: Number(row.host_process_id),
+          heartbeatAt: new Date(Number(row.heartbeat_at_ms)),
+          staleAt: new Date(
+            Number(row.heartbeat_at_ms) + this.settings.processAliveThresholdMilliseconds,
+          ),
+        })),
+      })
+    }
+    await this.cleanupStaleProcesses()
+  }
+
   private async cleanupStaleProcesses(): Promise<number> {
     const cleaned = await this.repository.cleanupStaleProcesses()
     if (cleaned > 0) {
@@ -1454,6 +1484,7 @@ export class SolidObjectsRuntime {
         })
         if (outcome === "retrying")
           this.emitInstrumentation("message.retry", messageInstrumentation(turn.message))
+        if (outcome === "retrying" && this.settings.singleOwner) this.wakeUp("actors")
         if (outcome === "dead" && recoveryMessage(turn.message))
           this.emitInstrumentation("recovery.failed", messageInstrumentation(turn.message))
         if (outcome === "dead")
@@ -1496,12 +1527,13 @@ export class SolidObjectsRuntime {
       })
     } finally {
       actor?.discardIntents()
-      await this.repository.releaseActivation({
+      const released = await this.repository.releaseActivation({
         instanceId: turn.instance.id,
         processId: turn.processId,
         activationToken: turn.activationToken,
         activationGeneration: turn.activationGeneration,
       })
+      if (released.readyMessagesWaiting) this.wakeUp("actors")
     }
   }
 
@@ -1961,6 +1993,9 @@ export class SolidObjectsRuntime {
           )
         : []),
       () => new RedriveScheduler(this),
+      ...(this.settings.singleOwner
+        ? [() => new WallClockWatch({ onJump: () => this.wakeUpEveryRole() })]
+        : []),
       ...(this.settings.retentionIntervalMilliseconds > 0
         ? [
             () =>
@@ -1972,7 +2007,7 @@ export class SolidObjectsRuntime {
               }),
           ]
         : []),
-      ...(this.settings.deadProcessCleanupIntervalMilliseconds > 0
+      ...(deadProcessCleanupScheduled(this.settings)
         ? [
             () =>
               new MaintenanceScheduler({
@@ -2310,6 +2345,10 @@ export class SolidObjectsRuntime {
   }
 
   private resolveWakeUp(): Promise<SelectedWakeUp> {
+    if (this.settings.singleOwner) {
+      this.wakeUpSelection ??= Promise.resolve(singleOwnerWakeUp())
+      return this.wakeUpSelection
+    }
     this.wakeUpSelection ??= selectWakeUp({
       setting: this.settings.wakeUp,
       database: this.settings.database,
@@ -2334,6 +2373,14 @@ export class SolidObjectsRuntime {
 
   private wakeUp(role: WakeUpRole): void {
     void this.notifyWhenSelected(role)
+  }
+
+  private wakeUpEveryRole(): void {
+    this.wakeUp("actors")
+    this.wakeUp("effects")
+    this.wakeUp("reminders")
+    this.wakeUp("broadcasts")
+    this.redriveSignal.notify()
   }
 
   private async notifyWhenSelected(role: WakeUpRole): Promise<void> {

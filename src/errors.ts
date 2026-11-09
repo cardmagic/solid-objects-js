@@ -17,6 +17,33 @@ export class EnqueueOutcomeUnknown extends SolidObjectsError {
   }
 }
 export class UnsupportedDatabase extends SolidObjectsError {}
+
+export interface SingleOwnerConflictProcess {
+  readonly id: string
+  readonly kind: string
+  readonly hostname: string
+  readonly hostProcessId: number
+  readonly heartbeatAt: Date
+  readonly staleAt: Date
+}
+
+export class SingleOwnerConflict extends SolidObjectsError {
+  readonly processes: readonly SingleOwnerConflictProcess[]
+
+  constructor(options: { processes: readonly SingleOwnerConflictProcess[] }) {
+    const descriptions = options.processes.map(
+      (process) =>
+        `${process.kind} ${process.id} on ${process.hostname} with process ID ` +
+        `${process.hostProcessId}, alive until ${process.staleAt.toISOString()}`,
+    )
+    super(
+      `singleOwner refuses to start, because another process row is alive: ` +
+        `${descriptions.join("; ")}. Stop that process, or wait until its row is stale, ` +
+        `and start again`,
+    )
+    this.processes = Object.freeze(options.processes.map((process) => Object.freeze(process)))
+  }
+}
 export class DatabaseDeadlineExceeded extends SolidObjectsError {}
 export class SyncEnqueueTimeout extends SolidObjectsError {
   constructor(

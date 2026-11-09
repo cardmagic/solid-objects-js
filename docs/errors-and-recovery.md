@@ -83,6 +83,10 @@ stable public code and does not classify the operation as failed.
   lookup found no record.
 - `ReminderNotPaused` means only a completed reminder remains; schedule it
   again through its actor instead of resuming it.
+- `SingleOwnerConflict` means a `singleOwner` runtime found another live
+  process row at start. Its `processes` list names each row and the time at
+  which the row becomes stale. Stop the other process, or wait until that time,
+  and start again.
 
 Realtime protocol validation uses `TypeError` for malformed subscription or
 browser envelopes. Server delivery failures are isolated to the session and
