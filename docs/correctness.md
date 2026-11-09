@@ -36,9 +36,10 @@
 - Observable outbox rows are claimed in actor revision order. Subscription
   sessions and browser clients reject duplicate or stale revisions within an
   incarnation, while a recreated actor starts a new revision sequence.
-- Wake-up notifications happen only after commit and never replace polling.
-  Workers watch before claiming, so an in-process notification between an empty
-  claim and the following wait is retained.
+- Wake-up notifications happen only after commit and never replace polling,
+  except with [`singleOwner`](#single-owner). Workers watch before claiming, so
+  an in-process notification between an empty claim and the following wait is
+  retained.
 - Activation passes are bounded. Yielding changes ready-membership polling
   order only; it neither changes durable message sequence nor makes future work
   due early.
@@ -64,6 +65,55 @@
   denied, that mutates, or that fails cannot stop its siblings or observable
   delivery. A state change on an actor with payloads creates a revision
   broadcast, even when that actor declares no scalar observables.
+
+## Single owner
+
+With `singleOwner: true`, an idle runtime sends no query, and it still runs all
+work when the work arrives or comes due. This guarantee holds only while one
+process writes the database.
+
+The guarantee rests on these rules:
+
+- Every write that adds work or moves it earlier happens in this process. After
+  the commit, the write notifies an in-process signal for each role that must
+  react. A host that enqueues with
+  `runtime.enqueueInternalMessageInTransaction()` must call
+  `runtime.announceInternalMessage()` after its commit, as it must without the
+  option. Without that call, the message waits for the next wake-up.
+- A role watches the signal before it claims, so it cannot lose a notification
+  that arrives during a pass.
+- After an empty pass, a role reads the earliest time at which a claim can take
+  something. The read uses the same conditions as the claims: the head of each
+  mailbox, lease ends, pending effects, broadcasts, and reminders, claims whose
+  owners become stale, and recovery timeouts. The role waits until that time,
+  or for at most 24 hours.
+- A claim writes the row of the claiming worker in the claim transaction. A
+  worker that was idle for longer than `processAliveThresholdMilliseconds`
+  therefore never holds work under a stale row, and the alive rule protects
+  running work as it does without the option.
+
+Fencing and at-least-once delivery do not change. Claims, activation leases,
+the commit fence, retries, dead letters, and effect recovery use the same rows
+and the same conditions.
+
+The guarantee has these limits:
+
+- One process only. A write from another process, for example a second
+  runtime, a script, or a command, does not wake this runtime. That work waits
+  for the next local wake-up or due time, for at most 24 hours.
+- The start check reads the process rows once. It sees another writer only
+  while that writer's row is fresh, and an idle single owner does not refresh
+  its row. Two processes that start at the same moment can both pass the
+  check. Only an operating system lock, such as SQLite's exclusive locking
+  mode, keeps a second process out.
+- A due time runs on a Node timer. A long synchronous handler delays the timer,
+  as it delays polling. Node timers stop while the computer sleeps. A watch
+  sees the jump of the wall clock within 10 seconds and makes every role read
+  its due time again, so work that came due during a sleep runs at most about
+  10 seconds after the computer wakes.
+- When a due time has passed and a claim still finds nothing, for example after
+  an actor setup failure, the role retries at its polling interval, as it does
+  without the option.
 
 ## Limitations and non-goals
 

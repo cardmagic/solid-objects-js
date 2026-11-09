@@ -91,13 +91,86 @@ Consecutive empty passes double it up to
 fixed cadence. A custom wake-up adapter must return `true` for a notification
 and `false` for a timeout. An older adapter that returns `void` remains
 compatible and keeps the fast cadence. Wake-ups reduce latency, while database
-polling remains the correctness path.
+polling remains the correctness path. The one exception is
+[`singleOwner`](#single-owner), which replaces polling with wake-ups and due
+times.
 
 Busy SQL workers and testing drains give the event loop a turn between passes.
 In Node this lets timers and input run even with synchronous SQLite calls.
 An instrumentation callback can abort `runtime.run()` before its next pass.
 This does not interrupt a synchronous handler: responsiveness is bounded by
 one pass, or by a single overlong handler that must return first.
+
+## Single owner
+
+Set `singleOwner: true` when one process is the only writer of its SQLite
+database, for example a daemon that embeds the runtime and holds its database
+file. With the option, an idle runtime sends no query. The default is `false`,
+and the default behavior does not change.
+
+```typescript
+const runtime = createRuntime({
+  database: sqlite({ path: "app.sqlite" }),
+  singleOwner: true,
+})
+```
+
+With `singleOwner: true`, the runtime changes these behaviors:
+
+- Each role waits for an in-process wake-up or for the next due time that the
+  database reports. A due time is, for example, the time of the next ready
+  message, effect, broadcast, reminder, or retry, the end of a lease, or the
+  time when the owner of a claim becomes stale. A role with nothing due waits
+  up to 24 hours and then reads its due time again.
+- A write in this process that adds work or moves it earlier wakes the roles
+  that must react. A role that waits for a later due time then reads the new
+  due time.
+- The actor worker renews a lease only while it holds a cached activation.
+  When idle deactivation releases the last activation, the worker stops waking
+  for leases.
+- Each role writes its process row once at start and once at shutdown. A claim
+  also writes the row of the worker that claims, in the claim transaction, so
+  that running work always has a fresh owner. An empty pass writes nothing.
+- No periodic dead-process cleanup runs, and
+  `deadProcessCleanupIntervalMilliseconds` has no effect. `run()` releases
+  stale process rows once, at start.
+- A watch compares the wall clock with the process clock every 10 seconds.
+  Node timers stop while the computer sleeps, so after a sleep, or after a jump
+  of one second or more, every role reads its due time again. The watch sends
+  no query.
+- When a due time has passed and a claim still finds nothing, the role waits
+  its polling interval before it tries again, so stuck work cannot spin.
+  `pollingIntervalMilliseconds` and `idlePollingIntervalMilliseconds` set only
+  this retry.
+
+Work that is active runs as before. A turn renews its lease, and an effect or a
+broadcast sends its process heartbeat while it runs. Automatic retention still
+runs at start and every `retentionIntervalMilliseconds`. Set that interval to
+`0` to stop it, and prune with `runtime.retention.prune()` instead.
+
+`run()` refuses to start with `SingleOwnerConflict` when another process row is
+alive by the usual rule: the row is not stopped, and its heartbeat is newer
+than `processAliveThresholdMilliseconds`. The error names each row and the time
+at which the row becomes stale. The rows of the runtime's own synchronous
+callers do not count.
+
+`createRuntime()` refuses the option in these cases:
+
+- The database is not SQLite. PostgreSQL and MySQL are servers that other
+  processes can reach. The runtime cannot know that it is the only writer, and
+  without polling a write from another process can wait up to 24 hours.
+- `wakeUp` is `"postgresql"`, `"redis"`, or an adapter. A notification over a
+  connection can be lost when the connection fails, and the runtime cannot
+  prove that a custom adapter delivers every signal. Without polling, a lost
+  signal can delay work for up to 24 hours. With `"automatic"` or
+  `"in_process"`, the runtime uses in-process signalling and ignores
+  `SOLID_OBJECTS_REDIS_URL`.
+
+Do not use the option with `sharedSqliteWasm`, because each tab runs its own
+runtime against the shared database. See
+[Correctness and delivery semantics](correctness.md#single-owner) for the
+guarantee and its limits, and [Operations](operations.md#single-owner) for
+monitoring.
 
 ## Retention and cleanup
 
@@ -207,7 +280,8 @@ the files only when no process has the database open. An in-memory database
 
 `wakeUp` takes a name or an adapter, as `config.cache_store` does in Rails.
 `"automatic"` is the default. It prefers `SOLID_OBJECTS_REDIS_URL`, then
-PostgreSQL notifications, then polling. `"in_process"` opts out, `"postgresql"`
+PostgreSQL notifications, then polling. With `singleOwner`, the runtime runs no
+selection and uses in-process signalling. `"in_process"` opts out, `"postgresql"`
 and `"redis"` force one, and an unknown name throws rather than polls quietly.
 
 A requested adapter that the environment cannot provide polls instead and says
