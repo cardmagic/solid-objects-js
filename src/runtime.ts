@@ -6,6 +6,7 @@ import { BroadcastWorker } from "./broadcast-worker.js"
 import {
   buildSettings,
   broadcastsEnabled,
+  deadProcessCleanupScheduled,
   validateComponent,
   type BroadcastEvent,
   type ComponentRegistration,
@@ -83,6 +84,8 @@ import {
 import { RealtimeManager } from "./realtime.js"
 import type { PayloadEnvelope } from "./browser/index.js"
 import { MaintenanceScheduler } from "./maintenance-scheduler.js"
+import { DueWork } from "./due-work.js"
+import { LocalSignal } from "./local-signal.js"
 import type {
   BroadcastRow,
   ClaimedTurn,
@@ -197,6 +200,8 @@ function administrationEventId(occurredAtMilliseconds: number): string {
 export class SolidObjectsRuntime {
   readonly settings
   readonly repository
+  readonly dueWork
+  readonly redriveSignal = new LocalSignal()
   readonly deadLetters
   readonly redrives
   readonly reconciliation
@@ -225,6 +230,7 @@ export class SolidObjectsRuntime {
     this.repository = new Repository(this.settings, {
       wakeUpAdapter: () => this.wakeUpAdapter(),
     })
+    this.dueWork = new DueWork(this.settings)
     this.deadLetters = new DeadLetterManager(this)
     this.redrives = new RedriveManager(this)
     this.reconciliation = new ReconciliationManager(this)
@@ -327,7 +333,7 @@ export class SolidObjectsRuntime {
         ? this.settings.broadcastWorkerCount
         : 0,
       retentionEnabled: this.settings.retentionIntervalMilliseconds > 0,
-      deadProcessCleanupEnabled: this.settings.deadProcessCleanupIntervalMilliseconds > 0,
+      deadProcessCleanupEnabled: deadProcessCleanupScheduled(this.settings),
     })
     const controller = new AbortController()
     let shutdownDeadline: number | undefined
@@ -1972,7 +1978,7 @@ export class SolidObjectsRuntime {
               }),
           ]
         : []),
-      ...(this.settings.deadProcessCleanupIntervalMilliseconds > 0
+      ...(deadProcessCleanupScheduled(this.settings)
         ? [
             () =>
               new MaintenanceScheduler({

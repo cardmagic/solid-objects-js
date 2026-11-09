@@ -9,6 +9,7 @@ import {
 import type { ActivationLease, ClaimedTurn } from "./records.js"
 import type { SolidObjectsRuntime } from "./runtime.js"
 import { PollingBackoff } from "./polling-backoff.js"
+import { idleWaitMilliseconds } from "./single-owner.js"
 import { yieldToEventLoop } from "./yield-to-event-loop.js"
 
 interface CachedActivation {
@@ -154,7 +155,7 @@ export class Worker {
         continue
       }
       const notified = await wakeUp.wait({
-        timeoutMilliseconds: this.pollingBackoff.currentIntervalMilliseconds,
+        timeoutMilliseconds: await this.idleWaitMilliseconds(),
         signal,
       })
       if (notified === false) this.pollingBackoff.recordIdle()
@@ -192,7 +193,28 @@ export class Worker {
     }
   }
 
+  private async idleWaitMilliseconds(): Promise<number> {
+    const databaseWait = await idleWaitMilliseconds({
+      settings: this.runtime.settings,
+      pollingIntervalMilliseconds: this.pollingBackoff.currentIntervalMilliseconds,
+      untilDue: () => this.runtime.dueWork.untilActorWork(),
+    })
+    if (!this.runtime.settings.singleOwner) return databaseWait
+    return Math.min(databaseWait, this.untilCachedActivationDue())
+  }
+
+  private untilCachedActivationDue(): number {
+    let earliest = Number.POSITIVE_INFINITY
+    for (const activation of this.activations.values()) {
+      const deactivateAt =
+        activation.lastUsedAt + this.runtime.settings.idleDeactivationTimeoutMilliseconds
+      earliest = Math.min(earliest, activation.renewAt, deactivateAt)
+    }
+    return Math.max(Math.ceil(earliest - performance.now()), 0)
+  }
+
   private async ensureRegistered(): Promise<void> {
+    if (this.registered && this.runtime.settings.singleOwner) return
     await this.runtime.repository.registerProcess(this.processId, "worker")
     this.registered = true
   }

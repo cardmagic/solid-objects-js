@@ -2,6 +2,7 @@ import { randomUUID } from "./platform/uuid.js"
 import type { SolidObjectsRuntime } from "./runtime.js"
 import { withProcessHeartbeat } from "./worker.js"
 import { PollingBackoff } from "./polling-backoff.js"
+import { idleWaitMilliseconds } from "./single-owner.js"
 import { yieldToEventLoop } from "./yield-to-event-loop.js"
 
 export class BroadcastWorker {
@@ -64,7 +65,11 @@ export class BroadcastWorker {
         continue
       }
       const notified = await wakeUp.wait({
-        timeoutMilliseconds: this.pollingBackoff.currentIntervalMilliseconds,
+        timeoutMilliseconds: await idleWaitMilliseconds({
+          settings: this.runtime.settings,
+          pollingIntervalMilliseconds: this.pollingBackoff.currentIntervalMilliseconds,
+          untilDue: () => this.runtime.dueWork.untilBroadcastWork(),
+        }),
         signal,
       })
       if (notified === false) this.pollingBackoff.recordIdle()
@@ -91,6 +96,7 @@ export class BroadcastWorker {
   }
 
   private async ensureRegistered(): Promise<void> {
+    if (this.registered && this.runtime.settings.singleOwner) return
     await this.runtime.repository.registerProcess(this.processId, "broadcast_worker")
     this.registered = true
   }

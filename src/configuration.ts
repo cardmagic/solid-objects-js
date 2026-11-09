@@ -373,8 +373,13 @@ function validateSettings(settings: RuntimeSettings): void {
     settings.reminderSchedulerCount +
     (broadcastsEnabled(settings) ? settings.broadcastWorkerCount : 0) +
     (settings.retentionIntervalMilliseconds > 0 ? 1 : 0) +
-    (settings.deadProcessCleanupIntervalMilliseconds > 0 ? 1 : 0)
+    (deadProcessCleanupScheduled(settings) ? 1 : 0)
   if (roleCount === 0) throw new TypeError("at least one runtime role must be configured")
+}
+
+export function deadProcessCleanupScheduled(settings: RuntimeSettings): boolean {
+  if (settings.singleOwner) return false
+  return settings.deadProcessCleanupIntervalMilliseconds > 0
 }
 
 export function broadcastsEnabled(settings: RuntimeSettings): boolean {

@@ -4,6 +4,8 @@ import { randomUUID, sha256Hex } from "./platform/uuid.js"
 import type { SolidObjectsRuntime } from "./runtime.js"
 import type { AdministrationOptions } from "./types.js"
 import { waitFor } from "./worker.js"
+import type { LocalSignalWatch } from "./local-signal.js"
+import { MAXIMUM_WAIT_MILLISECONDS } from "./single-owner.js"
 
 export type RedriveStatus = "running" | "completed" | "cancelled"
 
@@ -183,6 +185,7 @@ export class RedriveManager {
       if (running) return running
       throw new RedriveNotStarted(`could not start a ${input.kind} redrive`)
     }
+    this.runtime.redriveSignal.notify()
     return await this.require(id)
   }
 
@@ -282,8 +285,9 @@ export class RedriveScheduler {
 
   async run(signal: AbortSignal): Promise<void> {
     while (!signal.aborted && !this.stopping) {
+      const watch = this.runtime.redriveSignal.watch()
       const moved = await this.advance()
-      await waitFor(this.pauseMilliseconds(moved), signal)
+      await this.pause({ moved, watch, signal })
     }
   }
 
@@ -307,6 +311,37 @@ export class RedriveScheduler {
         errorName: error instanceof Error ? error.name : "Error",
       })
       return false
+    }
+  }
+
+  private async pause(options: {
+    moved: boolean
+    watch: LocalSignalWatch
+    signal: AbortSignal
+  }): Promise<void> {
+    if (options.moved || !this.runtime.settings.singleOwner) {
+      await waitFor(this.pauseMilliseconds(options.moved), options.signal)
+      return
+    }
+    await options.watch.wait({
+      timeoutMilliseconds: await this.idleWaitMilliseconds(),
+      signal: options.signal,
+    })
+  }
+
+  private async idleWaitMilliseconds(): Promise<number> {
+    if ((await this.untilRedriveWork()) === undefined) return MAXIMUM_WAIT_MILLISECONDS
+    return this.runtime.settings.idlePollingIntervalMilliseconds
+  }
+
+  private async untilRedriveWork(): Promise<number | undefined> {
+    try {
+      return await this.runtime.dueWork.untilRedriveWork()
+    } catch (error) {
+      this.runtime.emitInstrumentation("supervisor.redrive_failed", {
+        errorName: error instanceof Error ? error.name : "Error",
+      })
+      return 0
     }
   }
 
