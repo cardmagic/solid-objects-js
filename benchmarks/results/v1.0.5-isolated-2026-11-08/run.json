@@ -1,0 +1,47 @@
+{
+  "name": "so-bench-20261108171702-bf8e8636",
+  "startedAt": "2026-11-08T17:17:02.655Z",
+  "profile": {
+    "adapter": "javascript",
+    "region": "sfo3",
+    "size": "c-8",
+    "image": "252242095",
+    "node": "24.18.0",
+    "nodeSha256": "55aa7153f9d88f28d765fcdad5ae6945b5c0f98a36881703817e4c450fa76742",
+    "pnpm": "11.11.0",
+    "postgresImage": "postgres@sha256:5983db9a9c6ad225a48a46cfe2e03e6680b1826662befd0465eb05b34cb1c64e",
+    "mysqlImage": "mysql@sha256:72c368d898861f3b3a07af0e6d690400f44f048799ed46822783d9224cc2c86d",
+    "quiet": {
+      "minimumUptimeSeconds": 180,
+      "sampleSeconds": 5,
+      "consecutiveSamples": 12,
+      "timeoutSeconds": 900,
+      "maximumCpuPercent": 5,
+      "maximumIoWaitPercent": 1,
+      "maximumStealPercent": 1,
+      "maximumDiskBytesPerSecond": 1048576,
+      "maximumLoadPerCpu": 0.05
+    }
+  },
+  "status": "complete",
+  "runnerRevision": "144dc71760a1aaf0d709a2a731c4cf046a977c0a",
+  "runtimeRevision": "8975f6e2ad94c114f3638cea8f167956061a9bc3",
+  "harnessRevision": "57665ddfacfd44a83aa9cf048722012a22407fbc",
+  "runtime.bundleSha256": "4b5c63cba0be76247dcfeb7b36efcf1b826877cf8d510aafdb8af427f2d39444",
+  "overlay.tarSha256": "77c196134c18c64356e5c5b9328162a0558ae6973f778462071c36c48395c621",
+  "priceHourlyUsd": 0.25,
+  "recoveredAt": "2026-11-08T17:28:45.369Z",
+  "resultsSha256": "e0efec4129d1225614eb25c68045824754b6e907e54e5f5a8d64bc9af16e263e",
+  "destroyedAt": "2026-11-08T18:18:22.857Z",
+  "finishedAt": "2026-11-08T18:18:22.857Z",
+  "machine": {
+    "dropletId": 617192933,
+    "size": "c-8",
+    "region": "sfo3",
+    "imageId": 252242095,
+    "vcpus": 8,
+    "memoryMiB": 16384,
+    "diskGiB": 100
+  },
+  "estimatedComputeCostUsd": 0.255407
+}

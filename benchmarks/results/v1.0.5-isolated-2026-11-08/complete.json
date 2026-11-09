@@ -1,0 +1,26 @@
+{
+  "finishedAt": "2026-11-08T18:18:13.232Z",
+  "revision": "8975f6e2ad94c114f3638cea8f167956061a9bc3",
+  "profile": {
+    "adapter": "javascript",
+    "region": "sfo3",
+    "size": "c-8",
+    "image": "252242095",
+    "node": "24.18.0",
+    "nodeSha256": "55aa7153f9d88f28d765fcdad5ae6945b5c0f98a36881703817e4c450fa76742",
+    "pnpm": "11.11.0",
+    "postgresImage": "postgres@sha256:5983db9a9c6ad225a48a46cfe2e03e6680b1826662befd0465eb05b34cb1c64e",
+    "mysqlImage": "mysql@sha256:72c368d898861f3b3a07af0e6d690400f44f048799ed46822783d9224cc2c86d",
+    "quiet": {
+      "minimumUptimeSeconds": 180,
+      "sampleSeconds": 5,
+      "consecutiveSamples": 12,
+      "timeoutSeconds": 900,
+      "maximumCpuPercent": 5,
+      "maximumIoWaitPercent": 1,
+      "maximumStealPercent": 1,
+      "maximumDiskBytesPerSecond": 1048576,
+      "maximumLoadPerCpu": 0.05
+    }
+  }
+}

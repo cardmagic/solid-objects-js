@@ -3,9 +3,64 @@
 The benchmark harness measures committed actor operations. It shows tradeoffs and catches large
 regressions. It does not predict application capacity.
 
-## Version 1.0.5 measurements
+## Which measurements answer which question?
 
-The current dataset runs the released `v1.0.5` source at commit
+A package version is not a benchmark result. Read the release, hardware, database settings,
+workload and harness together. Numbers from different environments do not establish a code
+regression or speedup. In particular, dividing the August M5 figures by the November busy-Mac
+figures is not a release comparison.
+
+| Dataset                                                                         | Runtime measured                             | Environment                            | What it establishes                                                                |
+| ------------------------------------------------------------------------------- | -------------------------------------------- | -------------------------------------- | ---------------------------------------------------------------------------------- |
+| [Isolated baseline](../benchmarks/results/v1.0.5-isolated-2026-11-08/README.md) | 1.0.5                                        | Dedicated DigitalOcean c-8, November 8 | Reproducible single-version baseline, including raw samples and confirmed teardown |
+| [Shared workstation](../benchmarks/results/v1.0.5-2026-11-07/README.md)         | 1.0.5                                        | Busy M2 Ultra, November 7              | Historical observations; unsuitable for attributing a version regression           |
+| August tables below                                                             | 0.14.0 (matrix), 0.14.3/0.14.4 (state sizes) | M5 developer laptop                    | Historical measurements in their original environments                             |
+
+The [dataset catalog](../benchmarks/results/index.json) records measured versions and environment
+classes. `pnpm run check:benchmarks` verifies those labels against raw reports, rechecks summaries,
+and requires successful download and confirmed teardown for isolated cloud datasets. CI runs this
+check; a new release does not change any existing dataset's measured version.
+
+Version 1.0.6 changes file-backed SQLite from DELETE/FULL to WAL/NORMAL. That changes both
+journal behavior and power-loss durability. Its results must be labeled separately from
+1.0.5, with WAL/FULL measured as a separate control. Do not relabel a 1.0.5 dataset as 1.0.6.
+
+## Isolated 1.0.5 baseline
+
+The November 8 run uses an otherwise dedicated DigitalOcean c-8 in sfo3, eight dedicated vCPUs,
+16 GiB RAM, Ubuntu 24.04, Node 24.18.0, and pinned PostgreSQL/MySQL images on the same host.
+Collection waits for boot to settle and a sustained CPU, storage and load quiet period. The
+[archived profile and lifecycle](../benchmarks/results/v1.0.5-isolated-2026-11-08/run.json),
+[host metadata](../benchmarks/results/v1.0.5-isolated-2026-11-08/host.txt) and
+[quiet samples](../benchmarks/results/v1.0.5-isolated-2026-11-08/quiet.jsonl) are retained.
+
+For counter operations with four processes, synchronous handlers and client concurrency 16,
+these are the median, minimum and maximum throughput across all three retained samples:
+
+| Database   | Shape     | Median ops/s | Minimum ops/s | Maximum ops/s |
+| ---------- | --------- | -----------: | ------------: | ------------: |
+| sqlite     | warm-hot  |       198.83 |        196.78 |        206.03 |
+| sqlite     | warm-many |        69.08 |         65.76 |         73.95 |
+| sqlite     | cold-many |        34.78 |         34.42 |         35.39 |
+| postgresql | warm-hot  |        97.05 |         96.96 |        102.59 |
+| postgresql | warm-many |       142.57 |        138.77 |        147.83 |
+| postgresql | cold-many |        28.50 |         28.33 |         28.71 |
+| mysql      | warm-hot  |        71.23 |         65.77 |         77.93 |
+| mysql      | warm-many |        79.46 |         60.76 |        107.59 |
+| mysql      | cold-many |        26.42 |         26.27 |         27.10 |
+
+[Complete isolated results](../benchmarks/results/v1.0.5-isolated-2026-11-08/README.md) include
+cart/outbox staging, state sizes, idle polling and all 57,600 operation latencies. The source is
+released v1.0.5, with the recorded newer measurement harness overlaid and no runtime source edits.
+The cart verifier checks quantities, totals and pending effect payloads outside timed intervals.
+
+This run does not establish how 0.14.0 or 1.0.6 performs on that machine. A droplet size alone is
+not a hardware identity: subsequent droplets may use different physical CPUs or storage. Compare
+release variants within one controlled run, rather than calculating speedups across these tables.
+
+## Historical shared-workstation 1.0.5 measurements
+
+This historical dataset runs the released `v1.0.5` source at commit
 `8975f6e2ad94c114f3638cea8f167956061a9bc3`. The runtime source is unchanged; the measurement harness
 is overlaid from this repository. Every JSON report records that source revision, runtime source and
 built-artifact SHA-256 values, harness SHA-256, the loaded package version, actual driver versions,
@@ -259,7 +314,7 @@ Use `--operations`, `--warmup`, `--concurrency`, and `--repetitions` to change t
 The matrix defaults to three repetitions. Select `--workload counter` or `--workload cart-outbox`.
 Redirect stdout to retain the JSON result; progress and runtime diagnostics go to stderr.
 
-## Observed results
+## Historical August 0.14.0 matrix
 
 Measured on August 22, 2026 with the `0.14.0` source tree:
 
@@ -329,7 +384,7 @@ database versions, but this harness did not measure them.
 
 ### Virtualization cost
 
-The same server version ran natively and in Docker Desktop on the same machine, on the same day,
+In the August experiment, the same server version ran natively and in Docker Desktop on the same machine, on the same day,
 through the same harness. Only the container boundary changes.
 
 | Database         | Topology and shape              | Native ops/s | Docker ops/s | Native gain |
@@ -353,9 +408,10 @@ replace them.
 - A developer laptop shares CPU, memory, and storage with unrelated processes.
 - Loopback database connections exclude production network latency.
 - Filesystem cache, SQLite WAL state, Node JIT warmup, and garbage collection affect short runs.
-- Docker Desktop costs between 1.0x and 7.8x of the native throughput. The tables above use native
-  servers. See [Virtualization cost](#virtualization-cost).
+- The August Docker Desktop experiment measured 1.0x to 7.8x lower throughput than native
+  servers. That is not a prediction for Docker on a Linux runner. See [Virtualization cost](#virtualization-cost).
 - The payload is a small counter, not a representative application state size. See
   [Large state](#large-state) for the measured effect of state size.
-- The harness measures default durability settings and one client concurrency.
+- Historical baselines use default durability and client concurrency 16. Comparisons must state
+  each tested concurrency and actual durability setting.
 - Hot-identity results deliberately include serialization and cannot be scaled by adding workers.

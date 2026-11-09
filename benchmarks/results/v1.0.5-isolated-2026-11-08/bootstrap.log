@@ -1,0 +1,234 @@
+status: done
+Hit:1 http://mirrors.digitalocean.com/ubuntu noble InRelease
+Get:2 http://mirrors.digitalocean.com/ubuntu noble-updates InRelease [126 kB]
+Get:3 http://mirrors.digitalocean.com/ubuntu noble-backports InRelease [126 kB]
+Get:4 http://mirrors.digitalocean.com/ubuntu noble-updates/main amd64 Packages [1425 kB]
+Get:5 http://mirrors.digitalocean.com/ubuntu noble-updates/main Translation-en [313 kB]
+Get:6 http://mirrors.digitalocean.com/ubuntu noble-updates/main amd64 Components [181 kB]
+Get:7 http://mirrors.digitalocean.com/ubuntu noble-updates/universe amd64 Packages [1711 kB]
+Get:8 http://security.ubuntu.com/ubuntu noble-security InRelease [126 kB]
+Get:9 http://mirrors.digitalocean.com/ubuntu noble-updates/universe Translation-en [344 kB]
+Get:10 http://mirrors.digitalocean.com/ubuntu noble-updates/universe amd64 Components [388 kB]
+Get:11 http://mirrors.digitalocean.com/ubuntu noble-updates/restricted amd64 Packages [1840 kB]
+Get:12 http://mirrors.digitalocean.com/ubuntu noble-updates/restricted Translation-en [420 kB]
+Get:13 http://mirrors.digitalocean.com/ubuntu noble-updates/multiverse amd64 Packages [50.7 kB]
+Get:14 http://mirrors.digitalocean.com/ubuntu noble-updates/multiverse Translation-en [14.3 kB]
+Get:15 http://mirrors.digitalocean.com/ubuntu noble-updates/multiverse amd64 Components [940 B]
+Get:16 http://mirrors.digitalocean.com/ubuntu noble-backports/main amd64 Components [5744 B]
+Get:17 http://mirrors.digitalocean.com/ubuntu noble-backports/universe amd64 Components [12.6 kB]
+Get:18 http://security.ubuntu.com/ubuntu noble-security/main amd64 Packages [1157 kB]
+Get:19 http://security.ubuntu.com/ubuntu noble-security/main Translation-en [234 kB]
+Get:20 http://security.ubuntu.com/ubuntu noble-security/main amd64 Components [46.4 kB]
+Get:21 http://security.ubuntu.com/ubuntu noble-security/universe amd64 Packages [1228 kB]
+Get:22 http://security.ubuntu.com/ubuntu noble-security/universe Translation-en [248 kB]
+Get:23 http://security.ubuntu.com/ubuntu noble-security/universe amd64 Components [76.3 kB]
+Get:24 http://security.ubuntu.com/ubuntu noble-security/restricted amd64 Packages [1721 kB]
+Get:25 http://security.ubuntu.com/ubuntu noble-security/restricted Translation-en [394 kB]
+Get:26 http://security.ubuntu.com/ubuntu noble-security/multiverse amd64 Packages [45.4 kB]
+Get:27 http://security.ubuntu.com/ubuntu noble-security/multiverse Translation-en [12.4 kB]
+Fetched 12.2 MB in 12s (1058 kB/s)
+Reading package lists...
+Reading package lists...
+Building dependency tree...
+Reading state information...
+curl is already the newest version (8.5.0-2ubuntu10.16).
+The following additional packages will be installed:
+  bridge-utils containerd dns-root-data dnsmasq-base git-man liblzma5 pigz
+  runc ubuntu-fan
+Suggested packages:
+  ifupdown aufs-tools cgroupfs-mount | cgroup-lite debootstrap docker-buildx
+  docker-compose-v2 docker-doc rinse zfs-fuse | zfsutils git-daemon-run
+  | git-daemon-sysvinit git-doc git-email git-gui gitk gitweb git-cvs
+  git-mediawiki git-svn
+The following NEW packages will be installed:
+  bridge-utils containerd dns-root-data dnsmasq-base docker.io pigz runc
+  ubuntu-fan
+The following packages will be upgraded:
+  ca-certificates git git-man liblzma5 xz-utils
+5 upgraded, 8 newly installed, 0 to remove and 28 not upgraded.
+Need to get 79.1 MB of archives.
+After this operation, 279 MB of additional disk space will be used.
+Get:1 http://mirrors.digitalocean.com/ubuntu noble/universe amd64 pigz amd64 2.8-1 [65.6 kB]
+Get:2 http://mirrors.digitalocean.com/ubuntu noble-updates/main amd64 liblzma5 amd64 5.6.1+really5.4.5-1ubuntu0.4 [128 kB]
+Get:3 http://mirrors.digitalocean.com/ubuntu noble-updates/main amd64 ca-certificates all 20260816ubuntu0.24.04.2 [140 kB]
+Get:4 http://mirrors.digitalocean.com/ubuntu noble-updates/main amd64 xz-utils amd64 5.6.1+really5.4.5-1ubuntu0.4 [267 kB]
+Get:5 http://mirrors.digitalocean.com/ubuntu noble/main amd64 bridge-utils amd64 1.7.1-1ubuntu2 [33.9 kB]
+Get:6 http://mirrors.digitalocean.com/ubuntu noble-updates/main amd64 runc amd64 1.3.4-0ubuntu1~24.04.1 [9574 kB]
+Get:7 http://mirrors.digitalocean.com/ubuntu noble-updates/main amd64 containerd amd64 2.2.1-0ubuntu1~24.04.4 [28.2 MB]
+Get:8 http://mirrors.digitalocean.com/ubuntu noble-updates/main amd64 dns-root-data all 2024071801~ubuntu0.24.04.1 [5918 B]
+Get:9 http://mirrors.digitalocean.com/ubuntu noble-updates/main amd64 dnsmasq-base amd64 2.91-0ubuntu0.24.04.2 [381 kB]
+Get:10 http://mirrors.digitalocean.com/ubuntu noble-updates/universe amd64 docker.io amd64 29.1.3-0ubuntu3~24.04.2 [35.6 MB]
+Get:11 http://mirrors.digitalocean.com/ubuntu noble-updates/main amd64 git-man all 1:2.43.0-1ubuntu7.4 [1101 kB]
+Get:12 http://mirrors.digitalocean.com/ubuntu noble-updates/main amd64 git amd64 1:2.43.0-1ubuntu7.4 [3681 kB]
+Get:13 http://mirrors.digitalocean.com/ubuntu noble-updates/universe amd64 ubuntu-fan all 0.12.16+24.04.1 [34.2 kB]
+Preconfiguring packages ...
+Fetched 79.1 MB in 1s (124 MB/s)
+Selecting previously unselected package pigz.
+(Reading database ... (Reading database ... 5%(Reading database ... 10%(Reading database ... 15%(Reading database ... 20%(Reading database ... 25%(Reading database ... 30%(Reading database ... 35%(Reading database ... 40%(Reading database ... 45%(Reading database ... 50%(Reading database ... 55%(Reading database ... 60%(Reading database ... 65%(Reading database ... 70%(Reading database ... 75%(Reading database ... 80%(Reading database ... 85%(Reading database ... 90%(Reading database ... 95%(Reading database ... 100%(Reading database ... 75071 files and directories currently installed.)
+Preparing to unpack .../archives/pigz_2.8-1_amd64.deb ...
+Unpacking pigz (2.8-1) ...
+Preparing to unpack .../liblzma5_5.6.1+really5.4.5-1ubuntu0.4_amd64.deb ...
+Unpacking liblzma5:amd64 (5.6.1+really5.4.5-1ubuntu0.4) over (5.6.1+really5.4.5-1ubuntu0.3) ...
+Setting up liblzma5:amd64 (5.6.1+really5.4.5-1ubuntu0.4) ...
+(Reading database ... (Reading database ... 5%(Reading database ... 10%(Reading database ... 15%(Reading database ... 20%(Reading database ... 25%(Reading database ... 30%(Reading database ... 35%(Reading database ... 40%(Reading database ... 45%(Reading database ... 50%(Reading database ... 55%(Reading database ... 60%(Reading database ... 65%(Reading database ... 70%(Reading database ... 75%(Reading database ... 80%(Reading database ... 85%(Reading database ... 90%(Reading database ... 95%(Reading database ... 100%(Reading database ... 75080 files and directories currently installed.)
+Preparing to unpack .../00-ca-certificates_20260816ubuntu0.24.04.2_all.deb ...
+Unpacking ca-certificates (20260816ubuntu0.24.04.2) over (20260816ubuntu0.24.04.1) ...
+Preparing to unpack .../01-xz-utils_5.6.1+really5.4.5-1ubuntu0.4_amd64.deb ...
+Unpacking xz-utils (5.6.1+really5.4.5-1ubuntu0.4) over (5.6.1+really5.4.5-1ubuntu0.3) ...
+Selecting previously unselected package bridge-utils.
+Preparing to unpack .../02-bridge-utils_1.7.1-1ubuntu2_amd64.deb ...
+Unpacking bridge-utils (1.7.1-1ubuntu2) ...
+Selecting previously unselected package runc.
+Preparing to unpack .../03-runc_1.3.4-0ubuntu1~24.04.1_amd64.deb ...
+Unpacking runc (1.3.4-0ubuntu1~24.04.1) ...
+Selecting previously unselected package containerd.
+Preparing to unpack .../04-containerd_2.2.1-0ubuntu1~24.04.4_amd64.deb ...
+Unpacking containerd (2.2.1-0ubuntu1~24.04.4) ...
+Selecting previously unselected package dns-root-data.
+Preparing to unpack .../05-dns-root-data_2024071801~ubuntu0.24.04.1_all.deb ...
+Unpacking dns-root-data (2024071801~ubuntu0.24.04.1) ...
+Selecting previously unselected package dnsmasq-base.
+Preparing to unpack .../06-dnsmasq-base_2.91-0ubuntu0.24.04.2_amd64.deb ...
+Unpacking dnsmasq-base (2.91-0ubuntu0.24.04.2) ...
+Selecting previously unselected package docker.io.
+Preparing to unpack .../07-docker.io_29.1.3-0ubuntu3~24.04.2_amd64.deb ...
+Unpacking docker.io (29.1.3-0ubuntu3~24.04.2) ...
+Preparing to unpack .../08-git-man_1%3a2.43.0-1ubuntu7.4_all.deb ...
+Unpacking git-man (1:2.43.0-1ubuntu7.4) over (1:2.43.0-1ubuntu7.3) ...
+Preparing to unpack .../09-git_1%3a2.43.0-1ubuntu7.4_amd64.deb ...
+Unpacking git (1:2.43.0-1ubuntu7.4) over (1:2.43.0-1ubuntu7.3) ...
+Selecting previously unselected package ubuntu-fan.
+Preparing to unpack .../10-ubuntu-fan_0.12.16+24.04.1_all.deb ...
+Unpacking ubuntu-fan (0.12.16+24.04.1) ...
+Setting up dnsmasq-base (2.91-0ubuntu0.24.04.2) ...
+Setting up runc (1.3.4-0ubuntu1~24.04.1) ...
+Setting up dns-root-data (2024071801~ubuntu0.24.04.1) ...
+Setting up ca-certificates (20260816ubuntu0.24.04.2) ...
+Updating certificates in /etc/ssl/certs...
+0 added, 0 removed; done.
+Running hooks in /etc/ca-certificates/update.d...
+done.
+Setting up xz-utils (5.6.1+really5.4.5-1ubuntu0.4) ...
+Setting up bridge-utils (1.7.1-1ubuntu2) ...
+Setting up pigz (2.8-1) ...
+Setting up git-man (1:2.43.0-1ubuntu7.4) ...
+Setting up containerd (2.2.1-0ubuntu1~24.04.4) ...
+Created symlink /etc/systemd/system/multi-user.target.wants/containerd.service → /usr/lib/systemd/system/containerd.service.
+Setting up ubuntu-fan (0.12.16+24.04.1) ...
+Created symlink /etc/systemd/system/multi-user.target.wants/ubuntu-fan.service → /usr/lib/systemd/system/ubuntu-fan.service.
+Setting up docker.io (29.1.3-0ubuntu3~24.04.2) ...
+info: Selecting GID from range 100 to 999 ...
+info: Adding group `docker' (GID 112) ...
+Created symlink /etc/systemd/system/multi-user.target.wants/docker.service → /usr/lib/systemd/system/docker.service.
+Created symlink /etc/systemd/system/sockets.target.wants/docker.socket → /usr/lib/systemd/system/docker.socket.
+Setting up git (1:2.43.0-1ubuntu7.4) ...
+Processing triggers for man-db (2.12.0-4build2) ...
+Processing triggers for dbus (1.14.10-4ubuntu4.1) ...
+Processing triggers for libc-bin (2.39-0ubuntu8.9) ...
+
+Running kernel seems to be up-to-date.
+
+Restarting services...
+ /etc/needrestart/restart.d/systemd-manager
+ systemctl restart multipathd.service packagekit.service polkit.service rsyslog.service systemd-journald.service systemd-networkd.service systemd-resolved.service systemd-timesyncd.service systemd-udevd.service udisks2.service
+
+Service restarts being deferred:
+ systemctl restart ModemManager.service
+ /etc/needrestart/restart.d/dbus.service
+ systemctl restart systemd-logind.service
+ systemctl restart unattended-upgrades.service
+
+No containers need to be restarted.
+
+User sessions running outdated binaries:
+ root @ user manager service: systemd[1210]
+
+No VM guests are running outdated hypervisor (qemu) binaries on this host.
+node.tar.xz: OK
+
+added 1 package in 814ms
+
+1 package is looking for funding
+  run `npm fund` for details
+npm notice
+npm notice New major version of npm available! 11.16.0 -> 12.2.2
+npm notice Changelog: https://github.com/npm/cli/releases/tag/v12.2.2
+npm notice To update run: npm install -g npm@12.2.2
+npm notice
+Cloning into 'runtime'...
+Note: switching to '57665ddfacfd44a83aa9cf048722012a22407fbc'.
+
+You are in 'detached HEAD' state. You can look around, make experimental
+changes and commit them, and you can discard any commits you make in this
+state without impacting any branches by switching back to a branch.
+
+If you want to create a new branch to retain commits you create, you may
+do so (now or later) by using -c with the switch command. Example:
+
+  git switch -c <new-branch-name>
+
+Or undo this operation with:
+
+  git switch -
+
+Turn off this advice by setting config variable advice.detachedHead to false
+
+Warning: you are leaving 25 commits behind, not connected to
+any of your branches:
+
+  57665dd fix: verify benchmark samples and cart effects
+  522eff0 fix: patch vulnerable CI dependencies
+  dd4d334 docs: publish v1.0.5 benchmark measurements
+  da5fe31 fix: serialize benchmark durability settings
+ ... and 21 more.
+
+If you want to keep them by creating a new branch, this may be a good time
+to do so with:
+
+ git branch <new-branch-name> 57665dd
+
+HEAD is now at 8975f6e Merge pull request #83 from cardmagic/docs/maturity-in-versioning
+? Verifying lockfile against supply-chain policies (221 entries)...
+Lockfile is up to date, resolution step is skipped
+Progress: resolved 1, reused 0, downloaded 0, added 0
+Packages: +140
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+Progress: resolved 140, reused 0, downloaded 75, added 9
+Progress: resolved 140, reused 0, downloaded 139, added 139
+
+   ╭──────────────────────────────────────────╮
+   │                                          │
+   │   Update available! 11.11.0 → 12.18.0.   │
+   │   Changelog: https://pnpm.io/v/12.18.0   │
+   │     To update, run: pnpm add -g pnpm     │
+   │                                          │
+   ╰──────────────────────────────────────────╯
+
+Progress: resolved 140, reused 0, downloaded 140, added 140, done
+✓ Lockfile passes supply-chain policies (221 entries in 3s)
+.../esbuild@0.28.1/node_modules/esbuild postinstall$ node install.js
+.../node_modules/workerd postinstall$ node install.js
+.../esbuild@0.28.1/node_modules/esbuild postinstall: Done
+.../node_modules/workerd postinstall: Done
+
+devDependencies:
++ @cloudflare/vitest-plugin 1.1.4
++ @cloudflare/workers-types 5.20260904.1
++ @playwright/test 1.62.1
++ @sqlite.org/sqlite-wasm 3.53.0-build1
++ @types/node 24.13.3
++ @types/pg 8.21.0
++ @types/ws 8.18.1
++ @vitest/coverage-v8 4.1.11
++ mysql2 3.23.3
++ pg 8.23.0
++ prettier 3.9.6
++ redis 6.2.1
++ signal-polyfill 0.2.2
++ typescript 5.9.3
++ vite 8.3.4
++ vitest 4.1.11
++ wrangler 4.129.0
++ ws 8.21.3
+
+Done in 4.8s using pnpm v11.11.0

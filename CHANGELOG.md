@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Separate isolated benchmark baselines from historical shared-workstation measurements.
+  Publish the retained DigitalOcean 1.0.5 baseline with provenance and teardown evidence,
+  and validate dataset version labels and summaries in CI before publication.
+
 ## 1.0.6 - 2026-11-08
 
 - Refresh the benchmark evidence against the released v1.0.5 source, with
