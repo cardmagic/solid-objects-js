@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 1.0.7 - 2026-11-09
+
 - Add the `singleOwner` option for a process that is the only writer of its
   SQLite database. With the option, an idle runtime sends no query. Each role
   waits for an in-process wake-up or for the next due time that the database
