@@ -39,10 +39,11 @@ Every condition uses five fresh-process rounds of 500 measured counter operation
 warmups, four actor worker processes, synchronous handlers, and client concurrency 1 or 16.
 `warm-hot` uses one created identity, `warm-many` uses 100 created identities, and `cold-many`
 creates an identity per operation. Timing starts before durable enqueue and ends at the committed
-result, polled every millisecond. State checks run outside the timed batches.
+result, polled every millisecond. State checks run outside the timed batches. Each report starts
+fresh client/worker processes and runs warm-hot, warm-many, then cold-many in that order; processes reset between reports.
 
-Active polling is 5 ms, the idle ceiling is 1,000 ms, and SQL pools allow 20 connections. Effect and
-reminder workers are disabled; retention and dead-process cleanup intervals are zero. Other defaults
+Active polling is 5 ms, the idle ceiling is 1,000 ms, and SQL pools allow 20 connections per runtime.
+Effect and reminder workers are disabled; retention and dead-process cleanup intervals are zero. Other defaults
 belong to each release: 0.14.0 uses in-process signals with cross-process polling; 1.0.5/1.0.6 can
 automatically select PostgreSQL notifications after a successful probe. No Redis is configured.
 This compares released defaults under common explicit options, without isolating every feature.

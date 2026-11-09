@@ -10,6 +10,13 @@
       "guideTable": true
     },
     {
+      "id": "js-mysql-release-comparison-2026-11-09",
+      "kind": "controlled-comparison",
+      "versions": ["1.0.5", "1.0.6"],
+      "environment": "Separate DigitalOcean c-8, sfo3; Intel Xeon Platinum 8280; MySQL only",
+      "guideTable": true
+    },
+    {
       "id": "v1.0.5-isolated-2026-11-08",
       "kind": "isolated-baseline",
       "versions": ["1.0.5"],
