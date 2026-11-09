@@ -145,7 +145,7 @@ function expectAbout(actual: number | undefined, expected: number): void {
 
 describe("DueWork", () => {
   it("reports no due time when no work exists", async () => {
-    expect(await dueWork.untilActorWork()).toBeUndefined()
+    expect(await dueWork.untilActorWork({ processId: "worker" })).toBeUndefined()
     expect(await dueWork.untilEffectWork()).toBeUndefined()
     expect(await dueWork.untilReminderWork()).toBeUndefined()
     expect(await dueWork.untilBroadcastWork()).toBeUndefined()
@@ -158,7 +158,7 @@ describe("DueWork", () => {
       await enqueue({ actorId: "late", availableAtMilliseconds: now + 9_000 })
       await enqueue({ actorId: "early", availableAtMilliseconds: now + 5_000 })
 
-      expectAbout(await dueWork.untilActorWork(), 5_000)
+      expectAbout(await dueWork.untilActorWork({ processId: "worker" }), 5_000)
     })
 
     it("waits for the head of a mailbox, not for a later message behind it", async () => {
@@ -166,7 +166,7 @@ describe("DueWork", () => {
       await enqueue({ actorId: "blocked", availableAtMilliseconds: now + 8_000 })
       await enqueue({ actorId: "blocked" })
 
-      expectAbout(await dueWork.untilActorWork(), 8_000)
+      expectAbout(await dueWork.untilActorWork({ processId: "worker" }), 8_000)
     })
 
     it("skips a paused actor", async () => {
@@ -175,7 +175,7 @@ describe("DueWork", () => {
         message.instance_id,
       ])
 
-      expect(await dueWork.untilActorWork()).toBeUndefined()
+      expect(await dueWork.untilActorWork({ processId: "worker" })).toBeUndefined()
     })
 
     it("waits for an activation that another owner holds", async () => {
@@ -189,7 +189,22 @@ describe("DueWork", () => {
         [now + 7_000, message.instance_id],
       )
 
-      expectAbout(await dueWork.untilActorWork(), 7_000)
+      expectAbout(await dueWork.untilActorWork({ processId: "worker" }), 7_000)
+    })
+
+    it("reports a message at its available time to the worker that holds the activation", async () => {
+      const now = await databaseNow()
+      const message = await enqueue({ actorId: "held", availableAtMilliseconds: now + 5_000 })
+      await registerOwner({ id: "holder", heartbeatAtMilliseconds: now })
+      await write(
+        `UPDATE solid_objects_instances
+         SET activation_owner_id = 'holder', activation_token = 'token', activation_expires_at_ms = ?
+         WHERE id = ?`,
+        [now + leaseDuration, message.instance_id],
+      )
+
+      expectAbout(await dueWork.untilActorWork({ processId: "holder" }), 5_000)
+      expectAbout(await dueWork.untilActorWork({ processId: "other" }), leaseDuration)
     })
 
     it("waits for the lease of a claimed message to expire", async () => {
@@ -198,7 +213,7 @@ describe("DueWork", () => {
       await registerOwner({ id: "claimer", heartbeatAtMilliseconds: now })
       expect(await runtime.repository.claim("claimer")).toBeDefined()
 
-      expectAbout(await dueWork.untilActorWork(), leaseDuration)
+      expectAbout(await dueWork.untilActorWork({ processId: "worker" }), leaseDuration)
     })
   })
 

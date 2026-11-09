@@ -7,11 +7,12 @@ interface DueRow {
 export class DueWork {
   constructor(private readonly settings: RuntimeSettings) {}
 
-  untilActorWork(): Promise<number | undefined> {
+  untilActorWork(options: { processId: string }): Promise<number | undefined> {
     return this.untilDue(() => ({
       sql: `SELECT MIN(due_at_ms) AS due_at_ms FROM (
         SELECT CASE
             WHEN instances.activation_owner_id IS NOT NULL
+              AND instances.activation_owner_id <> ?
               AND instances.activation_expires_at_ms > ready.available_at_ms
             THEN instances.activation_expires_at_ms
             ELSE ready.available_at_ms
@@ -33,7 +34,7 @@ export class DueWork {
         JOIN ${this.table("instances")} instances ON instances.id = claimed.instance_id
         WHERE instances.activation_expires_at_ms IS NOT NULL
       ) due`,
-      parameters: [],
+      parameters: [options.processId],
     }))
   }
 

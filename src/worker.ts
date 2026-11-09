@@ -197,7 +197,7 @@ export class Worker {
     const databaseWait = await idleWaitMilliseconds({
       settings: this.runtime.settings,
       pollingIntervalMilliseconds: this.pollingBackoff.currentIntervalMilliseconds,
-      untilDue: () => this.runtime.dueWork.untilActorWork(),
+      untilDue: () => this.runtime.dueWork.untilActorWork({ processId: this.processId }),
     })
     if (!this.runtime.settings.singleOwner) return databaseWait
     return Math.min(databaseWait, this.untilCachedActivationDue())
