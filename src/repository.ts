@@ -81,29 +81,48 @@ export class Repository {
   async registerProcess(processId: string, kind: string): Promise<void> {
     await this.settings.database.transaction(async (connection) => {
       const now = await connection.nowMilliseconds()
-      await connection.run(
-        `INSERT INTO ${this.table("processes")}
-         (id, kind, hostname, host_process_id, metadata, started_at_ms, heartbeat_at_ms,
-          shutdown_state)
-         VALUES (?, ?, ?, ?, ?, ?, ?, 'running')
-         ON CONFLICT(id) DO UPDATE SET heartbeat_at_ms = excluded.heartbeat_at_ms,
-           hostname = excluded.hostname, host_process_id = excluded.host_process_id,
-           metadata = excluded.metadata, shutdown_requested_at_ms = NULL,
-           stopped_at_ms = NULL, shutdown_state = 'running'`,
-        [
-          processId,
-          kind,
-          hostIdentity().hostname,
-          hostIdentity().hostProcessId,
-          JSON.stringify({
-            solidObjectsVersion: VERSION,
-            nodeVersion: hostIdentity().runtimeVersion,
-          }),
-          now,
-          now,
-        ],
-      )
+      await this.writeProcessRow({ connection, processId, kind, now })
     })
+  }
+
+  private async writeProcessRow(options: {
+    connection: DatabaseConnection
+    processId: string
+    kind: string
+    now: number
+  }): Promise<void> {
+    await options.connection.run(
+      `INSERT INTO ${this.table("processes")}
+       (id, kind, hostname, host_process_id, metadata, started_at_ms, heartbeat_at_ms,
+        shutdown_state)
+       VALUES (?, ?, ?, ?, ?, ?, ?, 'running')
+       ON CONFLICT(id) DO UPDATE SET heartbeat_at_ms = excluded.heartbeat_at_ms,
+         hostname = excluded.hostname, host_process_id = excluded.host_process_id,
+         metadata = excluded.metadata, shutdown_requested_at_ms = NULL,
+         stopped_at_ms = NULL, shutdown_state = 'running'`,
+      [
+        options.processId,
+        options.kind,
+        hostIdentity().hostname,
+        hostIdentity().hostProcessId,
+        JSON.stringify({
+          solidObjectsVersion: VERSION,
+          nodeVersion: hostIdentity().runtimeVersion,
+        }),
+        options.now,
+        options.now,
+      ],
+    )
+  }
+
+  private async refreshClaimingProcess(options: {
+    connection: DatabaseConnection
+    processId: string
+    kind: string
+    now: number
+  }): Promise<void> {
+    if (!this.settings.singleOwner) return
+    await this.writeProcessRow(options)
   }
 
   async startDrainingProcess(processId: string): Promise<void> {
@@ -147,6 +166,19 @@ export class Repository {
         staleAtMilliseconds: now - this.settings.processAliveThresholdMilliseconds,
       }
     })
+  }
+
+  async liveProcesses(options: { excludedProcessIds: readonly string[] }): Promise<ProcessRow[]> {
+    const rows = await this.settings.database.connection(async (connection) => {
+      const now = await connection.nowMilliseconds()
+      return connection.all<ProcessRow>(
+        `SELECT * FROM ${this.table("processes")}
+         WHERE shutdown_state <> 'stopped' AND heartbeat_at_ms > ?
+         ORDER BY started_at_ms, id`,
+        [now - this.settings.processAliveThresholdMilliseconds],
+      )
+    })
+    return rows.filter((row) => !options.excludedProcessIds.includes(row.id))
   }
 
   async hasLiveProcessOutsideCurrentHostProcess(): Promise<boolean> {
@@ -534,6 +566,7 @@ export class Repository {
       `UPDATE ${this.table("messages")} SET attempt_count = attempt_count + 1, updated_at_ms = ? WHERE id = ?`,
       [now, message.id],
     )
+    await this.refreshClaimingProcess({ connection, processId, kind: "worker", now })
     message.attempt_count = Number(message.attempt_count) + 1
     return {
       instance,
@@ -648,10 +681,10 @@ export class Repository {
     })
   }
 
-  async releaseActivation(activation: ActivationLease): Promise<void> {
-    await this.settings.database.transaction(async (connection) => {
+  async releaseActivation(activation: ActivationLease): Promise<{ readyMessagesWaiting: boolean }> {
+    return this.settings.database.transaction(async (connection) => {
       const now = await connection.nowMilliseconds()
-      await connection.run(
+      const released = await connection.run(
         `UPDATE ${this.table("instances")}
          SET activation_owner_id = NULL, activation_token = NULL,
            activation_expires_at_ms = NULL, updated_at_ms = ?
@@ -670,6 +703,14 @@ export class Repository {
           activation.instanceId,
         ],
       )
+      if (!this.settings.singleOwner || released.changes !== 1) {
+        return { readyMessagesWaiting: false }
+      }
+      const waiting = await connection.get<{ present: number | bigint }>(
+        `SELECT 1 AS present FROM ${this.table("ready_messages")} WHERE instance_id = ? LIMIT 1`,
+        [activation.instanceId],
+      )
+      return { readyMessagesWaiting: waiting !== undefined }
     })
   }
 
@@ -1594,6 +1635,7 @@ export class Repository {
           [processId, effect.id],
         )
         if (claimed.changes !== 1) return undefined
+        await this.refreshClaimingProcess({ connection, processId, kind: "effect_worker", now })
         const identity = await this.loadActorIdentity(connection, effect.instance_id)
         return {
           ...effect,
@@ -1733,6 +1775,12 @@ export class Repository {
             skippedCandidateIds.push(reminder.id)
             continue
           }
+          await this.refreshClaimingProcess({
+            connection,
+            processId,
+            kind: "reminder_scheduler",
+            now: databaseNow,
+          })
           const identity = await this.loadActorIdentity(connection, reminder.instance_id)
           return {
             ...reminder,
@@ -1966,6 +2014,12 @@ export class Repository {
             skippedCandidateIds.push(broadcast.id)
             continue
           }
+          await this.refreshClaimingProcess({
+            connection,
+            processId,
+            kind: "broadcast_worker",
+            now,
+          })
           broadcast.status = "processing"
           broadcast.claimed_by = processId
           broadcast.attempt_count = Number(broadcast.attempt_count) + 1

@@ -7,7 +7,8 @@ and work enqueued with `send` stays ready until some process runs the roles.
 A direct call or an explicit `sync` needs no running role, because the caller's
 own path executes it.
 
-Runtime roles use durable polling as the correctness fallback. Consecutive
+Runtime roles use durable polling as the correctness fallback, unless the
+runtime runs as a [single owner](#single-owner). Consecutive
 empty passes double each role's wait from `pollingIntervalMilliseconds` to
 `idlePollingIntervalMilliseconds`, which defaults to one second. Processed
 work and wake-up notifications reset the role to the fast interval. Actor
@@ -149,10 +150,10 @@ state from reconciliation code.
 The runtime automatically prunes expired message and stopped-process history
 once at startup and every `retentionIntervalMilliseconds`, which defaults to
 one hour. Stale process ownership is recovered independently every
-`deadProcessCleanupIntervalMilliseconds`, which defaults to one minute. Set an
-interval to zero to disable its scheduler. Failed passes emit metadata-only
-events and retry with bounded exponential backoff without stopping other
-runtime roles.
+`deadProcessCleanupIntervalMilliseconds`, which defaults to one minute. A
+single owner recovers it once, at start. Set an interval to zero to disable its
+scheduler. Failed passes emit metadata-only events and retry with bounded
+exponential backoff without stopping other runtime roles.
 
 Operators can also use `runtime.retention.preview()` and
 `runtime.retention.prune()`. Both calls require administration authorization;
@@ -227,6 +228,45 @@ be resumed.
 Scheduling an existing actor operation for a different time emits
 `solid_objects.reminder.replaced` after the fenced actor commit. Scheduling it
 for the same time emits nothing.
+
+## Single owner
+
+With [`singleOwner: true`](configuration.md#single-owner), an idle runtime sends
+no query. Its roles wake for an in-process notification, for a due time that
+the database reports, or after the wall clock jumps. Expect these differences
+from the default:
+
+- `runtime.administration.processes()` reports the rows of an idle single owner
+  as `stale`, because a role writes its row only at start, at shutdown, and
+  when it claims work. The `runtime` doctor check can report no live roles for
+  the same reason. Both are normal while the runtime is idle.
+- The `wakeUp` doctor check passes with in-process signalling, because no other
+  process writes the database.
+- `cleanup()` can mark the rows of an idle single owner `stopped`. The next
+  claim of each role writes its row again. An idle role holds no claim, so the
+  cleanup releases nothing.
+- `currentPollingIntervalMilliseconds` and the
+  `solid_objects.polling.interval_changed` events describe only the retry of
+  due work that a claim cannot take.
+
+`run()` refuses to start with `SingleOwnerConflict` when another process row is
+alive. A process that stopped without cleanup stays alive until its heartbeat
+is older than `processAliveThresholdMilliseconds`. The error gives that time
+for each row. Stop the other process, or wait until that time, and start again.
+
+The start check reads the process rows once. It sees another writer only while
+that writer's row is fresh, and an idle single owner does not refresh its row.
+For a guarantee that the operating system enforces, take an exclusive lock on
+the file before the runtime writes to it:
+
+```typescript
+const database = sqlite({ path: "app.sqlite" })
+await database.connection((connection) => connection.run("PRAGMA locking_mode = EXCLUSIVE"))
+```
+
+SQLite then holds the lock from the first write until the database closes. A
+second process, including the `solid-objects` command for the same file, gets
+`database is locked`.
 
 ## Dead letters, retry, and redrive
 

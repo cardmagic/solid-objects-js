@@ -2,6 +2,24 @@
 
 ## Unreleased
 
+- Add the `singleOwner` option for a process that is the only writer of its
+  SQLite database. With the option, an idle runtime sends no query. Each role
+  waits for an in-process wake-up or for the next due time that the database
+  reports, instead of a fixed polling interval. Each role writes its process
+  row at start, at shutdown, and when it claims work. The periodic dead-process
+  cleanup is replaced by one cleanup at start, and the actor worker stops
+  waking for leases when it holds no activation. A watch of the wall clock
+  wakes every role after the computer sleeps. `run()` refuses to start with the
+  new `SingleOwnerConflict` error when another process row is alive. The option
+  refuses a database other than SQLite and a wake-up that crosses processes.
+  The default is `false`, and the default behavior does not change. In an idle
+  minute, a SQLite runtime with every role sent 2,466 statements by default and
+  none with the option.
+- Fix an abort-listener leak. A role that waited with the shared shutdown
+  signal added a listener on every pass and removed it only at shutdown. The
+  redrive scheduler added one each idle second, which grew memory and printed
+  listener-limit warnings in a long-running process.
+
 ## 1.0.6 - 2026-11-08
 
 - Refresh the benchmark evidence against the released v1.0.5 source, with
