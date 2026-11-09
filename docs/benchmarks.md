@@ -14,7 +14,7 @@ figures is not a release comparison.
 | ------------------------------------------------------------------------------- | -------------------------------------------- | -------------------------------------- | ---------------------------------------------------------------------------------- |
 | [Isolated baseline](../benchmarks/results/v1.0.5-isolated-2026-11-08/README.md) | 1.0.5                                        | Dedicated DigitalOcean c-8, November 8 | Reproducible single-version baseline, including raw samples and confirmed teardown |
 | [Shared workstation](../benchmarks/results/v1.0.5-2026-11-07/README.md)         | 1.0.5                                        | Busy M2 Ultra, November 7              | Historical observations; unsuitable for attributing a version regression           |
-| [August archive](benchmarks-history.md#historical-august-0140-matrix)         | 0.14.0 (matrix), 0.14.3/0.14.4 (state sizes) | M5 developer laptop                    | Historical measurements in their original environments                             |
+| [August archive](benchmarks-history.md#historical-august-0140-matrix)           | 0.14.0 (matrix), 0.14.3/0.14.4 (state sizes) | M5 developer laptop                    | Historical measurements in their original environments                             |
 
 The [dataset catalog](../benchmarks/results/index.json) records measured versions and environment
 classes. `pnpm run check:benchmarks` verifies those labels against raw reports, rechecks summaries,
