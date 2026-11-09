@@ -46,6 +46,7 @@ import {
   NonRetryableError,
   QueryMutatedState,
   Rejected,
+  SingleOwnerConflict,
   SyncTimeout,
   SyncEnqueueTimeout,
   SyncInsideTransaction,
@@ -345,6 +346,7 @@ export class SolidObjectsRuntime {
     let slots: ComponentSlot[] = []
 
     try {
+      if (this.settings.singleOwner) await this.claimSingleOwnership()
       slots = await this.buildComponentSlots()
       await Promise.all(
         slots.map((slot) =>
@@ -1120,6 +1122,27 @@ export class SolidObjectsRuntime {
     })
     const cleaned = await this.cleanupStaleProcesses()
     return Object.freeze({ cleaned })
+  }
+
+  private async claimSingleOwnership(): Promise<void> {
+    const live = await this.repository.liveProcesses({
+      excludedProcessIds: [...this.callerWorkers].map((worker) => worker.processId),
+    })
+    if (live.length > 0) {
+      throw new SingleOwnerConflict({
+        processes: live.map((row) => ({
+          id: row.id,
+          kind: row.kind,
+          hostname: row.hostname,
+          hostProcessId: Number(row.host_process_id),
+          heartbeatAt: new Date(Number(row.heartbeat_at_ms)),
+          staleAt: new Date(
+            Number(row.heartbeat_at_ms) + this.settings.processAliveThresholdMilliseconds,
+          ),
+        })),
+      })
+    }
+    await this.cleanupStaleProcesses()
   }
 
   private async cleanupStaleProcesses(): Promise<number> {

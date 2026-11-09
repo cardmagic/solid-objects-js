@@ -201,6 +201,8 @@ export {
   Rejected,
   ReminderNotPaused,
   ScheduleWithoutOperation,
+  SingleOwnerConflict,
+  type SingleOwnerConflictProcess,
   SolidObjectsError,
   StateMigrationError,
   SyncTimeout,

@@ -149,6 +149,19 @@ export class Repository {
     })
   }
 
+  async liveProcesses(options: { excludedProcessIds: readonly string[] }): Promise<ProcessRow[]> {
+    const rows = await this.settings.database.connection(async (connection) => {
+      const now = await connection.nowMilliseconds()
+      return connection.all<ProcessRow>(
+        `SELECT * FROM ${this.table("processes")}
+         WHERE shutdown_state <> 'stopped' AND heartbeat_at_ms > ?
+         ORDER BY started_at_ms, id`,
+        [now - this.settings.processAliveThresholdMilliseconds],
+      )
+    })
+    return rows.filter((row) => !options.excludedProcessIds.includes(row.id))
+  }
+
   async hasLiveProcessOutsideCurrentHostProcess(): Promise<boolean> {
     return this.settings.database.connection(async (connection) => {
       const now = await connection.nowMilliseconds()
