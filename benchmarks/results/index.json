@@ -5,7 +5,8 @@
       "id": "v1.0.5-isolated-2026-11-08",
       "kind": "isolated-baseline",
       "versions": ["1.0.5"],
-      "environment": "DigitalOcean c-8, sfo3, dedicated runner"
+      "environment": "DigitalOcean c-8, sfo3, dedicated runner",
+      "guideTable": true
     },
     {
       "id": "v1.0.5-2026-11-07",

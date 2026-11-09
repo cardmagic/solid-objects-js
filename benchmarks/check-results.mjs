@@ -1,17 +1,25 @@
 import assert from "node:assert/strict"
 import { execFileSync } from "node:child_process"
-import { readFile } from "node:fs/promises"
+import { readFile, writeFile } from "node:fs/promises"
 import { fileURLToPath, pathToFileURL } from "node:url"
 import { resolve } from "node:path"
 import { comparisonRows } from "./comparison.mjs"
-import { assertPublishedTables, controlledTable } from "./publication.mjs"
+import {
+  assertPublishedTables,
+  baselineHeadline,
+  comparisonHeadline,
+  controlledTable,
+} from "./publication.mjs"
 
-const root = process.argv[3]
-  ? pathToFileURL(resolve(process.argv[3]) + "/")
+const writeGuide = process.argv.includes("--write-guide")
+const argumentsValue = process.argv.slice(2).filter((value) => value !== "--write-guide")
+const root = argumentsValue[1]
+  ? pathToFileURL(resolve(argumentsValue[1]) + "/")
   : new URL("./results/", import.meta.url)
-const catalog = JSON.parse(await readFile(process.argv[2] ?? new URL("index.json", root), "utf8"))
+const catalog = JSON.parse(await readFile(argumentsValue[0] ?? new URL("index.json", root), "utf8"))
 assert.equal(catalog.schemaVersion, 1, "unsupported benchmark catalog")
 const ids = new Set()
+const guideTables = new Map()
 for (const dataset of catalog.datasets) {
   assert.match(dataset.id, /^[a-zA-Z0-9.-]+$/)
   assert.ok(!ids.has(dataset.id), "duplicate dataset")
@@ -57,6 +65,7 @@ for (const dataset of catalog.datasets) {
       controlledTable(result.rows),
       await readFile(new URL("README.md", directory), "utf8"),
     )
+    if (dataset.guideTable) guideTables.set(dataset.id, comparisonHeadline(result))
   } else {
     assert.ok(
       ["isolated-baseline", "historical-shared-host"].includes(dataset.kind),
@@ -98,7 +107,28 @@ for (const dataset of catalog.datasets) {
       { stdio: ["ignore", "pipe", "pipe"], encoding: "utf8" },
     )
     assertPublishedTables(generated, await readFile(new URL("README.md", directory), "utf8"))
+    if (dataset.guideTable)
+      guideTables.set(
+        dataset.id,
+        baselineHeadline(reports.filter((report) => report.methodology.workload === "counter")),
+      )
   }
+}
+if (guideTables.size > 0) {
+  const path = new URL("../docs/benchmarks.md", import.meta.url)
+  let guide = await readFile(path, "utf8")
+  for (const [id, table] of guideTables) {
+    const marker = `<!-- benchmark-table: ${id} -->`
+    const endMarker = `<!-- /benchmark-table: ${id} -->`
+    const start = guide.indexOf(marker)
+    const end = guide.indexOf(endMarker, start + marker.length)
+    assert.ok(start >= 0 && end > start, `missing generated guide table: ${id}`)
+    const contentStart = start + marker.length
+    if (writeGuide)
+      guide = guide.slice(0, contentStart) + "\n\n" + table + "\n\n" + guide.slice(end)
+    else assertPublishedTables(table, guide.slice(contentStart, end))
+  }
+  if (writeGuide) await writeFile(path, guide)
 }
 console.log(`Validated ${ids.size} versioned benchmark datasets`)
 

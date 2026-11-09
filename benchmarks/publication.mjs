@@ -43,3 +43,43 @@ export function controlledTable(rows) {
     ),
   ].join("\n")
 }
+
+export function baselineHeadline(reports) {
+  const median = (values) => [...values].sort((a, b) => a - b)[Math.floor(values.length / 2)]
+  const rows = reports.flatMap((report) =>
+    ["warm-hot", "warm-many", "cold-many"].map((shape) => {
+      const samples = report.results.filter(
+        (row) =>
+          row.topology === "four-processes" && row.handler === "synchronous" && row.shape === shape,
+      )
+      const rates = samples.map((row) => row.throughputPerSecond)
+      return `| ${report.database.adapter} | ${shape} | ${median(rates)} | ${Math.min(...rates)} | ${Math.max(...rates)} |`
+    }),
+  )
+  return [
+    "| Database | Shape | Median ops/s | Minimum ops/s | Maximum ops/s |",
+    "| --- | --- | ---: | ---: | ---: |",
+    ...rows,
+  ].join("\n")
+}
+
+export function comparisonHeadline(result) {
+  const columns = result.comparison.variants.map((variant) => variant.name)
+  const rows = result.comparison.databases.flatMap((database) =>
+    result.comparison.concurrencies.flatMap((concurrency) =>
+      ["warm-hot", "warm-many", "cold-many"].map((shape) => {
+        const values = columns.map(
+          (variant) =>
+            result.rows.find((row) => row.key === `${database}|${variant}|${concurrency}|${shape}`)
+              ?.ops ?? "n/a",
+        )
+        return `| ${database} | ${concurrency} | ${shape} | ${values.join(" | ")} |`
+      }),
+    ),
+  )
+  return [
+    `| Database | Concurrency | Shape | ${columns.map((name) => `${name} ops/s`).join(" | ")} |`,
+    `| --- | ---: | --- | ${columns.map(() => "---:").join(" | ")} |`,
+    ...rows,
+  ].join("\n")
+}

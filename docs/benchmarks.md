@@ -19,7 +19,9 @@ figures is not a release comparison.
 The [dataset catalog](../benchmarks/results/index.json) records measured versions and environment
 classes. `pnpm run check:benchmarks` verifies those labels against raw reports, rechecks summaries,
 and requires successful download and confirmed teardown for isolated cloud datasets. CI runs this
-check; a new release does not change any existing dataset's measured version.
+check; a new release does not change any existing dataset's measured version. Headline tables
+are generated from those same reports with `pnpm run check:benchmarks --write-guide` and checked
+for stale values in CI.
 
 Version 1.0.6 changes file-backed SQLite from DELETE/FULL to WAL/NORMAL. That changes both
 journal behavior and power-loss durability. Its results must be labeled separately from
@@ -37,6 +39,8 @@ Collection waits for boot to settle and a sustained CPU, storage and load quiet 
 For counter operations with four processes, synchronous handlers and client concurrency 16,
 these are the median, minimum and maximum throughput across all three retained samples:
 
+<!-- benchmark-table: v1.0.5-isolated-2026-11-08 -->
+
 | Database   | Shape     | Median ops/s | Minimum ops/s | Maximum ops/s |
 | ---------- | --------- | -----------: | ------------: | ------------: |
 | sqlite     | warm-hot  |       198.83 |        196.78 |        206.03 |
@@ -44,10 +48,12 @@ these are the median, minimum and maximum throughput across all three retained s
 | sqlite     | cold-many |        34.78 |         34.42 |         35.39 |
 | postgresql | warm-hot  |        97.05 |         96.96 |        102.59 |
 | postgresql | warm-many |       142.57 |        138.77 |        147.83 |
-| postgresql | cold-many |        28.50 |         28.33 |         28.71 |
+| postgresql | cold-many |         28.5 |         28.33 |         28.71 |
 | mysql      | warm-hot  |        71.23 |         65.77 |         77.93 |
 | mysql      | warm-many |        79.46 |         60.76 |        107.59 |
-| mysql      | cold-many |        26.42 |         26.27 |         27.10 |
+| mysql      | cold-many |        26.42 |         26.27 |          27.1 |
+
+<!-- /benchmark-table: v1.0.5-isolated-2026-11-08 -->
 
 [Complete isolated results](../benchmarks/results/v1.0.5-isolated-2026-11-08/README.md) include
 cart/outbox staging, state sizes, idle polling and all 57,600 operation latencies. The source is
