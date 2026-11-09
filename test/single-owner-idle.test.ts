@@ -28,7 +28,7 @@ afterEach(async () => {
 
 function useControlledClock(): void {
   vi.useFakeTimers({
-    toFake: ["setTimeout", "clearTimeout", "setImmediate", "clearImmediate", "performance"],
+    toFake: ["setTimeout", "clearTimeout", "setImmediate", "clearImmediate", "performance", "Date"],
   })
 }
 

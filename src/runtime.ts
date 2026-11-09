@@ -87,6 +87,7 @@ import type { PayloadEnvelope } from "./browser/index.js"
 import { MaintenanceScheduler } from "./maintenance-scheduler.js"
 import { DueWork } from "./due-work.js"
 import { LocalSignal } from "./local-signal.js"
+import { WallClockWatch } from "./wall-clock-watch.js"
 import type {
   BroadcastRow,
   ClaimedTurn,
@@ -1991,6 +1992,9 @@ export class SolidObjectsRuntime {
           )
         : []),
       () => new RedriveScheduler(this),
+      ...(this.settings.singleOwner
+        ? [() => new WallClockWatch({ onJump: () => this.wakeUpEveryRole() })]
+        : []),
       ...(this.settings.retentionIntervalMilliseconds > 0
         ? [
             () =>
@@ -2368,6 +2372,14 @@ export class SolidObjectsRuntime {
 
   private wakeUp(role: WakeUpRole): void {
     void this.notifyWhenSelected(role)
+  }
+
+  private wakeUpEveryRole(): void {
+    this.wakeUp("actors")
+    this.wakeUp("effects")
+    this.wakeUp("reminders")
+    this.wakeUp("broadcasts")
+    this.redriveSignal.notify()
   }
 
   private async notifyWhenSelected(role: WakeUpRole): Promise<void> {
