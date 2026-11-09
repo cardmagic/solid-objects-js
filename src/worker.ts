@@ -313,15 +313,13 @@ function activationLease(turn: ClaimedTurn): ActivationLease {
 export function waitFor(milliseconds: number, signal?: AbortSignal): Promise<void> {
   if (signal?.aborted) return Promise.resolve()
   return new Promise((resolve) => {
-    const timeout = setTimeout(resolve, milliseconds)
-    signal?.addEventListener(
-      "abort",
-      () => {
-        clearTimeout(timeout)
-        resolve()
-      },
-      { once: true },
-    )
+    const finish = () => {
+      clearTimeout(timeout)
+      signal?.removeEventListener("abort", finish)
+      resolve()
+    }
+    const timeout = setTimeout(finish, milliseconds)
+    signal?.addEventListener("abort", finish, { once: true })
   })
 }
 
