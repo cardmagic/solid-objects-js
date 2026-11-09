@@ -65,3 +65,21 @@ from the tag and redeploy the site. The site's `check:release` step refuses a
 snapshot that is not the latest published tag. The Context7 refresh workflow
 refreshes the index after each push to `main` that changes the documentation.
 Confirm that its run succeeded.
+
+## Performance evidence
+
+A version bump does not update the measured version of an existing benchmark dataset.
+Keep each baseline's original source, environment, durability settings and raw samples.
+If a release has no measurements, say so explicitly. A single-version baseline or a
+different machine's results cannot establish a release-to-release regression or speedup.
+
+For a numerical performance claim, run the selected releases on the same isolated host
+with the same Node version, dependency lock, harness and workload parameters. Record actual
+database durability; WAL/NORMAL and WAL/FULL are separate conditions. Retain every sample
+and any interrupted attempts. Archive results and verify teardown before publishing them.
+
+Register completed results in `benchmarks/results/index.json`, retain incomplete attempts
+under its diagnostics list, and regenerate guide headlines with
+`pnpm run check:benchmarks --write-guide`. The normal quality checks verify version labels,
+raw samples, readiness evidence, summaries and published tables. See
+[Benchmarks](benchmarks.md) for the datasets and measurement boundaries.
