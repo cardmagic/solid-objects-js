@@ -2,3 +2,5 @@ coverage/
 dist/
 node_modules/
 pnpm-lock.yaml
+# Preserve downloaded measurements byte-for-byte; check:benchmarks validates their contents.
+benchmarks/results/*/*.json
