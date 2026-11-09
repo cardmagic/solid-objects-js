@@ -1,0 +1,38 @@
+{
+  "schemaVersion": 1,
+  "datasets": [
+    {
+      "id": "js-release-comparison-incomplete-2026-11-09",
+      "kind": "partial-controlled-comparison",
+      "versions": ["0.14.0", "1.0.5", "1.0.6"],
+      "databases": ["sqlite", "postgresql"],
+      "environment": "One DigitalOcean c-8, sfo3; SQLite/PostgreSQL complete, parent MySQL failed",
+      "guideTable": true
+    },
+    {
+      "id": "js-mysql-release-comparison-2026-11-09",
+      "kind": "controlled-comparison",
+      "versions": ["1.0.5", "1.0.6"],
+      "environment": "Separate DigitalOcean c-8, sfo3; Intel Xeon Platinum 8280; MySQL only",
+      "guideTable": true
+    },
+    {
+      "id": "v1.0.5-isolated-2026-11-08",
+      "kind": "isolated-baseline",
+      "versions": ["1.0.5"],
+      "environment": "DigitalOcean c-8, sfo3, dedicated runner"
+    },
+    {
+      "id": "v1.0.5-2026-11-07",
+      "kind": "historical-shared-host",
+      "versions": ["1.0.5"],
+      "environment": "Apple M2 Ultra, shared development workstation"
+    }
+  ],
+  "diagnostics": [
+    {
+      "id": "js-release-comparison-pilot-2026-11-09",
+      "purpose": "Incomplete 1000-operation feasibility pilot; excluded from comparisons"
+    }
+  ]
+}

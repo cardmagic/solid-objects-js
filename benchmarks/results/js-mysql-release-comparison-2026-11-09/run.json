@@ -1,0 +1,78 @@
+{
+  "name": "so-bench-20261109073646-410f2897",
+  "startedAt": "2026-11-09T07:36:46.352Z",
+  "profile": {
+    "adapter": "javascript",
+    "region": "sfo3",
+    "size": "c-8",
+    "image": "252242095",
+    "node": "24.18.0",
+    "nodeSha256": "55aa7153f9d88f28d765fcdad5ae6945b5c0f98a36881703817e4c450fa76742",
+    "pnpm": "11.11.0",
+    "postgresImage": "postgres@sha256:5983db9a9c6ad225a48a46cfe2e03e6680b1826662befd0465eb05b34cb1c64e",
+    "mysqlImage": "mysql@sha256:72c368d898861f3b3a07af0e6d690400f44f048799ed46822783d9224cc2c86d",
+    "quiet": {
+      "minimumUptimeSeconds": 180,
+      "sampleSeconds": 5,
+      "consecutiveSamples": 12,
+      "timeoutSeconds": 900,
+      "maximumCpuPercent": 5,
+      "maximumIoWaitPercent": 1,
+      "maximumStealPercent": 1,
+      "maximumDiskBytesPerSecond": 1048576,
+      "maximumLoadPerCpu": 0.05
+    },
+    "bootstrapPackages": {
+      "docker.io": "29.1.3-0ubuntu3~24.04.2",
+      "containerd": "2.2.1-0ubuntu1~24.04.4",
+      "runc": "1.3.4-0ubuntu1~24.04.1"
+    },
+    "comparison": {
+      "databases": [
+        "mysql"
+      ],
+      "rounds": 5,
+      "operations": 500,
+      "warmup": 100,
+      "concurrencies": [
+        1,
+        16
+      ],
+      "variants": [
+        {
+          "name": "v1.0.5-default",
+          "ref": "v1.0.5",
+          "version": "1.0.5",
+          "revision": "8975f6e2ad94c114f3638cea8f167956061a9bc3"
+        },
+        {
+          "name": "v1.0.6-default",
+          "ref": "v1.0.6",
+          "version": "1.0.6",
+          "revision": "e386867ef38cead441c2c0cc6a190266e74b98e3"
+        }
+      ]
+    }
+  },
+  "status": "complete",
+  "runnerRevision": "6b5c34bd35b574835bda8a003eda73eb125990f2",
+  "runtimeRevision": "e386867ef38cead441c2c0cc6a190266e74b98e3",
+  "harnessRevision": "8a8d128c9e0516272263f869890a287489bee3ca",
+  "runtime.bundleSha256": "e11d2e789b97507e7b3453cff83667e4764e9f8a88483b480b8b049ac191af86",
+  "overlay.tarSha256": "d4361edeb66eb552d77bacb2edc9c82bb086273abb2ec06c6c73b0c741a09cda",
+  "runner.tarSha256": "dc459e417cce2cdc98924f99194110fe3d2b888aff2f733cb44fc9f6fcf52d44",
+  "priceHourlyUsd": 0.25,
+  "resultsSha256": "58039e99af86cd805c91bef28e5d289f2d78da77c5bc96eab8505967fe98fad6",
+  "destroyedAt": "2026-11-09T08:35:20.996Z",
+  "finishedAt": "2026-11-09T08:35:20.996Z",
+  "machine": {
+    "dropletId": 617355106,
+    "size": "c-8",
+    "region": "sfo3",
+    "imageId": 252242095,
+    "vcpus": 8,
+    "memoryMiB": 16384,
+    "diskGiB": 100
+  },
+  "estimatedComputeCostUsd": 0.243958
+}

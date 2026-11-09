@@ -17,7 +17,9 @@ promise.
 
 **Production use.** One first-party application with more than 100,000 users
 runs it in production. That is a count of users, not a measure of load. The
-[benchmarks](docs/benchmarks.md) are development measurements.
+[benchmark guide](https://github.com/cardmagic/solid-objects-js/blob/main/docs/benchmarks.md)
+lists the measured releases, environments and durability settings. Reports are
+published independently of package versions.
 
 **It is not** Solid Queue, SolidJS, or the `service_actor` gem, and it is not
 affiliated with Rails or Cloudflare.
@@ -296,6 +298,7 @@ then shows a tested Solid Objects version with its limits:
 - [Choosing Solid Objects](docs/fit.md)
 - [Comparisons with Restate, DBOS, RivetKit, and Graphile Worker](docs/comparisons.md)
 - [Public API](docs/api.md)
+- [Versioned benchmark results](https://github.com/cardmagic/solid-objects-js/blob/main/docs/benchmarks.md)
 - [Versioning](docs/versioning.md)
 - [Operations and recovery](docs/operations.md)
 - [Observability and diagnostics](docs/observability.md)

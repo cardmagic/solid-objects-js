@@ -1,0 +1,56 @@
+{
+  "finishedAt": "2026-11-09T08:35:16.859Z",
+  "profile": {
+    "adapter": "javascript",
+    "region": "sfo3",
+    "size": "c-8",
+    "image": "252242095",
+    "node": "24.18.0",
+    "nodeSha256": "55aa7153f9d88f28d765fcdad5ae6945b5c0f98a36881703817e4c450fa76742",
+    "pnpm": "11.11.0",
+    "postgresImage": "postgres@sha256:5983db9a9c6ad225a48a46cfe2e03e6680b1826662befd0465eb05b34cb1c64e",
+    "mysqlImage": "mysql@sha256:72c368d898861f3b3a07af0e6d690400f44f048799ed46822783d9224cc2c86d",
+    "quiet": {
+      "minimumUptimeSeconds": 180,
+      "sampleSeconds": 5,
+      "consecutiveSamples": 12,
+      "timeoutSeconds": 900,
+      "maximumCpuPercent": 5,
+      "maximumIoWaitPercent": 1,
+      "maximumStealPercent": 1,
+      "maximumDiskBytesPerSecond": 1048576,
+      "maximumLoadPerCpu": 0.05
+    },
+    "bootstrapPackages": {
+      "docker.io": "29.1.3-0ubuntu3~24.04.2",
+      "containerd": "2.2.1-0ubuntu1~24.04.4",
+      "runc": "1.3.4-0ubuntu1~24.04.1"
+    },
+    "comparison": {
+      "databases": [
+        "mysql"
+      ],
+      "rounds": 5,
+      "operations": 500,
+      "warmup": 100,
+      "concurrencies": [
+        1,
+        16
+      ],
+      "variants": [
+        {
+          "name": "v1.0.5-default",
+          "ref": "v1.0.5",
+          "version": "1.0.5",
+          "revision": "8975f6e2ad94c114f3638cea8f167956061a9bc3"
+        },
+        {
+          "name": "v1.0.6-default",
+          "ref": "v1.0.6",
+          "version": "1.0.6",
+          "revision": "e386867ef38cead441c2c0cc6a190266e74b98e3"
+        }
+      ]
+    }
+  }
+}

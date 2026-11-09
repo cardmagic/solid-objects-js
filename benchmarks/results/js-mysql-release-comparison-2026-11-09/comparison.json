@@ -1,0 +1,260 @@
+{
+  "comparison": {
+    "databases": [
+      "mysql"
+    ],
+    "rounds": 5,
+    "operations": 500,
+    "warmup": 100,
+    "concurrencies": [
+      1,
+      16
+    ],
+    "variants": [
+      {
+        "name": "v1.0.5-default",
+        "ref": "v1.0.5",
+        "version": "1.0.5",
+        "revision": "8975f6e2ad94c114f3638cea8f167956061a9bc3"
+      },
+      {
+        "name": "v1.0.6-default",
+        "ref": "v1.0.6",
+        "version": "1.0.6",
+        "revision": "e386867ef38cead441c2c0cc6a190266e74b98e3"
+      }
+    ]
+  },
+  "samples": [
+    {
+      "variant": "v1.0.5-default",
+      "round": 1,
+      "concurrency": 1,
+      "file": "mysql-round-1-concurrency-1-v1.0.5-default.json"
+    },
+    {
+      "variant": "v1.0.6-default",
+      "round": 1,
+      "concurrency": 1,
+      "file": "mysql-round-1-concurrency-1-v1.0.6-default.json"
+    },
+    {
+      "variant": "v1.0.5-default",
+      "round": 1,
+      "concurrency": 16,
+      "file": "mysql-round-1-concurrency-16-v1.0.5-default.json"
+    },
+    {
+      "variant": "v1.0.6-default",
+      "round": 1,
+      "concurrency": 16,
+      "file": "mysql-round-1-concurrency-16-v1.0.6-default.json"
+    },
+    {
+      "variant": "v1.0.6-default",
+      "round": 2,
+      "concurrency": 1,
+      "file": "mysql-round-2-concurrency-1-v1.0.6-default.json"
+    },
+    {
+      "variant": "v1.0.5-default",
+      "round": 2,
+      "concurrency": 1,
+      "file": "mysql-round-2-concurrency-1-v1.0.5-default.json"
+    },
+    {
+      "variant": "v1.0.6-default",
+      "round": 2,
+      "concurrency": 16,
+      "file": "mysql-round-2-concurrency-16-v1.0.6-default.json"
+    },
+    {
+      "variant": "v1.0.5-default",
+      "round": 2,
+      "concurrency": 16,
+      "file": "mysql-round-2-concurrency-16-v1.0.5-default.json"
+    },
+    {
+      "variant": "v1.0.5-default",
+      "round": 3,
+      "concurrency": 1,
+      "file": "mysql-round-3-concurrency-1-v1.0.5-default.json"
+    },
+    {
+      "variant": "v1.0.6-default",
+      "round": 3,
+      "concurrency": 1,
+      "file": "mysql-round-3-concurrency-1-v1.0.6-default.json"
+    },
+    {
+      "variant": "v1.0.5-default",
+      "round": 3,
+      "concurrency": 16,
+      "file": "mysql-round-3-concurrency-16-v1.0.5-default.json"
+    },
+    {
+      "variant": "v1.0.6-default",
+      "round": 3,
+      "concurrency": 16,
+      "file": "mysql-round-3-concurrency-16-v1.0.6-default.json"
+    },
+    {
+      "variant": "v1.0.6-default",
+      "round": 4,
+      "concurrency": 1,
+      "file": "mysql-round-4-concurrency-1-v1.0.6-default.json"
+    },
+    {
+      "variant": "v1.0.5-default",
+      "round": 4,
+      "concurrency": 1,
+      "file": "mysql-round-4-concurrency-1-v1.0.5-default.json"
+    },
+    {
+      "variant": "v1.0.6-default",
+      "round": 4,
+      "concurrency": 16,
+      "file": "mysql-round-4-concurrency-16-v1.0.6-default.json"
+    },
+    {
+      "variant": "v1.0.5-default",
+      "round": 4,
+      "concurrency": 16,
+      "file": "mysql-round-4-concurrency-16-v1.0.5-default.json"
+    },
+    {
+      "variant": "v1.0.5-default",
+      "round": 5,
+      "concurrency": 1,
+      "file": "mysql-round-5-concurrency-1-v1.0.5-default.json"
+    },
+    {
+      "variant": "v1.0.6-default",
+      "round": 5,
+      "concurrency": 1,
+      "file": "mysql-round-5-concurrency-1-v1.0.6-default.json"
+    },
+    {
+      "variant": "v1.0.5-default",
+      "round": 5,
+      "concurrency": 16,
+      "file": "mysql-round-5-concurrency-16-v1.0.5-default.json"
+    },
+    {
+      "variant": "v1.0.6-default",
+      "round": 5,
+      "concurrency": 16,
+      "file": "mysql-round-5-concurrency-16-v1.0.6-default.json"
+    }
+  ],
+  "rows": [
+    {
+      "key": "mysql|v1.0.5-default|1|warm-hot",
+      "samples": 5,
+      "ops": 61.25,
+      "min": 58.37,
+      "max": 62.65,
+      "p50": 17.98,
+      "p99": 23.35
+    },
+    {
+      "key": "mysql|v1.0.5-default|1|warm-many",
+      "samples": 5,
+      "ops": 19.07,
+      "min": 9.37,
+      "max": 20.51,
+      "p50": 34.48,
+      "p99": 668.84
+    },
+    {
+      "key": "mysql|v1.0.5-default|1|cold-many",
+      "samples": 5,
+      "ops": 15.87,
+      "min": 15.55,
+      "max": 16.35,
+      "p50": 52.1,
+      "p99": 175.94
+    },
+    {
+      "key": "mysql|v1.0.6-default|1|warm-hot",
+      "samples": 5,
+      "ops": 58.02,
+      "min": 55.67,
+      "max": 58.58,
+      "p50": 19.16,
+      "p99": 24.24
+    },
+    {
+      "key": "mysql|v1.0.6-default|1|warm-many",
+      "samples": 5,
+      "ops": 19.6,
+      "min": 14.82,
+      "max": 22.41,
+      "p50": 33.17,
+      "p99": 546.49
+    },
+    {
+      "key": "mysql|v1.0.6-default|1|cold-many",
+      "samples": 5,
+      "ops": 15.41,
+      "min": 15.13,
+      "max": 15.85,
+      "p50": 55.52,
+      "p99": 171.78
+    },
+    {
+      "key": "mysql|v1.0.5-default|16|warm-hot",
+      "samples": 5,
+      "ops": 46.63,
+      "min": 45.44,
+      "max": 47.45,
+      "p50": 342.03,
+      "p99": 419.84
+    },
+    {
+      "key": "mysql|v1.0.5-default|16|warm-many",
+      "samples": 5,
+      "ops": 75.62,
+      "min": 62.8,
+      "max": 87.72,
+      "p50": 119.73,
+      "p99": 1896.9
+    },
+    {
+      "key": "mysql|v1.0.5-default|16|cold-many",
+      "samples": 5,
+      "ops": 16.86,
+      "min": 16.76,
+      "max": 17.07,
+      "p50": 962.37,
+      "p99": 1389.36
+    },
+    {
+      "key": "mysql|v1.0.6-default|16|warm-hot",
+      "samples": 5,
+      "ops": 47.21,
+      "min": 44.37,
+      "max": 48.46,
+      "p50": 341.09,
+      "p99": 404.3
+    },
+    {
+      "key": "mysql|v1.0.6-default|16|warm-many",
+      "samples": 5,
+      "ops": 76.44,
+      "min": 64.28,
+      "max": 77.26,
+      "p50": 114.79,
+      "p99": 2951.14
+    },
+    {
+      "key": "mysql|v1.0.6-default|16|cold-many",
+      "samples": 5,
+      "ops": 16.88,
+      "min": 16.79,
+      "max": 17.12,
+      "p50": 959.96,
+      "p99": 1377.19
+    }
+  ]
+}

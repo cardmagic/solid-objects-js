@@ -1,0 +1,870 @@
+{
+  "comparison": {
+    "databases": [
+      "sqlite",
+      "postgresql",
+      "mysql"
+    ],
+    "rounds": 5,
+    "operations": 500,
+    "warmup": 100,
+    "concurrencies": [
+      1,
+      16
+    ],
+    "variants": [
+      {
+        "name": "v0.14.0-default",
+        "ref": "v0.14.0",
+        "version": "0.14.0",
+        "sqliteDurability": {
+          "journalMode": "delete",
+          "synchronous": 2
+        },
+        "revision": "456d8ba1350dd22d3a2d669631631d8a22472db5"
+      },
+      {
+        "name": "v1.0.5-default",
+        "ref": "v1.0.5",
+        "version": "1.0.5",
+        "sqliteDurability": {
+          "journalMode": "delete",
+          "synchronous": 2
+        },
+        "revision": "8975f6e2ad94c114f3638cea8f167956061a9bc3"
+      },
+      {
+        "name": "v1.0.6-default",
+        "ref": "v1.0.6",
+        "version": "1.0.6",
+        "sqliteDurability": {
+          "journalMode": "wal",
+          "synchronous": 1
+        },
+        "revision": "e386867ef38cead441c2c0cc6a190266e74b98e3"
+      },
+      {
+        "name": "v1.0.6-wal-full",
+        "ref": "v1.0.6",
+        "version": "1.0.6",
+        "databases": [
+          "sqlite"
+        ],
+        "synchronous": "full",
+        "sqliteDurability": {
+          "journalMode": "wal",
+          "synchronous": 2
+        },
+        "revision": "e386867ef38cead441c2c0cc6a190266e74b98e3"
+      }
+    ]
+  },
+  "completedDatabases": [
+    "sqlite",
+    "postgresql"
+  ],
+  "plannedReportCount": 100,
+  "emittedReportCount": 83,
+  "samples": [
+    {
+      "variant": "v0.14.0-default",
+      "round": 1,
+      "concurrency": 1,
+      "file": "sqlite-round-1-concurrency-1-v0.14.0-default.json"
+    },
+    {
+      "variant": "v1.0.5-default",
+      "round": 1,
+      "concurrency": 1,
+      "file": "sqlite-round-1-concurrency-1-v1.0.5-default.json"
+    },
+    {
+      "variant": "v1.0.6-default",
+      "round": 1,
+      "concurrency": 1,
+      "file": "sqlite-round-1-concurrency-1-v1.0.6-default.json"
+    },
+    {
+      "variant": "v1.0.6-wal-full",
+      "round": 1,
+      "concurrency": 1,
+      "file": "sqlite-round-1-concurrency-1-v1.0.6-wal-full.json"
+    },
+    {
+      "variant": "v0.14.0-default",
+      "round": 1,
+      "concurrency": 16,
+      "file": "sqlite-round-1-concurrency-16-v0.14.0-default.json"
+    },
+    {
+      "variant": "v1.0.5-default",
+      "round": 1,
+      "concurrency": 16,
+      "file": "sqlite-round-1-concurrency-16-v1.0.5-default.json"
+    },
+    {
+      "variant": "v1.0.6-default",
+      "round": 1,
+      "concurrency": 16,
+      "file": "sqlite-round-1-concurrency-16-v1.0.6-default.json"
+    },
+    {
+      "variant": "v1.0.6-wal-full",
+      "round": 1,
+      "concurrency": 16,
+      "file": "sqlite-round-1-concurrency-16-v1.0.6-wal-full.json"
+    },
+    {
+      "variant": "v1.0.5-default",
+      "round": 2,
+      "concurrency": 1,
+      "file": "sqlite-round-2-concurrency-1-v1.0.5-default.json"
+    },
+    {
+      "variant": "v1.0.6-default",
+      "round": 2,
+      "concurrency": 1,
+      "file": "sqlite-round-2-concurrency-1-v1.0.6-default.json"
+    },
+    {
+      "variant": "v1.0.6-wal-full",
+      "round": 2,
+      "concurrency": 1,
+      "file": "sqlite-round-2-concurrency-1-v1.0.6-wal-full.json"
+    },
+    {
+      "variant": "v0.14.0-default",
+      "round": 2,
+      "concurrency": 1,
+      "file": "sqlite-round-2-concurrency-1-v0.14.0-default.json"
+    },
+    {
+      "variant": "v1.0.5-default",
+      "round": 2,
+      "concurrency": 16,
+      "file": "sqlite-round-2-concurrency-16-v1.0.5-default.json"
+    },
+    {
+      "variant": "v1.0.6-default",
+      "round": 2,
+      "concurrency": 16,
+      "file": "sqlite-round-2-concurrency-16-v1.0.6-default.json"
+    },
+    {
+      "variant": "v1.0.6-wal-full",
+      "round": 2,
+      "concurrency": 16,
+      "file": "sqlite-round-2-concurrency-16-v1.0.6-wal-full.json"
+    },
+    {
+      "variant": "v0.14.0-default",
+      "round": 2,
+      "concurrency": 16,
+      "file": "sqlite-round-2-concurrency-16-v0.14.0-default.json"
+    },
+    {
+      "variant": "v1.0.6-default",
+      "round": 3,
+      "concurrency": 1,
+      "file": "sqlite-round-3-concurrency-1-v1.0.6-default.json"
+    },
+    {
+      "variant": "v1.0.6-wal-full",
+      "round": 3,
+      "concurrency": 1,
+      "file": "sqlite-round-3-concurrency-1-v1.0.6-wal-full.json"
+    },
+    {
+      "variant": "v0.14.0-default",
+      "round": 3,
+      "concurrency": 1,
+      "file": "sqlite-round-3-concurrency-1-v0.14.0-default.json"
+    },
+    {
+      "variant": "v1.0.5-default",
+      "round": 3,
+      "concurrency": 1,
+      "file": "sqlite-round-3-concurrency-1-v1.0.5-default.json"
+    },
+    {
+      "variant": "v1.0.6-default",
+      "round": 3,
+      "concurrency": 16,
+      "file": "sqlite-round-3-concurrency-16-v1.0.6-default.json"
+    },
+    {
+      "variant": "v1.0.6-wal-full",
+      "round": 3,
+      "concurrency": 16,
+      "file": "sqlite-round-3-concurrency-16-v1.0.6-wal-full.json"
+    },
+    {
+      "variant": "v0.14.0-default",
+      "round": 3,
+      "concurrency": 16,
+      "file": "sqlite-round-3-concurrency-16-v0.14.0-default.json"
+    },
+    {
+      "variant": "v1.0.5-default",
+      "round": 3,
+      "concurrency": 16,
+      "file": "sqlite-round-3-concurrency-16-v1.0.5-default.json"
+    },
+    {
+      "variant": "v1.0.6-wal-full",
+      "round": 4,
+      "concurrency": 1,
+      "file": "sqlite-round-4-concurrency-1-v1.0.6-wal-full.json"
+    },
+    {
+      "variant": "v0.14.0-default",
+      "round": 4,
+      "concurrency": 1,
+      "file": "sqlite-round-4-concurrency-1-v0.14.0-default.json"
+    },
+    {
+      "variant": "v1.0.5-default",
+      "round": 4,
+      "concurrency": 1,
+      "file": "sqlite-round-4-concurrency-1-v1.0.5-default.json"
+    },
+    {
+      "variant": "v1.0.6-default",
+      "round": 4,
+      "concurrency": 1,
+      "file": "sqlite-round-4-concurrency-1-v1.0.6-default.json"
+    },
+    {
+      "variant": "v1.0.6-wal-full",
+      "round": 4,
+      "concurrency": 16,
+      "file": "sqlite-round-4-concurrency-16-v1.0.6-wal-full.json"
+    },
+    {
+      "variant": "v0.14.0-default",
+      "round": 4,
+      "concurrency": 16,
+      "file": "sqlite-round-4-concurrency-16-v0.14.0-default.json"
+    },
+    {
+      "variant": "v1.0.5-default",
+      "round": 4,
+      "concurrency": 16,
+      "file": "sqlite-round-4-concurrency-16-v1.0.5-default.json"
+    },
+    {
+      "variant": "v1.0.6-default",
+      "round": 4,
+      "concurrency": 16,
+      "file": "sqlite-round-4-concurrency-16-v1.0.6-default.json"
+    },
+    {
+      "variant": "v0.14.0-default",
+      "round": 5,
+      "concurrency": 1,
+      "file": "sqlite-round-5-concurrency-1-v0.14.0-default.json"
+    },
+    {
+      "variant": "v1.0.5-default",
+      "round": 5,
+      "concurrency": 1,
+      "file": "sqlite-round-5-concurrency-1-v1.0.5-default.json"
+    },
+    {
+      "variant": "v1.0.6-default",
+      "round": 5,
+      "concurrency": 1,
+      "file": "sqlite-round-5-concurrency-1-v1.0.6-default.json"
+    },
+    {
+      "variant": "v1.0.6-wal-full",
+      "round": 5,
+      "concurrency": 1,
+      "file": "sqlite-round-5-concurrency-1-v1.0.6-wal-full.json"
+    },
+    {
+      "variant": "v0.14.0-default",
+      "round": 5,
+      "concurrency": 16,
+      "file": "sqlite-round-5-concurrency-16-v0.14.0-default.json"
+    },
+    {
+      "variant": "v1.0.5-default",
+      "round": 5,
+      "concurrency": 16,
+      "file": "sqlite-round-5-concurrency-16-v1.0.5-default.json"
+    },
+    {
+      "variant": "v1.0.6-default",
+      "round": 5,
+      "concurrency": 16,
+      "file": "sqlite-round-5-concurrency-16-v1.0.6-default.json"
+    },
+    {
+      "variant": "v1.0.6-wal-full",
+      "round": 5,
+      "concurrency": 16,
+      "file": "sqlite-round-5-concurrency-16-v1.0.6-wal-full.json"
+    },
+    {
+      "variant": "v0.14.0-default",
+      "round": 1,
+      "concurrency": 1,
+      "file": "postgresql-round-1-concurrency-1-v0.14.0-default.json"
+    },
+    {
+      "variant": "v1.0.5-default",
+      "round": 1,
+      "concurrency": 1,
+      "file": "postgresql-round-1-concurrency-1-v1.0.5-default.json"
+    },
+    {
+      "variant": "v1.0.6-default",
+      "round": 1,
+      "concurrency": 1,
+      "file": "postgresql-round-1-concurrency-1-v1.0.6-default.json"
+    },
+    {
+      "variant": "v0.14.0-default",
+      "round": 1,
+      "concurrency": 16,
+      "file": "postgresql-round-1-concurrency-16-v0.14.0-default.json"
+    },
+    {
+      "variant": "v1.0.5-default",
+      "round": 1,
+      "concurrency": 16,
+      "file": "postgresql-round-1-concurrency-16-v1.0.5-default.json"
+    },
+    {
+      "variant": "v1.0.6-default",
+      "round": 1,
+      "concurrency": 16,
+      "file": "postgresql-round-1-concurrency-16-v1.0.6-default.json"
+    },
+    {
+      "variant": "v1.0.5-default",
+      "round": 2,
+      "concurrency": 1,
+      "file": "postgresql-round-2-concurrency-1-v1.0.5-default.json"
+    },
+    {
+      "variant": "v1.0.6-default",
+      "round": 2,
+      "concurrency": 1,
+      "file": "postgresql-round-2-concurrency-1-v1.0.6-default.json"
+    },
+    {
+      "variant": "v0.14.0-default",
+      "round": 2,
+      "concurrency": 1,
+      "file": "postgresql-round-2-concurrency-1-v0.14.0-default.json"
+    },
+    {
+      "variant": "v1.0.5-default",
+      "round": 2,
+      "concurrency": 16,
+      "file": "postgresql-round-2-concurrency-16-v1.0.5-default.json"
+    },
+    {
+      "variant": "v1.0.6-default",
+      "round": 2,
+      "concurrency": 16,
+      "file": "postgresql-round-2-concurrency-16-v1.0.6-default.json"
+    },
+    {
+      "variant": "v0.14.0-default",
+      "round": 2,
+      "concurrency": 16,
+      "file": "postgresql-round-2-concurrency-16-v0.14.0-default.json"
+    },
+    {
+      "variant": "v1.0.6-default",
+      "round": 3,
+      "concurrency": 1,
+      "file": "postgresql-round-3-concurrency-1-v1.0.6-default.json"
+    },
+    {
+      "variant": "v0.14.0-default",
+      "round": 3,
+      "concurrency": 1,
+      "file": "postgresql-round-3-concurrency-1-v0.14.0-default.json"
+    },
+    {
+      "variant": "v1.0.5-default",
+      "round": 3,
+      "concurrency": 1,
+      "file": "postgresql-round-3-concurrency-1-v1.0.5-default.json"
+    },
+    {
+      "variant": "v1.0.6-default",
+      "round": 3,
+      "concurrency": 16,
+      "file": "postgresql-round-3-concurrency-16-v1.0.6-default.json"
+    },
+    {
+      "variant": "v0.14.0-default",
+      "round": 3,
+      "concurrency": 16,
+      "file": "postgresql-round-3-concurrency-16-v0.14.0-default.json"
+    },
+    {
+      "variant": "v1.0.5-default",
+      "round": 3,
+      "concurrency": 16,
+      "file": "postgresql-round-3-concurrency-16-v1.0.5-default.json"
+    },
+    {
+      "variant": "v0.14.0-default",
+      "round": 4,
+      "concurrency": 1,
+      "file": "postgresql-round-4-concurrency-1-v0.14.0-default.json"
+    },
+    {
+      "variant": "v1.0.5-default",
+      "round": 4,
+      "concurrency": 1,
+      "file": "postgresql-round-4-concurrency-1-v1.0.5-default.json"
+    },
+    {
+      "variant": "v1.0.6-default",
+      "round": 4,
+      "concurrency": 1,
+      "file": "postgresql-round-4-concurrency-1-v1.0.6-default.json"
+    },
+    {
+      "variant": "v0.14.0-default",
+      "round": 4,
+      "concurrency": 16,
+      "file": "postgresql-round-4-concurrency-16-v0.14.0-default.json"
+    },
+    {
+      "variant": "v1.0.5-default",
+      "round": 4,
+      "concurrency": 16,
+      "file": "postgresql-round-4-concurrency-16-v1.0.5-default.json"
+    },
+    {
+      "variant": "v1.0.6-default",
+      "round": 4,
+      "concurrency": 16,
+      "file": "postgresql-round-4-concurrency-16-v1.0.6-default.json"
+    },
+    {
+      "variant": "v1.0.5-default",
+      "round": 5,
+      "concurrency": 1,
+      "file": "postgresql-round-5-concurrency-1-v1.0.5-default.json"
+    },
+    {
+      "variant": "v1.0.6-default",
+      "round": 5,
+      "concurrency": 1,
+      "file": "postgresql-round-5-concurrency-1-v1.0.6-default.json"
+    },
+    {
+      "variant": "v0.14.0-default",
+      "round": 5,
+      "concurrency": 1,
+      "file": "postgresql-round-5-concurrency-1-v0.14.0-default.json"
+    },
+    {
+      "variant": "v1.0.5-default",
+      "round": 5,
+      "concurrency": 16,
+      "file": "postgresql-round-5-concurrency-16-v1.0.5-default.json"
+    },
+    {
+      "variant": "v1.0.6-default",
+      "round": 5,
+      "concurrency": 16,
+      "file": "postgresql-round-5-concurrency-16-v1.0.6-default.json"
+    },
+    {
+      "variant": "v0.14.0-default",
+      "round": 5,
+      "concurrency": 16,
+      "file": "postgresql-round-5-concurrency-16-v0.14.0-default.json"
+    }
+  ],
+  "rows": [
+    {
+      "key": "sqlite|v0.14.0-default|1|warm-hot",
+      "samples": 5,
+      "ops": 89.33,
+      "min": 86.9,
+      "max": 90.85,
+      "p50": 11.05,
+      "p99": 19.62
+    },
+    {
+      "key": "sqlite|v0.14.0-default|1|warm-many",
+      "samples": 5,
+      "ops": 21.42,
+      "min": 10.71,
+      "max": 22.49,
+      "p50": 31.05,
+      "p99": 427
+    },
+    {
+      "key": "sqlite|v0.14.0-default|1|cold-many",
+      "samples": 5,
+      "ops": 14.86,
+      "min": 11.89,
+      "max": 15.24,
+      "p50": 51.07,
+      "p99": 330.5
+    },
+    {
+      "key": "sqlite|v1.0.5-default|1|warm-hot",
+      "samples": 5,
+      "ops": 112.76,
+      "min": 107.36,
+      "max": 117.04,
+      "p50": 7.5,
+      "p99": 18.22
+    },
+    {
+      "key": "sqlite|v1.0.5-default|1|warm-many",
+      "samples": 5,
+      "ops": 25.39,
+      "min": 16.83,
+      "max": 28.58,
+      "p50": 23.8,
+      "p99": 596.72
+    },
+    {
+      "key": "sqlite|v1.0.5-default|1|cold-many",
+      "samples": 5,
+      "ops": 16.57,
+      "min": 13.17,
+      "max": 18.62,
+      "p50": 38.6,
+      "p99": 388.29
+    },
+    {
+      "key": "sqlite|v1.0.6-default|1|warm-hot",
+      "samples": 5,
+      "ops": 356.72,
+      "min": 337.97,
+      "max": 369.63,
+      "p50": 2.88,
+      "p99": 7.69
+    },
+    {
+      "key": "sqlite|v1.0.6-default|1|warm-many",
+      "samples": 5,
+      "ops": 61.46,
+      "min": 40.65,
+      "max": 73.3,
+      "p50": 10.04,
+      "p99": 139.51
+    },
+    {
+      "key": "sqlite|v1.0.6-default|1|cold-many",
+      "samples": 5,
+      "ops": 39.46,
+      "min": 37.55,
+      "max": 45.04,
+      "p50": 20.63,
+      "p99": 135.36
+    },
+    {
+      "key": "sqlite|v1.0.6-wal-full|1|warm-hot",
+      "samples": 5,
+      "ops": 261.03,
+      "min": 250.82,
+      "max": 262.8,
+      "p50": 3.37,
+      "p99": 8.2
+    },
+    {
+      "key": "sqlite|v1.0.6-wal-full|1|warm-many",
+      "samples": 5,
+      "ops": 61.22,
+      "min": 41.24,
+      "max": 71.34,
+      "p50": 10.17,
+      "p99": 93.54
+    },
+    {
+      "key": "sqlite|v1.0.6-wal-full|1|cold-many",
+      "samples": 5,
+      "ops": 35.39,
+      "min": 33.56,
+      "max": 36.72,
+      "p50": 22.64,
+      "p99": 140.53
+    },
+    {
+      "key": "sqlite|v0.14.0-default|16|warm-hot",
+      "samples": 5,
+      "ops": 168.43,
+      "min": 158.71,
+      "max": 169.87,
+      "p50": 97.02,
+      "p99": 158.71
+    },
+    {
+      "key": "sqlite|v0.14.0-default|16|warm-many",
+      "samples": 5,
+      "ops": 50.27,
+      "min": 47.1,
+      "max": 52.55,
+      "p50": 294.29,
+      "p99": 784.77
+    },
+    {
+      "key": "sqlite|v0.14.0-default|16|cold-many",
+      "samples": 5,
+      "ops": 21.85,
+      "min": 21.48,
+      "max": 23.69,
+      "p50": 659.26,
+      "p99": 1985.07
+    },
+    {
+      "key": "sqlite|v1.0.5-default|16|warm-hot",
+      "samples": 5,
+      "ops": 166.35,
+      "min": 157.78,
+      "max": 171.25,
+      "p50": 95.2,
+      "p99": 175.38
+    },
+    {
+      "key": "sqlite|v1.0.5-default|16|warm-many",
+      "samples": 5,
+      "ops": 48.49,
+      "min": 43.97,
+      "max": 53.89,
+      "p50": 279.55,
+      "p99": 864.1
+    },
+    {
+      "key": "sqlite|v1.0.5-default|16|cold-many",
+      "samples": 5,
+      "ops": 21.89,
+      "min": 20.87,
+      "max": 24.56,
+      "p50": 679.31,
+      "p99": 1876.46
+    },
+    {
+      "key": "sqlite|v1.0.6-default|16|warm-hot",
+      "samples": 5,
+      "ops": 549.58,
+      "min": 527.13,
+      "max": 580.94,
+      "p50": 28.72,
+      "p99": 52.69
+    },
+    {
+      "key": "sqlite|v1.0.6-default|16|warm-many",
+      "samples": 5,
+      "ops": 103.72,
+      "min": 95.05,
+      "max": 110.23,
+      "p50": 115.26,
+      "p99": 700.84
+    },
+    {
+      "key": "sqlite|v1.0.6-default|16|cold-many",
+      "samples": 5,
+      "ops": 34.46,
+      "min": 31.82,
+      "max": 38.4,
+      "p50": 353.96,
+      "p99": 1193.3
+    },
+    {
+      "key": "sqlite|v1.0.6-wal-full|16|warm-hot",
+      "samples": 5,
+      "ops": 343.35,
+      "min": 323.86,
+      "max": 359.86,
+      "p50": 45.56,
+      "p99": 85.2
+    },
+    {
+      "key": "sqlite|v1.0.6-wal-full|16|warm-many",
+      "samples": 5,
+      "ops": 78.09,
+      "min": 63.28,
+      "max": 80.2,
+      "p50": 179.51,
+      "p99": 715.3
+    },
+    {
+      "key": "sqlite|v1.0.6-wal-full|16|cold-many",
+      "samples": 5,
+      "ops": 30.56,
+      "min": 30.19,
+      "max": 32.42,
+      "p50": 432.82,
+      "p99": 1381.16
+    },
+    {
+      "key": "postgresql|v0.14.0-default|1|warm-hot",
+      "samples": 5,
+      "ops": 79.03,
+      "min": 78.08,
+      "max": 81.54,
+      "p50": 12.72,
+      "p99": 16.97
+    },
+    {
+      "key": "postgresql|v0.14.0-default|1|warm-many",
+      "samples": 5,
+      "ops": 21.63,
+      "min": 15.94,
+      "max": 29.7,
+      "p50": 23.99,
+      "p99": 591.83
+    },
+    {
+      "key": "postgresql|v0.14.0-default|1|cold-many",
+      "samples": 5,
+      "ops": 23.66,
+      "min": 21.28,
+      "max": 24.66,
+      "p50": 35.41,
+      "p99": 147.08
+    },
+    {
+      "key": "postgresql|v1.0.5-default|1|warm-hot",
+      "samples": 5,
+      "ops": 93.28,
+      "min": 91.24,
+      "max": 96.07,
+      "p50": 10.44,
+      "p99": 16.61
+    },
+    {
+      "key": "postgresql|v1.0.5-default|1|warm-many",
+      "samples": 5,
+      "ops": 35.41,
+      "min": 34.81,
+      "max": 36.48,
+      "p50": 26.73,
+      "p99": 52.51
+    },
+    {
+      "key": "postgresql|v1.0.5-default|1|cold-many",
+      "samples": 5,
+      "ops": 19.87,
+      "min": 19.53,
+      "max": 20.53,
+      "p50": 40.75,
+      "p99": 157.76
+    },
+    {
+      "key": "postgresql|v1.0.6-default|1|warm-hot",
+      "samples": 5,
+      "ops": 94.44,
+      "min": 92.57,
+      "max": 96.74,
+      "p50": 10.31,
+      "p99": 16.35
+    },
+    {
+      "key": "postgresql|v1.0.6-default|1|warm-many",
+      "samples": 5,
+      "ops": 35.64,
+      "min": 34.02,
+      "max": 36.38,
+      "p50": 26.52,
+      "p99": 52.6
+    },
+    {
+      "key": "postgresql|v1.0.6-default|1|cold-many",
+      "samples": 5,
+      "ops": 19.92,
+      "min": 19.18,
+      "max": 20.49,
+      "p50": 42.07,
+      "p99": 149.17
+    },
+    {
+      "key": "postgresql|v0.14.0-default|16|warm-hot",
+      "samples": 5,
+      "ops": 100.14,
+      "min": 99.34,
+      "max": 107.66,
+      "p50": 159.11,
+      "p99": 189.52
+    },
+    {
+      "key": "postgresql|v0.14.0-default|16|warm-many",
+      "samples": 5,
+      "ops": 91.44,
+      "min": 65.61,
+      "max": 121.22,
+      "p50": 86.34,
+      "p99": 2481.38
+    },
+    {
+      "key": "postgresql|v0.14.0-default|16|cold-many",
+      "samples": 5,
+      "ops": 19.72,
+      "min": 19.34,
+      "max": 20.03,
+      "p50": 808.33,
+      "p99": 1221.76
+    },
+    {
+      "key": "postgresql|v1.0.5-default|16|warm-hot",
+      "samples": 5,
+      "ops": 80,
+      "min": 76.32,
+      "max": 81.82,
+      "p50": 200.92,
+      "p99": 236.9
+    },
+    {
+      "key": "postgresql|v1.0.5-default|16|warm-many",
+      "samples": 5,
+      "ops": 121.29,
+      "min": 112.99,
+      "max": 121.84,
+      "p50": 83.43,
+      "p99": 1022.67
+    },
+    {
+      "key": "postgresql|v1.0.5-default|16|cold-many",
+      "samples": 5,
+      "ops": 19.38,
+      "min": 18.83,
+      "max": 19.43,
+      "p50": 827.63,
+      "p99": 1270.95
+    },
+    {
+      "key": "postgresql|v1.0.6-default|16|warm-hot",
+      "samples": 5,
+      "ops": 80.82,
+      "min": 77.4,
+      "max": 82.73,
+      "p50": 199.16,
+      "p99": 228.81
+    },
+    {
+      "key": "postgresql|v1.0.6-default|16|warm-many",
+      "samples": 5,
+      "ops": 120.34,
+      "min": 114.34,
+      "max": 123.01,
+      "p50": 84.37,
+      "p99": 1022.72
+    },
+    {
+      "key": "postgresql|v1.0.6-default|16|cold-many",
+      "samples": 5,
+      "ops": 19.27,
+      "min": 18.9,
+      "max": 19.73,
+      "p50": 829.52,
+      "p99": 1262.72
+    }
+  ]
+}

@@ -1,0 +1,258 @@
+docker.io/library/postgres@sha256:5983db9a9c6ad225a48a46cfe2e03e6680b1826662befd0465eb05b34cb1c64e: Pulling from library/postgres
+68d798fb46d0: Pulling fs layer
+cda6e21da0f2: Pulling fs layer
+27df7b5bf0b5: Pulling fs layer
+61b3cc329be3: Pulling fs layer
+b056e8cb2530: Pulling fs layer
+136766c05e5f: Pulling fs layer
+dd051e1b8c92: Pulling fs layer
+a8c21670182b: Pulling fs layer
+1d919c5645b1: Pulling fs layer
+ffef70d379d2: Pulling fs layer
+2a13757dbdad: Pulling fs layer
+9bcbde3fb062: Pulling fs layer
+5760334e16b5: Pulling fs layer
+fce9821bac7d: Pulling fs layer
+cda6e21da0f2: Download complete
+136766c05e5f: Download complete
+b056e8cb2530: Download complete
+ffef70d379d2: Download complete
+fce9821bac7d: Download complete
+a8c21670182b: Download complete
+9bcbde3fb062: Download complete
+27df7b5bf0b5: Download complete
+2a13757dbdad: Download complete
+5760334e16b5: Download complete
+61b3cc329be3: Download complete
+68d798fb46d0: Download complete
+dd051e1b8c92: Download complete
+1d919c5645b1: Download complete
+ffef70d379d2: Pull complete
+dd051e1b8c92: Pull complete
+136766c05e5f: Pull complete
+2a13757dbdad: Pull complete
+cda6e21da0f2: Pull complete
+a8c21670182b: Pull complete
+61b3cc329be3: Pull complete
+fce9821bac7d: Pull complete
+b056e8cb2530: Pull complete
+27df7b5bf0b5: Pull complete
+5760334e16b5: Pull complete
+1d919c5645b1: Pull complete
+9bcbde3fb062: Pull complete
+68d798fb46d0: Pull complete
+Digest: sha256:5983db9a9c6ad225a48a46cfe2e03e6680b1826662befd0465eb05b34cb1c64e
+Status: Downloaded newer image for postgres@sha256:5983db9a9c6ad225a48a46cfe2e03e6680b1826662befd0465eb05b34cb1c64e
+docker.io/library/postgres@sha256:5983db9a9c6ad225a48a46cfe2e03e6680b1826662befd0465eb05b34cb1c64e
+docker.io/library/mysql@sha256:72c368d898861f3b3a07af0e6d690400f44f048799ed46822783d9224cc2c86d: Pulling from library/mysql
+0b3d5697e820: Pulling fs layer
+c3e99775cc39: Pulling fs layer
+332288060cf8: Pulling fs layer
+5a7ab34260fd: Pulling fs layer
+abda743cff12: Pulling fs layer
+335c0ba6129f: Pulling fs layer
+084e06fe4d96: Pulling fs layer
+16ff0dc0f366: Pulling fs layer
+b14917cf1885: Pulling fs layer
+a8a79f346bc1: Pulling fs layer
+16ff0dc0f366: Download complete
+0b3d5697e820: Download complete
+5a7ab34260fd: Download complete
+335c0ba6129f: Download complete
+332288060cf8: Download complete
+084e06fe4d96: Download complete
+abda743cff12: Download complete
+a8a79f346bc1: Download complete
+c3e99775cc39: Download complete
+b14917cf1885: Download complete
+5a7ab34260fd: Pull complete
+332288060cf8: Pull complete
+c3e99775cc39: Pull complete
+335c0ba6129f: Pull complete
+084e06fe4d96: Pull complete
+abda743cff12: Pull complete
+16ff0dc0f366: Pull complete
+a8a79f346bc1: Pull complete
+b14917cf1885: Pull complete
+0b3d5697e820: Pull complete
+Digest: sha256:72c368d898861f3b3a07af0e6d690400f44f048799ed46822783d9224cc2c86d
+Status: Downloaded newer image for mysql@sha256:72c368d898861f3b3a07af0e6d690400f44f048799ed46822783d9224cc2c86d
+docker.io/library/mysql@sha256:72c368d898861f3b3a07af0e6d690400f44f048799ed46822783d9224cc2c86d
+START sqlite-round-1-concurrency-1-v0.14.0-default 2026-11-09T04:35:22.342Z
+{
+  event: 'solid_objects.polling_only_cross_process_wake_up',
+  pollingIntervalMilliseconds: 5,
+  idlePollingIntervalMilliseconds: 1000
+}
+{
+  event: 'solid_objects.polling_only_cross_process_wake_up',
+  pollingIntervalMilliseconds: 5,
+  idlePollingIntervalMilliseconds: 1000
+}
+sample 1/1: four-processes warm-hot synchronous
+{
+  event: 'solid_objects.polling_only_cross_process_wake_up',
+  pollingIntervalMilliseconds: 5,
+  idlePollingIntervalMilliseconds: 1000
+}
+sample 1/1: four-processes warm-many synchronous
+sample 1/1: four-processes cold-many synchronous
+DONE sqlite-round-1-concurrency-1-v0.14.0-default
+START sqlite-round-1-concurrency-1-v1.0.5-default 2026-11-09T04:40:01.209Z
+sample 1/1: four-processes warm-hot synchronous
+{
+  event: 'solid_objects.polling_only_cross_process_wake_up',
+  pollingIntervalMilliseconds: 5,
+  idlePollingIntervalMilliseconds: 1000
+}
+{
+  event: 'solid_objects.polling_only_cross_process_wake_up',
+  pollingIntervalMilliseconds: 5,
+  idlePollingIntervalMilliseconds: 1000
+}
+{
+  event: 'solid_objects.polling_only_cross_process_wake_up',
+  pollingIntervalMilliseconds: 5,
+  idlePollingIntervalMilliseconds: 1000
+}
+sample 1/1: four-processes warm-many synchronous
+sample 1/1: four-processes cold-many synchronous
+DONE sqlite-round-1-concurrency-1-v1.0.5-default
+START sqlite-round-1-concurrency-1-v1.0.6-default 2026-11-09T04:44:58.535Z
+{
+  event: 'solid_objects.polling_only_cross_process_wake_up',
+  pollingIntervalMilliseconds: 5,
+  idlePollingIntervalMilliseconds: 1000
+}
+{
+  event: 'solid_objects.polling_only_cross_process_wake_up',
+  pollingIntervalMilliseconds: 5,
+  idlePollingIntervalMilliseconds: 1000
+}
+sample 1/1: four-processes warm-hot synchronous
+{
+  event: 'solid_objects.polling_only_cross_process_wake_up',
+  pollingIntervalMilliseconds: 5,
+  idlePollingIntervalMilliseconds: 1000
+}
+sample 1/1: four-processes warm-many synchronous
+sample 1/1: four-processes cold-many synchronous
+DONE sqlite-round-1-concurrency-1-v1.0.6-default
+START sqlite-round-1-concurrency-1-v1.0.6-wal-full 2026-11-09T04:46:05.369Z
+{
+  event: 'solid_objects.polling_only_cross_process_wake_up',
+  pollingIntervalMilliseconds: 5,
+  idlePollingIntervalMilliseconds: 1000
+}
+{
+  event: 'solid_objects.polling_only_cross_process_wake_up',
+  pollingIntervalMilliseconds: 5,
+  idlePollingIntervalMilliseconds: 1000
+}
+sample 1/1: four-processes warm-hot synchronous
+{
+  event: 'solid_objects.polling_only_cross_process_wake_up',
+  pollingIntervalMilliseconds: 5,
+  idlePollingIntervalMilliseconds: 1000
+}
+sample 1/1: four-processes warm-many synchronous
+sample 1/1: four-processes cold-many synchronous
+DONE sqlite-round-1-concurrency-1-v1.0.6-wal-full
+START sqlite-round-1-concurrency-16-v0.14.0-default 2026-11-09T04:49:50.571Z
+{
+  event: 'solid_objects.polling_only_cross_process_wake_up',
+  pollingIntervalMilliseconds: 5,
+  idlePollingIntervalMilliseconds: 1000
+}
+sample 1/1: four-processes warm-hot synchronous
+{
+  event: 'solid_objects.polling_only_cross_process_wake_up',
+  pollingIntervalMilliseconds: 5,
+  idlePollingIntervalMilliseconds: 1000
+}
+{
+  event: 'solid_objects.polling_only_cross_process_wake_up',
+  pollingIntervalMilliseconds: 5,
+  idlePollingIntervalMilliseconds: 1000
+}
+sample 1/1: four-processes warm-many synchronous
+sample 1/1: four-processes cold-many synchronous
+DONE sqlite-round-1-concurrency-16-v0.14.0-default
+START sqlite-round-1-concurrency-16-v1.0.5-default 2026-11-09T04:52:25.577Z
+{
+  event: 'solid_objects.polling_only_cross_process_wake_up',
+  pollingIntervalMilliseconds: 5,
+  idlePollingIntervalMilliseconds: 1000
+}
+sample 1/1: four-processes warm-hot synchronous
+{
+  event: 'solid_objects.polling_only_cross_process_wake_up',
+  pollingIntervalMilliseconds: 5,
+  idlePollingIntervalMilliseconds: 1000
+}
+{
+  event: 'solid_objects.polling_only_cross_process_wake_up',
+  pollingIntervalMilliseconds: 5,
+  idlePollingIntervalMilliseconds: 1000
+}
+sample 1/1: four-processes warm-many synchronous
+sample 1/1: four-processes cold-many synchronous
+DONE sqlite-round-1-concurrency-16-v1.0.5-default
+START sqlite-round-1-concurrency-16-v1.0.6-default 2026-11-09T04:55:03.272Z
+{
+  event: 'solid_objects.polling_only_cross_process_wake_up',
+  pollingIntervalMilliseconds: 5,
+  idlePollingIntervalMilliseconds: 1000
+}
+sample 1/1: four-processes warm-hot synchronous
+{
+  event: 'solid_objects.polling_only_cross_process_wake_up',
+  pollingIntervalMilliseconds: 5,
+  idlePollingIntervalMilliseconds: 1000
+}
+{
+  event: 'solid_objects.polling_only_cross_process_wake_up',
+  pollingIntervalMilliseconds: 5,
+  idlePollingIntervalMilliseconds: 1000
+}
+sample 1/1: four-processes warm-many synchronous
+sample 1/1: four-processes cold-many synchronous
+DONE sqlite-round-1-concurrency-16-v1.0.6-default
+START sqlite-round-1-concurrency-16-v1.0.6-wal-full 2026-11-09T04:56:03.963Z
+{
+  event: 'solid_objects.polling_only_cross_process_wake_up',
+  pollingIntervalMilliseconds: 5,
+  idlePollingIntervalMilliseconds: 1000
+}
+sample 1/1: four-processes warm-hot synchronous
+{
+  event: 'solid_objects.polling_only_cross_process_wake_up',
+  pollingIntervalMilliseconds: 5,
+  idlePollingIntervalMilliseconds: 1000
+}
+{
+  event: 'solid_objects.polling_only_cross_process_wake_up',
+  pollingIntervalMilliseconds: 5,
+  idlePollingIntervalMilliseconds: 1000
+}
+sample 1/1: four-processes warm-many synchronous
+sample 1/1: four-processes cold-many synchronous
+DONE sqlite-round-1-concurrency-16-v1.0.6-wal-full
+START sqlite-round-2-concurrency-1-v1.0.5-default 2026-11-09T04:59:25.306Z
+{
+  event: 'solid_objects.polling_only_cross_process_wake_up',
+  pollingIntervalMilliseconds: 5,
+  idlePollingIntervalMilliseconds: 1000
+}
+{
+  event: 'solid_objects.polling_only_cross_process_wake_up',
+  pollingIntervalMilliseconds: 5,
+  idlePollingIntervalMilliseconds: 1000
+}
+sample 1/1: four-processes warm-hot synchronous
+{
+  event: 'solid_objects.polling_only_cross_process_wake_up',
+  pollingIntervalMilliseconds: 5,
+  idlePollingIntervalMilliseconds: 1000
+}
+sample 1/1: four-processes warm-many synchronous

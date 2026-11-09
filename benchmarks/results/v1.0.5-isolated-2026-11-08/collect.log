@@ -1,0 +1,518 @@
+docker.io/library/postgres@sha256:5983db9a9c6ad225a48a46cfe2e03e6680b1826662befd0465eb05b34cb1c64e: Pulling from library/postgres
+68d798fb46d0: Pulling fs layer
+fce9821bac7d: Pulling fs layer
+dd051e1b8c92: Pulling fs layer
+1d919c5645b1: Pulling fs layer
+27df7b5bf0b5: Pulling fs layer
+ffef70d379d2: Pulling fs layer
+5760334e16b5: Pulling fs layer
+136766c05e5f: Pulling fs layer
+9bcbde3fb062: Pulling fs layer
+2a13757dbdad: Pulling fs layer
+a8c21670182b: Pulling fs layer
+b056e8cb2530: Pulling fs layer
+61b3cc329be3: Pulling fs layer
+cda6e21da0f2: Pulling fs layer
+b056e8cb2530: Download complete
+ffef70d379d2: Download complete
+136766c05e5f: Download complete
+9bcbde3fb062: Download complete
+27df7b5bf0b5: Download complete
+5760334e16b5: Download complete
+2a13757dbdad: Download complete
+cda6e21da0f2: Download complete
+68d798fb46d0: Download complete
+a8c21670182b: Download complete
+fce9821bac7d: Download complete
+61b3cc329be3: Download complete
+dd051e1b8c92: Download complete
+1d919c5645b1: Download complete
+ffef70d379d2: Pull complete
+dd051e1b8c92: Pull complete
+136766c05e5f: Pull complete
+2a13757dbdad: Pull complete
+61b3cc329be3: Pull complete
+cda6e21da0f2: Pull complete
+a8c21670182b: Pull complete
+fce9821bac7d: Pull complete
+b056e8cb2530: Pull complete
+9bcbde3fb062: Pull complete
+27df7b5bf0b5: Pull complete
+5760334e16b5: Pull complete
+68d798fb46d0: Pull complete
+1d919c5645b1: Pull complete
+Digest: sha256:5983db9a9c6ad225a48a46cfe2e03e6680b1826662befd0465eb05b34cb1c64e
+Status: Downloaded newer image for postgres@sha256:5983db9a9c6ad225a48a46cfe2e03e6680b1826662befd0465eb05b34cb1c64e
+docker.io/library/postgres@sha256:5983db9a9c6ad225a48a46cfe2e03e6680b1826662befd0465eb05b34cb1c64e
+docker.io/library/mysql@sha256:72c368d898861f3b3a07af0e6d690400f44f048799ed46822783d9224cc2c86d: Pulling from library/mysql
+0b3d5697e820: Pulling fs layer
+335c0ba6129f: Pulling fs layer
+084e06fe4d96: Pulling fs layer
+c3e99775cc39: Pulling fs layer
+a8a79f346bc1: Pulling fs layer
+332288060cf8: Pulling fs layer
+16ff0dc0f366: Pulling fs layer
+5a7ab34260fd: Pulling fs layer
+b14917cf1885: Pulling fs layer
+abda743cff12: Pulling fs layer
+335c0ba6129f: Download complete
+332288060cf8: Download complete
+0b3d5697e820: Download complete
+16ff0dc0f366: Download complete
+5a7ab34260fd: Download complete
+084e06fe4d96: Download complete
+abda743cff12: Download complete
+c3e99775cc39: Download complete
+a8a79f346bc1: Download complete
+b14917cf1885: Download complete
+332288060cf8: Pull complete
+5a7ab34260fd: Pull complete
+c3e99775cc39: Pull complete
+335c0ba6129f: Pull complete
+084e06fe4d96: Pull complete
+abda743cff12: Pull complete
+16ff0dc0f366: Pull complete
+a8a79f346bc1: Pull complete
+b14917cf1885: Pull complete
+0b3d5697e820: Pull complete
+Digest: sha256:72c368d898861f3b3a07af0e6d690400f44f048799ed46822783d9224cc2c86d
+Status: Downloaded newer image for mysql@sha256:72c368d898861f3b3a07af0e6d690400f44f048799ed46822783d9224cc2c86d
+docker.io/library/mysql@sha256:72c368d898861f3b3a07af0e6d690400f44f048799ed46822783d9224cc2c86d
+WAIT sqlite-counter: requiring sustained quiet
+START sqlite-counter 2026-11-08T17:21:17.924Z
+sample 1/3: one-process warm-hot synchronous
+sample 1/3: one-process warm-hot asynchronous
+sample 1/3: one-process warm-many synchronous
+sample 1/3: one-process warm-many asynchronous
+sample 1/3: one-process cold-many synchronous
+sample 1/3: one-process cold-many asynchronous
+{
+  event: 'solid_objects.polling_only_cross_process_wake_up',
+  pollingIntervalMilliseconds: 5,
+  idlePollingIntervalMilliseconds: 1000
+}
+{
+  event: 'solid_objects.polling_only_cross_process_wake_up',
+  pollingIntervalMilliseconds: 5,
+  idlePollingIntervalMilliseconds: 1000
+}
+sample 1/3: four-processes warm-hot synchronous
+{
+  event: 'solid_objects.polling_only_cross_process_wake_up',
+  pollingIntervalMilliseconds: 5,
+  idlePollingIntervalMilliseconds: 1000
+}
+sample 1/3: four-processes warm-hot asynchronous
+sample 1/3: four-processes warm-many synchronous
+sample 1/3: four-processes warm-many asynchronous
+sample 1/3: four-processes cold-many synchronous
+sample 1/3: four-processes cold-many asynchronous
+sample 2/3: one-process warm-hot synchronous
+sample 2/3: one-process warm-hot asynchronous
+sample 2/3: one-process warm-many synchronous
+sample 2/3: one-process warm-many asynchronous
+sample 2/3: one-process cold-many synchronous
+sample 2/3: one-process cold-many asynchronous
+{
+  event: 'solid_objects.polling_only_cross_process_wake_up',
+  pollingIntervalMilliseconds: 5,
+  idlePollingIntervalMilliseconds: 1000
+}
+{
+  event: 'solid_objects.polling_only_cross_process_wake_up',
+  pollingIntervalMilliseconds: 5,
+  idlePollingIntervalMilliseconds: 1000
+}
+sample 2/3: four-processes warm-hot synchronous
+{
+  event: 'solid_objects.polling_only_cross_process_wake_up',
+  pollingIntervalMilliseconds: 5,
+  idlePollingIntervalMilliseconds: 1000
+}
+sample 2/3: four-processes warm-hot asynchronous
+sample 2/3: four-processes warm-many synchronous
+sample 2/3: four-processes warm-many asynchronous
+sample 2/3: four-processes cold-many synchronous
+sample 2/3: four-processes cold-many asynchronous
+sample 3/3: one-process warm-hot synchronous
+sample 3/3: one-process warm-hot asynchronous
+sample 3/3: one-process warm-many synchronous
+sample 3/3: one-process warm-many asynchronous
+sample 3/3: one-process cold-many synchronous
+sample 3/3: one-process cold-many asynchronous
+{
+  event: 'solid_objects.polling_only_cross_process_wake_up',
+  pollingIntervalMilliseconds: 5,
+  idlePollingIntervalMilliseconds: 1000
+}
+{
+  event: 'solid_objects.polling_only_cross_process_wake_up',
+  pollingIntervalMilliseconds: 5,
+  idlePollingIntervalMilliseconds: 1000
+}
+sample 3/3: four-processes warm-hot synchronous
+{
+  event: 'solid_objects.polling_only_cross_process_wake_up',
+  pollingIntervalMilliseconds: 5,
+  idlePollingIntervalMilliseconds: 1000
+}
+sample 3/3: four-processes warm-hot asynchronous
+sample 3/3: four-processes warm-many synchronous
+sample 3/3: four-processes warm-many asynchronous
+sample 3/3: four-processes cold-many synchronous
+sample 3/3: four-processes cold-many asynchronous
+DONE sqlite-counter: 36 rows
+WAIT sqlite-cart-outbox: requiring sustained quiet
+START sqlite-cart-outbox 2026-11-08T17:25:53.622Z
+sample 1/3: one-process warm-hot synchronous
+sample 1/3: one-process warm-hot asynchronous
+sample 1/3: one-process warm-many synchronous
+sample 1/3: one-process warm-many asynchronous
+sample 1/3: one-process cold-many synchronous
+sample 1/3: one-process cold-many asynchronous
+{
+  event: 'solid_objects.polling_only_cross_process_wake_up',
+  pollingIntervalMilliseconds: 5,
+  idlePollingIntervalMilliseconds: 1000
+}
+sample 1/3: four-processes warm-hot synchronous
+{
+  event: 'solid_objects.polling_only_cross_process_wake_up',
+  pollingIntervalMilliseconds: 5,
+  idlePollingIntervalMilliseconds: 1000
+}
+{
+  event: 'solid_objects.polling_only_cross_process_wake_up',
+  pollingIntervalMilliseconds: 5,
+  idlePollingIntervalMilliseconds: 1000
+}
+sample 1/3: four-processes warm-hot asynchronous
+sample 1/3: four-processes warm-many synchronous
+sample 1/3: four-processes warm-many asynchronous
+sample 1/3: four-processes cold-many synchronous
+sample 1/3: four-processes cold-many asynchronous
+sample 2/3: one-process warm-hot synchronous
+sample 2/3: one-process warm-hot asynchronous
+sample 2/3: one-process warm-many synchronous
+sample 2/3: one-process warm-many asynchronous
+sample 2/3: one-process cold-many synchronous
+sample 2/3: one-process cold-many asynchronous
+{
+  event: 'solid_objects.polling_only_cross_process_wake_up',
+  pollingIntervalMilliseconds: 5,
+  idlePollingIntervalMilliseconds: 1000
+}
+{
+  event: 'solid_objects.polling_only_cross_process_wake_up',
+  pollingIntervalMilliseconds: 5,
+  idlePollingIntervalMilliseconds: 1000
+}
+sample 2/3: four-processes warm-hot synchronous
+{
+  event: 'solid_objects.polling_only_cross_process_wake_up',
+  pollingIntervalMilliseconds: 5,
+  idlePollingIntervalMilliseconds: 1000
+}
+sample 2/3: four-processes warm-hot asynchronous
+sample 2/3: four-processes warm-many synchronous
+sample 2/3: four-processes warm-many asynchronous
+sample 2/3: four-processes cold-many synchronous
+sample 2/3: four-processes cold-many asynchronous
+sample 3/3: one-process warm-hot synchronous
+sample 3/3: one-process warm-hot asynchronous
+sample 3/3: one-process warm-many synchronous
+sample 3/3: one-process warm-many asynchronous
+sample 3/3: one-process cold-many synchronous
+sample 3/3: one-process cold-many asynchronous
+{
+  event: 'solid_objects.polling_only_cross_process_wake_up',
+  pollingIntervalMilliseconds: 5,
+  idlePollingIntervalMilliseconds: 1000
+}
+{
+  event: 'solid_objects.polling_only_cross_process_wake_up',
+  pollingIntervalMilliseconds: 5,
+  idlePollingIntervalMilliseconds: 1000
+}
+sample 3/3: four-processes warm-hot synchronous
+{
+  event: 'solid_objects.polling_only_cross_process_wake_up',
+  pollingIntervalMilliseconds: 5,
+  idlePollingIntervalMilliseconds: 1000
+}
+sample 3/3: four-processes warm-hot asynchronous
+sample 3/3: four-processes warm-many synchronous
+sample 3/3: four-processes warm-many asynchronous
+sample 3/3: four-processes cold-many synchronous
+sample 3/3: four-processes cold-many asynchronous
+DONE sqlite-cart-outbox: 36 rows
+8fc566e0ea12a85469d155c2cd001a0538f903b47e16ce3fbceafc8d142773d4
+/var/run/postgresql:5432 - no response
+/var/run/postgresql:5432 - accepting connections
+WAIT postgresql-counter: requiring sustained quiet
+START postgresql-counter 2026-11-08T17:30:42.602Z
+sample 1/3: one-process warm-hot synchronous
+sample 1/3: one-process warm-hot asynchronous
+sample 1/3: one-process warm-many synchronous
+(node:8130) DeprecationWarning: Calling client.query() when the client is already executing a query is deprecated and will be removed in pg@9.0. Use async/await or an external async flow control mechanism instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+sample 1/3: one-process warm-many asynchronous
+sample 1/3: one-process cold-many synchronous
+sample 1/3: one-process cold-many asynchronous
+sample 1/3: four-processes warm-hot synchronous
+sample 1/3: four-processes warm-hot asynchronous
+sample 1/3: four-processes warm-many synchronous
+sample 1/3: four-processes warm-many asynchronous
+sample 1/3: four-processes cold-many synchronous
+sample 1/3: four-processes cold-many asynchronous
+sample 2/3: one-process warm-hot synchronous
+sample 2/3: one-process warm-hot asynchronous
+sample 2/3: one-process warm-many synchronous
+sample 2/3: one-process warm-many asynchronous
+sample 2/3: one-process cold-many synchronous
+sample 2/3: one-process cold-many asynchronous
+sample 2/3: four-processes warm-hot synchronous
+sample 2/3: four-processes warm-hot asynchronous
+sample 2/3: four-processes warm-many synchronous
+sample 2/3: four-processes warm-many asynchronous
+sample 2/3: four-processes cold-many synchronous
+sample 2/3: four-processes cold-many asynchronous
+sample 3/3: one-process warm-hot synchronous
+sample 3/3: one-process warm-hot asynchronous
+sample 3/3: one-process warm-many synchronous
+sample 3/3: one-process warm-many asynchronous
+sample 3/3: one-process cold-many synchronous
+sample 3/3: one-process cold-many asynchronous
+sample 3/3: four-processes warm-hot synchronous
+sample 3/3: four-processes warm-hot asynchronous
+sample 3/3: four-processes warm-many synchronous
+sample 3/3: four-processes warm-many asynchronous
+sample 3/3: four-processes cold-many synchronous
+sample 3/3: four-processes cold-many asynchronous
+DONE postgresql-counter: 36 rows
+WAIT postgresql-cart-outbox: requiring sustained quiet
+START postgresql-cart-outbox 2026-11-08T17:40:06.295Z
+sample 1/3: one-process warm-hot synchronous
+sample 1/3: one-process warm-hot asynchronous
+sample 1/3: one-process warm-many synchronous
+(node:8570) DeprecationWarning: Calling client.query() when the client is already executing a query is deprecated and will be removed in pg@9.0. Use async/await or an external async flow control mechanism instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+sample 1/3: one-process warm-many asynchronous
+sample 1/3: one-process cold-many synchronous
+sample 1/3: one-process cold-many asynchronous
+sample 1/3: four-processes warm-hot synchronous
+sample 1/3: four-processes warm-hot asynchronous
+sample 1/3: four-processes warm-many synchronous
+sample 1/3: four-processes warm-many asynchronous
+sample 1/3: four-processes cold-many synchronous
+sample 1/3: four-processes cold-many asynchronous
+sample 2/3: one-process warm-hot synchronous
+sample 2/3: one-process warm-hot asynchronous
+sample 2/3: one-process warm-many synchronous
+sample 2/3: one-process warm-many asynchronous
+sample 2/3: one-process cold-many synchronous
+sample 2/3: one-process cold-many asynchronous
+sample 2/3: four-processes warm-hot synchronous
+sample 2/3: four-processes warm-hot asynchronous
+sample 2/3: four-processes warm-many synchronous
+sample 2/3: four-processes warm-many asynchronous
+sample 2/3: four-processes cold-many synchronous
+sample 2/3: four-processes cold-many asynchronous
+sample 3/3: one-process warm-hot synchronous
+sample 3/3: one-process warm-hot asynchronous
+sample 3/3: one-process warm-many synchronous
+sample 3/3: one-process warm-many asynchronous
+sample 3/3: one-process cold-many synchronous
+sample 3/3: one-process cold-many asynchronous
+sample 3/3: four-processes warm-hot synchronous
+sample 3/3: four-processes warm-hot asynchronous
+sample 3/3: four-processes warm-many synchronous
+sample 3/3: four-processes warm-many asynchronous
+sample 3/3: four-processes cold-many synchronous
+sample 3/3: four-processes cold-many asynchronous
+DONE postgresql-cart-outbox: 36 rows
+so-benchmark-pg
+06a43e4b8977c2f14975fb95a9e8aa4772aa1aa0da87748cc35a3d416531170a
+mysqladmin: [Warning] Using a password on the command line interface can be insecure.
+mysqladmin: [Warning] Using a password on the command line interface can be insecure.
+mysqladmin: [Warning] Using a password on the command line interface can be insecure.
+WAIT mysql-counter: requiring sustained quiet
+START mysql-counter 2026-11-08T17:49:50.488Z
+sample 1/3: one-process warm-hot synchronous
+sample 1/3: one-process warm-hot asynchronous
+sample 1/3: one-process warm-many synchronous
+sample 1/3: one-process warm-many asynchronous
+sample 1/3: one-process cold-many synchronous
+sample 1/3: one-process cold-many asynchronous
+{
+  event: 'solid_objects.polling_only_cross_process_wake_up',
+  pollingIntervalMilliseconds: 5,
+  idlePollingIntervalMilliseconds: 1000
+}
+{
+  event: 'solid_objects.polling_only_cross_process_wake_up',
+  pollingIntervalMilliseconds: 5,
+  idlePollingIntervalMilliseconds: 1000
+}
+sample 1/3: four-processes warm-hot synchronous
+{
+  event: 'solid_objects.polling_only_cross_process_wake_up',
+  pollingIntervalMilliseconds: 5,
+  idlePollingIntervalMilliseconds: 1000
+}
+{
+  event: 'solid_objects.polling_only_cross_process_wake_up',
+  pollingIntervalMilliseconds: 5,
+  idlePollingIntervalMilliseconds: 1000
+}
+sample 1/3: four-processes warm-hot asynchronous
+sample 1/3: four-processes warm-many synchronous
+sample 1/3: four-processes warm-many asynchronous
+sample 1/3: four-processes cold-many synchronous
+sample 1/3: four-processes cold-many asynchronous
+sample 2/3: one-process warm-hot synchronous
+sample 2/3: one-process warm-hot asynchronous
+sample 2/3: one-process warm-many synchronous
+sample 2/3: one-process warm-many asynchronous
+sample 2/3: one-process cold-many synchronous
+sample 2/3: one-process cold-many asynchronous
+{
+  event: 'solid_objects.polling_only_cross_process_wake_up',
+  pollingIntervalMilliseconds: 5,
+  idlePollingIntervalMilliseconds: 1000
+}
+{
+  event: 'solid_objects.polling_only_cross_process_wake_up',
+  pollingIntervalMilliseconds: 5,
+  idlePollingIntervalMilliseconds: 1000
+}
+sample 2/3: four-processes warm-hot synchronous
+{
+  event: 'solid_objects.polling_only_cross_process_wake_up',
+  pollingIntervalMilliseconds: 5,
+  idlePollingIntervalMilliseconds: 1000
+}
+sample 2/3: four-processes warm-hot asynchronous
+sample 2/3: four-processes warm-many synchronous
+sample 2/3: four-processes warm-many asynchronous
+sample 2/3: four-processes cold-many synchronous
+sample 2/3: four-processes cold-many asynchronous
+sample 3/3: one-process warm-hot synchronous
+sample 3/3: one-process warm-hot asynchronous
+sample 3/3: one-process warm-many synchronous
+sample 3/3: one-process warm-many asynchronous
+sample 3/3: one-process cold-many synchronous
+sample 3/3: one-process cold-many asynchronous
+{
+  event: 'solid_objects.polling_only_cross_process_wake_up',
+  pollingIntervalMilliseconds: 5,
+  idlePollingIntervalMilliseconds: 1000
+}
+{
+  event: 'solid_objects.polling_only_cross_process_wake_up',
+  pollingIntervalMilliseconds: 5,
+  idlePollingIntervalMilliseconds: 1000
+}
+sample 3/3: four-processes warm-hot synchronous
+{
+  event: 'solid_objects.polling_only_cross_process_wake_up',
+  pollingIntervalMilliseconds: 5,
+  idlePollingIntervalMilliseconds: 1000
+}
+sample 3/3: four-processes warm-hot asynchronous
+sample 3/3: four-processes warm-many synchronous
+sample 3/3: four-processes warm-many asynchronous
+sample 3/3: four-processes cold-many synchronous
+sample 3/3: four-processes cold-many asynchronous
+DONE mysql-counter: 36 rows
+WAIT mysql-cart-outbox: requiring sustained quiet
+START mysql-cart-outbox 2026-11-08T18:02:38.830Z
+sample 1/3: one-process warm-hot synchronous
+sample 1/3: one-process warm-hot asynchronous
+sample 1/3: one-process warm-many synchronous
+sample 1/3: one-process warm-many asynchronous
+sample 1/3: one-process cold-many synchronous
+sample 1/3: one-process cold-many asynchronous
+{
+  event: 'solid_objects.polling_only_cross_process_wake_up',
+  pollingIntervalMilliseconds: 5,
+  idlePollingIntervalMilliseconds: 1000
+}
+{
+  event: 'solid_objects.polling_only_cross_process_wake_up',
+  pollingIntervalMilliseconds: 5,
+  idlePollingIntervalMilliseconds: 1000
+}
+sample 1/3: four-processes warm-hot synchronous
+{
+  event: 'solid_objects.polling_only_cross_process_wake_up',
+  pollingIntervalMilliseconds: 5,
+  idlePollingIntervalMilliseconds: 1000
+}
+sample 1/3: four-processes warm-hot asynchronous
+sample 1/3: four-processes warm-many synchronous
+sample 1/3: four-processes warm-many asynchronous
+sample 1/3: four-processes cold-many synchronous
+sample 1/3: four-processes cold-many asynchronous
+sample 2/3: one-process warm-hot synchronous
+sample 2/3: one-process warm-hot asynchronous
+sample 2/3: one-process warm-many synchronous
+sample 2/3: one-process warm-many asynchronous
+sample 2/3: one-process cold-many synchronous
+sample 2/3: one-process cold-many asynchronous
+{
+  event: 'solid_objects.polling_only_cross_process_wake_up',
+  pollingIntervalMilliseconds: 5,
+  idlePollingIntervalMilliseconds: 1000
+}
+sample 2/3: four-processes warm-hot synchronous
+{
+  event: 'solid_objects.polling_only_cross_process_wake_up',
+  pollingIntervalMilliseconds: 5,
+  idlePollingIntervalMilliseconds: 1000
+}
+{
+  event: 'solid_objects.polling_only_cross_process_wake_up',
+  pollingIntervalMilliseconds: 5,
+  idlePollingIntervalMilliseconds: 1000
+}
+sample 2/3: four-processes warm-hot asynchronous
+sample 2/3: four-processes warm-many synchronous
+sample 2/3: four-processes warm-many asynchronous
+sample 2/3: four-processes cold-many synchronous
+sample 2/3: four-processes cold-many asynchronous
+sample 3/3: one-process warm-hot synchronous
+sample 3/3: one-process warm-hot asynchronous
+sample 3/3: one-process warm-many synchronous
+sample 3/3: one-process warm-many asynchronous
+sample 3/3: one-process cold-many synchronous
+sample 3/3: one-process cold-many asynchronous
+{
+  event: 'solid_objects.polling_only_cross_process_wake_up',
+  pollingIntervalMilliseconds: 5,
+  idlePollingIntervalMilliseconds: 1000
+}
+{
+  event: 'solid_objects.polling_only_cross_process_wake_up',
+  pollingIntervalMilliseconds: 5,
+  idlePollingIntervalMilliseconds: 1000
+}
+sample 3/3: four-processes warm-hot synchronous
+{
+  event: 'solid_objects.polling_only_cross_process_wake_up',
+  pollingIntervalMilliseconds: 5,
+  idlePollingIntervalMilliseconds: 1000
+}
+sample 3/3: four-processes warm-hot asynchronous
+sample 3/3: four-processes warm-many synchronous
+sample 3/3: four-processes warm-many asynchronous
+sample 3/3: four-processes cold-many synchronous
+sample 3/3: four-processes cold-many asynchronous
+DONE mysql-cart-outbox: 36 rows
+so-benchmark-mysql
+WAIT sqlite-large-state: requiring sustained quiet
+START sqlite-large-state 2026-11-08T18:15:35.792Z
+DONE sqlite-large-state: 12 rows
+WAIT sqlite-idle: requiring sustained quiet
+START sqlite-idle 2026-11-08T18:17:33.978Z
+DONE sqlite-idle: 3 rows
