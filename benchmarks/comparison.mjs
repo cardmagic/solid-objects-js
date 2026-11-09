@@ -90,6 +90,16 @@ export function validateComparisonReport(report, variant, comparison, concurrenc
   assert.equal(report.methodology.concurrency, concurrency)
   assert.equal(report.methodology.repetitions, 1)
   assert.equal(report.methodology.workload, "counter")
+  for (const [key, expected] of Object.entries({
+    workerCount: 4,
+    warmIdentityCount: 100,
+    pollingIntervalMilliseconds: 5,
+    idlePollingIntervalMilliseconds: 1000,
+    latencyBoundary: "durable enqueue through committed result",
+    percentile: "nearest rank",
+  })) {
+    assert.equal(report.methodology[key], expected, `changed methodology: ${key}`)
+  }
   if (report.database.adapter === "sqlite")
     assert.deepEqual(report.database.durability, variant.sqliteDurability)
   const shapes = new Set()

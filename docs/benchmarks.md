@@ -147,7 +147,10 @@ Redirect stdout to retain the JSON result; progress and runtime diagnostics go t
 - Loopback SQL connections measure local databases. Application network latency and external effect
   delivery have their own boundaries.
 - Filesystem caches, Node warmup, garbage collection, polling and scheduling affect timing. The
-  reports retain sample ranges and operation latencies so variability stays visible.
+  reports retain sample ranges and operation latencies so variability stays visible. Small
+  differences with overlapping sample ranges need longer follow-up measurements.
+- Each 500-operation comparison sample has few observations in its extreme tail. The median of
+  five within-sample p99 values is a diagnostic, not an application latency SLO estimate.
 - Hot identities serialize work. Additional workers increase parallelism across identities rather
   than making one actor process simultaneous operations.
 - Counter operations use small state. Payload size and application logic change costs; match those

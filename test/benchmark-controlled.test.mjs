@@ -61,6 +61,19 @@ describe("controlled benchmark publication", () => {
         fixture.reports[0].database.durability.synchronous = 1
       },
     ],
+    ...Object.entries({
+      workerCount: 8,
+      warmIdentityCount: 101,
+      pollingIntervalMilliseconds: 10,
+      idlePollingIntervalMilliseconds: 500,
+      latencyBoundary: "handler execution only",
+      percentile: "linear interpolation",
+    }).map(([key, value]) => [
+      `changed ${key}`,
+      (fixture) => {
+        fixture.reports[0].methodology[key] = value
+      },
+    ]),
     [
       "wrong summary",
       (fixture) => {
