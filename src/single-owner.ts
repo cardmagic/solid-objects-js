@@ -7,7 +7,7 @@ export function waitUntilDue(options: {
   pollingIntervalMilliseconds: number
 }): number {
   if (options.untilDueMilliseconds === undefined) return MAXIMUM_WAIT_MILLISECONDS
-  if (options.untilDueMilliseconds < 0) return options.pollingIntervalMilliseconds
+  if (options.untilDueMilliseconds <= 0) return options.pollingIntervalMilliseconds
   return Math.min(options.untilDueMilliseconds + 1, MAXIMUM_WAIT_MILLISECONDS)
 }
 
