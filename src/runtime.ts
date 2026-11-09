@@ -1483,6 +1483,7 @@ export class SolidObjectsRuntime {
         })
         if (outcome === "retrying")
           this.emitInstrumentation("message.retry", messageInstrumentation(turn.message))
+        if (outcome === "retrying" && this.settings.singleOwner) this.wakeUp("actors")
         if (outcome === "dead" && recoveryMessage(turn.message))
           this.emitInstrumentation("recovery.failed", messageInstrumentation(turn.message))
         if (outcome === "dead")
