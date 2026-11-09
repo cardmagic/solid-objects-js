@@ -114,6 +114,18 @@ for (const dataset of catalog.datasets) {
       )
   }
 }
+for (const diagnostic of catalog.diagnostics ?? []) {
+  assert.match(diagnostic.id, /^[a-zA-Z0-9][a-zA-Z0-9.-]*$/)
+  assert.ok(!ids.has(diagnostic.id), "incomplete attempts cannot also be comparison datasets")
+  const run = JSON.parse(await readFile(new URL(`${diagnostic.id}/run.json`, root), "utf8"))
+  assert.equal(run.status, "failed", "diagnostic attempt must remain labeled incomplete")
+  assert.equal(run.purpose, "incomplete-diagnostics")
+  assert.ok(
+    run.destroyedAt && !run.cleanupError && !run.downloadError,
+    "diagnostic teardown or download unconfirmed",
+  )
+  assert.match(run.resultsSha256, /^[a-f0-9]{64}$/)
+}
 if (guideTables.size > 0) {
   const path = new URL("../docs/benchmarks.md", import.meta.url)
   let guide = await readFile(path, "utf8")

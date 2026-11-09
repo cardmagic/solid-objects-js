@@ -14,5 +14,11 @@
       "versions": ["1.0.5"],
       "environment": "Apple M2 Ultra, shared development workstation"
     }
+  ],
+  "diagnostics": [
+    {
+      "id": "js-release-comparison-pilot-2026-11-09",
+      "purpose": "Incomplete 1000-operation feasibility pilot; excluded from comparisons"
+    }
   ]
 }

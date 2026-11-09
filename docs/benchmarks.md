@@ -27,6 +27,13 @@ Version 1.0.6 changes file-backed SQLite from DELETE/FULL to WAL/NORMAL. That ch
 journal behavior and power-loss durability. Its results must be labeled separately from
 1.0.5, with WAL/FULL measured as a separate control. Do not relabel a 1.0.5 dataset as 1.0.6.
 
+The [1,000-operation feasibility pilot](../benchmarks/results/js-release-comparison-pilot-2026-11-09/README.md)
+was stopped after its first complete SQLite round showed the expanded matrix would exceed the
+three-hour measurement deadline. All completed and partial reports are retained, with the original
+plan and confirmed deletion. It is incomplete and is excluded from the controlled comparison.
+The replacement fixes 500 operations per condition before provisioning a fresh runner, while
+keeping five repetitions, 100 warmups, every version, both concurrency levels and all scenarios.
+
 ## Isolated 1.0.5 baseline
 
 The November 8 run uses an otherwise dedicated DigitalOcean c-8 in sfo3, eight dedicated vCPUs,
