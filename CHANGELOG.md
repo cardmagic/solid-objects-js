@@ -15,6 +15,10 @@
   The default is `false`, and the default behavior does not change. In an idle
   minute, a SQLite runtime with every role sent 2,466 statements by default and
   none with the option.
+- Fix an abort-listener leak. A role that waited with the shared shutdown
+  signal added a listener on every pass and removed it only at shutdown. The
+  redrive scheduler added one each idle second, which grew memory and printed
+  listener-limit warnings in a long-running process.
 
 ## 1.0.6 - 2026-11-08
 
