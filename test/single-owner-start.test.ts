@@ -164,6 +164,12 @@ describe("singleOwner start", () => {
       shutdownState: "running",
     })
     expect(await target.repository.claim("crashed")).toBeDefined()
+    await target.settings.database.transaction((connection) =>
+      connection.run(
+        "UPDATE solid_objects_processes SET heartbeat_at_ms = heartbeat_at_ms - ? WHERE id = 'crashed'",
+        [aliveThreshold + 1_000],
+      ),
+    )
 
     void start(target)
 
