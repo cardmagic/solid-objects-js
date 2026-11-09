@@ -681,10 +681,10 @@ export class Repository {
     })
   }
 
-  async releaseActivation(activation: ActivationLease): Promise<void> {
-    await this.settings.database.transaction(async (connection) => {
+  async releaseActivation(activation: ActivationLease): Promise<{ readyMessagesWaiting: boolean }> {
+    return this.settings.database.transaction(async (connection) => {
       const now = await connection.nowMilliseconds()
-      await connection.run(
+      const released = await connection.run(
         `UPDATE ${this.table("instances")}
          SET activation_owner_id = NULL, activation_token = NULL,
            activation_expires_at_ms = NULL, updated_at_ms = ?
@@ -703,6 +703,14 @@ export class Repository {
           activation.instanceId,
         ],
       )
+      if (!this.settings.singleOwner || released.changes !== 1) {
+        return { readyMessagesWaiting: false }
+      }
+      const waiting = await connection.get<{ present: number | bigint }>(
+        `SELECT 1 AS present FROM ${this.table("ready_messages")} WHERE instance_id = ? LIMIT 1`,
+        [activation.instanceId],
+      )
+      return { readyMessagesWaiting: waiting !== undefined }
     })
   }
 

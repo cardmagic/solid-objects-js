@@ -1527,12 +1527,13 @@ export class SolidObjectsRuntime {
       })
     } finally {
       actor?.discardIntents()
-      await this.repository.releaseActivation({
+      const released = await this.repository.releaseActivation({
         instanceId: turn.instance.id,
         processId: turn.processId,
         activationToken: turn.activationToken,
         activationGeneration: turn.activationGeneration,
       })
+      if (released.readyMessagesWaiting) this.wakeUp("actors")
     }
   }
 
