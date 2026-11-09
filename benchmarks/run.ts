@@ -42,6 +42,9 @@ const operations = positiveIntegerOption("operations", 250)
 const warmupOperations = positiveIntegerOption("warmup", 25)
 const concurrency = positiveIntegerOption("concurrency", 16)
 const repetitions = positiveIntegerOption("repetitions", 3)
+const topologies = selectedOptions("topologies", ["one-process", "four-processes"] as const)
+const shapes = selectedOptions("shapes", ["warm-hot", "warm-many", "cold-many"] as const)
+const handlers = selectedOptions("handlers", ["synchronous", "asynchronous"] as const)
 const workload = option("workload", "counter") as BenchmarkWorkload
 if (workload !== "counter" && workload !== "cart-outbox") {
   throw new TypeError(`unsupported workload ${workload}`)
@@ -61,7 +64,7 @@ const results: Result[] = []
 
 try {
   for (let sample = 1; sample <= repetitions; sample += 1) {
-    for (const topology of ["one-process", "four-processes"] as const) {
+    for (const topology of topologies) {
       const runtime = benchmarkRuntime({
         database,
         ...(database === "sqlite"
@@ -84,8 +87,8 @@ try {
             tableNamePrefix,
           })
         }
-        for (const shape of ["warm-hot", "warm-many", "cold-many"] as const) {
-          for (const handler of ["synchronous", "asynchronous"] as const) {
+        for (const shape of shapes) {
+          for (const handler of handlers) {
             results.push(
               await measure({
                 sample,
@@ -135,6 +138,9 @@ try {
           warmupOperations,
           concurrency,
           repetitions,
+          topologies,
+          shapes,
+          handlers,
           warmIdentityCount: 100,
           workerCount: 4,
           pollingIntervalMilliseconds: 5,
@@ -340,6 +346,17 @@ function positiveIntegerOption(name: string, fallback: number): number {
     throw new TypeError(`--${name} must be a positive integer`)
   }
   return value
+}
+
+function selectedOptions<Value extends string>(name: string, choices: readonly Value[]): Value[] {
+  const values = option(name, choices.join(",")).split(",")
+  if (
+    new Set(values).size !== values.length ||
+    values.some((value) => !choices.includes(value as Value))
+  ) {
+    throw new TypeError(`--${name} must select distinct values from ${choices.join(",")}`)
+  }
+  return values as Value[]
 }
 
 function requiredEnvironment(name: string): string {

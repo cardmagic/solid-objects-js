@@ -98,10 +98,15 @@ function benchmarkDatabase(options: {
 }) {
   if (options.database === "sqlite") {
     if (!options.databasePath) throw new TypeError("databasePath is required for SQLite")
+    const synchronous = process.env.SOLID_OBJECTS_BENCHMARK_SQLITE_SYNCHRONOUS || undefined
+    if (synchronous !== undefined && synchronous !== "normal" && synchronous !== "full") {
+      throw new TypeError("benchmark SQLite synchronous must be normal or full")
+    }
     return sqlite({
       path: options.databasePath,
       timeoutMilliseconds: 10_000,
       lockRetryAttempts: 50,
+      ...(synchronous ? { synchronous } : {}),
     })
   }
   if (!options.databaseUrl) throw new TypeError("databaseUrl is required")
